@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html Lang = "en">
+<head>
+    <meta Charset = "UTF-8" >
+    <meta Name    = "viewport"
+          Content = "width=device-width, initial-scale=1.0" >
+    <title>Typst Studio — Realtime Web Environment</title>
+    <!-- Typography: Teko (UI) and JetBrains Mono (Editor) -->
+    <link Rel  = "preconnect"
+          Href = "https://fonts.googleapis.com" >
+    <link Rel         = "preconnect"
+          Href        = "https://fonts.gstatic.com"
+          CrossOrigin = "" >
+    <link Rel  = "stylesheet"
+          Href = "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&family=Outfit:wght@300;400;500;600&family=Roboto:wght@300;400;500;700&family=Teko:wght@300;400;500;600;700&display=swap" >
+    <link Rel  = "stylesheet"
+          Href = "Style.css" >
+    <!-- Monaco Editor Loader -->
+    <script Src = "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body Class = "BlackMode">
+    <header Class = "AppHeader">
+        <div Class = "HeaderLeft">
+            <div Class = "AppLogo">
+                <svg Width   = "24"
+                     Height  = "24"
+                     ViewBox = "0 0 24 24"
+                     Fill    = "none">
+                    <defs>
+                        <linearGradient Id = "LogoGrad" X1 = "0%" Y1 = "0%" X2 = "100%" Y2 = "100%">
+                            <stop Offset = "0%" Stop-Color = "#3b82f6" />
+                            <stop Offset = "35%" Stop-Color = "#4338ca" />
+                            <stop Offset = "70%" Stop-Color = "#7c3aed" />
+                            <stop Offset = "100%" Stop-Color = "#c084fc" />
+                        </linearGradient>
+                        <linearGradient Id = "LogoGradWhite" X1 = "0%" Y1 = "0%" X2 = "100%" Y2 = "0%">
+                            <stop Offset = "0%" Stop-Color = "#ffffff" />
+                            <stop Offset = "100%" Stop-Color = "#38bdf8" />
+                        </linearGradient>
+                    </defs>
+                    <path Stroke          = "url(#LogoGradWhite)"
+                          Stroke-Width    = "2"
+                          Stroke-Linecap  = "round"
+                          Stroke-Linejoin = "round"
+                          D               = "M12 2L2 7l10 5 10-5-10-5z" />
+                    <path Stroke          = "url(#LogoGrad)"
+                          Stroke-Width    = "2"
+                          Stroke-Linecap  = "round"
+                          Stroke-Linejoin = "round"
+                          D               = "M2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <span Class = "BrandTitle">Typst Studio</span>
+                <span Class = "EngineTag">LAFS 0.15.1™</span>
+            </div>
+            <div Class = "DocumentInfoDropdownGroup" Id = "DocDropdownGroup">
+                <div Class = "DocInputWrapper">
+                    <input Type  = "text"
+                           Id    = "DocumentTitleInput"
+                           Class = "DocInput"
+                           Value = "GenesisOfTheVanguard.typ"
+                           Title = "Document Name (Click dropdown arrow to switch saved files)" />
+                    <button Type  = "button"
+                            Id    = "DocDropdownToggle"
+                            Class = "DocDropdownToggleBtn"
+                            Title = "Switch Saved Typst File">
+                        <svg Width = "10" Height = "10" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <polyline Points = "6 9 12 15 18 9" />
+                        </svg>
+                    </button>
+                </div>
+                <div Class = "DocDropdownMenu" Id = "DocDropdownMenu" Style = "display: none;">
+                    <div Class = "DocDropdownHeader">
+                        <span Class = "DropdownSectionTitle">Saved Files (<span Id = "DocDropdownCount">0</span>)</span>
+                        <button Type = "button" Id = "QuickNewDocBtn" Class = "MiniActionBtn" Title = "Create new Typst file">+ New</button>
+                    </div>
+                    <div Class = "DocDropdownSearchBox">
+                        <input Type        = "text"
+                               Id          = "DocDropdownSearch"
+                               Class       = "DocDropdownSearchInput"
+                               Placeholder = "Filter saved files..." />
+                    </div>
+                    <div Class = "DocDropdownList" Id = "DropdownFileList">
+                        <!-- Populated dynamically via JS -->
+                    </div>
+                    <div Class = "DocDropdownFooter">
+                        <button Type = "button" Id = "OpenDashboardFromDropdownBtn" Class = "DropdownFooterBtn">Open Workspace Dashboard →</button>
+                    </div>
+                </div>
+            </div>
+            <div Class = "CompilationStatus" Id = "StatusBadge">
+                <span Class = "StatusDot" Id = "StatusDot"></span>
+                <span Class = "StatusText" Id = "StatusText">Ready</span>
+                <span Class = "DurationText" Id = "DurationText">0ms</span>
+            </div>
+        </div>
+
+        <div Class = "HeaderCenter">
+            <div Class = "ControlGroup">
+                <label Class = "ToggleSwitch" Title = "Compile instantly on keystroke">
+                    <input Type = "checkbox" Id = "AutoCompileToggle" Checked />
+                    <span Class = "Slider"></span>
+                    <span Class = "ToggleLabel">Real-Time</span>
+                </label>
+                <button Type  = "button"
+                        Id    = "ManualCompileButton"
+                        Class = "IconButton"
+                        Title = "Compile Now (Ctrl+Enter)">
+                    <svg Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "currentColor">
+                        <polygon Points = "5 3 19 12 5 21 5 3" />
+                    </svg>
+                    <span>Run</span>
+                </button>
+                <button Type  = "button"
+                        Id    = "FormatLafsButton"
+                        Class = "IconButton AccentBtn"
+                        Title = "Format Typst Code into LAFS (Shift+Alt+F)">
+                    <svg Width = "15" Height = "15" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                        <path D = "M21 10H7M21 6H3M21 14H3M21 18H7" />
+                    </svg>
+                    <span>Format LAFS</span>
+                </button>
+                <button Type  = "button"
+                        Id    = "SaveFileButton"
+                        Class = "IconButton SaveBtn"
+                        Title = "Save File to Disk (Ctrl+S)">
+                    <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                        <path D = "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline Points = "17 21 17 13 7 13 7 21" />
+                        <polyline Points = "7 3 7 8 15 8" />
+                    </svg>
+                    <span Id = "SaveButtonLabel">Save</span>
+                </button>
+            </div>
+
+            <div Class = "TemplateSelectorContainer">
+                <select Id = "TemplateSelector" Class = "SelectDropdown" Title = "Load Example Template">
+                    <option Value = "showcase" Selected>Full-Featured Showcase (All Typst Capabilities)</option>
+                    <option Value = "novel">Novel (Genesis of the Vanguard)</option>
+                    <option Value = "paper">Scientific Research Paper</option>
+                    <option Value = "resume">Professional CV / Resume</option>
+                    <option Value = "slides">Presentation Slides</option>
+                    <option Value = "blank">Blank Canvas</option>
+                </select>
+            </div>
+        </div>
+
+        <div Class = "HeaderRight">
+            <div Class = "ViewSwitcherNav">
+                <button Type  = "button"
+                        Id    = "NavEditorBtn"
+                        Class = "NavTabButton Active"
+                        Title = "Editor and Preview">
+                    <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                        <path D = "M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                    <span>Editor</span>
+                </button>
+                <button Type  = "button"
+                        Id    = "NavDashboardBtn"
+                        Class = "NavTabButton"
+                        Title = "Workspace Dashboard">
+                    <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                        <rect X = "3" Y = "3" Width = "7" Height = "7" />
+                        <rect X = "14" Y = "3" Width = "7" Height = "7" />
+                        <rect X = "14" Y = "14" Width = "7" Height = "7" />
+                        <rect X = "3" Y = "14" Width = "7" Height = "7" />
+                    </svg>
+                    <span>Dashboard</span>
+                </button>
+            </div>
+
+            <button Type  = "button"
+                    Id    = "CopyCodeButton"
+                    Class = "Button Secondary"
+                    Title = "Copy Typst Source">
+                <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                    <rect X = "9" Y = "9" Width = "13" Height = "13" Rx = "2" Ry = "2" />
+                    <path D = "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Copy</span>
+            </button>
+
+            <button Type  = "button"
+                    Id    = "ExportSvgButton"
+                    Class = "Button Secondary"
+                    Title = "Download Current Page as SVG">
+                <span>SVG</span>
+            </button>
+
+            <button Type  = "button"
+                    Id    = "ExportPngButton"
+                    Class = "Button Secondary"
+                    Title = "Download Current Page as 300 PPI PNG">
+                <span>PNG</span>
+            </button>
+
+            <button Type  = "button"
+                    Id    = "ExportPdfButton"
+                    Class = "Button Primary"
+                    Title = "Export Complete Document to PDF (Ctrl+P)">
+                <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                    <path D = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline Points = "7 10 12 15 17 10" />
+                    <line X1 = "12" Y1 = "15" X2 = "12" Y2 = "3" />
+                </svg>
+                <span>Export PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <main Class = "MainSplitArea" Id = "EditorMainView">
+        <section Class = "EditorPane" Id = "EditorPane">
+            <div Id = "MonacoContainer" Class = "EditorHost"></div>
+            <div Class = "EditorStatusBar">
+                <div Class = "StatusItem" Id = "CursorPosition">Ln 1, Col 1</div>
+                <div Class = "StatusItem" Id = "CharacterCount">0 chars</div>
+                <div Class = "StatusItem Accent">LAFS Active</div>
+                <div Class = "StatusItem Dim">UTF-8</div>
+            </div>
+        </section>
+
+        <div Class = "SplitResizer" Id = "SplitResizer" Title = "Drag to resize panels"></div>
+
+        <section Class = "PreviewPane" Id = "PreviewPane">
+            <div Class = "PreviewToolbar">
+                <div Class = "PaginationControls">
+                    <button Type = "button" Id = "PrevPageButton" Class = "NavButton" Title = "Previous Page">‹</button>
+                    <span Class = "PageIndicator" Id = "PageIndicator">Page 1 / 1</span>
+                    <button Type = "button" Id = "NextPageButton" Class = "NavButton" Title = "Next Page">›</button>
+                </div>
+
+                <div Class = "ZoomControls">
+                    <button Type = "button" Id = "ZoomOutButton" Class = "NavButton" Title = "Zoom Out">−</button>
+                    <span Class = "ZoomDisplay" Id = "ZoomDisplay">100%</span>
+                    <button Type = "button" Id = "ZoomInButton" Class = "NavButton" Title = "Zoom In">+</button>
+                    <button Type = "button" Id = "ZoomFitWidthButton" Class = "NavButton" Title = "Fit Width">Fit W</button>
+                    <button Type = "button" Id = "ZoomFitPageButton" Class = "NavButton" Title = "Fit Page">Fit Page</button>
+                </div>
+
+                <div Class = "ThemeControls">
+                    <button Type  = "button"
+                            Id    = "BlackPageToggle"
+                            Class = "NavButton ModeToggleButton"
+                            Title = "Toggle Inverted Black Paper Preview">
+                        <span Id = "BlackPageIcon">🌙</span>
+                        <span Id = "BlackPageLabel">Dark Page</span>
+                    </button>
+                </div>
+            </div>
+
+            <div Class = "PreviewViewport" Id = "PreviewViewport">
+                <div Class = "PagesContainer" Id = "PagesContainer">
+                    <div Class = "LoadingSplash" Id = "LoadingSplash">
+                        <div Class = "Spinner"></div>
+                        <p>Compiling with Typst LAFS...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div Class = "ErrorDrawer" Id = "ErrorDrawer">
+                <div Class = "ErrorHeader">
+                    <span Class = "ErrorTitle">Compilation Diagnostics</span>
+                    <button Type = "button" Class = "CloseErrorButton" Id = "CloseErrorButton">×</button>
+                </div>
+                <pre Class = "ErrorContent" Id = "ErrorContent"></pre>
+            </div>
+        </section>
+    </main>
+
+    <section Class = "DashboardView" Id = "DashboardView" Style = "display: none;">
+        <div Class = "DashboardContainer">
+            <div Class = "DashboardTopRow">
+                <div Class = "DashboardHeadingGroup">
+                    <h2 Class = "DashboardTitle">Workspace Dashboard</h2>
+                    <p Class = "DashboardSubtitle">Track local Typst project directories and quickly switch between saved files.</p>
+                </div>
+                <div Class = "DashboardActionGroup">
+                    <button Type  = "button"
+                            Id    = "DashboardRefreshBtn"
+                            Class = "Button Secondary"
+                            Title = "Refresh directories and files">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <polyline Points = "23 4 23 10 17 10" />
+                            <polyline Points = "1 20 1 14 7 14" />
+                            <path D = "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                        <span>Rescan</span>
+                    </button>
+                    <button Type  = "button"
+                            Id    = "DashboardNewFileBtn"
+                            Class = "Button Primary"
+                            Title = "Create a new Typst document">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
+                            <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
+                        </svg>
+                        <span>New Typst Document</span>
+                    </button>
+                </div>
+            </div>
+
+            <div Class = "DashboardStatsGrid">
+                <div Class = "StatBox">
+                    <span Class = "StatBoxLabel">Tracked Directories</span>
+                    <span Class = "StatBoxValue" Id = "StatDirCount">0</span>
+                </div>
+                <div Class = "StatBox">
+                    <span Class = "StatBoxLabel">Saved Typst Files</span>
+                    <span Class = "StatBoxValue" Id = "StatFileCount">0</span>
+                </div>
+                <div Class = "StatBox StatBoxHighlight">
+                    <span Class = "StatBoxLabel">Currently Editing</span>
+                    <span Class = "StatBoxValue StatBoxDocName" Id = "StatActiveDoc">GenesisOfTheVanguard.typ</span>
+                    <button Type = "button" Id = "StatResumeBtn" Class = "MiniActionBtn">Open in Editor →</button>
+                </div>
+            </div>
+
+            <div Class = "DashboardSplitLayout">
+                <div Class = "DashboardLeftColumn">
+                    <!-- Section 1: Appearance & Typography Settings -->
+                    <div Class = "DashboardPanel SettingsPanel">
+                        <div Class = "PanelHeader">
+                            <div Class = "PanelHeaderTitle">
+                                <svg Width        = "16"
+                                     Height       = "16"
+                                     ViewBox      = "0 0 24 24"
+                                     Fill         = "none"
+                                     Stroke       = "#a855f7"
+                                     Stroke-Width = "2">
+                                    <circle Cx = "12"
+                                            Cy = "12"
+                                            R  = "3" />
+                                    <path D = "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                </svg>
+                                <h3>Appearance & Typography</h3>
+                            </div>
+                            <span Class = "PanelHeaderHint">Adjust UI scaling and interface font</span>
+                        </div>
+
+                        <!-- UI Scaling Controls -->
+                        <div Class = "SettingItem">
+                            <div Class = "SettingLabelRow">
+                                <span Class = "SettingLabel">UI Scaling</span>
+                                <span Class = "SettingValueBadge" Id = "UIScaleValueBadge">100% (Default)</span>
+                            </div>
+                            <div Class = "ScalePresetRow">
+                                <button Type = "button" Class = "ScalePresetBtn" DataScale = "85">85%</button>
+                                <button Type = "button" Class = "ScalePresetBtn Active" DataScale = "100">100% (Normal)</button>
+                                <button Type = "button" Class = "ScalePresetBtn" DataScale = "115">115%</button>
+                                <button Type = "button" Class = "ScalePresetBtn" DataScale = "125">125% (Large)</button>
+                                <button Type = "button" Class = "ScalePresetBtn" DataScale = "140">140%</button>
+                            </div>
+                            <div Class = "ScaleSliderRow">
+                                <span Class = "SliderLimitLabel">80%</span>
+                                <input Type  = "range"
+                                       Id    = "UIScaleSlider"
+                                       Class = "SettingRangeSlider"
+                                       Min   = "80"
+                                       Max   = "150"
+                                       Step  = "5"
+                                       Value = "100" />
+                                <span Class = "SliderLimitLabel">150%</span>
+                            </div>
+                        </div>
+
+                        <!-- UI Font Family Controls -->
+                        <div Class = "SettingItem">
+                            <div Class = "SettingLabelRow">
+                                <span Class = "SettingLabel">UI Font Family</span>
+                            </div>
+                            <select Id = "UIFontSelect" Class = "SelectDropdown SettingDropdown">
+                                <option Value = "Teko">Teko (Weight 300 — Condensed Default)</option>
+                                <option Value = "Inter">Inter (Clean Modern Sans)</option>
+                                <option Value = "Segoe UI">Segoe UI (Windows Native)</option>
+                                <option Value = "Roboto">Roboto (Modern Geometric)</option>
+                                <option Value = "Outfit">Outfit (Contemporary Display)</option>
+                                <option Value = "JetBrains Mono">JetBrains Mono (Developer UI)</option>
+                                <option Value = "System UI">System UI (Native Stack)</option>
+                                <option Value = "Custom">Custom Font Family...</option>
+                            </select>
+                            <div Id = "CustomFontInputGroup" Class = "CustomFontGroup" Style = "display: none;">
+                                <input Type        = "text"
+                                       Id          = "CustomFontInput"
+                                       Class       = "DashboardTextInput"
+                                       Placeholder = "Enter installed font name..." />
+                                <button Type = "button" Id = "ApplyCustomFontBtn" Class = "Button Secondary">Apply</button>
+                            </div>
+                        </div>
+
+                        <!-- Live Typography Preview Box -->
+                        <div Class = "SettingItem">
+                            <span Class = "SettingSublabel">Live Typography Preview:</span>
+                            <div Class = "TypographyPreviewBox" Id = "TypographyPreviewBox">
+                                <div Class = "PreviewSampleHeading">Document Title & Header</div>
+                                <div Class = "PreviewSampleText">The quick brown fox jumps over the lazy dog. 0123456789</div>
+                                <div Class = "PreviewSampleMeta">Status: Ready • Compilation Duration: 24ms • Engine: Typst 0.15.1</div>
+                            </div>
+                        </div>
+
+                        <!-- Reset Appearance Button -->
+                        <div Class = "SettingActionsRow">
+                            <button Type  = "button"
+                                    Id    = "ResetAppearanceBtn"
+                                    Class = "Button Secondary"
+                                    Title = "Reset UI scale to 100% (Normal) and font to Teko">
+                                <svg Width        = "12"
+                                     Height       = "12"
+                                     ViewBox      = "0 0 24 24"
+                                     Fill         = "none"
+                                     Stroke       = "currentColor"
+                                     Stroke-Width = "2">
+                                    <path D = "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <path D = "M3 3v5h5" />
+                                </svg>
+                                <span>Reset to Default (100% Teko)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Section 2: Tracked Directories -->
+                    <div Class = "DashboardPanel DirectoriesPanel">
+                        <div Class = "PanelHeader">
+                            <div Class = "PanelHeaderTitle">
+                                <svg Width        = "16"
+                                     Height       = "16"
+                                     ViewBox      = "0 0 24 24"
+                                     Fill         = "none"
+                                     Stroke       = "#a855f7"
+                                     Stroke-Width = "2">
+                                    <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                </svg>
+                                <h3>Tracked Local Directories</h3>
+                            </div>
+                            <span Class = "PanelHeaderHint">Scanned for .typ files</span>
+                        </div>
+
+                        <div Class = "AddDirectoryBar">
+                            <input Type        = "text"
+                                   Id          = "NewDirectoryInput"
+                                   Class       = "DashboardTextInput"
+                                   Placeholder = "e.g. e:\Typst\projects or C:\Users\..." />
+                            <div Class = "AddDirectoryButtonsRow">
+                                <button Type  = "button"
+                                        Id    = "PickFolderBtn"
+                                        Class = "Button Secondary"
+                                        Title = "Browse and pick folder from disk">
+                                    <svg Width        = "14"
+                                         Height       = "14"
+                                         ViewBox      = "0 0 24 24"
+                                         Fill         = "none"
+                                         Stroke       = "currentColor"
+                                         Stroke-Width = "2">
+                                        <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                                    </svg>
+                                    <span>Pick Folder</span>
+                                </button>
+                                <button Type  = "button"
+                                        Id    = "AddDirectorySubmitBtn"
+                                        Class = "Button Secondary"
+                                        Title = "Add directory to workspace">
+                                    <svg Width        = "14"
+                                         Height       = "14"
+                                         ViewBox      = "0 0 24 24"
+                                         Fill         = "none"
+                                         Stroke       = "currentColor"
+                                         Stroke-Width = "2">
+                                        <line X1 = "12"
+                                              Y1 = "5"
+                                              X2 = "12"
+                                              Y2 = "19" />
+                                        <line X1 = "5"
+                                              Y1 = "12"
+                                              X2 = "19"
+                                              Y2 = "12" />
+                                    </svg>
+                                    <span>Add Directory</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div Class = "DirectoriesList" Id = "TrackedDirectoryList">
+                            <!-- Populated dynamically by App.js -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: Saved Typst Documents -->
+                <div Class = "DashboardPanel FilesPanel">
+                    <div Class = "PanelHeader">
+                        <div Class = "PanelHeaderTitle">
+                            <svg Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#38bdf8" Stroke-Width = "2">
+                                <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline Points = "14 2 14 8 20 8" />
+                                <line X1 = "16" Y1 = "13" X2 = "8" Y2 = "13" />
+                                <line X1 = "16" Y1 = "17" X2 = "8" Y2 = "17" />
+                                <polyline Points = "10 9 9 9 8 9" />
+                            </svg>
+                            <h3>Saved Documents (<span Id = "FilesCountBadge">0</span>)</h3>
+                        </div>
+                        <div Class = "PanelSearchWrapper">
+                            <input Type        = "text"
+                                   Id          = "DashboardFileSearch"
+                                   Class       = "DashboardSearchInput"
+                                   Placeholder = "Filter documents by name or path..." />
+                        </div>
+                    </div>
+
+                    <div Class = "FilesCardsGrid" Id = "DashboardFilesGrid">
+                        <!-- Populated dynamically by App.js -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script Src = "App.js"></script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>/* Alignment */
+mtable.right-align > mtr > mtd,
+mtable > mtr > mtd.right-align,
+mtable.left-align > mtr > mtd.right-align,
+mtable.aligned > mtr > mtd:nth-child(odd) {
+  justify-items: end;
+  text-align: right;
+}
+mtable.cases > mtr > mtd,
+mtable.left-align > mtr > mtd,
+mtable > mtr > mtd.left-align,
+mtable.aligned > mtr > mtd:nth-child(even),
+math:is(:not([display])) > mtable.multiline-equation > mtr > mtd {
+  justify-items: start;
+  text-align: left;
+}
+mtable.cases > mtr > mtd,
+mtable.aligned > mtr > mtd,
+mtable > mtr > mtd.flushed,
+mtable > mtr > mtd.left-flush {
+  padding-left: 0;
+}
+mtable.cases > mtr > mtd,
+mtable.aligned > mtr > mtd,
+mtable > mtr > mtd.flushed,
+mtable > mtr > mtd.right-flush {
+  padding-right: 0;
+}
+
+/* Tables */
+mtable {
+  math-style: inherit;
+}
+mtd {
+  math-depth: auto-add;
+  math-style: compact;
+  math-shift: compact;
+}
+
+/* Equations */
+mtable.multiline-equation > mtr > mtd {
+  math-depth: inherit;
+  math-style: inherit;
+  math-shift: inherit;
+  padding: 0;
+}
+math > mtable.multiline-equation > mtr:not(:last-child) > mtd {
+  padding-bottom: 0.5em;
+}
+
+/* Fractions */
+mfrac {
+  padding-inline: 0;
+  margin-inline: 0.1em;
+}
+
+/* Accents */
+mover[accent="true" i] > :first-child {
+  font-feature-settings: "dtls";
+}
+mover.dotted[accent="true" i] > :first-child {
+  font-feature-settings: "dtls" 0;
+}
+
+/* Other rules for scriptlevel, displaystyle and math-shift */
+munder > :nth-child(2),
+munderover > :nth-child(2) {
+  math-shift: compact
+}
+munder[accentunder="true" i] > :not(:first-child),
+mover[accent="true" i] > :not(:first-child) {
+  math-depth: inherit;
+  math-style: inherit;
+  math-shift: inherit;
+}</style></head><body><nav role="doc-toc"><h2>Document Index</h2><ol style="list-style-type: none"><li><a href="#loc-1"><span class="prefix">1</span> Introduction &amp; Document Geometry</a></li><li><a href="#loc-2"><span class="prefix">2</span> Mathematics &amp; Equations</a></li><li><a href="#loc-5"><span class="prefix">3</span> Data Tables &amp; Figures</a></li><li><div><a href="#loc-6"><span class="prefix">4</span> Computational Scripting &amp; Programmatic Generation</a></div><ol style="list-style-type: none"><li><a href="#loc-7"><span class="prefix">4.1</span> Loop Iteration Demonstration</a></li></ol></li></ol></nav><h2 id="loc-1">1 Introduction &amp; Document Geometry</h2><p>Typst is a next-generation document compiler designed for speed, visual beauty, and computational expressiveness. As established in <a href="#loc-1">Section 1</a>, this document showcases Typst typesetting primitives formatted under the <strong>Language-Agnostic Formatting Style (LAFS)</strong>.</p><h2 id="loc-2">2 Mathematics &amp; Equations</h2><p>Typst features a native math engine with KaTeX parity. Inline expressions like <math><mi>𝐸</mi><mo>=</mo><mi>𝑚</mi><msup><mi>𝑐</mi><mn>2</mn></msup></math> and <math><msub><mo lspace="0em" rspace="0.16666666666666666em">lim</mo><mrow><mi>𝑥</mi><mo lspace="0em" rspace="0em" stretchy="false">→</mo><mn>0</mn></mrow></msub><mfrac><mrow><mo lspace="0em" rspace="0.16666666666666666em">sin</mo><mi>𝑥</mi></mrow><mi>𝑥</mi></mfrac><mo>=</mo><mn>1</mn></math> flow seamlessly within text paragraphs.</p><p>Display block equations feature automated numbering and alignment:</p><math id="loc-3" display="block"><msubsup><mo lspace="0em">∫</mo><mrow><mo>−</mo><mi>∞</mi></mrow><mi>∞</mi></msubsup><msup><mi>𝑒</mi><mrow><mo>−</mo><msup><mi>𝑥</mi><mn>2</mn></msup></mrow></msup><mspace width="0.1667em"/><mo form="prefix" lspace="0em" rspace="0em">d</mo><mi>𝑥</mi><mo>=</mo><msqrt><mi>𝜋</mi></msqrt></math><p>We can also formulate complex linear transformations using matrices:</p><math id="loc-4" display="block"><code data-lang="typc">mat</code><mspace width="0.2222em"/><mrow><mo>(</mo><mrow><mo lspace="0em" rspace="0.16666666666666666em">cos</mo><mi>𝜃</mi><mo>,</mo><mo form="prefix">−</mo><mo form="prefix" lspace="0.16666666666666666em" rspace="0.16666666666666666em">sin</mo><mi>𝜃</mi><mo>,</mo><mn>0</mn><mo>;</mo><mo form="prefix" lspace="0em" rspace="0.16666666666666666em">sin</mo><mi>𝜃</mi><mo>,</mo><mo form="prefix" lspace="0em" rspace="0.16666666666666666em">cos</mo><mi>𝜃</mi><mo>,</mo><mn>0</mn><mo>;</mo><mn>0</mn><mo>,</mo><mn>0</mn><mo>,</mo><mn>1</mn></mrow><mo>)</mo></mrow><mrow><mo>(</mo><mtable><mtr><mtd><mi>𝑥</mi></mtd></mtr><mtr><mtd><mi>𝑦</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>)</mo></mrow><mo>=</mo><mrow><mo>(</mo><mtable><mtr><mtd><mi>𝑥</mi><mo form="prefix" lspace="0.16666666666666666em" rspace="0.16666666666666666em">cos</mo><mi>𝜃</mi><mo>−</mo><mi>𝑦</mi><mo form="prefix" lspace="0.16666666666666666em" rspace="0.16666666666666666em">sin</mo><mi>𝜃</mi></mtd></mtr><mtr><mtd><mi>𝑥</mi><mo form="prefix" lspace="0.16666666666666666em" rspace="0.16666666666666666em">sin</mo><mi>𝜃</mi><mo>+</mo><mi>𝑦</mi><mo form="prefix" lspace="0.16666666666666666em" rspace="0.16666666666666666em">cos</mo><mi>𝜃</mi></mtd></mtr><mtr><mtd><mn>1</mn></mtd></mtr></mtable><mo>)</mo></mrow></math><p>Equation <a href="#loc-3">Equation 1</a> defines the Gaussian integral, and <a href="#loc-4">Equation 2</a> illustrates 2D affine rotation.</p><h2 id="loc-5">3 Data Tables &amp; Figures</h2><p>Tables in Typst support dynamic borders, alternating row fills, and automated alignment:</p><figure><table><thead><tr><th><strong>Module Name</strong></th><th><strong>Status</strong></th><th><strong>Latency</strong></th><th><strong>Architectural Role</strong></th></tr></thead><tbody><tr><td>Syntax Parser</td><td>Active</td><td>4.2 ms</td><td>Incremental Allman AST Generation</td></tr><tr><td>Layout Engine</td><td>Active</td><td>18.7 ms</td><td>Vector Box Positioning &amp; Justification</td></tr><tr><td>PDF Producer</td><td>Active</td><td>12.1 ms</td><td>Tagged PDF/UA Production</td></tr><tr><td>SVG Renderer</td><td>Active</td><td>6.4 ms</td><td>Real-Time Browser DOM Streaming</td></tr></tbody></table><figcaption>Table 1: System Pipeline Benchmark Results</figcaption></figure><h2 id="loc-6">4 Computational Scripting &amp; Programmatic Generation</h2><p>Typst features a built-in Turing-complete functional scripting language:</p><h3 id="loc-7">4.1 Loop Iteration Demonstration</h3><ul><li><strong>Phase 1</strong>: Initialized execution cycle with computed parameter 1.<br></li><li><strong>Phase 2</strong>: Initialized execution cycle with computed parameter 4.<br></li><li><strong>Phase 3</strong>: Initialized execution cycle with computed parameter 9.<br></li></ul></body></html>

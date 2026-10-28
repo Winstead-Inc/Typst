@@ -1,0 +1,1915 @@
+:root
+{
+    --bg-canvas: #050505;
+    --bg-header: #0a0a0a;
+    --bg-panel: #111111;
+    --bg-subtle: #181818;
+    --bg-hover: #242424;
+    --border-color: #2a2a2a;
+    --border-subtle: #1e1e1e;
+    --text-primary: #ffffff;
+    --text-secondary: #999999;
+    --text-dim: #555555;
+    --accent-primary: #ffffff;
+    --accent-primary-text: #000000;
+    --accent-hover: #e0e0e0;
+    --accent-neutral: #888888;
+    --status-ready: #ffffff;
+    --status-compiling: #777777;
+    --status-error: #ffffff;
+    --paper-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0, 0, 0, 0.7);
+
+    /* UI Font & Typography Settings */
+    --ui-font-family: "Teko", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --ui-font-weight: 300;
+    --ui-letter-spacing: 0.8px;
+
+    /* Base Dimensions: 100% Normal / Default Scale */
+    --ui-font-body: 16px;
+    --ui-font-ctrl: 12px;
+    --ui-font-header-logo: 16px;
+    --ui-font-brand: 18px;
+    --ui-font-engine-tag: 11px;
+    --ui-font-doc-input: 13px;
+    --ui-width-doc-input: 180px;
+    --ui-width-doc-menu: 320px;
+    --ui-font-menu-title: 11px;
+    --ui-font-menu-item: 12px;
+    --ui-font-menu-path: 10px;
+    --ui-font-menu-footer: 11px;
+    --ui-font-status: 11px;
+    --ui-font-status-text: 11px;
+    --ui-font-duration: 11px;
+    --ui-font-toggle: 12px;
+    --ui-font-select: 12px;
+    --ui-font-btn: 12px;
+    --ui-font-icon-btn: 12px;
+    --ui-font-nav-tab: 12px;
+    --ui-font-statusbar: 11px;
+    --ui-font-preview-btn: 11px;
+    --ui-font-preview-indicator: 12px;
+    --ui-font-error-title: 12px;
+    --ui-font-error-content: 13px;
+    --ui-font-dash-title: 22px;
+    --ui-font-dash-sub: 13px;
+    --ui-font-stat-label: 14px;
+    --ui-font-stat-val: 32px;
+    --ui-font-stat-doc: 14px;
+    --ui-font-panel-title: 15px;
+    --ui-font-panel-hint: 12px;
+    --ui-font-dash-input: 13px;
+    --ui-font-dir-path: 13px;
+    --ui-font-dir-badge: 13px;
+    --ui-font-filter-banner: 15px;
+    --ui-font-filter-btn: 13px;
+    --ui-font-dash-search: 12px;
+    --ui-font-card-name: 13px;
+    --ui-font-card-dir: 11px;
+    --ui-font-card-details: 11px;
+    --ui-font-card-size: 11px;
+    --ui-font-card-btn: 11px;
+    --ui-font-empty: 12px;
+
+    --ui-height-header: 48px;
+    --ui-height-statusbar: 24px;
+    --ui-height-toolbar: 36px;
+    --ui-pad-status: 3px 8px;
+    --ui-pad-btn: 5px 12px;
+    --ui-pad-icon-btn: 5px 10px;
+    --ui-pad-nav-tab: 4px 10px;
+    --ui-pad-stat-box: 16px 20px;
+    --ui-pad-card: 14px;
+    --ui-pad-card-btn: 5px 10px;
+    --ui-dot-size: 7px;
+    --ui-slider-width: 28px;
+    --ui-slider-height: 16px;
+    --ui-slider-knob: 10px;
+    --ui-slider-translate: 12px;
+}
+
+*
+{
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body.BlackMode
+{
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: var(--ui-font-family);
+    font-weight: var(--ui-font-weight);
+    font-size: var(--ui-font-body);
+    letter-spacing: var(--ui-letter-spacing);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+button, input, select, textarea
+{
+    font-family: var(--ui-font-family);
+    font-weight: var(--ui-font-weight);
+    font-size: var(--ui-font-ctrl);
+    letter-spacing: var(--ui-letter-spacing);
+}
+
+/* --- HEADER --- */
+.AppHeader
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--ui-height-header);
+    padding: 0 18px;
+    background-color: var(--bg-header);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+    z-index: 10;
+}
+
+.HeaderLeft,
+.HeaderCenter,
+.HeaderRight
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.AppLogo
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: var(--ui-font-header-logo);
+    letter-spacing: 0.5px;
+}
+
+.BrandTitle
+{
+    font-size: var(--ui-font-brand);
+    letter-spacing: 0px;
+    background: linear-gradient(135deg, #ffffff 0%, #e9d5ff 25%, #a855f7 50%, #6366f1 75%, #38bdf8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 12px rgba(124, 58, 237, 0.3));
+}
+
+.EngineTag
+{
+    font-size: var(--ui-font-engine-tag);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-weight: 500;
+    background: linear-gradient(135deg, #09090b 0%, #1e1b4b 60%, #2e1065 100%);
+    color: #e0e7ff;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(139, 92, 246, 0.5);
+    box-shadow: 0 0 8px rgba(67, 56, 202, 0.35);
+    letter-spacing: 0.4px;
+}
+
+.DocumentInfoDropdownGroup
+{
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.DocInputWrapper
+{
+    display: flex;
+    align-items: center;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.DocInputWrapper:focus-within
+{
+    border-color: #a855f7;
+    box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.4);
+}
+
+.DocInput
+{
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 6px 10px;
+    font-size: var(--ui-font-doc-input);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    width: var(--ui-width-doc-input);
+    outline: none;
+}
+
+.DocDropdownToggleBtn
+{
+    background: transparent;
+    border: none;
+    border-left: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0 7px;
+    height: 26px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.DocDropdownToggleBtn:hover
+{
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.DocDropdownMenu
+{
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    width: var(--ui-width-doc-menu);
+    max-height: 420px;
+    background-color: #0d0d0e;
+    border: 1px solid #27272a;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: DropdownFadeIn 0.15s ease-out;
+}
+
+@keyframes DropdownFadeIn
+{
+    from
+    {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to
+    {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.DocDropdownHeader
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: #121215;
+    border-bottom: 1px solid #202024;
+}
+
+.DropdownSectionTitle
+{
+    font-size: var(--ui-font-menu-title);
+    font-weight: 300;
+    color: #a1a1aa;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.MiniActionBtn
+{
+    background-color: rgba(168, 85, 247, 0.15);
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    color: #c084fc;
+    font-size: var(--ui-font-menu-title);
+    padding: 2px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 300;
+    letter-spacing: 0.6px;
+    transition: all 0.15s ease;
+}
+
+.MiniActionBtn:hover
+{
+    background-color: rgba(168, 85, 247, 0.3);
+    color: #ffffff;
+}
+
+.DocDropdownSearchBox
+{
+    padding: 6px 10px;
+    border-bottom: 1px solid #1c1c20;
+    background-color: #0d0d0e;
+}
+
+.DocDropdownSearchInput
+{
+    width: 100%;
+    background-color: #18181b;
+    border: 1px solid #27272a;
+    border-radius: 5px;
+    padding: 6px 10px;
+    font-size: var(--ui-font-menu-item);
+    font-weight: 300;
+    letter-spacing: var(--ui-letter-spacing);
+    color: #ffffff;
+    outline: none;
+}
+
+.DocDropdownSearchInput:focus
+{
+    border-color: #71717a;
+}
+
+.DocDropdownList
+{
+    overflow-y: auto;
+    max-height: 240px;
+    padding: 4px;
+}
+
+.DocDropdownItem
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+    user-select: none;
+}
+
+.DocDropdownItem:hover
+{
+    background-color: #1c1c22;
+}
+
+.DocDropdownItem.Active
+{
+    background-color: rgba(168, 85, 247, 0.18);
+    border-left: 2px solid #a855f7;
+}
+
+.DocDropdownItemIcon
+{
+    color: #38bdf8;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.DocDropdownItemInfo
+{
+    flex: 1;
+    min-width: 0;
+}
+
+.DocDropdownItemName
+{
+    font-size: var(--ui-font-menu-item);
+    font-weight: 400;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: var(--ui-letter-spacing);
+}
+
+.DocDropdownItemPath
+{
+    font-size: var(--ui-font-menu-path);
+    color: #71717a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+}
+
+.DocDropdownItemSize
+{
+    font-size: var(--ui-font-ctrl);
+    color: #52525b;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    flex-shrink: 0;
+}
+
+.DocDropdownEmpty
+{
+    padding: 16px;
+    text-align: center;
+    font-size: var(--ui-font-empty);
+    color: #71717a;
+}
+
+.DocDropdownFooter
+{
+    padding: 6px 12px;
+    border-top: 1px solid #1c1c20;
+    background-color: #121215;
+}
+
+.DropdownFooterBtn
+{
+    background: transparent;
+    border: none;
+    color: #a855f7;
+    font-size: var(--ui-font-menu-footer);
+    font-weight: 300;
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+    padding: 2px 0;
+    width: 100%;
+    text-align: left;
+    transition: color 0.15s;
+}
+
+.DropdownFooterBtn:hover
+{
+    color: #c084fc;
+    text-decoration: underline;
+}
+
+/* Status Badge */
+.CompilationStatus
+{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-subtle);
+    padding: var(--ui-pad-status);
+    border-radius: 14px;
+    font-size: var(--ui-font-status);
+    letter-spacing: var(--ui-letter-spacing);
+    transition: all 0.2s ease;
+}
+
+.StatusDot
+{
+    width: var(--ui-dot-size);
+    height: var(--ui-dot-size);
+    border-radius: 50%;
+    background-color: #388bfd; /* Blue for Ready */
+    box-shadow: 0 0 7px rgba(56, 139, 253, 0.7);
+    transition: all 0.2s ease;
+}
+
+.StatusText
+{
+    color: #58a6ff; /* Blue text */
+    font-weight: 400;
+    font-size: var(--ui-font-status-text);
+    letter-spacing: var(--ui-letter-spacing);
+}
+
+.StatusDot.Compiling
+{
+    background-color: #3fb950; /* Green while working */
+    box-shadow: 0 0 9px rgba(63, 185, 80, 0.85);
+    animation: StatusBlink 0.6s infinite alternate;
+}
+
+.CompilationStatus.Compiling .StatusText
+{
+    color: #3fb950; /* Green text */
+}
+
+.StatusDot.Error
+{
+    background-color: #f85149; /* Red for Error */
+    box-shadow: 0 0 9px rgba(248, 81, 73, 0.9);
+}
+
+.CompilationStatus.Error .StatusText
+{
+    color: #ff7b72; /* Red text */
+}
+
+@keyframes StatusBlink
+{
+    0%
+    {
+        opacity: 0.25;
+        transform: scale(0.85);
+    }
+    100%
+    {
+        opacity: 1.0;
+        transform: scale(1.15);
+    }
+}
+
+.DurationText
+{
+    color: var(--text-dim);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: var(--ui-font-duration);
+    letter-spacing: 0px;
+}
+
+/* Controls */
+.ControlGroup
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ToggleSwitch
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: var(--ui-font-toggle);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    color: var(--text-secondary);
+}
+
+.ToggleSwitch input
+{
+    display: none;
+}
+
+.Slider
+{
+    position: relative;
+    width: var(--ui-slider-width);
+    height: var(--ui-slider-height);
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    transition: 0.2s;
+}
+
+.Slider::before
+{
+    content: "";
+    position: absolute;
+    height: var(--ui-slider-knob);
+    width: var(--ui-slider-knob);
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text-dim);
+    border-radius: 50%;
+    transition: 0.2s;
+}
+
+.ToggleSwitch input:checked + .Slider
+{
+    background-color: #333333;
+    border-color: #555555;
+}
+
+.ToggleSwitch input:checked + .Slider::before
+{
+    transform: translateX(var(--ui-slider-translate));
+    background-color: #ffffff;
+}
+
+.SelectDropdown
+{
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: var(--ui-font-select);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+}
+
+.SelectDropdown:focus
+{
+    outline: none;
+    border-color: var(--text-primary);
+}
+
+/* Buttons */
+.Button
+{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: var(--ui-pad-btn);
+    border-radius: 6px;
+    font-size: var(--ui-font-btn);
+    font-weight: 400;
+    letter-spacing: 0.6px;
+    cursor: pointer;
+    border: 1px solid var(--border-color);
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.Button.Primary
+{
+    background-color: var(--accent-primary);
+    color: var(--accent-primary-text);
+    border-color: var(--accent-primary);
+    font-weight: 500;
+}
+
+.Button.Primary:hover
+{
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+}
+
+.Button.Secondary
+{
+    background-color: var(--bg-subtle);
+    color: var(--text-primary);
+}
+
+.Button.Secondary:hover
+{
+    background-color: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.IconButton
+{
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: var(--ui-pad-icon-btn);
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: var(--ui-font-icon-btn);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    transition: all 0.15s ease;
+}
+
+.IconButton:hover
+{
+    background-color: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.IconButton.AccentBtn
+{
+    background-color: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.45);
+    color: #c084fc;
+}
+
+.IconButton.AccentBtn svg
+{
+    stroke: #c084fc;
+}
+
+.IconButton.AccentBtn:hover
+{
+    background-color: rgba(168, 85, 247, 0.24);
+    border-color: #c084fc;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+.IconButton.AccentBtn:hover svg
+{
+    stroke: #ffffff;
+}
+
+.IconButton.SaveBtn
+{
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e4e4e7;
+    transition: all 0.2s ease;
+}
+
+.IconButton.SaveBtn:hover
+{
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: #ffffff;
+    color: #ffffff;
+}
+
+.IconButton.SaveBtn.SavedSuccess
+{
+    background-color: rgba(52, 211, 153, 0.2);
+    border-color: #34d399;
+    color: #34d399;
+}
+
+/* View Switcher */
+.ViewSwitcherNav
+{
+    display: flex;
+    align-items: center;
+    background-color: #141416;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.NavTabButton
+{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    padding: var(--ui-pad-nav-tab);
+    font-size: var(--ui-font-nav-tab);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    color: #a1a1aa;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.NavTabButton:hover
+{
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.NavTabButton.Active
+{
+    color: #ffffff;
+    background-color: #27272a;
+    font-weight: 500;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* --- MAIN WORKSPACE --- */
+.MainSplitArea
+{
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+.EditorPane
+{
+    display: flex;
+    flex-direction: column;
+    width: 48%;
+    min-width: 300px;
+    background-color: var(--bg-panel);
+    border-right: 1px solid var(--border-color);
+    height: 100%;
+    contain: layout style;
+}
+
+.EditorHost
+{
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    transform: translateZ(0);
+    will-change: transform;
+    contain: strict;
+}
+
+.EditorStatusBar
+{
+    display: flex;
+    align-items: center;
+    height: var(--ui-height-statusbar);
+    padding: 0 14px;
+    background-color: var(--bg-header);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--ui-font-statusbar);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    color: var(--text-secondary);
+    gap: 16px;
+}
+
+.StatusItem.Accent
+{
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.StatusItem.Dim
+{
+    color: var(--text-dim);
+    margin-left: auto;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 12px;
+}
+
+/* Splitter */
+.SplitResizer
+{
+    width: 6px;
+    cursor: col-resize;
+    background-color: var(--bg-canvas);
+    transition: background-color 0.15s;
+    z-index: 5;
+}
+
+.SplitResizer:hover,
+.SplitResizer.Dragging
+{
+    background-color: #ffffff;
+}
+
+/* --- PREVIEW PANE --- */
+.PreviewPane
+{
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    background-color: var(--bg-canvas);
+    position: relative;
+    overflow: hidden;
+}
+
+.PreviewToolbar
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--ui-height-toolbar);
+    padding: 0 16px;
+    background-color: var(--bg-panel);
+    border-bottom: 1px solid var(--border-color);
+    user-select: none;
+}
+
+.PaginationControls,
+.ZoomControls,
+.ThemeControls
+{
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.NavButton
+{
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: var(--ui-font-preview-btn);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.NavButton:hover
+{
+    background-color: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.ModeToggleButton
+{
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 4px 10px;
+    font-size: var(--ui-font-preview-btn);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.15s ease;
+}
+
+.ModeToggleButton.Active
+{
+    background-color: #242424;
+    border-color: #696969;
+    color: #ffffff;
+}
+
+.PageIndicator,
+.ZoomDisplay
+{
+    font-size: var(--ui-font-preview-indicator);
+    color: var(--text-secondary);
+    padding: 0 8px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.PreviewViewport
+{
+    flex: 1;
+    overflow-y: scroll;
+    overflow-x: auto;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 64px 16px;
+    background-color: #070707;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 0);
+    background-size: 24px 24px;
+}
+
+/* Custom Scrollbars */
+.PreviewViewport,
+.DashboardView,
+.DocDropdownList,
+.DirectoriesList,
+.FilesCardsGrid
+{
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a2a #0a0a0a;
+}
+
+.PreviewViewport::-webkit-scrollbar,
+.DashboardView::-webkit-scrollbar,
+.DocDropdownList::-webkit-scrollbar,
+.DirectoriesList::-webkit-scrollbar,
+.FilesCardsGrid::-webkit-scrollbar
+{
+    width: 10px;
+    height: 10px;
+}
+
+.PreviewViewport::-webkit-scrollbar-track,
+.DashboardView::-webkit-scrollbar-track,
+.DocDropdownList::-webkit-scrollbar-track,
+.DirectoriesList::-webkit-scrollbar-track,
+.FilesCardsGrid::-webkit-scrollbar-track
+{
+    background: #0a0a0a;
+}
+
+.PreviewViewport::-webkit-scrollbar-thumb,
+.DashboardView::-webkit-scrollbar-thumb,
+.DocDropdownList::-webkit-scrollbar-thumb,
+.DirectoriesList::-webkit-scrollbar-thumb,
+.FilesCardsGrid::-webkit-scrollbar-thumb
+{
+    background: #282828;
+    border-radius: 0px;
+}
+
+.PreviewViewport::-webkit-scrollbar-thumb:hover,
+.DashboardView::-webkit-scrollbar-thumb:hover,
+.DocDropdownList::-webkit-scrollbar-thumb:hover,
+.DirectoriesList::-webkit-scrollbar-thumb:hover,
+.FilesCardsGrid::-webkit-scrollbar-thumb:hover
+{
+    background: #444444;
+}
+
+.PagesContainer
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    width: 100%;
+}
+
+/* Page Sheet: FULL HEIGHT, NO OVERFLOW HIDDEN CLIPPING */
+.PageSheet
+{
+    background-color: #ffffff;
+    box-shadow: var(--paper-shadow);
+    border-radius: 2px;
+    overflow: visible !important;
+    position: relative;
+    flex-shrink: 0;
+    margin: 0 auto;
+    line-height: 0;
+    transition: width 0.1s ease-out, height 0.1s ease-out, filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.PageSheet:hover
+{
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.95), 0 4px 12px rgba(0, 0, 0, 0.8);
+}
+
+.PageSheet svg
+{
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Black Page Mode (Selective Dark Mode: Preserves original colors, inverts monochrome) */
+.PagesContainer.BlackPageMode .PageSheet
+{
+    background-color: #0c0c0e;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 0 1px #222226;
+}
+
+/* Loading Splash */
+.LoadingSplash
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 60px 0;
+    color: var(--text-secondary);
+}
+
+.Spinner
+{
+    width: 28px;
+    height: 28px;
+    border: 2px solid var(--border-color);
+    border-top-color: var(--text-primary);
+    border-radius: 50%;
+    animation: Spin 0.8s linear infinite;
+}
+
+@keyframes Spin
+{
+    100% { transform: rotate(360deg); }
+}
+
+/* Error Drawer */
+.ErrorDrawer
+{
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 220px;
+    background-color: #0d0d0d;
+    border-top: 2px solid #ffffff;
+    display: none;
+    flex-direction: column;
+    z-index: 20;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.8);
+}
+
+.ErrorDrawer.Visible
+{
+    display: flex;
+}
+
+.ErrorHeader
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    background-color: #141414;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.ErrorTitle
+{
+    color: #ffffff;
+    font-weight: 400;
+    font-size: var(--ui-font-error-title);
+    letter-spacing: var(--ui-letter-spacing);
+}
+
+.CloseErrorButton
+{
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.CloseErrorButton:hover
+{
+    color: var(--text-primary);
+}
+
+.ErrorContent
+{
+    padding: 12px 16px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: var(--ui-font-error-content);
+    color: #e0e0e0;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.5;
+}
+
+/* --- DASHBOARD VIEW --- */
+.DashboardView
+{
+    flex: 1;
+    overflow-y: auto;
+    background-color: #070708;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
+    background-size: 24px 24px;
+    padding: 28px 36px 64px 36px;
+    color: #f4f4f5;
+}
+
+.DashboardContainer
+{
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.DashboardTopRow
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #1f1f23;
+}
+
+.DashboardTitle
+{
+    font-size: var(--ui-font-dash-title);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    background: linear-gradient(135deg, #ffffff 0%, #d4d4d8 60%, #a855f7 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.DashboardSubtitle
+{
+    font-size: var(--ui-font-dash-sub);
+    letter-spacing: var(--ui-letter-spacing);
+    color: #71717a;
+    margin-top: 4px;
+}
+
+.DashboardActionGroup
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Stats Grid */
+.DashboardStatsGrid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.StatBox
+{
+    background-color: #0f0f12;
+    border: 1px solid #202025;
+    border-radius: 8px;
+    padding: var(--ui-pad-stat-box);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: transform 0.15s, border-color 0.15s;
+}
+
+.StatBox:hover
+{
+    border-color: #3f3f46;
+}
+
+.StatBox.StatBoxHighlight
+{
+    border-color: rgba(168, 85, 247, 0.4);
+    background: linear-gradient(135deg, #100f18 0%, #151020 100%);
+}
+
+.StatBoxLabel
+{
+    font-size: var(--ui-font-stat-label);
+    font-weight: var(--ui-font-weight);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #a1a1aa;
+}
+
+.StatBoxValue
+{
+    font-size: var(--ui-font-stat-val);
+    font-weight: var(--ui-font-weight);
+    color: #ffffff;
+    font-family: var(--ui-font-family);
+    letter-spacing: 0.5px;
+    line-height: 1;
+}
+
+.StatBoxDocName
+{
+    font-size: var(--ui-font-stat-doc);
+    letter-spacing: var(--ui-letter-spacing);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Split Layout */
+.DashboardSplitLayout
+{
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    align-items: start;
+}
+
+@media (max-width: 960px)
+{
+    .DashboardSplitLayout
+    {
+        grid-template-columns: 1fr;
+    }
+}
+
+.DashboardLeftColumn
+{
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.DashboardPanel
+{
+    background-color: #0c0c0e;
+    border: 1px solid #1f1f23;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.PanelHeader
+{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.PanelHeaderTitle
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.PanelHeaderTitle h3
+{
+    font-size: var(--ui-font-panel-title);
+    font-weight: 400;
+    letter-spacing: var(--ui-letter-spacing);
+    color: #ffffff;
+}
+
+.PanelHeaderHint
+{
+    font-size: var(--ui-font-panel-hint);
+    letter-spacing: 0.4px;
+    color: #71717a;
+}
+
+/* --- SETTINGS PANEL --- */
+.SettingsPanel
+{
+    background-color: #0c0c0e;
+    border: 1px solid #1f1f23;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.SettingItem
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #1a1a20;
+}
+
+.SettingItem:last-of-type
+{
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.SettingLabelRow
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.SettingLabel
+{
+    font-size: var(--ui-font-ctrl);
+    font-weight: 500;
+    color: #e4e4e7;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.SettingSublabel
+{
+    font-size: var(--ui-font-menu-path);
+    color: #71717a;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+
+.SettingValueBadge
+{
+    font-size: var(--ui-font-ctrl);
+    color: #c084fc;
+    background-color: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.ScalePresetRow
+{
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.ScalePresetBtn
+{
+    flex: 1;
+    min-width: 50px;
+    padding: 4px 6px;
+    background-color: #141418;
+    border: 1px solid #27272a;
+    border-radius: 5px;
+    color: #a1a1aa;
+    font-size: var(--ui-font-ctrl);
+    font-family: var(--ui-font-family);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.ScalePresetBtn:hover
+{
+    background-color: #1c1c24;
+    border-color: #52525b;
+    color: #ffffff;
+}
+
+.ScalePresetBtn.Active
+{
+    background-color: rgba(168, 85, 247, 0.18);
+    border-color: #a855f7;
+    color: #ffffff;
+    font-weight: 500;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+.ScaleSliderRow
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.SliderLimitLabel
+{
+    font-size: 11px;
+    color: #71717a;
+    font-family: "JetBrains Mono", Consolas, monospace;
+}
+
+.SettingRangeSlider
+{
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: #27272a;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.SettingRangeSlider::-webkit-slider-thumb
+{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #a855f7;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.7);
+    cursor: pointer;
+    transition: transform 0.1s ease;
+}
+
+.SettingRangeSlider::-webkit-slider-thumb:hover
+{
+    transform: scale(1.2);
+}
+
+.SettingRangeSlider::-moz-range-thumb
+{
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #a855f7;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.7);
+    cursor: pointer;
+    border: none;
+}
+
+.SettingDropdown
+{
+    width: 100%;
+}
+
+.CustomFontGroup
+{
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 6px;
+}
+
+.TypographyPreviewBox
+{
+    background-color: #121216;
+    border: 1px solid #222228;
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+
+.PreviewSampleHeading
+{
+    font-size: var(--ui-font-brand);
+    font-weight: 500;
+    color: #ffffff;
+}
+
+.PreviewSampleText
+{
+    font-size: var(--ui-font-ctrl);
+    color: #d4d4d8;
+}
+
+.PreviewSampleMeta
+{
+    font-size: var(--ui-font-menu-path);
+    color: #71717a;
+    margin-top: 2px;
+}
+
+.SettingActionsRow
+{
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 4px;
+}
+
+/* Add Directory Bar */
+.AddDirectoryBar
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+}
+
+.AddDirectoryBar .DashboardTextInput
+{
+    width: 100%;
+}
+
+.AddDirectoryButtonsRow
+{
+    display: flex;
+    gap: 8px;
+    width: 100%;
+}
+
+.AddDirectoryButtonsRow .Button
+{
+    flex: 1;
+    justify-content: center;
+    white-space: nowrap;
+}
+
+.DashboardTextInput
+{
+    flex: 1;
+    background-color: #141417;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: var(--ui-font-dash-input);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    color: #ffffff;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.DashboardTextInput:focus
+{
+    border-color: #a855f7;
+    box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.4);
+}
+
+.DirectoriesList
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 480px;
+    overflow-y: auto;
+}
+
+.DirectoryItem
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #131317;
+    border: 1px solid #222228;
+    border-radius: 6px;
+    padding: 12px 14px;
+    gap: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.DirectoryItem:hover
+{
+    border-color: rgba(168, 85, 247, 0.45);
+    background-color: #171720;
+}
+
+.DirectoryItem.IsActiveDirectory
+{
+    background-color: rgba(168, 85, 247, 0.14);
+    border-color: #a855f7;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+}
+
+.DirectoryItem.IsActiveDirectory .DirectoryPathText
+{
+    color: #ffffff;
+    font-weight: 500;
+}
+
+.DirectoryItem.IsActiveDirectory .DirectoryCountBadge
+{
+    color: #c084fc;
+}
+
+.DirectoryItemInfo
+{
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+    flex: 1;
+}
+
+.DirectoryPathText
+{
+    font-size: var(--ui-font-dir-path);
+    font-family: "JetBrains Mono", Consolas, monospace;
+    color: #e4e4e7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
+}
+
+.DirectoryCountBadge
+{
+    font-size: var(--ui-font-dir-badge);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    color: #a1a1aa;
+}
+
+.DirectoryDeleteBtn
+{
+    background: transparent;
+    border: 1px solid transparent;
+    color: #71717a;
+    border-radius: 4px;
+    padding: 4px 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.DirectoryDeleteBtn:hover
+{
+    color: #f85149;
+    border-color: rgba(248, 81, 73, 0.3);
+    background-color: rgba(248, 81, 73, 0.1);
+}
+
+.ActiveFolderFilterBanner
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 6px;
+    padding: 10px 14px;
+    grid-column: 1 / -1;
+    color: #e4e4e7;
+    font-size: var(--ui-font-filter-banner);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+}
+
+.ActiveFolderFilterInfo
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    min-width: 0;
+}
+
+.ActiveFolderFilterInfo strong
+{
+    color: #c084fc;
+    font-weight: 400;
+    font-size: var(--ui-font-filter-banner);
+}
+
+.ActiveFolderFilterPath
+{
+    color: #71717a;
+    font-size: 13px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ClearFilterBtn
+{
+    background-color: #27272a;
+    border: 1px solid #3f3f46;
+    color: #e4e4e7;
+    border-radius: 4px;
+    padding: 4px 12px;
+    font-size: var(--ui-font-filter-btn);
+    font-weight: var(--ui-font-weight);
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.ClearFilterBtn:hover
+{
+    background-color: #3f3f46;
+    border-color: #a855f7;
+    color: #ffffff;
+}
+
+@keyframes SpinAnimation
+{
+    from
+    {
+        transform: rotate(0deg);
+    }
+    to
+    {
+        transform: rotate(360deg);
+    }
+}
+
+.Spinning
+{
+    animation: SpinAnimation 0.9s linear infinite;
+}
+
+/* Files Explorer in Dashboard */
+.PanelSearchWrapper
+{
+    margin-top: 6px;
+}
+
+.DashboardSearchInput
+{
+    width: 100%;
+    background-color: #141417;
+    border: 1px solid #27272a;
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: var(--ui-font-dash-search);
+    letter-spacing: var(--ui-letter-spacing);
+    color: #ffffff;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.DashboardSearchInput:focus
+{
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.FilesCardsGrid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    max-height: 600px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.FileCard
+{
+    background-color: #121216;
+    border: 1px solid #23232a;
+    border-radius: 8px;
+    padding: var(--ui-pad-card);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+    transition: all 0.15s ease;
+}
+
+.FileCard:hover
+{
+    border-color: #3f3f4e;
+    background-color: #16161c;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.FileCard.IsActiveCard
+{
+    border-color: #a855f7;
+    background: linear-gradient(135deg, #15121e 0%, #171424 100%);
+}
+
+.FileCardTop
+{
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.FileCardIcon
+{
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background-color: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.FileCardMeta
+{
+    flex: 1;
+    min-width: 0;
+}
+
+.FileCardName
+{
+    font-size: var(--ui-font-card-name);
+    font-weight: 400;
+    letter-spacing: var(--ui-letter-spacing);
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.FileCardDir
+{
+    font-size: var(--ui-font-card-dir);
+    color: #71717a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 2px;
+    letter-spacing: 0.3px;
+}
+
+.FileCardDetails
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: var(--ui-font-card-details);
+    letter-spacing: 0.4px;
+    color: #52525b;
+    padding: 8px 0;
+    border-top: 1px solid #1a1a20;
+    border-bottom: 1px solid #1a1a20;
+}
+
+.FileCardSize
+{
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: var(--ui-font-card-size);
+}
+
+.FileCardActions
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.FileCardOpenBtn
+{
+    flex: 1;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    border-radius: 5px;
+    padding: var(--ui-pad-card-btn);
+    font-size: var(--ui-font-card-btn);
+    font-weight: 400;
+    letter-spacing: var(--ui-letter-spacing);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.FileCardOpenBtn:hover
+{
+    background-color: #ffffff;
+    color: #000000;
+}
+
+.FileCardTrashBtn
+{
+    background: transparent;
+    border: 1px solid transparent;
+    color: #71717a;
+    border-radius: 5px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+}
+
+.FileCardTrashBtn:hover
+{
+    color: #f85149;
+    background-color: rgba(248, 81, 73, 0.15);
+    border-color: rgba(248, 81, 73, 0.3);
+}
+
+.EmptyNotice
+{
+    padding: 24px 16px;
+    text-align: center;
+    font-size: var(--ui-font-empty);
+    letter-spacing: var(--ui-letter-spacing);
+    color: #71717a;
+}
