@@ -1,4 +1,5 @@
 import os
+import subprocess
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 def create_rounded_mask(width, height, radius):
@@ -7,18 +8,68 @@ def create_rounded_mask(width, height, radius):
     draw.rounded_rectangle([0, 0, width * 4, height * 4], radius=radius * 4, fill=255)
     return mask.resize((width, height), Image.Resampling.LANCZOS)
 
-def draw_card_shadow(canvas, x1, y1, x2, y2, radius, shadow_blur=18, shadow_offset=(0, 6), shadow_alpha=35):
+def draw_card_shadow(canvas, x1, y1, x2, y2, radius, shadow_blur=22, shadow_offset=(0, 8), shadow_alpha=95):
     w = x2 - x1
     h = y2 - y1
     shadow_img = Image.new("RGBA", (w + shadow_blur * 4, h + shadow_blur * 4), (0, 0, 0, 0))
     s_draw = ImageDraw.Draw(shadow_img)
     s_x1 = shadow_blur * 2
     s_y1 = shadow_blur * 2
-    s_draw.rounded_rectangle([s_x1, s_y1, s_x1 + w, s_y1 + h], radius=radius, fill=(90, 85, 105, shadow_alpha))
+    s_draw.rounded_rectangle([s_x1, s_y1, s_x1 + w, s_y1 + h], radius=radius, fill=(0, 0, 0, shadow_alpha))
     shadow_blurred = shadow_img.filter(ImageFilter.GaussianBlur(shadow_blur))
     paste_x = x1 - shadow_blur * 2 + shadow_offset[0]
     paste_y = y1 - shadow_blur * 2 + shadow_offset[1]
     canvas.alpha_composite(shadow_blurred, (paste_x, paste_y))
+
+def compile_typst_dark_doc(output_path):
+    typst_bin = "e:/Typst/TypstStudio/bin/typst.exe"
+    if not os.path.exists(typst_bin):
+        typst_bin = "e:/Typst/target/release/typst.exe"
+
+    typst_code = """#set page(width: 10cm, height: auto, fill: rgb("000000"), margin: (x: 1.5cm, y: 1.5cm))
+#set text(fill: rgb("ffffff"), size: 10.5pt)
+#set heading(numbering: "1.")
+
+= Fibonacci sequence
+The Fibonacci sequence is defined through the
+recurrence relation $F_n = F_(n-1) + F_(n-2)$.
+It can also be expressed in _closed form:_
+
+$ F_n = round(1 / sqrt(5) phi.alt^n), quad
+  phi.alt = (1 + sqrt(5)) / 2 $
+
+#let Count = 8
+#let Nums = range(1, Count + 1)
+#let Fib(N) =
+(
+    if N <= 2
+    {
+        1
+    }
+    else
+    {
+        Fib(N - 1) + Fib(N - 2)
+    }
+)
+
+The first #Count numbers of the sequence are:
+
+#align
+(
+    center,
+    table
+    (
+        columns: Count,
+        stroke: 0.5pt + rgb("475569"),
+        ..Nums.map(N => $F_#N$),
+        ..Nums.map(N => str(Fib(N))),
+    )
+)
+"""
+    cmd = [typst_bin, "compile", "--format", "png", "--ppi", "288", "-", output_path]
+    proc = subprocess.run(cmd, input=typst_code.encode("utf-8"), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if proc.returncode != 0:
+        raise RuntimeError(f"Typst compilation failed: {proc.stderr.decode('utf-8')}")
 
 def build_showcase():
     canvas_w = 1800
@@ -49,12 +100,13 @@ def build_showcase():
     right_x1, right_y1 = 910, 20
     right_x2, right_y2 = right_x1 + card_w, right_y1 + card_h
 
-    # 1. Draw shadows for cards
+    # 1. Draw outer shadows for both cards
     draw_card_shadow(canvas, left_x1, left_y1, left_x2, left_y2, card_r)
     draw_card_shadow(canvas, right_x1, right_y1, right_x2, right_y2, card_r)
 
-    # 2. Draw Left Card (Code Editor)
-    left_card = Image.new("RGBA", (card_w, card_h), (252, 252, 252, 255))
+    # 2. Draw Left Card (Code Editor in Dark Mode)
+    # Modern dark editor background: #131316
+    left_card = Image.new("RGBA", (card_w, card_h), (19, 19, 22, 255))
     left_draw = ImageDraw.Draw(left_card)
 
     # Line tokens definition: (line_no, [(text, style)])
@@ -99,31 +151,35 @@ def build_showcase():
         (37, [(")", "delim")])
     ]
 
-    # Color Palette (Zero Yellow/Gold)
+    # Dark Mode Syntax Color Palette (Zero Yellow / Zero Gold)
     colors = {
-        "kw": (37, 99, 235),          # Royal Blue
-        "fn": (217, 70, 90),          # Warm coral crimson
-        "str": (22, 163, 74),         # Emerald green
-        "num": (2, 132, 199),         # Ocean cyan blue
-        "op": (147, 51, 234),         # Purple
-        "delim": (55, 65, 81),        # Charcoal slate
-        "ident": (31, 41, 55),        # Dark charcoal
-        "plain": (31, 41, 55),        # Dark charcoal
-        "head": (37, 99, 235),        # Blue heading =
-        "head_text": (17, 24, 39),    # Near black bold
-        "italic": (55, 65, 81),       # Charcoal italic
-        "math_delim": (147, 51, 234), # Purple $
-        "math_op": (147, 51, 234),    # Purple operator
-        "math_id": (31, 41, 55),      # Charcoal
-        "math_plain": (31, 41, 55),   # Charcoal
-        "kw_ident": (37, 99, 235),    # Blue #Count
-        "gutter": (156, 163, 175)     # Slate 400
+        "kw": (96, 165, 250),          # Vibrant Sky Blue #60a5fa
+        "fn": (251, 113, 133),         # Warm Coral Rose #fb7185
+        "str": (74, 222, 128),         # Mint Emerald #4ade80
+        "num": (56, 189, 248),         # Cyan Blue #38bdf8
+        "op": (192, 132, 252),         # Soft Purple Violet #c084fc
+        "delim": (148, 163, 184),      # Slate Delimiters #94a3b8
+        "ident": (241, 245, 249),      # Crisp Light Slate #f1f5f9
+        "plain": (226, 232, 240),      # Crisp Light Slate #e2e8f0
+        "head": (96, 165, 250),        # Vibrant Blue Heading mark #60a5fa
+        "head_text": (255, 255, 255),  # Pure Crisp White Bold #ffffff
+        "italic": (203, 213, 225),     # Slate Italic #cbd5e1
+        "math_delim": (192, 132, 252), # Violet $ #c084fc
+        "math_op": (192, 132, 252),    # Violet operator #c084fc
+        "math_id": (241, 245, 249),    # Light Slate
+        "math_plain": (226, 232, 240), # Light Slate
+        "kw_ident": (96, 165, 250),    # Vibrant Blue #Count
+        "gutter": (82, 82, 91),        # Subtle Muted Zinc Gutter #52525b
+        "gutter_line": (31, 31, 37)    # Gutter separator line #1f1f25
     }
 
     start_y = 50
     line_h = 25.5
     gutter_right_x = 68
     code_start_x = 92
+
+    # Draw subtle gutter separator line
+    left_draw.line([(76, 35), (76, 1010)], fill=colors["gutter_line"], width=1)
 
     for idx, (num, tokens) in enumerate(code_lines):
         y = start_y + idx * line_h
@@ -143,16 +199,28 @@ def build_showcase():
             left_draw.text((cur_x, y), token_text, font=f, fill=color)
             cur_x += f.getlength(token_text)
 
+    # 1px border around left card
+    left_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=card_r, outline=(42, 42, 50, 255), width=1)
+
     # Mask left card with rounded rectangle
     left_mask = create_rounded_mask(card_w, card_h, card_r)
     canvas.paste(left_card, (left_x1, left_y1), left_mask)
 
-    # 3. Draw Right Card (Preview Canvas + Compiled Document)
-    right_card = Image.new("RGBA", (card_w, card_h), (228, 229, 234, 255))
+    # 3. Draw Right Card (Preview Viewport Canvas + Compiled Document in Dark Mode)
+    # Lighter dark background behind the page: #18181e
+    right_card = Image.new("RGBA", (card_w, card_h), (24, 24, 30, 255))
+    right_draw = ImageDraw.Draw(right_card)
 
-    # Load compiled document
-    doc_path = "e:/Typst/test_readme_doc.png"
+    # Subtle dot grid pattern behind the page (like Typst Studio PreviewViewport)
+    for gx in range(12, card_w, 24):
+        for gy in range(12, card_h, 24):
+            right_draw.point((gx, gy), fill=(255, 255, 255, 14))
+
+    # Compile / Load compiled dark document
+    doc_path = "e:/Typst/test_readme_doc_dark.png"
+    compile_typst_dark_doc(doc_path)
     doc_img = Image.open(doc_path).convert("RGBA")
+
     doc_target_w = 760
     doc_target_h = int(doc_img.height * (doc_target_w / doc_img.width))
     doc_resized = doc_img.resize((doc_target_w, doc_target_h), Image.Resampling.LANCZOS)
@@ -161,15 +229,21 @@ def build_showcase():
     doc_x = (card_w - doc_target_w) // 2
     doc_y = (card_h - doc_target_h) // 2
 
-    # Draw shadow under document inside right card
+    # Draw deep drop shadow under the black document sheet
     doc_shadow = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
     ds_draw = ImageDraw.Draw(doc_shadow)
-    ds_draw.rectangle([doc_x - 1, doc_y + 4, doc_x + doc_target_w + 1, doc_y + doc_target_h + 8], fill=(90, 85, 105, 55))
-    doc_shadow_blurred = doc_shadow.filter(ImageFilter.GaussianBlur(10))
+    ds_draw.rounded_rectangle([doc_x - 1, doc_y + 6, doc_x + doc_target_w + 1, doc_y + doc_target_h + 12], radius=4, fill=(0, 0, 0, 160))
+    doc_shadow_blurred = doc_shadow.filter(ImageFilter.GaussianBlur(16))
     right_card.alpha_composite(doc_shadow_blurred, (0, 0))
 
     # Paste document onto right card
     right_card.alpha_composite(doc_resized, (doc_x, doc_y))
+
+    # Draw subtle 1px border around the black document sheet
+    right_draw.rectangle([doc_x, doc_y, doc_x + doc_target_w - 1, doc_y + doc_target_h - 1], outline=(46, 46, 56, 255), width=1)
+
+    # 1px border around right card
+    right_draw.rounded_rectangle([0, 0, card_w - 1, card_h - 1], radius=card_r, outline=(42, 42, 50, 255), width=1)
 
     # Mask right card with rounded rectangle
     right_mask = create_rounded_mask(card_w, card_h, card_r)
@@ -178,8 +252,7 @@ def build_showcase():
     # Save final composite
     out_path = "e:/Typst/assets/example-lafs.png"
     canvas.save(out_path, format="PNG")
-    print(f"Successfully generated {out_path} ({canvas.size[0]}x{canvas.size[1]})")
+    print(f"Successfully generated dark mode showcase: {out_path} ({canvas.size[0]}x{canvas.size[1]})")
 
 if __name__ == "__main__":
     build_showcase()
-

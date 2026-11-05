@@ -1,0 +1,139 @@
+            let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            function UpdateMathBracketHighlighting()
+            {
+                if (!MonacoInstance)
+                {
+                    return;
+                }
+
+                const Position = MonacoInstance.getPosition();
+                if (!Position)
+                {
+                    MathBracketDecorations.clear();
+                    return;
+                }
+
+                const Model = MonacoInstance.getModel();
+                if (!Model)
+                {
+                    MathBracketDecorations.clear();
+                    return;
+                }
+
+                const LineNumber = Position.lineNumber;
+                const Column = Position.column;
+                const LineContent = Model.getLineContent(LineNumber);
+
+                // Check if cursor is adjacent to or directly on a $ delimiter
+                const PrevChar = Column > 1 ? LineContent[Column - 2] : "";
+                const CurrChar = Column <= LineContent.length ? LineContent[Column - 1] : "";
+
+                let TargetCol = 0;
+                if (CurrChar === "$")
+                {
+                    TargetCol = Column;
+                }
+                else if (PrevChar === "$")
+                {
+                    TargetCol = Column - 1;
+                }
+
+                if (TargetCol === 0)
+                {
+                    MathBracketDecorations.clear();
+                    return;
+                }
+
+                const TotalLines = Model.getLineCount();
+                let PartnerLine = 0;
+                let PartnerCol = 0;
+
+                // Scan downward first for closing $
+                for (let L = LineNumber + 1; L <= TotalLines; L++)
+                {
+                    const Txt = Model.getLineContent(L);
+                    const MatchIdx = Txt.indexOf("$");
+                    if (MatchIdx !== -1)
+                    {
+                        PartnerLine = L;
+                        PartnerCol = MatchIdx + 1;
+                        break;
+                    }
+                }
+
+                // If not found downwards, scan upwards for opening $
+                if (PartnerLine === 0)
+                {
+                    for (let L = LineNumber - 1; L >= 1; L--)
+                    {
+                        const Txt = Model.getLineContent(L);
+                        const MatchIdx = Txt.lastIndexOf("$");
+                        if (MatchIdx !== -1)
+                        {
+                            PartnerLine = L;
+                            PartnerCol = MatchIdx + 1;
+                            break;
+                        }
+                    }
+                }
+
+                if (PartnerLine > 0)
+                {
+                    MathBracketDecorations.set
+                    ([
+                        {
+                            range: new monaco.Range(LineNumber, TargetCol, LineNumber, TargetCol + 1),
+                            options: { inlineClassName: "typst-math-bracket-match" }
+                        },
+                        {
+                            range: new monaco.Range(PartnerLine, PartnerCol, PartnerLine, PartnerCol + 1),
+                            options: { inlineClassName: "typst-math-bracket-match" }
+                        }
+                    ]);
+                }
+                else
+                {
+                    MathBracketDecorations.clear();
+                }
+            }
+
+            // Fast, non-blocking status bar update using O(1) getValueLength()
+            MonacoInstance.onDidChangeModelContent
+            (
+                (Event) =>
+                {
+                    UpdateStatusBar();
+                    ValidateEditorLAFS();
+                    UpdateMathBracketHighlighting();
+                    const AutoCompile = document.getElementById("AutoCompileToggle").checked;
+                    if (AutoCompile)
+                    {
+                        // Check if change is large (e.g. paste) -> adaptive debounce
+                        const IsLargeChange = Event.changes.some((C) => C.text.length > 500);
+                        ScheduleCompile(IsLargeChange ? 450 : 250);
+                    }
+                }
+            );
+
+            // Smooth paste listener: prevents intermediate compilation freezes while pasting
+            MonacoInstance.onDidPaste
+            (
+                () =>
+                {
+                    UpdateStatusBar();
+                    UpdateMathBracketHighlighting();
+                    const AutoCompile = document.getElementById("AutoCompileToggle").checked;
+                    if (AutoCompile) { ScheduleCompile(450); }
+                }
+            );
+
+            MonacoInstance.onDidChangeCursorPosition
+            (
+                (Event) =>
+                {
+                    const Pos = Event.position;
+                    document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
+                    UpdateMathBracketHighlighting();
+                }
+            );

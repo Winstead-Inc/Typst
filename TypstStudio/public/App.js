@@ -243,7 +243,7 @@ Hello World!
         _Section: #counter(heading).display()_
       ]
       v(0.3em)
-      line(length: 100%, stroke: 0.4pt + rgb("cccccc"))
+      line(length: 100%, stroke: 0.4pt + rgb("CCCCCC"))
     }
   },
   footer: context
@@ -251,7 +251,7 @@ Hello World!
     let PageNum = counter(page).get().first()
     if PageNum > 1
     {
-      line(length: 100%, stroke: 0.4pt + rgb("cccccc"))
+      line(length: 100%, stroke: 0.4pt + rgb("CCCCCC"))
       v(0.3em)
       text(8.5pt, fill: rgb("666666"))
       [
@@ -265,7 +265,7 @@ Hello World!
 
 #set text
 (
-  font: ("Times New Roman", "Segoe UI"),
+  font: ("Times New Roman", "TT Lakes Neue Trial Condensed Medium"),
   size: 10.5pt,
   lang: "en"
 )
@@ -314,25 +314,21 @@ Typst is a next-generation document compiler designed for speed, visual beauty, 
 
   #align(center)
   [
-    #rect(width: 80pt, height: 24pt, radius: 4pt, fill: rgb("4338ca"), stroke: 0.5pt + rgb("6366f1"))
+    #rect(width: 80pt, height: 24pt, radius: 4pt, fill: rgb("4338CA"), stroke: 0.5pt + rgb("6366F1"))
     [
-      #align(center + horizon)[#text(8pt, fill: rgb("ffffff"), weight: "bold")[Indigo Vector]]
+      #align(center + horizon)[#text(8pt, fill: rgb("FFFFFF"), weight: "bold")[Indigo Vector]]
     ]
   ]
 ]
 
 = Mathematics & Equations <sec:math>
 
-Typst features a native math engine with KaTeX parity. Inline expressions like $E = m c^2$ and $lim_(x -> 0) (sin x) / x = 1$ flow seamlessly within text paragraphs.
+Typst features a native math engine with complete typesetting parity. All 12 mathematical categories are showcased below in both inline and coordinate-aligned display forms.
 
-Display block equations feature automated numbering and alignment:
+== 2.1 Linear Transformations & Matrix Algebra
+Matrices and vectors express linear mappings. Inline forms like $mat(1, 2; 3, 4)$ and $vec(x_1, x_2)$ integrate smoothly into text flows.
 
-$
-  integral_(-infinity)^infinity e^(-x^2) dif x = sqrt(pi)
-$ <eq:gaussian>
-
-We can also formulate complex linear transformations using matrices:
-
+Display matrix affine rotation:
 $
   mat
   (
@@ -345,28 +341,201 @@ $
   vec(x cos theta - y sin theta, x sin theta + y cos theta, 1)
 $ <eq:rotation>
 
-Equation @eq:gaussian defines the Gaussian integral, and @eq:rotation illustrates 2D affine rotation.
+Display 3D cylindrical coordinate vector:
+$
+  vec
+  (
+    r cos phi,
+    r sin phi,
+    z
+  )
+$
+
+== 2.2 Piecewise Functions & Cases
+Piecewise conditions can be expressed inline via $cases(1 "if" x > 0, 0 "otherwise")$ or expanded into display equations:
+$
+  f(x)
+  =
+  cases
+  (
+    x^2 "if" x in QQ,
+    0 "if" x in RR backslash QQ
+  )
+$
+
+== 2.3 Rational Expressions & Fractions
+Fractions format cleanly inline like $(a + b) / (c + d)$ and expand horizontally or vertically in display mode:
+$
+  (x^3 - y^3)
+  /
+  (x - y)
+  =
+  x^2 + x y + y^2
+$
+
+== 2.4 Radicals, Roots & Binomial Coefficients
+Radicals format inline as $sqrt(x^2 + 1)$ and $root(3, 8)$, and binomial coefficients format inline as $binom(n, k)$.
+
+Display radical of high-order forms:
+$
+  root
+  (
+    3,
+    x^3 + y^3 + z^3
+  )
+$
+
+Display binomial expansion theorem:
+$
+  sum_(k=0)^n
+  binom
+  (
+    n,
+    k
+  )
+  a^(n - k) b^k
+  =
+  (a + b)^n
+$
+
+== 2.5 Calculus, Integrals & Differential Forms
+Integrals support standard and contour formulations. Inline forms like $integral_0^1 x^2 dif x = 1/3$ integrate directly into prose.
+
+Display Gaussian probability integral:
+$
+  integral_(-infinity)^infinity
+  e^(-x^2)
+  dif x
+  =
+  sqrt(pi)
+$ <eq:gaussian>
+
+Display Cauchy residue contour integral:
+$
+  integral.cont_gamma
+  f(z)
+  dif z
+  =
+  2 pi i sum op("Res")(f, z_k)
+$
+
+== 2.6 Summations, Infinite Products & Limits
+Summations and infinite products format inline as $sum_(i=1)^n i = (n (n+1))/2$ and $product_(i=1)^n i = n!$.
+
+Display Basel problem summation:
+$
+  sum_(n=1)^infinity
+  1 / n^2
+  =
+  pi^2 / 6
+$
+
+Display Euler product formula:
+$
+  product_(n=1)^infinity
+  (1 - 1 / (4 n^2))
+  =
+  2 / pi
+$
+
+Display exponential limit definition with inline counterpart $lim_(x -> 0) (sin x) / x = 1$:
+$
+  lim_(n -> infinity)
+  (1 + 1/n)^n
+  =
+  e
+$
+
+== 2.7 Vector Calculus, Accents, Primes & Norms
+Diacritics and prime notation are fully supported inline: $arrow(v), hat(x), tilde(y), dot(x), dot.double(x), macron(z), f'(x)$, with norms $abs(x) < epsilon$ and $norm(arrow(v)) = 1$.
+
+Display Newton second law in vector differential form:
+$
+  arrow(F)
+  =
+  m dot.double(arrow(r))
+$
+
+Display Euclidean vector norm expansion:
+$
+  norm
+  (
+    arrow(v)
+  )
+  =
+  sqrt(v_1^2 + v_2^2 + v_3^2)
+$
+
+Display Maxwell electrodynamic field equations (multiline aligned system):
+$
+  nabla times arrow(E) &= - (partial arrow(B)) / (partial t) \\
+  nabla times arrow(B) &= mu_0 arrow(J) + mu_0 epsilon_0 (partial arrow(E)) / (partial t)
+$
 
 = Data Tables & Figures <sec:tables>
 
-Tables in Typst support dynamic borders, alternating row fills, and automated alignment:
+Typst features high-performance tables supporting custom fills, alternating strokes, cell spanning, and nested hierarchical sub-tables.
 
-#figure
+== 3.1 Advanced Merged Cells (Colspan & Rowspan)
+The table below illustrates multi-column headers (\`colspan\`) and multi-row categorical spans (\`rowspan\`) with coordinate alignment:
+
+#table
 (
-  table
+  columns: (1.5fr, 1fr, 1.2fr, 2fr),
+  stroke: 0.5pt + rgb("CCCCCC"),
+  table.header
   (
-    columns: (1.5fr, 1fr, 1.2fr, 2fr),
-    fill: (col, row) => if row == 0 { rgb("f0f4f8") } else if calc.even(row) { rgb("fafafa") } else { none },
-    stroke: 0.5pt + rgb("dddddd"),
-    align: (col, row) => if col == 0 { left } else { center },
-    table.header([*Module Name*], [*Status*], [*Latency*], [*Architectural Role*]),
-    [Syntax Parser], [Active], [4.2 ms], [Incremental Allman AST Generation],
-    [Layout Engine], [Active], [18.7 ms], [Vector Box Positioning & Justification],
-    [PDF Producer], [Active], [12.1 ms], [Tagged PDF/UA Production],
-    [SVG Renderer], [Active], [6.4 ms], [Real-Time Browser DOM Streaming]
+    table.cell(colspan: 4, fill: rgb("E4E9F0"))[*Executive Cluster Architecture & Performance*]
   ),
-  caption: [System Pipeline Benchmark Results]
-) <tab:benchmarks>
+  table.cell(rowspan: 2, fill: rgb("FAFAFA"))[*Core Engine*],
+  [Parser], [4.2 ms], [Incremental Allman AST],
+  [Compiler], [18.7 ms], [Vector Layout Engine],
+  table.cell(rowspan: 2, fill: rgb("FAFAFA"))[*Export Pipeline*],
+  [PDF Producer], [12.1 ms], [Tagged PDF/UA Production],
+  [Vector Renderer], [8.4 ms], [Real-Time Browser DOM Streaming],
+  table.cell(colspan: 2, fill: rgb("F1F3F6"))[*Total Latency*],
+  table.cell(colspan: 2, fill: rgb("F1F3F6"))[*43.4 ms (Real-Time Synchronous)*]
+)
+
+== 3.2 Hierarchical Nested Tables
+Sub-tables can be embedded directly within container cells to display complex component structures:
+
+#table
+(
+  columns: (1fr, 1.5fr),
+  stroke: 0.5pt + rgb("BBBBBB"),
+  table.header
+  (
+    table.cell(colspan: 2, fill: rgb("E4E9F0"))[*System Modularity & Nested Subsystem Matrix*]
+  ),
+  [*Subsystem ID*], [*Subsystem Component Hierarchy*],
+  [Cluster Alpha],
+  table.cell
+  [
+    #table
+    (
+      columns: (1fr, 1fr),
+      stroke: 0.3pt + rgb("DDDDDD"),
+      fill: (col, row) => if calc.even(row) { rgb("F9FAFB") } else { none },
+      [*Component*], [*Status*],
+      [Lexer], [Online],
+      [Parser], [Synchronized]
+    )
+  ],
+  [Cluster Beta],
+  table.cell
+  [
+    #table
+    (
+      columns: (1.2fr, 1fr),
+      stroke: 0.3pt + rgb("DDDDDD"),
+      fill: (col, row) => if calc.even(row) { rgb("F9FAFB") } else { none },
+      [*Sub-Module*], [*Memory Allocated*],
+      [Font Rasterizer], [14.2 MB],
+      [Vector Cache], [6.8 MB]
+    )
+  ]
+)
 
 = Computational Scripting & Programmatic Generation
 
@@ -374,11 +543,11 @@ Typst features a built-in Turing-complete functional scripting language:
 
 #let MetricBadge(Name, Score) =
 {
-  rect(width: 100%, stroke: 0.5pt + rgb("e5e7eb"), radius: 4pt, fill: rgb("f9fafb"))
+  rect(width: 100%, stroke: 0.5pt + rgb("DDDDDD"), radius: 4pt, fill: rgb("F1F3F6"))
   [
     #box(inset: 6pt)
     [
-      *#Name*: #h(1fr) #text(weight: "bold", fill: if Score > 90 { rgb("16a34a") } else { rgb("2563eb") })[#Score / 100]
+      *#Name*: #h(1fr) #text(weight: "bold", fill: if Score > 90 { rgb("16A34A") } else { rgb("2563EB") })[#Score / 100]
     ]
   ]
 }
@@ -410,6 +579,159 @@ let LastCompiledPages = [];
 let IsBlackPageMode = localStorage.getItem("typst_black_page_mode") === "true";
 let ActiveAbortController = null;
 let RenderToken = 0;
+let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
+
+async function EnsureSessionAuthToken()
+{
+    if (SessionAuthToken)
+    {
+        return SessionAuthToken;
+    }
+
+    if (typeof window !== "undefined" && window.__TYPST_STUDIO_AUTH_TOKEN__)
+    {
+        SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__;
+        return SessionAuthToken;
+    }
+
+    try
+    {
+        const Response = await fetch("/api/auth/token");
+        const Data = await Response.json();
+        if (Data.Success && Data.Token)
+        {
+            SessionAuthToken = Data.Token;
+            window.__TYPST_STUDIO_AUTH_TOKEN__ = Data.Token;
+            return SessionAuthToken;
+        }
+    }
+    catch (Err)
+    {
+        console.error("Failed to acquire session auth token:", Err);
+    }
+
+    return SessionAuthToken;
+}
+
+async function AuthenticatedFetch(Url, Options = {})
+{
+    const Token = await EnsureSessionAuthToken();
+    const Headers = Options.headers ? { ...Options.headers } : {};
+
+    if (Token)
+    {
+        Headers["x-typst-auth-token"] = Token;
+    }
+
+    return fetch(Url, { ...Options, headers: Headers });
+}
+let LastSavedContent = "";
+let IsDocumentDirty = false;
+let PrimaryErrorLocation = null;
+let IsExportMenuOpen = false;
+
+function ShowToast(Message, Type = "info", DurationMs = 3000)
+{
+    const Container = document.getElementById("ToastContainer");
+    if (!Container) { return; }
+
+    const Toast = document.createElement("div");
+    const NormalizedType = Type.charAt(0).toUpperCase() + Type.slice(1).toLowerCase();
+    Toast.className = `Toast Toast${NormalizedType}`;
+
+    let IconSvg = "";
+    if (Type === "success")
+    {
+        IconSvg = `<svg Class = "ToastIcon" Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2"><polyline Points = "20 6 9 17 4 12" /></svg>`;
+    }
+    else if (Type === "error")
+    {
+        IconSvg = `<svg Class = "ToastIcon" Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2"><circle Cx = "12" Cy = "12" R = "10" /><line X1 = "15" Y1 = "9" X2 = "9" Y2 = "15" /><line X1 = "9" Y1 = "9" X2 = "15" Y2 = "15" /></svg>`;
+    }
+    else
+    {
+        IconSvg = `<svg Class = "ToastIcon" Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2"><circle Cx = "12" Cy = "12" R = "10" /><line X1 = "12" Y1 = "16" X2 = "12" Y2 = "12" /><line X1 = "12" Y1 = "8" X2 = "12.01" Y2 = "8" /></svg>`;
+    }
+
+    Toast.innerHTML = `${IconSvg}<span Class = "ToastMessage">${Message}</span>`;
+    Container.appendChild(Toast);
+
+    requestAnimationFrame
+    (
+        () =>
+        {
+            Toast.classList.add("Visible");
+        }
+    );
+
+    setTimeout
+    (
+        () =>
+        {
+            Toast.classList.remove("Visible");
+            setTimeout
+            (
+                () =>
+                {
+                    if (Toast.parentNode)
+                    {
+                        Toast.parentNode.removeChild(Toast);
+                    }
+                },
+                300
+            );
+        },
+        DurationMs
+    );
+}
+
+function MarkDocumentClean(Content)
+{
+    LastSavedContent = typeof Content === "string" ? Content : (MonacoInstance ? MonacoInstance.getValue() : "");
+    IsDocumentDirty = false;
+    UpdateDirtyStateUI();
+}
+
+function CheckDocumentDirty()
+{
+    if (!MonacoInstance) { return; }
+    const Current = MonacoInstance.getValue();
+    const WasDirty = IsDocumentDirty;
+    IsDocumentDirty = (Current !== LastSavedContent);
+    if (WasDirty !== IsDocumentDirty)
+    {
+        UpdateDirtyStateUI();
+    }
+}
+
+function UpdateDirtyStateUI()
+{
+    const Dot = document.getElementById("UnsavedDirtyDot");
+    const TitleInput = document.getElementById("DocumentTitleInput");
+    const ActiveName = TitleInput ? TitleInput.value.trim() : (CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop() : "main.typ");
+
+    if (Dot)
+    {
+        Dot.style.display = IsDocumentDirty ? "inline-block" : "none";
+    }
+
+    if (IsDocumentDirty)
+    {
+        document.title = `● Typst Studio — ${ActiveName}*`;
+    }
+    else
+    {
+        document.title = `Typst Studio — ${ActiveName}`;
+    }
+}
+
+function JumpToEditorLocation(Line, Col)
+{
+    if (!MonacoInstance) { return; }
+    MonacoInstance.revealPositionInCenter({ lineNumber: Line, column: Col });
+    MonacoInstance.setPosition({ lineNumber: Line, column: Col });
+    MonacoInstance.focus();
+}
 
 // Appearance & UI Settings
 const UI_SETTINGS_STORAGE_KEY = "TypstStudio_UISettings";
@@ -839,6 +1161,492 @@ function SetupAppearanceEventListeners()
     }
 }
 
+function DetectKnrSlop(Source, FileName = "main.typ")
+{
+    const Lines = (Source || "").split(/\r?\n/);
+    const Errors = [];
+
+    // Stack holds active openers: { Delim, Line, Col, LineText }
+    const Stack = [];
+
+    let InString = false;
+    let InRawBlock = false;
+    let InRawInline = false;
+    let BlockCommentDepth = 0;
+
+    // Helper to get clean line text with strings/comments masked
+    function GetMaskedLine(LineText)
+    {
+        let Masked = "";
+        let InStr = false;
+        for (let I = 0; I < LineText.length; I++)
+        {
+            const C = LineText[I];
+            const NextC = I + 1 < LineText.length ? LineText[I + 1] : "";
+            const PrevC = I > 0 ? LineText[I - 1] : "";
+            if (C === '"' && PrevC !== "\\")
+            {
+                InStr = !InStr;
+                Masked += " ";
+                continue;
+            }
+            if (InStr)
+            {
+                Masked += " ";
+                continue;
+            }
+            if (C === "/" && NextC === "/")
+            {
+                Masked += " ".repeat(LineText.length - I);
+                break;
+            }
+            Masked += C;
+        }
+        return Masked;
+    }
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx++)
+    {
+        const LineNum = LineIdx + 1;
+        const LineText = Lines[LineIdx];
+        let InLineComment = false;
+
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx++)
+        {
+            const ColNum = ColIdx + 1;
+            const Char = LineText[ColIdx];
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1] : "";
+            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1] : "";
+
+            if (InLineComment) { break; }
+
+            // Raw blocks ```
+            if (!InString && BlockCommentDepth === 0 && Char === "`")
+            {
+                if (LineText.substring(ColIdx, ColIdx + 3) === "```")
+                {
+                    InRawBlock = !InRawBlock;
+                    ColIdx += 2;
+                    continue;
+                }
+                else if (!InRawBlock)
+                {
+                    InRawInline = !InRawInline;
+                    continue;
+                }
+            }
+            if (InRawBlock || InRawInline) { continue; }
+
+            // Block comments /* */
+            if (!InString && Char === "/" && NextChar === "*")
+            {
+                BlockCommentDepth++;
+                ColIdx++;
+                continue;
+            }
+            if (!InString && BlockCommentDepth > 0 && Char === "*" && NextChar === "/")
+            {
+                BlockCommentDepth--;
+                ColIdx++;
+                continue;
+            }
+            if (BlockCommentDepth > 0) { continue; }
+
+            // Line comments //
+            if (!InString && Char === "/" && NextChar === "/")
+            {
+                InLineComment = true;
+                break;
+            }
+
+            // String literals "..."
+            if (Char === '"' && PrevChar !== "\\")
+            {
+                InString = !InString;
+                continue;
+            }
+            if (InString) { continue; }
+
+            // Multiline display math container: $
+            if (Char === "$" && PrevChar !== "\\")
+            {
+                if (Stack.length > 0 && Stack[Stack.length - 1].Delim === "$")
+                {
+                    // Closer for $
+                    const Opener = Stack.pop();
+                    if (LineNum > Opener.Line)
+                    {
+                        // Multiline math container: evaluate Vector 1 and Vector 2
+                        const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
+                        const MaskedCloserLine = GetMaskedLine(LineText);
+
+                        const OpenerPrefixSemantic = MaskedOpenerLine.substring(0, Opener.Col - 1).replace(/[\(\[\{\$]/g, "").trim();
+                        const OpenerSuffixSemantic = MaskedOpenerLine.substring(Opener.Col).replace(/[\(\[\{\$]/g, "").trim();
+
+                        if (OpenerPrefixSemantic.length > 0)
+                        {
+                            const Anchor = OpenerPrefixSemantic.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefixSemantic;
+                            Errors.push
+                            ({
+                                Type: "KNR_SLOP",
+                                Vector: 1,
+                                Subtype: "PRECEDING",
+                                Delim: "$",
+                                Line: Opener.Line,
+                                Col: Opener.Col,
+                                LineText: Lines[Opener.Line - 1],
+                                Anchor: Anchor,
+                                Reason: "Preceding Semantic Content on Unpaired Opening Container"
+                            });
+                        }
+                        else if (OpenerSuffixSemantic.length > 0)
+                        {
+                            const Anchor = OpenerSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || OpenerSuffixSemantic;
+                            Errors.push
+                            ({
+                                Type: "KNR_SLOP",
+                                Vector: 1,
+                                Subtype: "PROCEEDING",
+                                Delim: "$",
+                                Line: Opener.Line,
+                                Col: Opener.Col,
+                                LineText: Lines[Opener.Line - 1],
+                                Anchor: Anchor,
+                                Reason: "Proceeding Semantic Content on Unpaired Opening Container"
+                            });
+                        }
+
+                        const CloserPrefixSemantic = MaskedCloserLine.substring(0, ColNum - 1).replace(/[\)\]\}\$]/g, "").trim();
+                        const CloserSuffixSemantic = MaskedCloserLine.substring(ColNum).replace(/[\)\]\}\$]/g, "").trim();
+
+                        if (CloserPrefixSemantic.length > 0)
+                        {
+                            const Anchor = CloserPrefixSemantic.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || CloserPrefixSemantic;
+                            Errors.push
+                            ({
+                                Type: "KNR_SLOP",
+                                Vector: 2,
+                                Subtype: "PRECEDING",
+                                Delim: "$",
+                                Line: LineNum,
+                                Col: ColNum,
+                                LineText: LineText,
+                                Anchor: Anchor,
+                                Reason: "Preceding Semantic Content on Unpaired Closing Container"
+                            });
+                        }
+                        else if (CloserSuffixSemantic.length > 0 && !/^(,|;|<[a-zA-Z0-9_\-:]+>)/.test(CloserSuffixSemantic))
+                        {
+                            const Anchor = CloserSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || CloserSuffixSemantic;
+                            Errors.push
+                            ({
+                                Type: "KNR_SLOP",
+                                Vector: 2,
+                                Subtype: "PROCEEDING",
+                                Delim: "$",
+                                Line: LineNum,
+                                Col: ColNum,
+                                LineText: LineText,
+                                Anchor: Anchor,
+                                Reason: "Proceeding Semantic Content on Unpaired Closing Container"
+                            });
+                        }
+                    }
+                }
+                else
+                {
+                    // Opener for $
+                    Stack.push
+                    ({
+                        Delim: "$",
+                        Line: LineNum,
+                        Col: ColNum,
+                        LineText: LineText
+                    });
+                }
+                continue;
+            }
+
+            // Standard containers: (, [, {
+            if (Char === "(" || Char === "{" || Char === "[")
+            {
+                Stack.push
+                ({
+                    Delim: Char,
+                    Line: LineNum,
+                    Col: ColNum,
+                    LineText: LineText
+                });
+            }
+            else if (Char === ")" || Char === "}" || Char === "]")
+            {
+                const MatchDelim = Char === ")" ? "(" : (Char === "}" ? "{" : "[");
+
+                if (Stack.length === 0 || Stack[Stack.length - 1].Delim !== MatchDelim)
+                {
+                    Errors.push
+                    ({
+                        Type: "KNR_SLOP",
+                        Vector: 2,
+                        Subtype: "MISMATCH",
+                        Delim: Char,
+                        Line: LineNum,
+                        Col: ColNum,
+                        LineText: LineText,
+                        Anchor: Char,
+                        Reason: "Mismatched Closing Container not mirrored in the Opening Run"
+                    });
+                    continue;
+                }
+
+                const Opener = Stack.pop();
+
+                // Monolith Check: Same line openers and closers are valid Monoliths
+                if (LineNum === Opener.Line)
+                {
+                    continue;
+                }
+
+                // Multiline container: Evaluate Vector 1 (Opener line) and Vector 2 (Closer line)
+                const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
+                const MaskedCloserLine = GetMaskedLine(LineText);
+
+                // --- VECTOR 1 EVALUATION (Opening Container Line) ---
+                const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
+                const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
+                const OpenerPrefixSemantic = OpenerPrefix.replace(/[\(\[\{\$]/g, "").trim();
+                const OpenerSuffixSemantic = OpenerSuffix.replace(/[\(\[\{\$]/g, "").trim();
+
+                if (OpenerPrefixSemantic.length > 0)
+                {
+                    const Anchor = OpenerPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefix;
+                    Errors.push
+                    ({
+                        Type: "KNR_SLOP",
+                        Vector: 1,
+                        Subtype: "PRECEDING",
+                        Delim: Opener.Delim,
+                        Line: Opener.Line,
+                        Col: Opener.Col,
+                        LineText: Lines[Opener.Line - 1],
+                        Anchor: Anchor,
+                        Reason: "Preceding Semantic Content on Unpaired Opening Container"
+                    });
+                }
+                else if (OpenerSuffixSemantic.length > 0)
+                {
+                    const Anchor = OpenerSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || OpenerSuffixSemantic;
+                    Errors.push
+                    ({
+                        Type: "KNR_SLOP",
+                        Vector: 1,
+                        Subtype: "PROCEEDING",
+                        Delim: Opener.Delim,
+                        Line: Opener.Line,
+                        Col: Opener.Col,
+                        LineText: Lines[Opener.Line - 1],
+                        Anchor: Anchor,
+                        Reason: "Proceeding Semantic Content on Unpaired Opening Container"
+                    });
+                }
+
+                // --- VECTOR 2 EVALUATION (Closing Container Line) ---
+                const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
+                const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
+                const CloserPrefixSemantic = CloserPrefix.replace(/[\)\]\}\$]/g, "").trim();
+                const CloserSuffixSemantic = CloserSuffix.replace(/[\)\]\}\$]/g, "").trim();
+
+                if (CloserPrefixSemantic.length > 0)
+                {
+                    const Anchor = CloserPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || CloserPrefix;
+                    Errors.push
+                    ({
+                        Type: "KNR_SLOP",
+                        Vector: 2,
+                        Subtype: "PRECEDING",
+                        Delim: Char,
+                        Line: LineNum,
+                        Col: ColNum,
+                        LineText: LineText,
+                        Anchor: Anchor,
+                        Reason: "Preceding Semantic Content on Unpaired Closing Container"
+                    });
+                }
+                else if (CloserSuffixSemantic.length > 0 && !/^(,|;|<[a-zA-Z0-9_\-:]+>)/.test(CloserSuffixSemantic))
+                {
+                    const Anchor = CloserSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || CloserSuffixSemantic;
+                    Errors.push
+                    ({
+                        Type: "KNR_SLOP",
+                        Vector: 2,
+                        Subtype: "PROCEEDING",
+                        Delim: Char,
+                        Line: LineNum,
+                        Col: ColNum,
+                        LineText: LineText,
+                        Anchor: Anchor,
+                        Reason: "Proceeding Semantic Content on Unpaired Closing Container"
+                    });
+                }
+            }
+        }
+    }
+
+    // Remaining unclosed openers that span beyond end of file
+    for (const Opener of Stack)
+    {
+        if (Lines.length > Opener.Line)
+        {
+            const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
+            const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
+            const OpenerPrefixSemantic = OpenerPrefix.replace(/[\(\[\{\$]/g, "").trim();
+            if (OpenerPrefixSemantic.length > 0)
+            {
+                const Anchor = OpenerPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefix;
+                Errors.push
+                ({
+                    Type: "KNR_SLOP",
+                    Vector: 1,
+                    Subtype: "PRECEDING",
+                    Delim: Opener.Delim,
+                    Line: Opener.Line,
+                    Col: Opener.Col,
+                    LineText: Lines[Opener.Line - 1],
+                    Anchor: Anchor,
+                    Reason: "Preceding Semantic Content on Unpaired Opening Container"
+                });
+            }
+        }
+    }
+
+    // Deduplicate errors by Line + Col + Vector + Subtype
+    const UniqueErrors = [];
+    const SeenKeys = new Set();
+    for (const Err of Errors)
+    {
+        const Key = `${Err.Line}:${Err.Col}:${Err.Vector}:${Err.Subtype}`;
+        if (!SeenKeys.has(Key))
+        {
+            SeenKeys.add(Key);
+            UniqueErrors.push(Err);
+        }
+    }
+
+    if (UniqueErrors.length === 0)
+    {
+        return { HasError: false, Errors: [] };
+    }
+
+    const First = UniqueErrors[0];
+    const LineStr = String(First.Line);
+    const Margin = " ".repeat(Math.max(2, LineStr.length));
+    const FormattedLineNum = LineStr.padStart(Margin.length, " ");
+    const PointerIndent = " ".repeat(Math.max(0, First.Col - 1));
+    const AnchorTarget = First.Anchor ? `'${First.Anchor}'` : "the statement";
+
+    let ActionHint = "";
+    if (First.Vector === 1)
+    {
+        if (First.Subtype === "PRECEDING")
+        {
+            ActionHint = `Move opening container '${First.Delim}' to a new line aligned with ${AnchorTarget} and indent it properly if needed`;
+        }
+        else
+        {
+            ActionHint = `Move semantic content proceeding '${First.Delim}' to a new line indented within the container`;
+        }
+    }
+    else if (First.Vector === 2)
+    {
+        if (First.Subtype === "PRECEDING")
+        {
+            ActionHint = `Move closing container '${First.Delim}' to a new line aligned with the opening container`;
+        }
+        else if (First.Subtype === "PROCEEDING")
+        {
+            ActionHint = `Move semantic content proceeding '${First.Delim}' to a new line`;
+        }
+        else if (First.Subtype === "MISMATCH")
+        {
+            ActionHint = `Closing container '${First.Delim}' does not mirror the opening container run in reverse sequence`;
+        }
+        else
+        {
+            ActionHint = `Format closing container '${First.Delim}' onto its own coordinate-aligned line`;
+        }
+    }
+    else
+    {
+        ActionHint = `Move container '${First.Delim}' to a new line aligned with ${AnchorTarget} and indent it properly if needed`;
+    }
+
+    const FormattedMessage =
+`error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
+${Margin}┌─ ${FileName}:${First.Line}:${First.Col}
+${Margin}│
+${FormattedLineNum}│ ${First.LineText}
+${Margin}│${PointerIndent}^ ${ActionHint}
+${Margin}│
+Hint: Click the button "Format LAFS" to fix it.`;
+
+    return {
+        HasError: true,
+        Errors: UniqueErrors,
+        PrimaryError: First,
+        FormattedMessage: FormattedMessage
+    };
+}
+
+function ValidateEditorLAFS()
+{
+    if (!MonacoInstance)
+    {
+        return { HasError: false, Errors: [] };
+    }
+
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return { HasError: false, Errors: [] };
+    }
+
+    const Source = Model.getValue();
+    const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop() : "main.typ";
+    const KnrResult = DetectKnrSlop(Source, ActiveFileName);
+
+    if (KnrResult.HasError)
+    {
+        const Markers = KnrResult.Errors.map
+        (
+            (Err) =>
+            ({
+                severity: monaco.MarkerSeverity.Error,
+                message: `Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected (Vector ${Err.Vector || 1}): ${Err.Reason}. Hint: Click 'Format LAFS' to fix it.`,
+                startLineNumber: Err.Line,
+                startColumn: Err.Col,
+                endLineNumber: Err.Line,
+                endColumn: Err.Col + 1
+            })
+        );
+        monaco.editor.setModelMarkers(Model, "lafs-validator", Markers);
+    }
+    else
+    {
+        monaco.editor.setModelMarkers(Model, "lafs-validator", []);
+        const ErrorContent = document.getElementById("ErrorContent");
+        if (ErrorContent && ErrorContent.textContent.includes("1978 K&R Slop"))
+        {
+            const ErrorDrawer = document.getElementById("ErrorDrawer");
+            if (ErrorDrawer)
+            {
+                ErrorDrawer.classList.remove("Visible");
+            }
+        }
+    }
+
+    return KnrResult;
+}
+
 function FormatTypstLAFS(Source)
 {
     const Lines = Source.split(/\r?\n/);
@@ -949,11 +1757,13 @@ function ApplyFormattingToEditor()
         MonacoInstance.executeEdits("format-lafs", [{ range: FullRange, text: FormattedValue }]);
         MonacoInstance.pushUndoStop();
         TriggerCompileNow();
+        ShowToast("Formatted to LAFS standard", "info");
     }
 }
 
-function InitializeMonaco()
+async function InitializeMonaco()
 {
+    await EnsureSessionAuthToken();
     window.require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
 
     window.require
@@ -1131,6 +1941,195 @@ function InitializeMonaco()
                 }
             );
 
+                        // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
+            monaco.languages.registerCompletionItemProvider
+            (
+                "typst",
+                {
+                    triggerCharacters: ["#", "$", "@", "<", ".", " ", ":", "/", "\\"],
+                    provideCompletionItems: (Model, Position) =>
+                    {
+                        const Word = Model.getWordUntilPosition(Position);
+                        const Range =
+                        {
+                            startLineNumber: Position.lineNumber,
+                            endLineNumber: Position.lineNumber,
+                            startColumn: Word.startColumn,
+                            endColumn: Word.endColumn
+                        };
+
+                        const Suggestions = [];
+
+                        // 1. LAFS Snippets with Allman detached delimiters
+                        const Snippets =
+                        [
+                            {
+                                label: "mat (LAFS Matrix)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "mat\n(\n\t${1:1}, ${2:2};\n\t${3:3}, ${4:4}\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "2D Matrix with LAFS Allman detached delimiters",
+                                detail: "LAFS Matrix"
+                            },
+                            {
+                                label: "vec (LAFS Vector)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "vec\n(\n\t${1:x},\n\t${2:y}\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Vector with LAFS Allman detached delimiters",
+                                detail: "LAFS Vector"
+                            },
+                            {
+                                label: "cases (LAFS Cases)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "cases\n(\n\t${1:1} \"if\" ${2:x > 0},\n\t${3:0} \"otherwise\"\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Piecewise cases with LAFS Allman detached delimiters",
+                                detail: "LAFS Cases"
+                            },
+                            {
+                                label: "table (LAFS Table)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#table\n(\n\tcolumns: (${1:1fr, 1fr}),\n\tstroke: 0.5pt + rgb(\"CCCCCC\"),\n\ttable.header([*${2:Header 1}*], [*${3:Header 2}*]),\n\t[${4:Item 1}], [${5:Value 1}]\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Table with LAFS Allman detached delimiters and headers",
+                                detail: "LAFS Table"
+                            },
+                            {
+                                label: "table-merged (LAFS Merged Cells)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#table\n(\n\tcolumns: (${1:1.5fr, 1fr, 1.2fr, 2fr}),\n\tstroke: 0.5pt + rgb(\"CCCCCC\"),\n\ttable.header\n\t(\n\t\ttable.cell(colspan: 4, fill: rgb(\"E4E9F0\"))[*${2:Full Title}*]\n\t),\n\ttable.cell(rowspan: 2, fill: rgb(\"FAFAFA\"))[*${3:Group}*],\n\t[${4:Sub 1}], [${5:4.2 ms}], [${6:Incremental Allman AST}],\n\t[${7:Sub 2}], [${8:18.7 ms}], [${9:Vector Layout Engine}]\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Table with merged cells (colspan & rowspan) in LAFS",
+                                detail: "LAFS Merged Table"
+                            },
+                            {
+                                label: "setpage (LAFS Page Setup)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#set page\n(\n\tpaper: \"${1:a4}\",\n\tmargin: ${2:2.5cm}\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Configure page paper size and margins in LAFS",
+                                detail: "LAFS Page Setup"
+                            },
+                            {
+                                label: "settext (LAFS Typography Setup)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#set text\n(\n\tfont: \"${1:Times New Roman}\",\n\tsize: ${2:11pt}\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Configure font family and size in LAFS",
+                                detail: "LAFS Typography Setup"
+                            },
+                            {
+                                label: "setpar (LAFS Paragraph Setup)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#set par\n(\n\tjustify: ${1:true},\n\tleading: ${2:0.75em}\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Configure paragraph justification and leading in LAFS",
+                                detail: "LAFS Paragraph Setup"
+                            },
+                            {
+                                label: "figure (LAFS Figure)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#figure\n(\n\t${1:content},\n\tcaption: [${2:Caption description}]\n) <${3:fig:label}>",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Numbered figure with caption and label in LAFS",
+                                detail: "LAFS Figure"
+                            },
+                            {
+                                label: "grid (LAFS Grid)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#grid\n(\n\tcolumns: (${1:1fr, 1fr}),\n\tgutter: ${2:10pt},\n\t[${3:Left}],\n\t[${4:Right}]\n)",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Multi-column grid in LAFS",
+                                detail: "LAFS Grid"
+                            },
+                            {
+                                label: "let-func (LAFS Function)",
+                                kind: monaco.languages.CompletionItemKind.Snippet,
+                                insertText: "#let ${1:FunctionName}(${2:Param1, Param2}) =\n{\n\t${3:[Result content]}\n}",
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                documentation: "Turing-complete functional helper in LAFS",
+                                detail: "LAFS Function"
+                            }
+                        ];
+                        for (const S of Snippets)
+                        {
+                            Suggestions.push({ ...S, range: Range });
+                        }
+
+                        // 2. Builtin Functions & Primitives
+                        const Builtins =
+                        [
+                            { label: "align", detail: "align(alignment)[body]", insertText: "align(${1:center})[\n\t${2:body}\n]" },
+                            { label: "text", detail: "text(size, fill)[content]", insertText: "text(${1:11pt})[${2:content}]" },
+                            { label: "par", detail: "par(justify: true)[...]", insertText: "par(justify: ${1:true})[\n\t${2:content}\n]" },
+                            { label: "image", detail: "image(path, width: ...)", insertText: "image(\"${1:path.png}\", width: ${2:100%})" },
+                            { label: "rect", detail: "rect(width, height, fill)", insertText: "rect(width: ${1:100%}, height: ${2:30pt}, fill: rgb(\"${3:4338CA}\"))" },
+                            { label: "circle", detail: "circle(radius, fill)", insertText: "circle(radius: ${1:15pt}, fill: rgb(\"${2:6366F1}\"))" },
+                            { label: "columns", detail: "columns(n)[body]", insertText: "columns(${1:2})[\n\t${2:body}\n]" },
+                            { label: "line", detail: "line(length, stroke)", insertText: "line(length: ${1:100%}, stroke: ${2:0.5pt + rgb(\"CCCCCC\")})" },
+                            { label: "v", detail: "v(spacing)", insertText: "v(${1:1em})" },
+                            { label: "h", detail: "h(spacing)", insertText: "h(${1:1fr})" },
+                            { label: "box", detail: "box(inset: ...)[...]", insertText: "box(inset: ${1:4pt})[${2:content}]" },
+                            { label: "block", detail: "block(fill: ...)[...]", insertText: "block(fill: rgb(\"${1:F1F3F6}\"), inset: ${2:8pt})[\n\t${3:content}\n]" },
+                            { label: "outline", detail: "outline(title: ...)", insertText: "outline(title: \"${1:Document Index}\", indent: ${2:1.5em})" },
+                            { label: "footnote", detail: "footnote[text]", insertText: "footnote[${1:Footnote text}]" },
+                            { label: "bibliography", detail: "bibliography(path)", insertText: "bibliography(\"${1:works.bib}\")" },
+                            { label: "cite", detail: "@key citation", insertText: "@${1:key}" }
+                        ];
+                        for (const B of Builtins)
+                        {
+                            Suggestions.push
+                            ({
+                                label: B.label,
+                                kind: monaco.languages.CompletionItemKind.Function,
+                                insertText: B.insertText,
+                                insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+                                detail: B.detail,
+                                range: Range
+                            });
+                        }
+
+                        // 3. Keywords
+                        const Keywords = ["let", "set", "show", "context", "if", "else", "while", "for", "in", "return", "import", "include"];
+                        for (const Kw of Keywords)
+                        {
+                            Suggestions.push
+                            ({
+                                label: Kw,
+                                kind: monaco.languages.CompletionItemKind.Keyword,
+                                insertText: Kw,
+                                range: Range
+                            });
+                        }
+
+                        // 4. Math symbols & Greek
+                        const MathSymbols =
+                        [
+                            "alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta",
+                            "iota", "kappa", "lambda", "mu", "nu", "xi", "pi", "rho", "sigma",
+                            "tau", "upsilon", "phi", "chi", "psi", "omega", "infinity", "nabla",
+                            "partial", "dif", "times", "integral", "sum", "product", "lim",
+                            "sqrt", "root", "binom", "abs", "norm", "arrow", "hat", "tilde",
+                            "dot", "dot.double", "macron"
+                        ];
+                        for (const Sym of MathSymbols)
+                        {
+                            Suggestions.push
+                            ({
+                                label: Sym,
+                                kind: monaco.languages.CompletionItemKind.Variable,
+                                insertText: Sym,
+                                detail: "Math Symbol",
+                                range: Range
+                            });
+                        }
+
+                        return { suggestions: Suggestions };
+                    }
+                }
+            );
+
             const Container = document.getElementById("MonacoContainer");
             MonacoInstance = monaco.editor.create
             (
@@ -1195,6 +2194,8 @@ function InitializeMonaco()
             (
                 (Event) =>
                 {
+                    CheckDocumentDirty();
+                    UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
@@ -1254,8 +2255,40 @@ function InitializeMonaco()
                 () => { ApplyFormattingToEditor(); }
             );
 
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit1,
+                () => { SetViewportLayout("split"); }
+            );
+
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit2,
+                () => { SetViewportLayout("editor"); }
+            );
+
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit3,
+                () => { SetViewportLayout("preview"); }
+            );
+
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.Alt | monaco.KeyCode.KeyO,
+                () => { ToggleDocumentOutline(); }
+            );
+
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP,
+                () => { TriggerDocumentPrint(); }
+            );
+
             UpdateStatusBar();
             TriggerCompileNow();
+            MarkDocumentClean(InitialSource);
+            UpdateDocumentOutline();
         }
     );
 }
@@ -1300,7 +2333,7 @@ async function TriggerCompileNow()
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             "/api/compile",
             {
@@ -1607,7 +2640,52 @@ function ShowCompilationError(ErrorMessage)
 {
     const ErrorDrawer = document.getElementById("ErrorDrawer");
     const ErrorContent = document.getElementById("ErrorContent");
-    ErrorContent.textContent = ErrorErrorMessageClean(ErrorMessage);
+    const Cleaned = ErrorErrorMessageClean(ErrorMessage);
+
+    // Escape HTML entities to prevent injection
+    const Escaped = Cleaned
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    // Detect primary error line and column for direct jump
+    PrimaryErrorLocation = null;
+    const LocMatch = Cleaned.match(/(?:┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/);
+    const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
+    if (LocMatch)
+    {
+        PrimaryErrorLocation =
+        {
+            File: LocMatch[1],
+            Line: parseInt(LocMatch[2], 10),
+            Col: parseInt(LocMatch[3], 10)
+        };
+        if (JumpBtn)
+        {
+            JumpBtn.style.display = "inline-flex";
+            JumpBtn.textContent = `Jump to L${LocMatch[2]}:${LocMatch[3]}`;
+        }
+    }
+    else if (JumpBtn)
+    {
+        JumpBtn.style.display = "none";
+    }
+
+    // Highlight error keywords with prominent red highlight class
+    let Highlighted = Escaped.replace
+    (
+        /\b(error|Error|ERROR|Severe Critical Fatal Error)\b/g,
+        (Token) => `<span class = "ErrorKeywordHighlight">${Token}</span>`
+    );
+
+    // Convert file location references into clickable links
+    Highlighted = Highlighted.replace
+    (
+        /(┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/g,
+        (Full, Prefix, File, Line, Col) => `${Prefix}<span Class = "ErrorLocationLink" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to Line ${Line}, Col ${Col}">${File}:${Line}:${Col} ↗</span>`
+    );
+
+    ErrorContent.innerHTML = Highlighted;
     ErrorDrawer.classList.add("Visible");
 }
 
@@ -1725,13 +2803,24 @@ async function ExportPdf()
 
     try
     {
-        const Response = await fetch
+        const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
+        const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
+        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked : false;
+        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked : false;
+
+        const Response = await AuthenticatedFetch
         (
             "/api/export/pdf",
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Source: Source, FileName: DocTitle })
+                body: JSON.stringify
+                ({
+                    Source: Source,
+                    FileName: DocTitle,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
+                })
             }
         );
 
@@ -1750,9 +2839,11 @@ async function ExportPdf()
         Anchor.click();
         document.body.removeChild(Anchor);
         URL.revokeObjectURL(DownloadUrl);
+        ShowToast("PNG exported successfully", "success");
 
         StatusDot.className = "StatusDot";
         StatusText.textContent = "PDF Exported";
+        ShowToast("PDF exported successfully", "success");
     }
     catch (Err)
     {
@@ -1798,13 +2889,25 @@ async function ExportPng()
 
     try
     {
-        const Response = await fetch
+        const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
+        const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
+        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked : false;
+        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked : false;
+
+        const Response = await AuthenticatedFetch
         (
             "/api/export/png",
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Source: Source, PageNum: CurrentActivePage })
+                body: JSON.stringify
+                ({
+                    Source: Source,
+                    FileName: DocTitle,
+                    PageNum: CurrentActivePage,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
+                })
             }
         );
 
@@ -1845,6 +2948,7 @@ function CopySource()
             const OriginalHTML = CopyBtn.innerHTML;
             CopyBtn.innerHTML = "<span>Copied!</span>";
             setTimeout(() => { CopyBtn.innerHTML = OriginalHTML; }, 1500);
+            ShowToast("Typst source copied to clipboard", "success");
         }
     );
 }
@@ -1898,8 +3002,602 @@ function SetupSplitResizer()
     );
 }
 
+// --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
+
+let CurrentViewportLayout = "split"; // 'split', 'editor', 'preview'
+
+function SetViewportLayout(Layout)
+{
+    CurrentViewportLayout = Layout;
+    const MainArea = document.getElementById("EditorMainView");
+    const SplitBtn = document.getElementById("LayoutSplitBtn");
+    const EditorBtn = document.getElementById("LayoutEditorBtn");
+    const PreviewBtn = document.getElementById("LayoutPreviewBtn");
+
+    if (MainArea)
+    {
+        MainArea.classList.remove("LayoutSplit", "LayoutEditorOnly", "LayoutPreviewOnly");
+        if (Layout === "editor")
+        {
+            MainArea.classList.add("LayoutEditorOnly");
+        }
+        else if (Layout === "preview")
+        {
+            MainArea.classList.add("LayoutPreviewOnly");
+        }
+        else
+        {
+            MainArea.classList.add("LayoutSplit");
+        }
+    }
+
+    if (SplitBtn) { SplitBtn.classList.toggle("Active", Layout === "split"); }
+    if (EditorBtn) { EditorBtn.classList.toggle("Active", Layout === "editor"); }
+    if (PreviewBtn) { PreviewBtn.classList.toggle("Active", Layout === "preview"); }
+
+    try
+    {
+        localStorage.setItem("TypstStudio_Layout", Layout);
+    }
+    catch (Ignored) { }
+
+    if (MonacoInstance && (Layout === "split" || Layout === "editor"))
+    {
+        requestAnimationFrame
+        (
+            () =>
+            {
+                MonacoInstance.layout();
+            }
+        );
+    }
+
+    if (Layout === "split" || Layout === "preview")
+    {
+        requestAnimationFrame
+        (
+            () =>
+            {
+                RecalculateScale();
+            }
+        );
+    }
+}
+
+// --- DOCUMENT OUTLINE (TOC) ARCHITECTURE (PRIORITY 2) ---
+
+let IsOutlineVisible = false;
+let OutlineHeadingsList = [];
+let OutlineThrottleTimer = null;
+
+function ToggleDocumentOutline(ForceState)
+{
+    const Sidebar = document.getElementById("OutlineSidebar");
+    if (!Sidebar) { return; }
+
+    IsOutlineVisible = (typeof ForceState === "boolean") ? ForceState : !IsOutlineVisible;
+    Sidebar.style.display = IsOutlineVisible ? "flex" : "none";
+
+    if (IsOutlineVisible)
+    {
+        UpdateDocumentOutline();
+    }
+
+    if (MonacoInstance)
+    {
+        requestAnimationFrame
+        (
+            () =>
+            {
+                MonacoInstance.layout();
+            }
+        );
+    }
+}
+
+function UpdateDocumentOutlineThrottled()
+{
+    if (OutlineThrottleTimer) { clearTimeout(OutlineThrottleTimer); }
+    OutlineThrottleTimer = setTimeout
+    (
+        () =>
+        {
+            UpdateDocumentOutline();
+        },
+        300
+    );
+}
+
+function UpdateDocumentOutline()
+{
+    const ListContainer = document.getElementById("OutlineList");
+    const Badge = document.getElementById("OutlineCountBadge");
+    const StatusBadge = document.getElementById("StatusOutlineCount");
+    if (!MonacoInstance || !ListContainer) { return; }
+
+    const Source = MonacoInstance.getValue();
+    const Lines = Source.split(/\r?\n/);
+    OutlineHeadingsList = [];
+
+    let InCodeBlock = false;
+    for (let Index = 0; Index < Lines.length; Index++)
+    {
+        const LineText = Lines[Index];
+        const Trimmed = LineText.trim();
+
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue;
+        }
+        if (InCodeBlock) { continue; }
+
+        const HeadingMatch = LineText.match(/^(=+)\s+(.+)$/);
+        if (HeadingMatch)
+        {
+            const Level = HeadingMatch[1].length;
+            const CleanTitle = HeadingMatch[2].replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
+            OutlineHeadingsList.push
+            ({
+                Level: Math.min(Level, 4),
+                Title: CleanTitle,
+                Line: Index + 1
+            });
+        }
+    }
+
+    const Count = OutlineHeadingsList.length;
+    if (Badge) { Badge.textContent = Count; }
+    if (StatusBadge) { StatusBadge.textContent = Count; }
+
+    RenderOutlineItems(OutlineHeadingsList);
+}
+
+function RenderOutlineItems(Headings)
+{
+    const ListContainer = document.getElementById("OutlineList");
+    if (!ListContainer) { return; }
+
+    const SearchInput = document.getElementById("OutlineSearchInput");
+    const Filter = SearchInput ? SearchInput.value.toLowerCase().trim() : "";
+
+    const Filtered = Filter
+        ? Headings.filter((H) => H.Title.toLowerCase().includes(Filter))
+        : Headings;
+
+    if (Filtered.length === 0)
+    {
+        ListContainer.innerHTML = Filter
+            ? `<div Class = "OutlineEmptyState">No sections match "${Filter}"</div>`
+            : `<div Class = "OutlineEmptyState">No headings in document.<br><span style="color:#71717A; font-size:10.5px;">Add '= Section Name' to generate an outline.</span></div>`;
+        return;
+    }
+
+    let Html = "";
+    for (const Item of Filtered)
+    {
+        Html += `<div Class = "OutlineItem Level${Item.Level}" Data-Line = "${Item.Line}" Title = "Jump to line ${Item.Line}">
+            <span Class = "OutlineItemText">${EscapeHtml(Item.Title)}</span>
+            <span Class = "OutlineItemLine">L${Item.Line}</span>
+        </div>`;
+    }
+
+    ListContainer.innerHTML = Html;
+}
+
+// --- ASSET DRAG & DROP ARCHITECTURE (PRIORITY 3) ---
+
+function SetupAssetDragAndDrop()
+{
+    const Overlay = document.getElementById("AssetDropOverlay");
+    if (!Overlay) { return; }
+
+    let DragCounter = 0;
+
+    window.addEventListener
+    (
+        "dragenter",
+        (Event) =>
+        {
+            if (Event.dataTransfer && Event.dataTransfer.types.includes("Files"))
+            {
+                DragCounter++;
+                Overlay.classList.add("Active");
+            }
+        }
+    );
+
+    window.addEventListener
+    (
+        "dragleave",
+        (Event) =>
+        {
+            DragCounter--;
+            if (DragCounter <= 0)
+            {
+                DragCounter = 0;
+                Overlay.classList.remove("Active");
+            }
+        }
+    );
+
+    window.addEventListener
+    (
+        "dragover",
+        (Event) =>
+        {
+            Event.preventDefault();
+        }
+    );
+
+    window.addEventListener
+    (
+        "drop",
+        async (Event) =>
+        {
+            Event.preventDefault();
+            DragCounter = 0;
+            Overlay.classList.remove("Active");
+
+            const Files = Event.dataTransfer ? Event.dataTransfer.files : null;
+            if (!Files || Files.length === 0) { return; }
+
+            for (let I = 0; I < Files.length; I++)
+            {
+                await HandleDroppedAssetFile(Files[I]);
+            }
+        }
+    );
+}
+
+async function HandleDroppedAssetFile(File)
+{
+    const ValidExtensions = [".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".pdf"];
+    const Ext = ("." + File.name.split(".").pop()).toLowerCase();
+    if (!ValidExtensions.includes(Ext))
+    {
+        ShowToast(`Unsupported file type: ${File.name}`, "error");
+        return;
+    }
+
+    const Reader = new FileReader();
+    Reader.onload = async () =>
+    {
+        const Base64Data = Reader.result.split(",")[1];
+        try
+        {
+            const Response = await AuthenticatedFetch
+            (
+                "/api/workspace/upload",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify
+                    ({
+                        FileName: File.name,
+                        Base64Data: Base64Data,
+                        ActiveFilePath: CurrentFilePath
+                    })
+                }
+            );
+
+            const Data = await Response.json();
+            if (Data.Success && MonacoInstance)
+            {
+                const CleanFileName = Data.FileName;
+                const Snippet = `\n#image\n(\n\t"${CleanFileName}",\n\twidth: 80%\n)\n`;
+
+                const Position = MonacoInstance.getPosition();
+                MonacoInstance.executeEdits
+                (
+                    "asset-drop",
+                    [
+                        {
+                            range: new monaco.Range(Position.lineNumber, Position.column, Position.lineNumber, Position.column),
+                            text: Snippet
+                        }
+                    ]
+                );
+
+                ShowToast(`Uploaded ${CleanFileName} and inserted #image`, "success");
+                TriggerCompileNow();
+            }
+            else
+            {
+                ShowToast(`Upload failed: ${Data.Error || "Server error"}`, "error");
+            }
+        }
+        catch (Err)
+        {
+            ShowToast(`Upload failed: ${Err.message}`, "error");
+        }
+    };
+    Reader.readAsDataURL(File);
+}
+
+// --- KEYBOARD SHORTCUTS & PRINT ARCHITECTURE (PRIORITY 4) ---
+
+function ToggleShortcutsModal(ForceOpen)
+{
+    const Modal = document.getElementById("ShortcutsModal");
+    if (!Modal) { return; }
+
+    const IsOpen = Modal.style.display !== "none";
+    const ShouldOpen = (typeof ForceOpen === "boolean") ? ForceOpen : !IsOpen;
+    Modal.style.display = ShouldOpen ? "flex" : "none";
+}
+
+function TriggerDocumentPrint()
+{
+    ShowToast("Preparing document for print...", "info", 1500);
+    setTimeout(() => { window.print(); }, 200);
+}
+
+// --- UNIFIED EXPORT MENU ARCHITECTURE ---
+
+function ToggleExportMenu(ForceState)
+{
+    const Menu = document.getElementById("ExportMenuDropdown");
+    if (!Menu) { return; }
+
+    IsExportMenuOpen = (typeof ForceState === "boolean") ? ForceState : !IsExportMenuOpen;
+    Menu.style.display = IsExportMenuOpen ? "flex" : "none";
+}
+
 function SetupEventListeners()
 {
+        // Priority 2: Viewport Layout Controls
+    const SplitBtn = document.getElementById("LayoutSplitBtn");
+    const EditorBtn = document.getElementById("LayoutEditorBtn");
+    const PreviewBtn = document.getElementById("LayoutPreviewBtn");
+    if (SplitBtn) { SplitBtn.addEventListener("click", () => { SetViewportLayout("split"); }); }
+    if (EditorBtn) { EditorBtn.addEventListener("click", () => { SetViewportLayout("editor"); }); }
+    if (PreviewBtn) { PreviewBtn.addEventListener("click", () => { SetViewportLayout("preview"); }); }
+
+    // Priority 2: Document Outline Controls
+    const OutlineToggle = document.getElementById("StatusOutlineToggle");
+    const OutlineClose = document.getElementById("CloseOutlineBtn");
+    const OutlineSearch = document.getElementById("OutlineSearchInput");
+    const OutlineList = document.getElementById("OutlineList");
+    if (OutlineToggle) { OutlineToggle.addEventListener("click", () => { ToggleDocumentOutline(); }); }
+    if (OutlineClose) { OutlineClose.addEventListener("click", () => { ToggleDocumentOutline(false); }); }
+    if (OutlineSearch) { OutlineSearch.addEventListener("input", () => { RenderOutlineItems(OutlineHeadingsList); }); }
+    if (OutlineList)
+    {
+        OutlineList.addEventListener
+        (
+            "click",
+            (E) =>
+            {
+                const Item = E.target.closest(".OutlineItem");
+                if (Item)
+                {
+                    const Line = parseInt(Item.getAttribute("Data-Line"), 10);
+                    if (!isNaN(Line)) { JumpToEditorLocation(Line, 1); }
+                }
+            }
+        );
+    }
+
+    // Unified Export Menu Toggle & Actions
+    const ExportToggle = document.getElementById("ExportMenuToggleBtn");
+    const ExportPdfMenu = document.getElementById("ExportPdfMenuOption");
+    const OpenSettingsExport = document.getElementById("OpenSettingsFromExportBtn");
+    if (ExportToggle)
+    {
+        ExportToggle.addEventListener
+        (
+            "click",
+            (E) =>
+            {
+                E.stopPropagation();
+                ToggleExportMenu();
+            }
+        );
+    }
+    if (ExportPdfMenu)
+    {
+        ExportPdfMenu.addEventListener
+        (
+            "click",
+            () =>
+            {
+                ToggleExportMenu(false);
+                ExportPdf();
+            }
+        );
+    }
+    if (OpenSettingsExport)
+    {
+        OpenSettingsExport.addEventListener
+        (
+            "click",
+            () =>
+            {
+                ToggleExportMenu(false);
+                SwitchToDashboard();
+            }
+        );
+    }
+
+    // Close export menu when clicking anywhere outside
+    document.addEventListener
+    (
+        "click",
+        (E) =>
+        {
+            if (IsExportMenuOpen && !E.target.closest("#ExportGroupWrapper"))
+            {
+                ToggleExportMenu(false);
+            }
+        }
+    );
+
+    // Priority 4: Print Document
+    const PrintBtn = document.getElementById("PrintDocButton");
+    if (PrintBtn)
+    {
+        PrintBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                ToggleExportMenu(false);
+                TriggerDocumentPrint();
+            }
+        );
+    }
+
+    // Priority 4: Keyboard Shortcuts Modal
+    const HelpBtn = document.getElementById("ShortcutsHelpBtn");
+    const CloseModalBtn = document.getElementById("CloseShortcutsModalBtn");
+    const ShortcutsModal = document.getElementById("ShortcutsModal");
+    if (HelpBtn) { HelpBtn.addEventListener("click", () => { ToggleShortcutsModal(true); }); }
+    if (CloseModalBtn) { CloseModalBtn.addEventListener("click", () => { ToggleShortcutsModal(false); }); }
+    if (ShortcutsModal)
+    {
+        ShortcutsModal.addEventListener
+        (
+            "click",
+            (E) =>
+            {
+                if (E.target.id === "ShortcutsModal") { ToggleShortcutsModal(false); }
+            }
+        );
+    }
+
+    // Export Options Sync & Persistence
+    const ExportBlackCb = document.getElementById("ExportBlackModeCheckbox");
+    const ExportTransCb = document.getElementById("ExportTransparentCheckbox");
+    const ExportPaperSelect = document.getElementById("ExportPaperModeSelect");
+    const ExportPaperBadge = document.getElementById("ExportPaperModeBadge");
+    const DefaultBgSelect = document.getElementById("DefaultExportBgSelect");
+
+    // Load initial states from localStorage
+    const InitialBlack = localStorage.getItem("typst_black_mode_export") === "true";
+    const InitialTrans = localStorage.getItem("typst_transparent_export") === "true";
+    if (ExportBlackCb) { ExportBlackCb.checked = InitialBlack; }
+    if (ExportTransCb) { ExportTransCb.checked = InitialTrans; }
+    if (ExportPaperSelect) { ExportPaperSelect.value = InitialBlack ? "black" : "light"; }
+    if (ExportPaperBadge) { ExportPaperBadge.textContent = InitialBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
+    if (DefaultBgSelect) { DefaultBgSelect.value = InitialTrans ? "transparent" : "normal"; }
+
+    if (ExportBlackCb)
+    {
+        ExportBlackCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                const IsBlack = E.target.checked;
+                localStorage.setItem("typst_black_mode_export", IsBlack ? "true" : "false");
+                if (ExportPaperSelect) { ExportPaperSelect.value = IsBlack ? "black" : "light"; }
+                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
+                ShowToast(`Export in Black mode: ${IsBlack ? "Enabled" : "Disabled"}`, "info");
+            }
+        );
+    }
+
+    if (ExportTransCb)
+    {
+        ExportTransCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                const IsTrans = E.target.checked;
+                localStorage.setItem("typst_transparent_export", IsTrans ? "true" : "false");
+                if (DefaultBgSelect) { DefaultBgSelect.value = IsTrans ? "transparent" : "normal"; }
+                ShowToast(`Transparent background: ${IsTrans ? "Enabled" : "Disabled"}`, "info");
+            }
+        );
+    }
+
+    if (ExportPaperSelect)
+    {
+        ExportPaperSelect.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                const IsBlack = E.target.value === "black";
+                localStorage.setItem("typst_black_mode_export", IsBlack ? "true" : "false");
+                if (ExportBlackCb) { ExportBlackCb.checked = IsBlack; }
+                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
+                ShowToast(`Export paper mode set to ${IsBlack ? "Black" : "Light"}`, "info");
+            }
+        );
+    }
+
+    if (DefaultBgSelect)
+    {
+        DefaultBgSelect.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                const IsTrans = E.target.value === "transparent";
+                localStorage.setItem("typst_transparent_export", IsTrans ? "true" : "false");
+                if (ExportTransCb) { ExportTransCb.checked = IsTrans; }
+                ShowToast(`Default export background set to ${IsTrans ? "Transparent" : "Solid"}`, "info");
+            }
+        );
+    }
+
+    // Priority 1: Jump to Primary Error button
+    const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
+    if (JumpBtn)
+    {
+        JumpBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                if (PrimaryErrorLocation)
+                {
+                    JumpToEditorLocation(PrimaryErrorLocation.Line, PrimaryErrorLocation.Col);
+                }
+            }
+        );
+    }
+
+    // Interactive clickable error location links in ErrorDrawer
+    const ErrorContent = document.getElementById("ErrorContent");
+    if (ErrorContent)
+    {
+        ErrorContent.addEventListener
+        (
+            "click",
+            (Event) =>
+            {
+                const Link = Event.target.closest(".ErrorLocationLink");
+                if (Link)
+                {
+                    const Line = parseInt(Link.getAttribute("Data-Line"), 10);
+                    const Col = parseInt(Link.getAttribute("Data-Col"), 10) || 1;
+                    if (!isNaN(Line))
+                    {
+                        JumpToEditorLocation(Line, Col);
+                    }
+                }
+            }
+        );
+    }
+
+    // Unsaved dirty state warning before closing/reloading window
+    window.addEventListener
+    (
+        "beforeunload",
+        (Event) =>
+        {
+            if (IsDocumentDirty)
+            {
+                Event.preventDefault();
+                Event.returnValue = "";
+            }
+        }
+    );
+
     document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });
     document.getElementById("FormatLafsButton").addEventListener("click", () => { ApplyFormattingToEditor(); });
     document.getElementById("ExportPdfButton").addEventListener("click", () => { ExportPdf(); });
@@ -2068,6 +3766,8 @@ function SetupEventListeners()
         () =>
         {
             LoadWorkspaceInfo();
+            MarkDocumentClean(Content);
+            ShowToast(`Saved ${TargetPath.split(/[\/\\]/).pop()}`, "success");
         }
     );
 
@@ -2125,6 +3825,49 @@ function SetupEventListeners()
         "keydown",
         (E) =>
         {
+                        // Priority 2 & 4 Global Shortcuts
+            if (E.altKey && E.key === "1")
+            {
+                E.preventDefault();
+                SetViewportLayout("split");
+            }
+            else if (E.altKey && E.key === "2")
+            {
+                E.preventDefault();
+                SetViewportLayout("editor");
+            }
+            else if (E.altKey && E.key === "3")
+            {
+                E.preventDefault();
+                SetViewportLayout("preview");
+            }
+            else if (E.altKey && (E.key === "o" || E.key === "O"))
+            {
+                E.preventDefault();
+                ToggleDocumentOutline();
+            }
+            else if ((E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "P" || E.key === "p"))
+            {
+                E.preventDefault();
+                TriggerDocumentPrint();
+            }
+            else if ((E.ctrlKey || E.metaKey) && E.key === "/")
+            {
+                E.preventDefault();
+                ToggleShortcutsModal();
+            }
+            else if (E.key === "?" && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName))
+            {
+                E.preventDefault();
+                ToggleShortcutsModal();
+            }
+            else if (E.key === "Escape")
+            {
+                ToggleShortcutsModal(false);
+                ToggleExportMenu(false);
+                const Drawer = document.getElementById("ErrorDrawer");
+                if (Drawer) { Drawer.classList.remove("Visible"); }
+            }
             if ((E.ctrlKey || E.metaKey) && E.key === "s")
             {
                 E.preventDefault();
@@ -2169,7 +3912,7 @@ async function PickFolderFromDisk()
 
     try
     {
-        const Response = await fetch("/api/workspace/pick-folder", { method: "POST" });
+        const Response = await AuthenticatedFetch("/api/workspace/pick-folder", { method: "POST" });
         if (Response.ok)
         {
             const Data = await Response.json();
@@ -2233,7 +3976,7 @@ async function LoadWorkspaceInfo()
 {
     try
     {
-        const Response = await fetch("/api/workspace/info");
+        const Response = await AuthenticatedFetch("/api/workspace/info");
         const Data = await Response.json();
         if (Data.Success)
         {
@@ -2342,7 +4085,7 @@ async function OpenFileFromWorkspace(FilePath)
 {
     try
     {
-        const Response = await fetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
+        const Response = await AuthenticatedFetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
         const Data = await Response.json();
         if (Data.Success && MonacoInstance)
         {
@@ -2355,6 +4098,8 @@ async function OpenFileFromWorkspace(FilePath)
                 ActiveDocStat.textContent = FileName;
             }
             MonacoInstance.setValue(Data.Content);
+            MarkDocumentClean(Data.Content);
+            ShowToast(`Loaded ${FileName}`, "info");
             CloseDocDropdown();
             SwitchView("editor");
             TriggerCompileNow();
@@ -2405,7 +4150,7 @@ async function SaveCurrentFile()
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             "/api/workspace/file",
             {
@@ -2459,7 +4204,7 @@ async function CreateNewWorkspaceFile()
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             "/api/workspace/create",
             {
@@ -2496,7 +4241,7 @@ async function AddWorkspaceDirectory()
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             "/api/workspace/directory",
             {
@@ -2531,7 +4276,7 @@ async function RemoveWorkspaceDirectory(DirPath)
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             "/api/workspace/directory",
             {
@@ -2565,7 +4310,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
 
     try
     {
-        const Response = await fetch
+        const Response = await AuthenticatedFetch
         (
             `/api/workspace/file?path=${encodeURIComponent(FilePath)}`,
             {
@@ -2816,8 +4561,9 @@ window.PickFolderFromDisk = PickFolderFromDisk;
 window.addEventListener
 (
     "DOMContentLoaded",
-    () =>
+    async () =>
     {
+        await EnsureSessionAuthToken();
         LoadUISettings();
         ApplyUISettings();
         SetupEventListeners();
@@ -2825,5 +4571,7 @@ window.addEventListener
         UpdateBlackPageMode();
         InitializeMonaco();
         LoadWorkspaceInfo();
+        SetupAssetDragAndDrop();
+        SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
     }
 );

@@ -334,7 +334,9 @@ fn math_expr_prec(p: &mut Parser, min_prec: u8, stop_set: SyntaxSet)
             continuable = true;
             p.eat();
             // Parse a function call for an identifier or field access.
-            if MATH_FUNC_PREC >= min_prec && p.directly_at(SyntaxKind::LeftParen)
+            if MATH_FUNC_PREC >= min_prec
+                && (p.directly_at(SyntaxKind::LeftParen)
+                    || (p.had_newline() && p.at(SyntaxKind::LeftParen)))
             {
                 math_args(p);
                 p.wrap(m, SyntaxKind::MathCall);

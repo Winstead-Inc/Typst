@@ -1,5 +1,5 @@
 {
-  "name": "typst",
+  "name": "TypstStudio",
   "patterns": [
     { "include": "#markup" }
   ],

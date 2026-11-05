@@ -20,8 +20,7 @@
   ></a>
 </p>
 
-Typst is a new markup-based typesetting system that is designed to be as powerful
-as LaTeX while being much easier to learn and use. Typst has:
+Typst is a new markup-based typesetting system that is designed to be as powerful as LaTeX while being much easier to learn and use. Typst has:
 
 - Built-in markup for the most common formatting tasks
 - Flexible functions for everything else
@@ -36,7 +35,7 @@ consider signing up to our [collaborative online editor][app] for free, or launc
 > [!IMPORTANT]
 > ### Language-Agnostic Formatting Style (LAFS) & Parser Compatibility Notice
 >
-> This fork of Typst modifies the syntax parser to support the **Language-Agnostic Formatting Style (LAFS)** (also known as Improvised Allman Style). Delimiter boundaries (`(`, `)`, `{`, `}`, `[`,`]`) maintain strict translational symmetry and coordinate alignment along vertical baselines, permitting detached opening delimiters and container-grouped layouts without syntax errors.
+> This fork of Typst modifies the syntax parser to ***use*** the **Language-Agnostic Formatting Style (LAFS)** (also known as Allman Style but improved). Delimiter boundaries (`(`, `)`, `{`, `}`, `[`,`]`) maintain strict translational symmetry and coordinate alignment along vertical baselines, permitting detached opening delimiters and container-grouped layouts without syntax errors.
 >
 > **Notice for Users of Upstream Typst:**
 > The official upstream Typst compiler repository ([`typst/typst`](https://github.com/typst/typst)) **does not support** detached delimiters or line breaks preceding block openers (`{`). Compiling LAFS-formatted documents using the standard upstream Typst release will produce parser errors (such as unexpected delimiter or missing block body). Documents formatted with LAFS require the modified compiler binary included in this project (`TypstStudio/bin/typst` or compiled from this repository).

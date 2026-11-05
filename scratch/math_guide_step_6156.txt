@@ -1,0 +1,231 @@
+                        // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
+                        "editorBracketHighlight.foreground1": "#7B00FFFF",
+                        "editorBracketHighlight.foreground2": "#F472B6",
+                        "editorBracketHighlight.foreground3": "#A855F7",
+                        "editorBracketHighlight.foreground4": "#4ADE80",
+                        "editorBracketHighlight.foreground5": "#FB7185",
+                        "editorBracketHighlight.foreground6": "#818CF8",
+                        "editorBracketHighlight.unexpectedBracket.foreground": "#FF5555",
+                        // Matching Bracket Pair Connecting Guide Lines
+                        "editorBracketPairGuide.activeBackground1": "#7B00FFFF",
+                        "editorBracketPairGuide.activeBackground2": "#F472B6",
+                        "editorBracketPairGuide.activeBackground3": "#A855F7",
+                        "editorBracketPairGuide.activeBackground4": "#4ADE80",
+                        "editorBracketPairGuide.activeBackground5": "#FB7185",
+                        "editorBracketPairGuide.activeBackground6": "#818CF8",
+                        "editorBracketPairGuide.background1": "#7B00FF55",
+                        "editorBracketPairGuide.background2": "#F472B655",
+                        "editorBracketPairGuide.background3": "#A855F755",
+                        "editorBracketPairGuide.background4": "#4ADE8055",
+                        "editorBracketPairGuide.background5": "#FB718555",
+                        "editorBracketPairGuide.background6": "#818CF855",
+                        // Matching Indentation Guides Palette (Depth levels 1 to 6)
+                        "editorIndentGuide.background1": "#7B00FF55",
+                        "editorIndentGuide.background2": "#F472B655",
+                        "editorIndentGuide.background3": "#A855F755",
+                        "editorIndentGuide.background4": "#4ADE8055",
+                        "editorIndentGuide.background5": "#FB718555",
+                        "editorIndentGuide.background6": "#818CF855",
+                        "editorIndentGuide.activeBackground1": "#7B00FFFF",
+                        "editorIndentGuide.activeBackground2": "#F472B6",
+                        "editorIndentGuide.activeBackground3": "#A855F7",
+                        "editorIndentGuide.activeBackground4": "#4ADE80",
+                        "editorIndentGuide.activeBackground5": "#FB7185",
+                        "editorIndentGuide.activeBackground6": "#818CF8"
+                    }
+                }
+            );
+
+            const Container = document.getElementById("MonacoContainer");
+            MonacoInstance = monaco.editor.create
+            (
+                Container,
+                {
+                    value: TEMPLATES.showcase,
+                    language: "typst",
+                    theme: "typst-vibrant",
+                    automaticLayout: true,
+                    tabSize: 2,
+                    insertSpaces: true,
+                    fontSize: 14,
+                    lineHeight: 22,
+                    fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                    fontWeight: "400",
+                    fontLigatures: true,
+                    minimap:
+                    {
+                        enabled: true,
+                        renderCharacters: false,
+                        maxColumn: 60
+                    },
+                    bracketPairColorization:
+                    {
+                        enabled: true,
+                        independentColorPoolPerBracketType: false
+                    },
+                    guides:
+                    {
+                        bracketPairs: true,
+                        bracketPairsHorizontal: "active",
+                        highlightActiveBracketPair: true,
+                        indentation: true,
+                        highlightActiveIndentation: "always"
+                    },
+                    wordWrap: "on",
+                    wrappingStrategy: "simple",
+                    scrollBeyondLastLine: false,
+                    padding: { top: 12, bottom: 12 },
+                    // Extreme performance flags for ultra-smooth 60/120 FPS scrolling through large text
+                    maxTokenizationLineLength: 20000,
+                    stopRenderingLineAfter: 4000,
+                    largeFileOptimizations: true,
+                    disableMonospaceOptimizations: false,
+                    unicodeHighlight: { ambiguousCharacters: false },
+                    smoothScrolling: true,
+                    fastScrollSensitivity: 7,
+                    renderLineHighlight: "none",
+                    overviewRulerLanes: 0,
+                    links: false,
+                    renderWhitespace: "none",
+                    scrollbar:
+                    {
+                        vertical: "visible",
+                        horizontal: "auto",
+                        useShadows: false,
+                        verticalScrollbarSize: 10,
+                        horizontalScrollbarSize: 10
+                    }
+                }
+            );
+
+            window.MonacoInstance = MonacoInstance;
+
+            let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            function UpdateMathBracketHighlighting()
+            {
+                if (!MonacoInstance)
+                {
+                    return;
+                }
+
+                const Model = MonacoInstance.getModel();
+                if (!Model)
+                {
+                    MathBracketDecorations.clear();
+                    return;
+                }
+
+                const Position = MonacoInstance.getPosition();
+                const CursorLine = Position ? Position.lineNumber : 0;
+
+                try
+                {
+                    const FontInfo = MonacoInstance.getOption(monaco.editor.EditorOption.fontInfo);
+                    if (FontInfo && FontInfo.spaceWidth)
+                    {
+                        Container.style.setProperty("--math-col-space-width", `${FontInfo.spaceWidth}px`);
+                    }
+                }
+                catch (Err) {}
+
+                const TotalLines = Model.getLineCount();
+                const Decorations = [];
+                let CurrentOpen = null;
+
+                for (let L = 1; L <= TotalLines; L++)
+                {
+                    const LineContent = Model.getLineContent(L);
+                    const Trimmed = LineContent.trim();
+
+                    if (CurrentOpen === null)
+                    {
+                        const FirstDollarIdx = LineContent.indexOf("$");
+                        if (FirstDollarIdx !== -1)
+                        {
+                            const RestOfLine = LineContent.slice(FirstDollarIdx + 1);
+                            const HasClosingDollar = RestOfLine.includes("$");
+
+                            if (Trimmed === "$" || (Trimmed.startsWith("$") && !HasClosingDollar))
+                            {
+                                let NestingDepth = 0;
+                                for (let PrevL = 1; PrevL < L; PrevL++)
+                                {
+                                    const Txt = Model.getLineContent(PrevL);
+                                    for (const Ch of Txt)
+                                    {
+                                        if (Ch === "(" || Ch === "[" || Ch === "{") { NestingDepth++; }
+                                        else if (Ch === ")" || Ch === "]" || Ch === "}") { NestingDepth = Math.max(0, NestingDepth - 1); }
+                                    }
+                                }
+
+                                CurrentOpen =
+                                {
+                                    StartLine: L,
+                                    StartCol: FirstDollarIdx + 1,
+                                    NestingDepth: NestingDepth
+                                };
+                            }
+                        }
+                    }
+                    else
+                    {
+                        const DollarIdx = LineContent.indexOf("$");
+                        if (DollarIdx !== -1)
+                        {
+                            const StartLine = CurrentOpen.StartLine;
+                            const StartCol = CurrentOpen.StartCol;
+                            const EndLine = L;
+                            const EndCol = DollarIdx + 1;
+                            const Level = CurrentOpen.NestingDepth % 6;
+
+                            const IsActive = CursorLine >= StartLine && CursorLine <= EndLine;
+
+                            if (IsActive)
+                            {
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(StartLine, StartCol, StartLine, StartCol + 1),
+                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                });
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(EndLine, EndCol, EndLine, EndCol + 1),
+                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                });
+                            }
+
+                            for (let Line = StartLine; Line <= EndLine; Line++)
+                            {
+                                let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
+                                if (IsActive)
+                                {
+                                    Classes += " indent-active";
+                                    if (Line === StartLine)
+                                    {
+                                        Classes += " horizontal-top";
+                                    }
+                                    if (Line === EndLine)
+                                    {
+                                        Classes += " horizontal-bottom";
+                                    }
+                                }
+
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(Line, 1, Line, 1),
+                                    options:
+                                    {
+                                        isWholeLine: true,
+                                        className: Classes
+                                    }
+                                });
+                            }
+
+                            CurrentOpen = null;
+                        }
+                    }
+                }
+
+                MathBracketDecorations.set(Decorations);
+            }

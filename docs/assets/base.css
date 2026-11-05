@@ -19,7 +19,7 @@ The `url()` routes are replaced to include the docs base paths.
 
 @font-face {
   font-family: "HK Grotesk";
-  font-weight: 400;
+  font-weight: 800 !important;
   font-display: swap;
   src:
     local("HK Grotesk"),
@@ -29,7 +29,7 @@ The `url()` routes are replaced to include the docs base paths.
 
 @font-face {
   font-family: "HK Grotesk";
-  font-weight: 400;
+  font-weight: 800 !important;
   font-style: italic;
   font-display: swap;
   src:
@@ -114,7 +114,7 @@ The `url()` routes are replaced to include the docs base paths.
 
 @font-face {
   font-family: "Cascadia Mono";
-  font-weight: 400;
+  font-weight: 800 !important;
   font-display: swap;
   src:
     local("Cascadia Mono"),
