@@ -34,3 +34,4 @@ const dark = ConvertSvgToDarkMode(svg);
 const t1 = Date.now();
 console.log('Single page dark mode regex conversion:', t1 - t0, 'ms');
 console.log('For 4 pages:', (t1 - t0) * 4, 'ms');
+

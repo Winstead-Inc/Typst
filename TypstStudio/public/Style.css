@@ -1123,6 +1123,79 @@ button, input, select, textarea,
     outline: 1px solid #818CF8 !important;
 }
 
+/* Colorized Math Delimiters ($ ... $) */
+.monaco-editor .typst-math-delimiter
+{
+    font-weight: 700 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-0
+{
+    color: #7100FFFF !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-1
+{
+    color: #F472B6 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-2
+{
+    color: #A855F7 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-3
+{
+    color: #4ADE80 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-4
+{
+    color: #FB7185 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-5
+{
+    color: #818CF8 !important;
+}
+
+.monaco-editor .typst-math-delimiter.indent-active
+{
+    background-color: rgba(113, 0, 255, 0.25) !important;
+    outline: 1px solid #7100FFFF !important;
+    border-radius: 2px !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-1.indent-active
+{
+    background-color: rgba(244, 114, 182, 0.22) !important;
+    outline: 1px solid #F472B6 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-2.indent-active
+{
+    background-color: rgba(168, 85, 247, 0.22) !important;
+    outline: 1px solid #A855F7 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-3.indent-active
+{
+    background-color: rgba(74, 222, 128, 0.22) !important;
+    outline: 1px solid #4ADE80 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-4.indent-active
+{
+    background-color: rgba(251, 113, 133, 0.22) !important;
+    outline: 1px solid #FB7185 !important;
+}
+
+.monaco-editor .typst-math-delimiter.lvl-5.indent-active
+{
+    background-color: rgba(129, 140, 248, 0.22) !important;
+    outline: 1px solid #818CF8 !important;
+}
+
 .EditorStatusBar
 {
     display: flex;

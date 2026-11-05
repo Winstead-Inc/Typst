@@ -42,3 +42,4 @@ for (let i = 0; i < 4; i++) {
 }
 const t1 = Date.now();
 console.log('4 pages full conversion time:', t1 - t0, 'ms');
+

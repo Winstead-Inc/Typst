@@ -2229,6 +2229,7 @@ async function InitializeMonaco()
 
                 const Position = MonacoInstance.getPosition();
                 const CursorLine = Position ? Position.lineNumber : 0;
+                const CursorCol = Position ? Position.column : 0;
 
                 try
                 {
@@ -2244,98 +2245,118 @@ async function InitializeMonaco()
 
                 const TotalLines = Model.getLineCount();
                 const Decorations = [];
+                let NestingDepth = 0;
                 let CurrentOpen = null;
 
                 for (let L = 1; L <= TotalLines; L++)
                 {
                     const LineContent = Model.getLineContent(L);
-                    const Trimmed = LineContent.trim();
 
-                    if (CurrentOpen === null)
+                    for (let ColIdx = 0; ColIdx < LineContent.length; ColIdx++)
                     {
-                        const FirstDollarIdx = LineContent.indexOf("$");
-                        if (FirstDollarIdx !== -1)
+                        const Char = LineContent[ColIdx];
+                        const PrevChar = ColIdx > 0 ? LineContent[ColIdx - 1] : "";
+
+                        if (Char === "(" || Char === "[" || Char === "{")
                         {
-                            const RestOfLine = LineContent.slice(FirstDollarIdx + 1);
-                            const HasClosingDollar = RestOfLine.includes("$");
+                            NestingDepth++;
+                        }
+                        else if (Char === ")" || Char === "]" || Char === "}")
+                        {
+                            NestingDepth = Math.max(0, NestingDepth - 1);
+                        }
+                        else if (Char === "$" && PrevChar !== "\\")
+                        {
+                            const ColNumber = ColIdx + 1;
 
-                            if (Trimmed === "$" || (Trimmed.startsWith("$") && !HasClosingDollar))
+                            if (CurrentOpen === null)
                             {
-                                let NestingDepth = 0;
-                                for (let PrevL = 1; PrevL < L; PrevL++)
-                                {
-                                    const Txt = Model.getLineContent(PrevL);
-                                    for (const Ch of Txt)
-                                    {
-                                        if (Ch === "(" || Ch === "[" || Ch === "{") { NestingDepth++; }
-                                        else if (Ch === ")" || Ch === "]" || Ch === "}") { NestingDepth = Math.max(0, NestingDepth - 1); }
-                                    }
-                                }
-
                                 CurrentOpen =
                                 {
                                     StartLine: L,
-                                    StartCol: FirstDollarIdx + 1,
-                                    NestingDepth: NestingDepth
+                                    StartCol: ColNumber,
+                                    Level: NestingDepth % 6
                                 };
                             }
-                        }
-                    }
-                    else
-                    {
-                        const DollarIdx = LineContent.indexOf("$");
-                        if (DollarIdx !== -1)
-                        {
-                            const StartLine = CurrentOpen.StartLine;
-                            const StartCol = CurrentOpen.StartCol;
-                            const EndLine = L;
-                            const EndCol = DollarIdx + 1;
-                            const Level = CurrentOpen.NestingDepth % 6;
-
-                            const IsActive = CursorLine >= StartLine && CursorLine <= EndLine;
-
-                            if (IsActive)
+                            else
                             {
+                                const StartLine = CurrentOpen.StartLine;
+                                const StartCol = CurrentOpen.StartCol;
+                                const EndLine = L;
+                                const EndCol = ColNumber;
+                                const Level = CurrentOpen.Level;
+                                const IsMultiline = StartLine !== EndLine;
+
+                                let IsActive = false;
+                                if (IsMultiline)
+                                {
+                                    if (CursorLine > StartLine && CursorLine < EndLine)
+                                    {
+                                        IsActive = true;
+                                    }
+                                    else if (CursorLine === StartLine)
+                                    {
+                                        IsActive = CursorCol >= StartCol;
+                                    }
+                                    else if (CursorLine === EndLine)
+                                    {
+                                        IsActive = CursorCol <= EndCol + 1;
+                                    }
+                                }
+                                else
+                                {
+                                    IsActive = CursorLine === StartLine && CursorCol >= StartCol && CursorCol <= EndCol + 1;
+                                }
+
+                                const ActiveSuffix = IsActive ? " indent-active" : "";
+
+                                // Decorate opening $
                                 Decorations.push
                                 ({
                                     range: new monaco.Range(StartLine, StartCol, StartLine, StartCol + 1),
-                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                    options: { inlineClassName: `typst-math-delimiter lvl-${Level}${ActiveSuffix}` }
                                 });
+
+                                // Decorate closing $
                                 Decorations.push
                                 ({
                                     range: new monaco.Range(EndLine, EndCol, EndLine, EndCol + 1),
-                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                    options: { inlineClassName: `typst-math-delimiter lvl-${Level}${ActiveSuffix}` }
                                 });
-                            }
 
-                            for (let Line = StartLine; Line <= EndLine; Line++)
-                            {
-                                let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
-                                if (IsActive)
+                                // If multiline, draw vertical indentation guide line
+                                if (IsMultiline)
                                 {
-                                    Classes += " indent-active";
-                                    if (Line === StartLine)
+                                    for (let Line = StartLine; Line <= EndLine; Line++)
                                     {
-                                        Classes += " horizontal-top";
-                                    }
-                                    if (Line === EndLine)
-                                    {
-                                        Classes += " horizontal-bottom";
+                                        let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
+                                        if (IsActive)
+                                        {
+                                            Classes += " indent-active";
+                                            if (Line === StartLine)
+                                            {
+                                                Classes += " horizontal-top";
+                                            }
+                                            if (Line === EndLine)
+                                            {
+                                                Classes += " horizontal-bottom";
+                                            }
+                                        }
+
+                                        Decorations.push
+                                        ({
+                                            range: new monaco.Range(Line, 1, Line, 1),
+                                            options:
+                                            {
+                                                isWholeLine: true,
+                                                className: Classes
+                                            }
+                                        });
                                     }
                                 }
 
-                                Decorations.push
-                                ({
-                                    range: new monaco.Range(Line, 1, Line, 1),
-                                    options:
-                                    {
-                                        isWholeLine: true,
-                                        className: Classes
-                                    }
-                                });
+                                CurrentOpen = null;
                             }
-
-                            CurrentOpen = null;
                         }
                     }
                 }
