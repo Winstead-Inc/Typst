@@ -923,10 +923,10 @@ button, input, select, textarea,
 .monaco-editor .lines-content .bracket-indent-guide.lvl-0,
 .monaco-editor .lines-content .core-guide-indent.lvl-0
 {
-    --guide-color: rgba(123, 0, 255, 0.35) !important;
-    --guide-color-active: #7B00FFFF !important;
-    --indent-color: rgba(123, 0, 255, 0.35) !important;
-    --indent-color-active: #7B00FFFF !important;
+    --guide-color: rgba(113, 0, 255, 0.35) !important;
+    --guide-color-active: #7100FFFF !important;
+    --indent-color: rgba(113, 0, 255, 0.35) !important;
+    --indent-color-active: #7100FFFF !important;
 }
 
 .monaco-editor .lines-content .bracket-indent-guide.lvl-1,
@@ -976,12 +976,12 @@ button, input, select, textarea,
 
 .monaco-editor .vertical.indent-active
 {
-    box-shadow: 1px 0 0 0 var(--guide-color-active, var(--indent-color-active, #7B00FFFF)) inset !important;
+    box-shadow: 1px 0 0 0 var(--guide-color-active, var(--indent-color-active, #7100FFFF)) inset !important;
 }
 
 .monaco-editor .lines-content .core-guide-indent.indent-active
 {
-    box-shadow: 1px 0 0 0 var(--indent-color-active, #7B00FFFF) inset !important;
+    box-shadow: 1px 0 0 0 var(--indent-color-active, #7100FFFF) inset !important;
 }
 
 /* Custom Math ($ ... $) Indentation Guide Lines */
@@ -992,12 +992,12 @@ button, input, select, textarea,
 
 .monaco-editor .view-line.typst-math-guide-line.col-1
 {
-    box-shadow: 1px 0 0 0 var(--math-guide-color, rgba(123, 0, 255, 0.35)) inset;
+    box-shadow: 1px 0 0 0 var(--math-guide-color, rgba(113, 0, 255, 0.35)) inset;
 }
 
 .monaco-editor .view-line.typst-math-guide-line.col-1.indent-active
 {
-    box-shadow: 1px 0 0 0 var(--math-guide-color-active, #7B00FFFF) inset !important;
+    box-shadow: 1px 0 0 0 var(--math-guide-color-active, #7100FFFF) inset !important;
 }
 
 .monaco-editor .view-line.typst-math-guide-line:not(.col-1)::before
@@ -1008,14 +1008,14 @@ button, input, select, textarea,
     top: 0;
     bottom: 0;
     width: 1px;
-    background-color: var(--math-guide-color, rgba(123, 0, 255, 0.35));
+    background-color: var(--math-guide-color, rgba(113, 0, 255, 0.35));
     pointer-events: none;
     z-index: 1;
 }
 
 .monaco-editor .view-line.typst-math-guide-line:not(.col-1).indent-active::before
 {
-    background-color: var(--math-guide-color-active, #7B00FFFF) !important;
+    background-color: var(--math-guide-color-active, #7100FFFF) !important;
 }
 
 .monaco-editor .view-line.typst-math-guide-line.horizontal-top.indent-active::after
@@ -1026,7 +1026,7 @@ button, input, select, textarea,
     top: 0;
     width: var(--math-col-space-width, 8.42px);
     height: 1px;
-    background-color: var(--math-guide-color-active, #7B00FFFF) !important;
+    background-color: var(--math-guide-color-active, #7100FFFF) !important;
     pointer-events: none;
     z-index: 1;
 }
@@ -1039,15 +1039,15 @@ button, input, select, textarea,
     bottom: 0;
     width: var(--math-col-space-width, 8.42px);
     height: 1px;
-    background-color: var(--math-guide-color-active, #7B00FFFF) !important;
+    background-color: var(--math-guide-color-active, #7100FFFF) !important;
     pointer-events: none;
     z-index: 1;
 }
 
 .monaco-editor .view-line.typst-math-guide-line.lvl-0
 {
-    --math-guide-color: rgba(123, 0, 255, 0.35);
-    --math-guide-color-active: #7B00FFFF;
+    --math-guide-color: rgba(113, 0, 255, 0.35);
+    --math-guide-color-active: #7100FFFF;
 }
 
 .monaco-editor .view-line.typst-math-guide-line.lvl-1
@@ -1082,15 +1082,15 @@ button, input, select, textarea,
 
 .typst-math-bracket-match
 {
-    background-color: rgba(123, 0, 255, 0.22) !important;
-    outline: 1px solid #7B00FFFF !important;
+    background-color: rgba(113, 0, 255, 0.22) !important;
+    outline: 1px solid #7100FFFF !important;
     border-radius: 2px !important;
 }
 
 .typst-math-bracket-match.lvl-0
 {
-    background-color: rgba(123, 0, 255, 0.22) !important;
-    outline: 1px solid #7B00FFFF !important;
+    background-color: rgba(113, 0, 255, 0.22) !important;
+    outline: 1px solid #7100FFFF !important;
 }
 
 .typst-math-bracket-match.lvl-1
@@ -1356,11 +1356,55 @@ button, input, select, textarea,
     height: 100% !important;
 }
 
+.SvgLayer
+{
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: auto;
+}
+
+.SvgLayer svg
+{
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* Light Page Mode (Default) */
+.PreviewViewport:not(.BlackPageMode) .DarkSvgLayer,
+.PagesContainer:not(.BlackPageMode) .DarkSvgLayer
+{
+    display: none !important;
+}
+
+.PreviewViewport:not(.BlackPageMode) .LightSvgLayer,
+.PagesContainer:not(.BlackPageMode) .LightSvgLayer
+{
+    display: block !important;
+}
+
+/* Black Page Mode */
+.PreviewViewport.BlackPageMode .LightSvgLayer,
+.PagesContainer.BlackPageMode .LightSvgLayer
+{
+    display: none !important;
+}
+
+.PreviewViewport.BlackPageMode .DarkSvgLayer,
+.PagesContainer.BlackPageMode .DarkSvgLayer
+{
+    display: block !important;
+}
+
 /* Black Page Mode (Completely Black Page, preserved non-monochrome colors, inverted monochrome) */
+.PreviewViewport.BlackPageMode .PageSheet,
 .PagesContainer.BlackPageMode .PageSheet
 {
     background-color: #000000 !important; /* Completely Black page color */
-    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.85), 0 0 0 1px #2e2e36;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.85), 0 0 0 1px #2E2E36;
 }
 
 /* Loading Splash */

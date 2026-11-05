@@ -101,7 +101,7 @@ async function RunAllEnhancementTests()
 
     // 2. Verify CSS Styles
     console.log("\nSECTION 2: CSS Architecture & Formatting");
-    const CssRes = await FetchURL("/Style.css?v=20261105_12");
+    const CssRes = await FetchURL("/Style.css?v=20261105_13");
     Assert(CssRes.Status === 200, "Style.css returns HTTP 200");
     const Css = CssRes.Body;
 
@@ -120,7 +120,7 @@ async function RunAllEnhancementTests()
 
     // 3. Verify JavaScript Logic in App.js
     console.log("\nSECTION 3: Client Application Logic");
-    const AppJsRes = await FetchURL("/App.js?v=20261105_12");
+    const AppJsRes = await FetchURL("/App.js?v=20261105_13");
     Assert(AppJsRes.Status === 200, "App.js returns HTTP 200");
     const AppJs = AppJsRes.Body;
 

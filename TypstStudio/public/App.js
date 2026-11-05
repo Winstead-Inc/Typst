@@ -1923,20 +1923,39 @@ async function InitializeMonaco()
                         "editorWhitespace.foreground": "#202020",
                         "editor.selectionBackground": "#282828",
                         // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
-                        "editorBracketHighlight.foreground1": "#00e5ff",
-                        "editorBracketHighlight.foreground2": "#f472b6",
-                        "editorBracketHighlight.foreground3": "#a855f7",
-                        "editorBracketHighlight.foreground4": "#4ade80",
-                        "editorBracketHighlight.foreground5": "#fb7185",
-                        "editorBracketHighlight.foreground6": "#818cf8",
-                        "editorBracketHighlight.unexpectedBracket.foreground": "#ff5555",
+                        "editorBracketHighlight.foreground1": "#7100FFFF",
+                        "editorBracketHighlight.foreground2": "#F472B6",
+                        "editorBracketHighlight.foreground3": "#A855F7",
+                        "editorBracketHighlight.foreground4": "#4ADE80",
+                        "editorBracketHighlight.foreground5": "#FB7185",
+                        "editorBracketHighlight.foreground6": "#818CF8",
+                        "editorBracketHighlight.unexpectedBracket.foreground": "#FF5555",
                         // Matching Bracket Pair Connecting Guide Lines
-                        "editorBracketPairGuide.activeBackground1": "#00e5ff",
-                        "editorBracketPairGuide.activeBackground2": "#f472b6",
-                        "editorBracketPairGuide.activeBackground3": "#a855f7",
-                        "editorBracketPairGuide.activeBackground4": "#4ade80",
-                        "editorBracketPairGuide.activeBackground5": "#fb7185",
-                        "editorBracketPairGuide.activeBackground6": "#818cf8"
+                        "editorBracketPairGuide.activeBackground1": "#7100FFFF",
+                        "editorBracketPairGuide.activeBackground2": "#F472B6",
+                        "editorBracketPairGuide.activeBackground3": "#A855F7",
+                        "editorBracketPairGuide.activeBackground4": "#4ADE80",
+                        "editorBracketPairGuide.activeBackground5": "#FB7185",
+                        "editorBracketPairGuide.activeBackground6": "#818CF8",
+                        "editorBracketPairGuide.background1": "#7100FF55",
+                        "editorBracketPairGuide.background2": "#F472B655",
+                        "editorBracketPairGuide.background3": "#A855F755",
+                        "editorBracketPairGuide.background4": "#4ADE8055",
+                        "editorBracketPairGuide.background5": "#FB718555",
+                        "editorBracketPairGuide.background6": "#818CF855",
+                        // Matching Indentation Guides Palette (Depth levels 1 to 6)
+                        "editorIndentGuide.background1": "#7100FF55",
+                        "editorIndentGuide.background2": "#F472B655",
+                        "editorIndentGuide.background3": "#A855F755",
+                        "editorIndentGuide.background4": "#4ADE8055",
+                        "editorIndentGuide.background5": "#FB718555",
+                        "editorIndentGuide.background6": "#818CF855",
+                        "editorIndentGuide.activeBackground1": "#7100FFFF",
+                        "editorIndentGuide.activeBackground2": "#F472B6",
+                        "editorIndentGuide.activeBackground3": "#A855F7",
+                        "editorIndentGuide.activeBackground4": "#4ADE80",
+                        "editorIndentGuide.activeBackground5": "#FB7185",
+                        "editorIndentGuide.activeBackground6": "#818CF8"
                     }
                 }
             );
@@ -2158,9 +2177,10 @@ async function InitializeMonaco()
                     guides:
                     {
                         bracketPairs: true,
-                        bracketPairsHorizontal: false,
-                        highlightActiveBracketPair: false,
-                        indentation: false
+                        bracketPairsHorizontal: "active",
+                        highlightActiveBracketPair: true,
+                        indentation: true,
+                        highlightActiveIndentation: "always"
                     },
                     wordWrap: "on",
                     wrappingStrategy: "simple",
@@ -2189,6 +2209,140 @@ async function InitializeMonaco()
                 }
             );
 
+            window.MonacoInstance = MonacoInstance;
+
+            let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            function UpdateMathBracketHighlighting()
+            {
+                if (!MonacoInstance)
+                {
+                    return;
+                }
+
+                const Model = MonacoInstance.getModel();
+                if (!Model)
+                {
+                    MathBracketDecorations.clear();
+                    return;
+                }
+
+                const Position = MonacoInstance.getPosition();
+                const CursorLine = Position ? Position.lineNumber : 0;
+
+                try
+                {
+                    const FontInfo = MonacoInstance.getOption(monaco.editor.EditorOption.fontInfo);
+                    if (FontInfo && FontInfo.spaceWidth)
+                    {
+                        Container.style.setProperty("--math-col-space-width", `${FontInfo.spaceWidth}px`);
+                    }
+                }
+                catch (Err)
+                {
+                }
+
+                const TotalLines = Model.getLineCount();
+                const Decorations = [];
+                let CurrentOpen = null;
+
+                for (let L = 1; L <= TotalLines; L++)
+                {
+                    const LineContent = Model.getLineContent(L);
+                    const Trimmed = LineContent.trim();
+
+                    if (CurrentOpen === null)
+                    {
+                        const FirstDollarIdx = LineContent.indexOf("$");
+                        if (FirstDollarIdx !== -1)
+                        {
+                            const RestOfLine = LineContent.slice(FirstDollarIdx + 1);
+                            const HasClosingDollar = RestOfLine.includes("$");
+
+                            if (Trimmed === "$" || (Trimmed.startsWith("$") && !HasClosingDollar))
+                            {
+                                let NestingDepth = 0;
+                                for (let PrevL = 1; PrevL < L; PrevL++)
+                                {
+                                    const Txt = Model.getLineContent(PrevL);
+                                    for (const Ch of Txt)
+                                    {
+                                        if (Ch === "(" || Ch === "[" || Ch === "{") { NestingDepth++; }
+                                        else if (Ch === ")" || Ch === "]" || Ch === "}") { NestingDepth = Math.max(0, NestingDepth - 1); }
+                                    }
+                                }
+
+                                CurrentOpen =
+                                {
+                                    StartLine: L,
+                                    StartCol: FirstDollarIdx + 1,
+                                    NestingDepth: NestingDepth
+                                };
+                            }
+                        }
+                    }
+                    else
+                    {
+                        const DollarIdx = LineContent.indexOf("$");
+                        if (DollarIdx !== -1)
+                        {
+                            const StartLine = CurrentOpen.StartLine;
+                            const StartCol = CurrentOpen.StartCol;
+                            const EndLine = L;
+                            const EndCol = DollarIdx + 1;
+                            const Level = CurrentOpen.NestingDepth % 6;
+
+                            const IsActive = CursorLine >= StartLine && CursorLine <= EndLine;
+
+                            if (IsActive)
+                            {
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(StartLine, StartCol, StartLine, StartCol + 1),
+                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                });
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(EndLine, EndCol, EndLine, EndCol + 1),
+                                    options: { inlineClassName: `typst-math-bracket-match lvl-${Level}` }
+                                });
+                            }
+
+                            for (let Line = StartLine; Line <= EndLine; Line++)
+                            {
+                                let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
+                                if (IsActive)
+                                {
+                                    Classes += " indent-active";
+                                    if (Line === StartLine)
+                                    {
+                                        Classes += " horizontal-top";
+                                    }
+                                    if (Line === EndLine)
+                                    {
+                                        Classes += " horizontal-bottom";
+                                    }
+                                }
+
+                                Decorations.push
+                                ({
+                                    range: new monaco.Range(Line, 1, Line, 1),
+                                    options:
+                                    {
+                                        isWholeLine: true,
+                                        className: Classes
+                                    }
+                                });
+                            }
+
+                            CurrentOpen = null;
+                        }
+                    }
+                }
+
+                MathBracketDecorations.set(Decorations);
+            }
+
             // Fast, non-blocking status bar update using O(1) getValueLength()
             MonacoInstance.onDidChangeModelContent
             (
@@ -2197,6 +2351,7 @@ async function InitializeMonaco()
                     CheckDocumentDirty();
                     UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();
+                    UpdateMathBracketHighlighting();
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
@@ -2213,6 +2368,7 @@ async function InitializeMonaco()
                 () =>
                 {
                     UpdateStatusBar();
+                    UpdateMathBracketHighlighting();
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile) { ScheduleCompile(450); }
                 }
@@ -2224,6 +2380,7 @@ async function InitializeMonaco()
                 {
                     const Pos = Event.position;
                     document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
+                    UpdateMathBracketHighlighting();
                 }
             );
 
@@ -2563,9 +2720,7 @@ function RenderPages(Pages)
         PageDiv.className = "PageSheet";
         PageDiv.id = `PageSheet_${Index + 1}`;
 
-        const EffectiveSvg = IsBlackPageMode ? ConvertSvgToDarkMode(SvgContent) : SvgContent;
-
-        const VbMatch = EffectiveSvg.match(/viewBox\s*=\s*["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i);
+        const VbMatch = SvgContent.match(/viewBox\s*=\s*["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i);
         let BaseWidthPx = 576;
         let BaseHeightPx = 864;
 
@@ -2586,19 +2741,32 @@ function RenderPages(Pages)
         PageDiv.style.width = `${ScaledWidth}px`;
         PageDiv.style.height = `${ScaledHeight}px`;
 
-        const CleanSvg = EffectiveSvg.replace
-        (
-            /<svg\b([^>]*)>/i,
-            (Match, Attrs) =>
-            {
-                const CleanedAttrs = Attrs
-                    .replace(/\bwidth="[^"]*"/gi, "")
-                    .replace(/\bheight="[^"]*"/gi, "");
-                return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
-            }
-        );
+        function NormalizeSvg(RawSvg)
+        {
+            return RawSvg.replace
+            (
+                /<svg\b([^>]*)>/i,
+                (Match, Attrs) =>
+                {
+                    const CleanedAttrs = Attrs
+                        .replace(/\bwidth="[^"]*"/gi, "")
+                        .replace(/\bheight="[^"]*"/gi, "");
+                    return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
+                }
+            );
+        }
 
-        PageDiv.innerHTML = CleanSvg;
+        const LightLayer = document.createElement("div");
+        LightLayer.className = "SvgLayer LightSvgLayer";
+        LightLayer.innerHTML = NormalizeSvg(SvgContent);
+
+        const DarkLayer = document.createElement("div");
+        DarkLayer.className = "SvgLayer DarkSvgLayer";
+        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent));
+
+        PageDiv.appendChild(LightLayer);
+        PageDiv.appendChild(DarkLayer);
+
         return PageDiv;
     }
 
@@ -2755,20 +2923,23 @@ function FitPage()
 function UpdateBlackPageMode()
 {
     const Container = document.getElementById("PagesContainer");
+    const Viewport = document.getElementById("PreviewViewport");
     const Icon = document.getElementById("BlackPageIcon");
     const Label = document.getElementById("BlackPageLabel");
     const Button = document.getElementById("BlackPageToggle");
 
     if (IsBlackPageMode)
     {
-        Container.classList.add("BlackPageMode");
+        if (Container) { Container.classList.add("BlackPageMode"); }
+        if (Viewport) { Viewport.classList.add("BlackPageMode"); }
         if (Icon) { Icon.textContent = "☀️"; }
         if (Label) { Label.textContent = "Light Page"; }
         if (Button) { Button.classList.add("Active"); }
     }
     else
     {
-        Container.classList.remove("BlackPageMode");
+        if (Container) { Container.classList.remove("BlackPageMode"); }
+        if (Viewport) { Viewport.classList.remove("BlackPageMode"); }
         if (Icon) { Icon.textContent = "🌙"; }
         if (Label) { Label.textContent = "Dark Page"; }
         if (Button) { Button.classList.remove("Active"); }
@@ -2780,10 +2951,6 @@ function ToggleBlackPageMode()
     IsBlackPageMode = !IsBlackPageMode;
     localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true" : "false");
     UpdateBlackPageMode();
-    if (LastCompiledPages && LastCompiledPages.length > 0)
-    {
-        RenderPages(LastCompiledPages);
-    }
 }
 
 async function ExportPdf()
