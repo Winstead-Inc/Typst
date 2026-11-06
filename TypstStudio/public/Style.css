@@ -159,6 +159,7 @@ button, input, select, textarea,
     padding: 0 18px;
     background-color: var(--bg-header);
     border-bottom: 1px solid var(--border-color);
+    -webkit-user-select: none;
     user-select: none;
     z-index: 1000;
     overflow: visible !important;
@@ -377,6 +378,7 @@ button, input, select, textarea,
     border-radius: 5px;
     cursor: pointer;
     transition: background-color 0.1s;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -663,6 +665,7 @@ button, input, select, textarea,
     cursor: pointer;
     border: 1px solid var(--border-color);
     transition: all 0.15s ease;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -704,6 +707,7 @@ button, input, select, textarea,
     border: 1px solid var(--border-color);
     border-radius: 6px;
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     transition: background-color 0.15s ease, border-color 0.15s ease;
 }
@@ -1261,6 +1265,7 @@ button, input, select, textarea,
     padding: 0 16px;
     background-color: var(--bg-panel);
     border-bottom: 1px solid var(--border-color);
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -2206,6 +2211,7 @@ button, input, select, textarea,
     gap: 12px;
     cursor: pointer;
     transition: all 0.15s ease;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -2798,6 +2804,7 @@ button, input, select, textarea,
     border-radius: 4px;
     cursor: pointer;
     transition: all 0.15s ease;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -2957,6 +2964,7 @@ button, input, select, textarea,
     cursor: pointer;
     border-left: 2px solid transparent;
     transition: all 0.12s ease;
+    -webkit-user-select: none;
     user-select: none;
     line-height: 1.35;
 }
@@ -3055,6 +3063,7 @@ button, input, select, textarea,
     align-items: center;
     justify-content: center;
     pointer-events: none;
+    -webkit-backdrop-filter: blur(4px);
     backdrop-filter: blur(4px);
     transition: opacity 0.2s ease;
 }
@@ -3090,6 +3099,7 @@ button, input, select, textarea,
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.75);
+    -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
     z-index: 2000;
     display: flex;
@@ -3341,6 +3351,7 @@ kbd
     width: 100%;
     transition: all 0.12s ease;
     box-sizing: border-box;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -3484,4 +3495,44 @@ kbd
     {
         background-color: transparent;
     }
+}
+
+/* ==========================================================================
+   Text Selection & Word Highlight Styles (Strict Color: #7100FF Purple)
+   ========================================================================== */
+
+::selection
+{
+    background-color: #7100FF77;
+    color: #FFFFFF;
+}
+
+::-moz-selection
+{
+    background-color: #7100FF77;
+    color: #FFFFFF;
+}
+
+.monaco-editor .selected-text
+{
+    background-color: #7100FF77 !important;
+}
+
+.monaco-editor .focused .selected-text
+{
+    background-color: #7100FF77 !important;
+}
+
+.monaco-editor .wordHighlight,
+.monaco-editor .wordHighlightStrong,
+.monaco-editor .wordHighlightText
+{
+    background-color: transparent !important;
+    border: none !important;
+}
+
+.monaco-editor .selectionHighlight
+{
+    background-color: #7100FF33 !important;
+    border: 1px solid #7100FF55 !important;
 }

@@ -254,6 +254,7 @@ button {
   margin: 0px;
   color: inherit;
   appearance: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 

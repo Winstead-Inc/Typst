@@ -161,6 +161,7 @@ ul.sidebar-list {
 .sidebar-list-empty {
   letter-spacing: var(--size-xxxxsmall);
   color: var(--text-gutter-active);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -186,6 +187,7 @@ h2.diff-container-header {
   font-size: var(--text-large);
   letter-spacing: var(--size-xxxxsmall);
   color: var(--text-gutter-active);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -267,6 +269,7 @@ a.report-file-link {
   height: var(--size-medium);
   margin: 0;
   text-decoration: none;
+  -webkit-user-select: none;
   user-select: none;
 
   display: inline-flex;
@@ -476,6 +479,7 @@ tr {
 
 .diff-gap {
   text-align: center;
+  -webkit-user-select: none;
   user-select: none;
   font-size: 1.2em;
   background-color: var(--layer-gap);
@@ -488,6 +492,7 @@ tr {
   font-family: var(--monospace);
   font-size: var(--font-size-code);
   text-align: right;
+  -webkit-user-select: none;
   user-select: none;
   color: var(--text-gutter-active);
   padding: 0 var(--size-xxxxsmall);

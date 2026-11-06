@@ -1,9 +1,0 @@
-No target files specified. Format all {js} files in current directory and subdirectories? [y/N]: Formatted & Saved: .\scratch\inspect_svg_tags.js
-Formatted & Saved: .\scratch\test_function_call_enrich.js
-Formatted & Saved: .\scratch\test_row_cells.js
-Formatted & Saved: .\scratch\test_live_server_endpoints.js
-Formatted & Saved: .\scratch\test_live_forward_sync.js
-Formatted & Saved: .\scratch\test_subtable_boxes.js
-Formatted & Saved: .\TypstStudio\Server.js
-Formatted & Saved: .\TypstStudio\public\App.js
-Summary: 8 formatted and saved, 91 already clean, 0 errors (38.25ms, 16 threads).

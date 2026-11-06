@@ -1,3 +1,0 @@
-Error formatting E:\Typst\tests\src\world.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2254, Formatted: 2253). Output aborted to prevent code corruption.
-Summary: 0 formatted and saved, 0 already clean, 1 errors (3.58ms, 1 threads).
-Failed file paths recorded to 'failed.txt'. Use 'lafs format failed' to retry.

@@ -1269,6 +1269,16 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
     let ByteOffset = 0;
     const ClaimedGroups = new Map();
 
+    const LineMap = new Map();
+    for (const E of Enriched)
+    {
+        if (!LineMap.has(E.line))
+        {
+            LineMap.set(E.line,[]);
+        }
+        LineMap.get(E.line).push(E);
+    }
+
     for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
     {
         const LineText = Lines[LineIdx];
@@ -1299,9 +1309,10 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
                 continue;
             }
 
-            const Exists = Enriched.some
+            const LineElems = LineMap.get(LineNum) || [];
+            const Exists = LineElems.some
             (
-                (E) => E.line === LineNum && Math.abs(E.col - Col) <= 1 && Math.abs(E.end_col - EndCol) <= 1
+                (E) => Math.abs(E.col - Col) <= 1 && Math.abs(E.end_col - EndCol) <= 1
             );
 
             if (Exists)
@@ -1309,10 +1320,6 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
                 continue;
             }
 
-            const LineElems = Enriched.filter
-            (
-                (E) => E.line === LineNum && E.end_line === LineNum
-            );
             LineElems.sort( (A, B) => A.col - B.col);
 
             let PageNum = 1;
@@ -1642,7 +1649,10 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
                     {
                         const TextElem = InstElems.find
                         (
-                            (E) => E.line === Def.DefLineStart + 6 || (E.height < 15 && E.width > 20 && E.x < InstanceRect.x + InstanceRect.width * 0.5)
+                            (E) => E.line === Def.DefLineStart + 6 ||
+                            (
+                                E.height < 15 && E.width > 20 && E.x < InstanceRect.x + InstanceRect.width * 0.5
+                            )
                         );
                         if (TextElem)
                         {
@@ -1668,10 +1678,22 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
                         const ScoreElems = InstElems.filter( (E) => E.x > InstanceRect.x + InstanceRect.width * 0.5 && E.height < 15);
                         if (ScoreElems.length > 0)
                         {
-                            const MinX = Math.min(...ScoreElems.map( (E) => E.x));
-                            const MaxX = Math.max(...ScoreElems.map( (E) => E.x + E.width));
-                            const MinY = Math.min(...ScoreElems.map( (E) => E.y));
-                            const MaxY = Math.max(...ScoreElems.map( (E) => E.y + E.height));
+                            const MinX = Math.min
+                            (
+                                ...ScoreElems.map( (E) => E.x)
+                            );
+                            const MaxX = Math.max
+                            (
+                                ...ScoreElems.map( (E) => E.x + E.width)
+                            );
+                            const MinY = Math.min
+                            (
+                                ...ScoreElems.map( (E) => E.y)
+                            );
+                            const MaxY = Math.max
+                            (
+                                ...ScoreElems.map( (E) => E.y + E.height)
+                            );
 
                             Enriched.push
                             ({
@@ -1695,6 +1717,95 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
 
             InstanceIndex ++;
         }
+    }
+
+    return Enriched;
+}
+
+function EnrichReferences(SyncMap, SourceCode)
+{
+    if (!SyncMap || !SourceCode)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = SourceCode.split(/\r?\n/);
+    let ByteOffset = 0;
+
+    const LineMap = new Map();
+    for (const E of Enriched)
+    {
+        if (!LineMap.has(E.line))
+        {
+            LineMap.set(E.line,[]);
+        }
+        LineMap.get(E.line).push(E);
+    }
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    {
+        const LineText = Lines[LineIdx];
+        const LineNum = LineIdx + 1;
+        const RefRegex = /@([a-zA-Z0-9_\-:]+)/g;
+        let Match;
+
+        while
+        (
+            (Match = RefRegex.exec(LineText)) !== null
+        )
+        {
+            const Label = Match[1];
+            const Col = Match.index + 1;
+            const EndCol = Col + Match[0].length;
+            const Start = ByteOffset + Match.index;
+            const End = Start + Match[0].length;
+
+            const LineElems = LineMap.get(LineNum) || [];
+            const Before = LineElems.filter( (E) => E.start <= Start + 2).sort( (A, B) => B.start - A.start)[0];
+            const After = LineElems.filter( (E) => E.start >= End - 1).sort( (A, B) => A.start - B.start)[0];
+
+            if (Before && After && (Before.page || 1) === (After.page || 1) && Math.abs(Before.y - After.y) < 3.0)
+            {
+                const GapX = Before.x + Before.width;
+                const GapW = Math.max(12.0, After.x - GapX);
+                Enriched.push
+                ({
+                    page: Before.page || 1,
+                    x: GapX,
+                    y: Before.y,
+                    width: GapW,
+                    height: Before.height,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    span: `ref_${Label}`
+                });
+            }
+            else if (Before)
+            {
+                Enriched.push
+                ({
+                    page: Before.page || 1,
+                    x: Before.x + Before.width,
+                    y: Before.y,
+                    width: 35.0,
+                    height: Before.height,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    span: `ref_${Label}`
+                });
+            }
+        }
+
+        ByteOffset += LineText.length + 1;
     }
 
     return Enriched;
@@ -1830,6 +1941,7 @@ async function HandleCompile(Request, Response)
                 SyncMap = JSON.parse(RawSync);
                 SyncMap = EnrichMathSyncMap(SyncMap, Source, Pages);
                 SyncMap = EnrichFunctionCalls(SyncMap, Source);
+                SyncMap = EnrichReferences(SyncMap, Source);
                 LastActiveSyncMap = SyncMap;
             }
             catch (Ignored)
@@ -3190,33 +3302,48 @@ async function HandlePickFolder(Request, Response)
 
         if (process.platform === "win32")
         {
-            // Windows: Try modern pwsh (PowerShell 7+) first, fallback to powershell.exe
-            const PsCommand =
-            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
-            "Add-Type -AssemblyName System.Windows.Forms; " +
-            "$Dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
-            "$Dialog.Description = 'Select Typst Projects Directory'; " +
-            "$Dialog.ShowNewFolderButton = $true; " +
-            "$TopForm = New-Object System.Windows.Forms.Form; " +
-            "$TopForm.TopMost = $true; " +
-            "$TopForm.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen; " +
-            "if ($Dialog.ShowDialog($TopForm) -eq [System.Windows.Forms.DialogResult]::OK) { " +
-            "    Write-Output $Dialog.SelectedPath; " +
-            "}";
-            // Try pwsh (PowerShell 7+) first
-            let Result = await ExecuteCommand
-            (
-                "pwsh",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: false }
-            );
-
-            Selected = (Result.Stdout || "").trim();
-            // If pwsh failed to launch or had non-zero exit with empty output, fallback to powershell.exe
-            if (!Selected && (!Result.Success || Result.Code !== 0))
+            // Windows: Use native modern IFileOpenDialog with FOS_PICKFOLDERS
+            const WinPickerBin = Path.join(__dirname, "bin", "win_folder_picker.exe");
+            if (FS.existsSync(WinPickerBin))
             {
-                Result = await ExecuteCommand
+                const PickerResult = await ExecuteCommand
+                (
+                    WinPickerBin,["Select Typst Projects Directory"], { timeout: 180000, windowsHide: false }
+                );
+                Selected = (PickerResult.Stdout || "").trim();
+            }
+
+            if (!Selected)
+            {
+                // Fallback to powershell.exe if native binary not available
+                const PsCommand =
+                "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+                "Add-Type -AssemblyName System.Windows.Forms; " +
+                "$Dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
+                "$Dialog.Description = 'Select Typst Projects Directory'; " +
+                "$Dialog.ShowNewFolderButton = $true; " +
+                "if ($Dialog.PSObject.Properties['AutoUpgradeEnabled']) { $Dialog.AutoUpgradeEnabled = $true; } " +
+                "$Form = New-Object System.Windows.Forms.Form; " +
+                "$Form.TopMost = $true; " +
+                "$Form.Opacity = 0; " +
+                "$Form.ShowInTaskbar = $false; " +
+                "$Form.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::None; " +
+                "$Form.Size = New-Object System.Drawing.Size(1, 1); " +
+                "$Form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen; " +
+                "$Form.Visible = $true; " +
+                "$Form.Show(); " +
+                "$Form.Activate(); " +
+                "$Form.BringToFront(); " +
+                "if ($Dialog.ShowDialog($Form) -eq [System.Windows.Forms.DialogResult]::OK) { " +
+                "    Write-Output $Dialog.SelectedPath; " +
+                "} " +
+                "$Form.Dispose();";
+
+                let Result = await ExecuteCommand
                 (
                     "powershell",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: false }
                 );
+
                 Selected = (Result.Stdout || "").trim();
             }
         }

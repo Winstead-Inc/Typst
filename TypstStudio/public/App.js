@@ -636,6 +636,7 @@ async function AuthenticatedFetch(Url, Options = {})
     return fetch(Url, { ...Options, headers: Headers });
 }
 let LastSavedContent = "";
+let LastSavedVersionId = - 1;
 let IsDocumentDirty = false;
 let PrimaryErrorLocation = null;
 let IsExportMenuOpen = false;
@@ -697,6 +698,8 @@ function ShowToast(Message, Type = "info", DurationMs = 3000)
 
 function MarkDocumentClean(Content)
 {
+    const Model = MonacoInstance ? MonacoInstance.getModel(): null;
+    LastSavedVersionId = Model ? Model.getAlternativeVersionId(): - 1;
     LastSavedContent = typeof Content === "string" ? Content: (MonacoInstance ? MonacoInstance.getValue(): "");
     IsDocumentDirty = false;
     UpdateDirtyStateUI();
@@ -704,10 +707,20 @@ function MarkDocumentClean(Content)
 
 function CheckDocumentDirty()
 {
-    if (!MonacoInstance) { return; }
-    const Current = MonacoInstance.getValue();
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const CurrentVersion = Model.getAlternativeVersionId();
     const WasDirty = IsDocumentDirty;
-    IsDocumentDirty = (Current !== LastSavedContent);
+    IsDocumentDirty = (CurrentVersion !== LastSavedVersionId);
     if (WasDirty !== IsDocumentDirty)
     {
         UpdateDirtyStateUI();
@@ -1910,14 +1923,23 @@ async function InitializeMonaco()
                     ],
                     colors:
                     {
-                        "editor.background": "#0a0a0a",
-                        "editor.foreground": "#f0f6fc",
+                        "editor.background": "#0A0A0A",
+                        "editor.foreground": "#F0F6FC",
                         "editor.lineHighlightBackground": "#141414",
                         "editorLineNumber.foreground": "#444444",
-                        "editorLineNumber.activeForeground": "#ffffff",
-                        "editorCursor.foreground": "#ffffff",
+                        "editorLineNumber.activeForeground": "#FFFFFF",
+                        "editorCursor.foreground": "#FFFFFF",
                         "editorWhitespace.foreground": "#202020",
-                        "editor.selectionBackground": "#282828", // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
+                        "editor.selectionBackground": "#7100FF77",
+                        "editor.inactiveSelectionBackground": "#7100FF44",
+                        "editor.selectionHighlightBackground": "#7100FF33",
+                        "editor.selectionHighlightBorder": "#7100FF66",
+                        "editor.wordHighlightBackground": "#00000000",
+                        "editor.wordHighlightStrongBackground": "#00000000",
+                        "editor.wordHighlightTextBackground": "#00000000",
+                        "editor.wordHighlightBorder": "#00000000",
+                        "editor.wordHighlightStrongBorder": "#00000000",
+                        "editor.wordHighlightTextBorder": "#00000000", // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
                         "editorBracketHighlight.foreground1": "#7100FFFF",
                         "editorBracketHighlight.foreground2": "#F472B6",
                         "editorBracketHighlight.foreground3": "#A855F7",
@@ -2187,6 +2209,7 @@ async function InitializeMonaco()
                     smoothScrolling: true,
                     fastScrollSensitivity: 7,
                     renderLineHighlight: "none",
+                    occurrencesHighlight: "off",
                     overviewRulerLanes: 0,
                     links: false,
                     renderWhitespace: "none",
@@ -2221,7 +2244,7 @@ async function InitializeMonaco()
                         {
                             PerformForwardSync(Event.position.lineNumber, Event.position.column);
                         },
-                        40
+                        100
                     );
                 }
             );
@@ -2246,12 +2269,43 @@ async function InitializeMonaco()
                                 PerformForwardSync(Pos.lineNumber, Pos.column);
                             }
                         },
-                        40
+                        100
                     );
                 }
             );
 
             let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            let LastCachedSpaceWidth = null;
+            let MathBracketHighlightTimer = null;
+            let LAFSValidationTimer = null;
+            let LastBracketCursorLine = - 1;
+
+            function ScheduleMathBracketHighlighting()
+            {
+                if (MathBracketHighlightTimer)
+                {
+                    clearTimeout(MathBracketHighlightTimer);
+                }
+                MathBracketHighlightTimer = setTimeout
+                (
+                    () => { UpdateMathBracketHighlighting(); },
+                    250
+                );
+            }
+
+            function ScheduleLAFSValidation()
+            {
+                if (LAFSValidationTimer)
+                {
+                    clearTimeout(LAFSValidationTimer);
+                }
+                LAFSValidationTimer = setTimeout
+                (
+                    () => { ValidateEditorLAFS(); },
+                    900
+                );
+            }
 
             function UpdateMathBracketHighlighting()
             {
@@ -2274,8 +2328,9 @@ async function InitializeMonaco()
                 try
                 {
                     const FontInfo = MonacoInstance.getOption(monaco.editor.EditorOption.fontInfo);
-                    if (FontInfo && FontInfo.spaceWidth)
+                    if (FontInfo && FontInfo.spaceWidth && FontInfo.spaceWidth !== LastCachedSpaceWidth)
                     {
+                        LastCachedSpaceWidth = FontInfo.spaceWidth;
                         Container.style.setProperty("--math-col-space-width", `${FontInfo.spaceWidth}px`);
                     }
                 }
@@ -2288,7 +2343,21 @@ async function InitializeMonaco()
                 let NestingDepth = 0;
                 let CurrentOpen = null;
 
-                for (let L = 1; L <= TotalLines; L ++)
+                let StartL = 1;
+                let EndL = TotalLines;
+                if (TotalLines > 300)
+                {
+                    const VisibleRanges = MonacoInstance.getVisibleRanges ? MonacoInstance.getVisibleRanges():[];
+                    if (VisibleRanges && VisibleRanges.length > 0)
+                    {
+                        const VStart = VisibleRanges[0].startLineNumber;
+                        const VEnd = VisibleRanges[VisibleRanges.length - 1].endLineNumber;
+                        StartL = Math.max(1, Math.min(CursorLine - 40, VStart - 80));
+                        EndL = Math.min(TotalLines, Math.max(CursorLine + 40, VEnd + 80));
+                    }
+                }
+
+                for (let L = StartL; L <= EndL; L ++)
                 {
                     const LineContent = Model.getLineContent(L);
 
@@ -2361,36 +2430,6 @@ async function InitializeMonaco()
                                     range: new monaco.Range(EndLine, EndCol, EndLine, EndCol + 1),
                                     options: { inlineClassName: `typst-math-delimiter lvl-${Level}${ActiveSuffix}` }
                                 });
-                                // If multiline, draw vertical indentation guide line
-                                if (IsMultiline)
-                                {
-                                    for (let Line = StartLine; Line <= EndLine; Line ++)
-                                    {
-                                        let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
-                                        if (IsActive)
-                                        {
-                                            Classes += " indent-active";
-                                            if (Line === StartLine)
-                                            {
-                                                Classes += " horizontal-top";
-                                            }
-                                            if (Line === EndLine)
-                                            {
-                                                Classes += " horizontal-bottom";
-                                            }
-                                        }
-
-                                        Decorations.push
-                                        ({
-                                            range: new monaco.Range(Line, 1, Line, 1),
-                                            options:
-                                            {
-                                                isWholeLine: true,
-                                                className: Classes
-                                            }
-                                        });
-                                    }
-                                }
 
                                 CurrentOpen = null;
                             }
@@ -2408,23 +2447,36 @@ async function InitializeMonaco()
                     CheckDocumentDirty();
                     UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();
-                    UpdateMathBracketHighlighting();
-                    const LAFSValidation = ValidateEditorLAFS();
-                    if (LAFSValidation && LAFSValidation.HasError)
-                    {
-                        if (CompileTimeoutID)
-                        {
-                            clearTimeout(CompileTimeoutID);
-                            CompileTimeoutID = null;
-                        }
-                        return ;
-                    }
+                    ScheduleMathBracketHighlighting();
+                    ScheduleLAFSValidation();
+
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
-                        // Check if change is large (e.g. paste) -> adaptive debounce
+                        const Model = MonacoInstance.getModel();
+                        const DocLen = Model ? Model.getValueLength(): 0;
                         const IsLargeChange = Event.changes.some( (C) => C.text.length > 500);
-                        ScheduleCompile(IsLargeChange ? 450: 250);
+
+                        let Delay = 500;
+                        if (DocLen > 50000)
+                        {
+                            Delay = 1000;
+                        }
+                        else if (DocLen > 15000)
+                        {
+                            Delay = 800;
+                        }
+                        else if (DocLen > 5000)
+                        {
+                            Delay = 650;
+                        }
+
+                        if (IsLargeChange)
+                        {
+                            Delay = Math.max(Delay, 1000);
+                        }
+
+                        ScheduleCompile(Delay);
                     }
                 }
             );
@@ -2434,19 +2486,13 @@ async function InitializeMonaco()
                 () =>
                 {
                     UpdateStatusBar();
-                    UpdateMathBracketHighlighting();
-                    const LAFSValidation = ValidateEditorLAFS();
-                    if (LAFSValidation && LAFSValidation.HasError)
-                    {
-                        if (CompileTimeoutID)
-                        {
-                            clearTimeout(CompileTimeoutID);
-                            CompileTimeoutID = null;
-                        }
-                        return ;
-                    }
+                    ScheduleMathBracketHighlighting();
+                    ScheduleLAFSValidation();
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
-                    if (AutoCompile) { ScheduleCompile(450); }
+                    if (AutoCompile)
+                    {
+                        ScheduleCompile(600);
+                    }
                 }
             );
 
@@ -2456,7 +2502,11 @@ async function InitializeMonaco()
                 {
                     const Pos = Event.position;
                     document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
-                    UpdateMathBracketHighlighting();
+                    if (Pos.lineNumber !== LastBracketCursorLine)
+                    {
+                        LastBracketCursorLine = Pos.lineNumber;
+                        ScheduleMathBracketHighlighting();
+                    }
                 }
             );
 
@@ -2668,11 +2718,38 @@ async function TriggerCompileNow()
     }
 }
 
+function FastHash(Str)
+{
+    if (!Str)
+    {
+        return "0";
+    }
+
+    let Hash = 2166136261;
+    const Step = Math.max(1, Math.floor(Str.length / 500));
+    for (let I = 0; I < Str.length; I += Step)
+    {
+        Hash ^= Str.charCodeAt(I);
+        Hash = Math.imul(Hash, 16777619);
+    }
+
+    return (Hash >>> 0).toString(36) + "_" + Str.length;
+}
+
+const InvertColorCache = new Map();
+const SvgDarkModeCache = new Map();
+
 function InvertMonochromeColor(ColorStr)
 {
     if (!ColorStr)
     {
         return ColorStr;
+    }
+
+    const Cached = InvertColorCache.get(ColorStr);
+    if (Cached !== undefined)
+    {
+        return Cached;
     }
 
     const Trimmed = ColorStr.trim();
@@ -2681,6 +2758,7 @@ function InvertMonochromeColor(ColorStr)
         Trimmed.startsWith("url(") || ["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase())
     )
     {
+        InvertColorCache.set(ColorStr, ColorStr);
         return ColorStr;
     }
 
@@ -2739,6 +2817,7 @@ function InvertMonochromeColor(ColorStr)
         }
         else
         {
+            InvertColorCache.set(ColorStr, ColorStr);
             return ColorStr;
         }
     }
@@ -2767,20 +2846,22 @@ function InvertMonochromeColor(ColorStr)
         }
         else
         {
+            InvertColorCache.set(ColorStr, ColorStr);
             return ColorStr;
         }
     }
 
     if (isNaN(Red) || isNaN(Green) || isNaN(Blue))
     {
+        InvertColorCache.set(ColorStr, ColorStr);
         return ColorStr;
     }
 
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 18)
     {
+        InvertColorCache.set(ColorStr, ColorStr);
         return ColorStr;
-        // Keep original color!
     }
 
     const InvertComponent = (Component) => Math.min
@@ -2794,7 +2875,9 @@ function InvertMonochromeColor(ColorStr)
     const InvertedGreen = InvertComponent(Green).toString(16).padStart(2, "0");
     const InvertedBlue = InvertComponent(Blue).toString(16).padStart(2, "0");
 
-    return `#${InvertedRed}${InvertedGreen}${InvertedBlue}${Alpha}`;
+    const FinalColor = `#${InvertedRed}${InvertedGreen}${InvertedBlue}${Alpha}`;
+    InvertColorCache.set(ColorStr, FinalColor);
+    return FinalColor;
 }
 
 function ConvertSvgToDarkMode(Svg)
@@ -2802,6 +2885,13 @@ function ConvertSvgToDarkMode(Svg)
     if (!Svg)
     {
         return Svg;
+    }
+
+    const SvgKey = FastHash(Svg);
+    const Cached = SvgDarkModeCache.get(SvgKey);
+    if (Cached)
+    {
+        return Cached;
     }
 
     let Result = Svg.replace
@@ -2832,6 +2922,12 @@ function ConvertSvgToDarkMode(Svg)
         }
     );
 
+    SvgDarkModeCache.set(SvgKey, Result);
+    if (SvgDarkModeCache.size > 40)
+    {
+        SvgDarkModeCache.clear();
+    }
+
     return Result;
 }
 
@@ -2840,9 +2936,7 @@ function RenderPages(Pages)
     const Viewport = document.getElementById("PreviewViewport");
     const PrevScrollTop = Viewport ? Viewport.scrollTop: 0;
     const PrevScrollLeft = Viewport ? Viewport.scrollLeft: 0;
-
     const PagesContainer = document.getElementById("PagesContainer");
-    PagesContainer.innerHTML = "";
 
     if (!Pages || Pages.length === 0)
     {
@@ -2852,11 +2946,46 @@ function RenderPages(Pages)
 
     const CurrentToken = ++ RenderToken;
 
-    function CreatePageElement(SvgContent, Index)
+    function NormalizeSvg(RawSvg)
     {
-        const PageDiv = document.createElement("div");
-        PageDiv.className = "PageSheet";
-        PageDiv.id = `PageSheet_${Index + 1}`;
+        return RawSvg.replace
+        (
+            /<svg\b([^>]*)>/i, (Match, Attrs) =>
+            {
+                const CleanedAttrs = Attrs
+                .replace(/\bwidth="[^"]*"/gi, "")
+                .replace(/\bheight="[^"]*"/gi, "");
+                return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
+            }
+        );
+    }
+
+    function UpdateOrCreatePageElement(SvgContent, Index)
+    {
+        const PageId = `PageSheet_${Index + 1}`;
+        let PageDiv = document.getElementById(PageId);
+        const ContentHash = FastHash(SvgContent);
+        const ModeKey = IsBlackPageMode ? "dark": "light";
+
+        if (PageDiv)
+        {
+            if (PageDiv.dataset.svgHash === ContentHash && PageDiv.dataset.svgMode === ModeKey)
+            {
+                // Unchanged page! Skip DOM recreation completely
+                return PageDiv;
+            }
+            PageDiv.innerHTML = "";
+        }
+        else
+        {
+            PageDiv = document.createElement("div");
+            PageDiv.className = "PageSheet";
+            PageDiv.id = PageId;
+            PagesContainer.appendChild(PageDiv);
+        }
+
+        PageDiv.dataset.svgHash = ContentHash;
+        PageDiv.dataset.svgMode = ModeKey;
 
         const VbMatch = SvgContent.match(/viewBox\s*=\s*["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i);
         let BaseWidthPx = 576;
@@ -2879,41 +3008,24 @@ function RenderPages(Pages)
         PageDiv.style.width = `${ScaledWidth}px`;
         PageDiv.style.height = `${ScaledHeight}px`;
 
-        function NormalizeSvg(RawSvg)
-        {
-            return RawSvg.replace
-            (
-                /<svg\b([^>]*)>/i, (Match, Attrs) =>
-                {
-                    const CleanedAttrs = Attrs
-                    .replace(/\bwidth="[^"]*"/gi, "")
-                    .replace(/\bheight="[^"]*"/gi, "");
-                    return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
-                }
-            );
-        }
-
-        const LightLayer = document.createElement("div");
-        LightLayer.className = "SvgLayer LightSvgLayer";
-        LightLayer.innerHTML = NormalizeSvg(SvgContent);
-
-        const DarkLayer = document.createElement("div");
-        DarkLayer.className = "SvgLayer DarkSvgLayer";
-        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent));
-
-        PageDiv.appendChild(LightLayer);
-        PageDiv.appendChild(DarkLayer);
+        const SvgToRender = IsBlackPageMode ? ConvertSvgToDarkMode(SvgContent): SvgContent;
+        const ActiveLayer = document.createElement("div");
+        ActiveLayer.className = IsBlackPageMode ? "SvgLayer DarkSvgLayer": "SvgLayer LightSvgLayer";
+        ActiveLayer.innerHTML = NormalizeSvg(SvgToRender);
+        PageDiv.appendChild(ActiveLayer);
 
         return PageDiv;
     }
-    // Render the first 2 pages immediately so initial view renders in <5ms
+    // Prune excess pages if document page count decreased
+    while (PagesContainer.children.length > Pages.length)
+    {
+        PagesContainer.removeChild(PagesContainer.lastChild);
+    }
+    // Render the first 2 pages immediately
     const InitialBatchCount = Math.min(Pages.length, 2);
     for (let I = 0; I < InitialBatchCount; I ++)
     {
-        PagesContainer.appendChild
-        (
-            CreatePageElement(Pages[I], I)
-        );
+        UpdateOrCreatePageElement(Pages[I], I);
     }
 
     if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
@@ -2922,7 +3034,6 @@ function RenderPages(Pages)
         Viewport.scrollLeft = PrevScrollLeft;
     }
     // If more pages exist, stream them progressively via requestAnimationFrame
-    // This completely eliminates browser hanging/freezing on large documents
     if (Pages.length > InitialBatchCount)
     {
         let CurrentIndex = InitialBatchCount;
@@ -2933,13 +3044,10 @@ function RenderPages(Pages)
                 return ;
                 // Newer render has started
             }
-            const ChunkLimit = Math.min(Pages.length, CurrentIndex + 3);
+            const ChunkLimit = Math.min(Pages.length, CurrentIndex + 4);
             for (; CurrentIndex < ChunkLimit; CurrentIndex ++)
             {
-                PagesContainer.appendChild
-                (
-                    CreatePageElement(Pages[CurrentIndex], CurrentIndex)
-                );
+                UpdateOrCreatePageElement(Pages[CurrentIndex], CurrentIndex);
             }
             if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
             {
@@ -3103,6 +3211,10 @@ function ToggleBlackPageMode()
     IsBlackPageMode = ! IsBlackPageMode;
     localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true": "false");
     UpdateBlackPageMode();
+    if (LastCompiledPages && LastCompiledPages.length > 0)
+    {
+        RenderPages(LastCompiledPages);
+    }
 }
 
 async function ExportPdf()
@@ -3412,14 +3524,27 @@ function ToggleDocumentOutline(ForceState)
 
 function UpdateDocumentOutlineThrottled()
 {
-    if (OutlineThrottleTimer) { clearTimeout(OutlineThrottleTimer); }
+    if (!IsOutlineVisible)
+    {
+        return ;
+    }
+
+    if (OutlineThrottleTimer)
+    {
+        clearTimeout(OutlineThrottleTimer);
+    }
+
+    const Model = MonacoInstance ? MonacoInstance.getModel(): null;
+    const DocLines = Model ? Model.getLineCount(): 0;
+    const ThrottleMs = DocLines > 2000 ? 1200: 600;
+
     OutlineThrottleTimer = setTimeout
     (
         () =>
         {
             UpdateDocumentOutline();
         },
-        300
+        ThrottleMs
     );
 }
 
@@ -3430,14 +3555,16 @@ function UpdateDocumentOutline()
     const StatusBadge = document.getElementById("StatusOutlineCount");
     if (!MonacoInstance || !ListContainer) { return; }
 
-    const Source = MonacoInstance.getValue();
-    const Lines = Source.split(/\r?\n/);
+    const Model = MonacoInstance.getModel();
+    if (!Model) { return; }
+
+    const TotalLines = Model.getLineCount();
     OutlineHeadingsList = [];
 
     let InCodeBlock = false;
-    for (let Index = 0; Index < Lines.length; Index ++)
+    for (let LineNum = 1; LineNum <= TotalLines; LineNum ++)
     {
-        const LineText = Lines[Index];
+        const LineText = Model.getLineContent(LineNum);
         const Trimmed = LineText.trim();
 
         if (Trimmed.startsWith("```"))
@@ -3447,17 +3574,20 @@ function UpdateDocumentOutline()
         }
         if (InCodeBlock) { continue; }
 
-        const HeadingMatch = LineText.match(/^(=+)\s+(.+)$/);
-        if (HeadingMatch)
+        if (Trimmed.startsWith("="))
         {
-            const Level = HeadingMatch[1].length;
-            const CleanTitle = HeadingMatch[2].replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
-            OutlineHeadingsList.push
-            ({
-                Level: Math.min(Level, 4),
-                Title: CleanTitle,
-                Line: Index + 1
-            });
+            const HeadingMatch = LineText.match(/^(=+)\s+(.+)$/);
+            if (HeadingMatch)
+            {
+                const Level = HeadingMatch[1].length;
+                const CleanTitle = HeadingMatch[2].replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
+                OutlineHeadingsList.push
+                ({
+                    Level: Math.min(Level, 4),
+                    Title: CleanTitle,
+                    Line: LineNum
+                });
+            }
         }
     }
 
@@ -4541,7 +4671,20 @@ async function SaveCurrentFile()
 
 async function CreateNewWorkspaceFile()
 {
-    const DefaultDir = WorkspaceDirectories[0] || "";
+    let TargetDir = ActiveSelectedDirectory;
+    if (!TargetDir && CurrentFilePath)
+    {
+        const LastSep = Math.max(CurrentFilePath.lastIndexOf("/"), CurrentFilePath.lastIndexOf("\\"));
+        if (LastSep > 0)
+        {
+            TargetDir = CurrentFilePath.substring(0, LastSep);
+        }
+    }
+    if (!TargetDir)
+    {
+        TargetDir = WorkspaceDirectories[0] || "";
+    }
+
     const FileName = prompt("Enter new Typst file name:", "NewDocument.typ");
     if (!FileName || !FileName.trim())
     {
@@ -4559,7 +4702,7 @@ async function CreateNewWorkspaceFile()
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify( { Directory: DefaultDir, FileName: CleanName, Content: InitialContent })
+                body: JSON.stringify( { Directory: TargetDir, FileName: CleanName, Content: InitialContent })
             }
         );
         const Data = await Response.json();
@@ -4989,7 +5132,7 @@ function ClearSyncHighlights()
 {
     document.querySelectorAll(".SyncHighlightLayer").forEach
     (
-        (Layer) => { Layer.remove(); }
+        (Layer) => { Layer.innerHTML = ""; }
     );
     if (SyncLineDecorations)
     {
@@ -5259,17 +5402,16 @@ function MergeOverlappingBoxes(Boxes)
                         continue;
                     }
                     const BoxB = Current[J];
-
                     // Full 2D containment: eliminate inner redundant box
-                    const BInsideA = (BoxB.x >= BoxA.x - 2.5) &&
-                        ((BoxB.x + BoxB.width) <= (BoxA.x + BoxA.width + 2.5)) &&
-                        (BoxB.y >= BoxA.y - 2.5) &&
-                        ((BoxB.y + BoxB.height) <= (BoxA.y + BoxA.height + 2.5));
+                    const BInsideA = (BoxB.x >= BoxA.x - 2.5) && ( (BoxB.x + BoxB.width) <= (BoxA.x + BoxA.width + 2.5)) && (BoxB.y >= BoxA.y - 2.5) &&
+                    (
+                        (BoxB.y + BoxB.height) <= (BoxA.y + BoxA.height + 2.5)
+                    );
 
-                    const AInsideB = (BoxA.x >= BoxB.x - 2.5) &&
-                        ((BoxA.x + BoxA.width) <= (BoxB.x + BoxB.width + 2.5)) &&
-                        (BoxA.y >= BoxB.y - 2.5) &&
-                        ((BoxA.y + BoxA.height) <= (BoxB.y + BoxB.height + 2.5));
+                    const AInsideB = (BoxA.x >= BoxB.x - 2.5) && ( (BoxA.x + BoxA.width) <= (BoxB.x + BoxB.width + 2.5)) && (BoxA.y >= BoxB.y - 2.5) &&
+                    (
+                        (BoxA.y + BoxA.height) <= (BoxB.y + BoxB.height + 2.5)
+                    );
 
                     if (BInsideA)
                     {
@@ -5294,8 +5436,9 @@ function MergeOverlappingBoxes(Boxes)
 
                     const MinHeight = Math.min(BoxA.height, BoxB.height);
                     const SameLine = DistY < 7.5 || (OverlapY > MinHeight * 0.45);
+                    const VerticallyAdjacent = OverlapX && (OverlapY >= - 14.0) && (Math.abs(BoxA.x - BoxB.x) < 25.0);
 
-                    if (OverlapX && (SameLine || OverlapY >= - 1.0))
+                    if (OverlapX && (SameLine || OverlapY >= - 1.0 || VerticallyAdjacent))
                     {
                         const MinX = Math.min(BoxA.x, BoxB.x);
                         const MaxX = Math.max(BoxA.x + BoxA.width, BoxB.x + BoxB.width);
@@ -5421,7 +5564,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
 
     document.querySelectorAll(".SyncHighlightLayer").forEach
     (
-        (Layer) => { Layer.remove(); }
+        (Layer) => { Layer.innerHTML = ""; }
     );
 
     const PageBoxesMap = new Map();
@@ -5490,8 +5633,8 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                             continue;
                         }
                         const B2 = PageBoxes[J];
-                        const XContained = (B1.x >= B2.x - 2.5) && ((B1.x + B1.width) <= (B2.x + B2.width + 2.5));
-                        const YContained = (B1.y >= B2.y - 2.5) && ((B1.y + B1.height) <= (B2.y + B2.height + 2.5));
+                        const XContained = (B1.x >= B2.x - 2.5) && ( (B1.x + B1.width) <= (B2.x + B2.width + 2.5));
+                        const YContained = (B1.y >= B2.y - 2.5) && ( (B1.y + B1.height) <= (B2.y + B2.height + 2.5));
                         if (XContained && YContained)
                         {
                             Contained = true;
@@ -5508,18 +5651,26 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                 {
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
-                    Rect.setAttribute("x", (Box.x - 1.0).toFixed(2));
-                    Rect.setAttribute("y", (Box.y - 1.0).toFixed(2));
-                    Rect.setAttribute("width", (Box.width + 2.0).toFixed(2));
-                    Rect.setAttribute("height", (Box.height + 2.0).toFixed(2));
-                    Rect.setAttribute("rx", "2");
-                    Rect.setAttribute("ry", "2");
+                    const PadX = 2.0;
+                    const TopShift = Math.max(1.5, Box.height * 0.20);
+                    Rect.setAttribute("x", (Box.x - PadX).toFixed(2));
+                    Rect.setAttribute("y", (Box.y + TopShift).toFixed(2));
+                    Rect.setAttribute
+                    (
+                        "width", (Box.width + (PadX * 2.0)).toFixed(2)
+                    );
+                    Rect.setAttribute
+                    (
+                        "height", Box.height.toFixed(2)
+                    );
+                    Rect.setAttribute("rx", "3");
+                    Rect.setAttribute("ry", "3");
 
                     HighlightLayer.appendChild(Rect);
 
-                    if (PageNum === ScrollTargetPage && Box.y < PrimaryTopY)
+                    if (PageNum === ScrollTargetPage && (Box.y + TopShift) < PrimaryTopY)
                     {
-                        PrimaryTopY = Box.y;
+                        PrimaryTopY = Box.y + TopShift;
                     }
                 }
             }
@@ -5537,11 +5688,18 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             const ScaleY = PageRect.height / VbH;
             const TargetScreenY = PageRect.top + (PrimaryTopY * ScaleY);
 
-            const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
-            Viewport.scrollTo
-            ({
-                top: Math.max(0, ScrollOffset), behavior: "smooth"
-            });
+            // If already within visible viewport bounds, avoid redundant scroll animation
+            const IsAlreadyVisible = (TargetScreenY >= ViewportRect.top + 60) &&
+                (TargetScreenY <= ViewportRect.bottom - 60);
+
+            if (!IsAlreadyVisible)
+            {
+                const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
+                Viewport.scrollTo
+                ({
+                    top: Math.max(0, ScrollOffset), behavior: "smooth"
+                });
+            }
         }
     }
 }
@@ -5874,105 +6032,101 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     }
 
     const Model = MonacoInstance ? MonacoInstance.getModel(): null;
-    const SourceCode = Model ? Model.getValue(): "";
-    const Lines = SourceCode ? SourceCode.split(/\r?\n/): [];
-    const LineText = Lines[Line - 1] || "";
-    let CursorOffset = 0;
-    for (let I = 0; I < Line - 1 && I < Lines.length; I ++)
+    if (!Model)
     {
-        CursorOffset += Lines[I].length + 1;
+        return ;
     }
-    CursorOffset += Math.max(0, Col - 1);
 
+    const LineText = Model.getLineContent(Line) || "";
     // 1. Text Selection in Monaco (Tier 1: Character-to-Character Precision)
     if (MonacoInstance)
     {
         const Selection = MonacoInstance.getSelection();
         if (Selection && !Selection.isEmpty())
         {
-            const SelectedText = Model ? Model.getValueInRange(Selection): "";
-            let SelStart = Model ? Model.getOffsetAt( { lineNumber: Selection.startLineNumber, column: Selection.startColumn }): 0;
-            let SelEnd = Model ? Model.getOffsetAt( { lineNumber: Selection.endLineNumber, column: Selection.endColumn }): 0;
-
-            const LeadingSpacesMatch = SelectedText.match(/^\s*/);
-            const TrailingSpacesMatch = SelectedText.match(/\s*$/);
-            const LeadingSpaces = LeadingSpacesMatch ? LeadingSpacesMatch[0].length: 0;
-            const TrailingSpaces = TrailingSpacesMatch ? TrailingSpacesMatch[0].length: 0;
-
-            SelStart += LeadingSpaces;
-            SelEnd -= TrailingSpaces;
-
-            if (SelEnd > SelStart)
-            {
-                const Intersecting = ActiveSyncMap.filter
-                (
-                    (Elem) =>
-                    {
-                        const StartsBeforeEnd = typeof Elem.start === "number" && typeof SelEnd === "number"
-                        ? Elem.start < SelEnd
-                        : (Elem.line < Selection.endLineNumber || (Elem.line === Selection.endLineNumber && Elem.col < Selection.endColumn));
-                        const EndsAfterStart = typeof Elem.end === "number" && typeof SelStart === "number"
-                        ? Elem.end > SelStart
-                        :
-                        (
-                            Elem.end_line > Selection.startLineNumber ||
-                            (
-                                Elem.end_line === Selection.startLineNumber && Elem.end_col > Selection.startColumn
-                            )
-                        );
-
-                        if (!StartsBeforeEnd || !EndsAfterStart)
-                        {
-                            return false;
-                        }
-                        const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-                        const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                        return ! IsNumbering;
-                    }
-                );
-
-                if (Intersecting.length > 0)
+            const SelStartLine = Selection.startLineNumber;
+            const SelStartCol = Selection.startColumn;
+            const SelEndLine = Selection.endLineNumber;
+            const SelEndCol = Selection.endColumn;
+            // Find overlapping elements using rock-solid Line & Column coordinates (UTF-16 aligned)
+            const IntersectingRaw = ActiveSyncMap.filter
+            (
+                (Elem) =>
                 {
-                    const CharacterBoxes = [];
-                    for (const Elem of Intersecting)
+                    const StartsBeforeEnd = Elem.line < SelEndLine || (Elem.line === SelEndLine && Elem.col < SelEndCol);
+                    const EndsAfterStart = Elem.end_line > SelStartLine || (Elem.end_line === SelStartLine && Elem.end_col > SelStartCol);
+
+                    if (!StartsBeforeEnd || !EndsAfterStart)
                     {
-                        const EStart = typeof Elem.start === "number" ? Elem.start: 0;
-                        const EEnd = typeof Elem.end === "number" ? Elem.end: EStart + 1;
-                        const ELen = Math.max(1, EEnd - EStart);
+                        return false;
+                    }
+                    const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+                    const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+                    return ! IsNumbering;
+                }
+            );
+            // Filter out enclosing multi-line container blocks when leaf text elements exist
+            const HasLeaf = IntersectingRaw.some( (E) => E.line === E.end_line);
+            const Intersecting = HasLeaf
+            ? IntersectingRaw.filter( (E) => E.line === E.end_line)
+            : IntersectingRaw;
 
-                        const SubStart = Math.max(EStart, SelStart);
-                        const SubEnd = Math.min(EEnd, SelEnd);
+            if (Intersecting.length > 0)
+            {
+                const CharacterBoxes = [];
+                for (const Elem of Intersecting)
+                {
+                    const ELen = Math.max(1, Elem.end_col - Elem.col);
+                    let SubStartCol = Elem.col;
+                    let SubEndCol = Elem.end_col;
 
-                        if (SubEnd > SubStart)
-                        {
-                            const FracStart = (SubStart - EStart) / ELen;
-                            const FracEnd = (SubEnd - EStart) / ELen;
-                            const SubX = Elem.x + (Elem.width * FracStart);
-                            const SubW = Math.max(2.0, Elem.width * (FracEnd - FracStart));
-
-                            CharacterBoxes.push
-                            ({
-                                page: Elem.page || 1,
-                                x: SubX,
-                                y: Elem.y,
-                                width: SubW,
-                                height: Elem.height
-                            });
-                        }
+                    if (Elem.line === SelStartLine)
+                    {
+                        SubStartCol = Math.max(SubStartCol, SelStartCol);
+                    }
+                    if (Elem.end_line === SelEndLine)
+                    {
+                        SubEndCol = Math.min(SubEndCol, SelEndCol);
                     }
 
-                    const GroupedBoxes = GroupElementsIntoVisualBoxes(CharacterBoxes);
-                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
-                    return ;
+                    if (SubEndCol > SubStartCol)
+                    {
+                        const FracStart = (SubStartCol - Elem.col) / ELen;
+                        const FracEnd = (SubEndCol - Elem.col) / ELen;
+                        const SubX = Elem.x + (Elem.width * FracStart);
+                        const SubW = Math.max(2.0, Elem.width * (FracEnd - FracStart));
+
+                        CharacterBoxes.push
+                        ({
+                            page: Elem.page || 1,
+                            x: SubX,
+                            y: Elem.y,
+                            width: SubW,
+                            height: Elem.height
+                        });
+                    }
                 }
+
+                const GroupedBoxes = GroupElementsIntoVisualBoxes(CharacterBoxes);
+                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                return ;
             }
 
             ClearSyncHighlights();
             return ;
         }
     }
+    // 2. Line Content Elements: Highlight Everything in that same Hierarchy
+    const TrimmedLine = LineText.trim();
+    if
+    (
+        TrimmedLine.length <= 1 || ["$", "mat", "vec", "(", ")", "[", "]", "{", "}", ";", ",", "="].includes(TrimmedLine)
+    )
+    {
+        ClearSyncHighlights();
+        return ;
+    }
 
-    // 2. Line Content Elements: Cell & Argument Hierarchy, and Exact Token/Character Match
     const SameLineCandidates = ActiveSyncMap.filter
     (
         (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
@@ -6021,7 +6175,6 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
                 return ;
             }
         }
-
         // Check for function call arguments on this line (e.g. MetricBadge("Throughput", 98))
         const CallBoxElem = SameLineCandidates.find( (E) => String(E.span).startsWith("call_box_"));
         const CallArgElems = SameLineCandidates.filter( (E) => String(E.span).startsWith("call_arg_"));
@@ -6042,249 +6195,40 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
                 return ;
             }
         }
-
-        // Exact Character / Token Sub-part Match on this line
-        const ExactToken = SameLineCandidates.find( (E) => Col >= E.col && Col <= E.end_col);
-        if (ExactToken)
+        // Highlight everything on this line in that same hierarchy
+        const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
+        // If line contains a math vector/matrix, expand to frame outer delimiters
+        if
+        (
+            TrimmedLine.includes("vec(") ||
+            TrimmedLine.includes("mat(") ||
+            TrimmedLine.includes("cases(")
+        )
         {
-            // Character-to-character precision: return ONLY ExactToken (plus any cross-document TOC counterpart)
-            const Related = ActiveSyncMap.filter( (E) => E.span === ExactToken.span);
-            const GroupedBoxes = GroupElementsIntoVisualBoxes(Related.length > 0 ? Related: [ExactToken]);
-            HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+            for (const Box of GroupedBoxes)
+            {
+                Box.x -= 8.5;
+                Box.width += 13.5;
+            }
+        }
+        // Never highlight a lone character/glyph unless selected in editor
+        if
+        (
+            GroupedBoxes.length === 1 &&
+            GroupedBoxes[0].width < 12.0 &&
+            GroupedBoxes[0].height < 15.0 &&
+            TrimmedLine.length <= 2
+        )
+        {
+            ClearSyncHighlights();
             return ;
         }
-    }
 
-    // 3. Sub-definition Artifact Block (Matrix, Vector, Cases, Binom)
-    const MathDefBlock = FindEnclosingMathDefinitionBlock(SourceCode, Line, Col);
-    if (MathDefBlock)
-    {
-        const BlockElems = ActiveSyncMap.filter
-        (
-            (Elem) =>
-            {
-                const Inside = Elem.start >= MathDefBlock.StartOffset && Elem.end <= (MathDefBlock.CloseOffset + 1);
-                const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-                const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                return Inside && ! IsNumbering;
-            }
-        );
-
-        if (BlockElems.length > 0)
-        {
-            const TargetPage = BlockElems[0].page || 1;
-            let MinX = Infinity;
-            let MaxX = - Infinity;
-            let MinY = Infinity;
-            let MaxY = - Infinity;
-
-            for (const Elem of BlockElems)
-            {
-                if ( (Elem.page || 1) === TargetPage)
-                {
-                    if (Elem.x < MinX) { MinX = Elem.x; }
-                    if (Elem.x + Elem.width > MaxX) { MaxX = Elem.x + Elem.width; }
-                    if (Elem.y < MinY) { MinY = Elem.y; }
-                    if (Elem.y + Elem.height > MaxY) { MaxY = Elem.y + Elem.height; }
-                }
-            }
-
-            if (MinX !== Infinity && MaxX !== - Infinity)
-            {
-                const ArtifactBox =
-                {
-                    page: TargetPage,
-                    x: MinX - 4.0,
-                    y: MinY - 2.0,
-                    width: (MaxX - MinX) + 8.0,
-                    height: (MaxY - MinY) + 4.0
-                };
-                HighlightSvgRects([ArtifactBox], ForceAutoScroll);
-                return ;
-            }
-        }
-    }
-
-    // 4. Table Cell Enclosure (Cell container or sub-table inside cell)
-    const TableCellBlock = FindTableCellBlock(SourceCode, Line, Col);
-    if (TableCellBlock)
-    {
-        const CellElems = ActiveSyncMap.filter
-        (
-            (Elem) =>
-            {
-                const Inside = Elem.start >= TableCellBlock.OpenOffset && Elem.end <= (TableCellBlock.CloseOffset + 1);
-                const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-                const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                return Inside && ! IsNumbering;
-            }
-        );
-
-        if (CellElems.length > 0)
-        {
-            const TargetPage = CellElems[0].page || 1;
-            let MinX = Infinity;
-            let MaxX = - Infinity;
-            let MinY = Infinity;
-            let MaxY = - Infinity;
-
-            for (const Elem of CellElems)
-            {
-                if ( (Elem.page || 1) === TargetPage)
-                {
-                    if (Elem.x < MinX) { MinX = Elem.x; }
-                    if (Elem.x + Elem.width > MaxX) { MaxX = Elem.x + Elem.width; }
-                    if (Elem.y < MinY) { MinY = Elem.y; }
-                    if (Elem.y + Elem.height > MaxY) { MaxY = Elem.y + Elem.height; }
-                }
-            }
-
-            if (MinX !== Infinity && MaxX !== - Infinity)
-            {
-                const CellBox =
-                {
-                    page: TargetPage,
-                    x: MinX - 4.0,
-                    y: MinY - 2.0,
-                    width: (MaxX - MinX) + 8.0,
-                    height: (MaxY - MinY) + 4.0
-                };
-                HighlightSvgRects([CellBox], ForceAutoScroll);
-                return ;
-            }
-        }
-    }
-
-    // 5. Whole Math Equation Block ($ ... $ or $\n ... \n$)
-    const MathEq = FindEnclosingMathEquation(SourceCode, Line, Col);
-    if (MathEq)
-    {
-        const EqElems = ActiveSyncMap.filter
-        (
-            (Elem) =>
-            {
-                const Inside = Elem.start >= MathEq.StartOffset && Elem.end <= (MathEq.EndOffset + 1);
-                const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-                const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                return Inside && ! IsNumbering;
-            }
-        );
-
-        if (EqElems.length > 0)
-        {
-            const TargetPage = EqElems[0].page || 1;
-            let MinX = Infinity;
-            let MaxX = - Infinity;
-            let MinY = Infinity;
-            let MaxY = - Infinity;
-
-            for (const Elem of EqElems)
-            {
-                if ( (Elem.page || 1) === TargetPage)
-                {
-                    if (Elem.x < MinX) { MinX = Elem.x; }
-                    if (Elem.x + Elem.width > MaxX) { MaxX = Elem.x + Elem.width; }
-                    if (Elem.y < MinY) { MinY = Elem.y; }
-                    if (Elem.y + Elem.height > MaxY) { MaxY = Elem.y + Elem.height; }
-                }
-            }
-
-            if (MinX !== Infinity && MaxX !== - Infinity)
-            {
-                const ArtifactBox =
-                {
-                    page: TargetPage,
-                    x: MinX - 4.0,
-                    y: MinY - 2.0,
-                    width: (MaxX - MinX) + 8.0,
-                    height: (MaxY - MinY) + 4.0
-                };
-                HighlightSvgRects([ArtifactBox], ForceAutoScroll);
-                return ;
-            }
-        }
-    }
-
-    // 6. Fallback: Multi-line Block or Closest Nearby Element
-    let Matches = ActiveSyncMap.filter
-    (
-        (Elem) =>
-        {
-            const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
-            const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
-            return StartsBefore && EndsAfter;
-        }
-    );
-
-    const ContentMatches = Matches.filter
-    (
-        (Elem) =>
-        {
-            const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-            const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-            return ! IsNumbering;
-        }
-    );
-
-    let BestElem = null;
-
-    if (ContentMatches.length > 0)
-    {
-        BestElem = ContentMatches[0];
-        let MinRange = BestElem.end - BestElem.start;
-        for (const Elem of ContentMatches)
-        {
-            const RangeLen = Elem.end - Elem.start;
-            if (RangeLen < MinRange)
-            {
-                MinRange = RangeLen;
-                BestElem = Elem;
-            }
-        }
-    }
-    else
-    {
-        const BlockMatch = Matches.find( (Elem) => (Elem.end_line - Elem.line) >= 2);
-        const NonNumbering = ActiveSyncMap.filter( (Elem) => ! (Elem.width < 50 && Elem.x > 450));
-        let CandidatePool = NonNumbering;
-        if (BlockMatch)
-        {
-            const InsideBlock = NonNumbering.filter( (Elem) => Elem.line >= BlockMatch.line && Elem.end_line <= BlockMatch.end_line);
-            if (InsideBlock.length > 0)
-            {
-                CandidatePool = InsideBlock;
-            }
-        }
-
-        if (CandidatePool.length > 0)
-        {
-            let MinLineDist = Infinity;
-            for (const Elem of CandidatePool)
-            {
-                const Dist = Math.min(Math.abs(Elem.line - Line), Math.abs(Elem.end_line - Line));
-                if (Dist < MinLineDist)
-                {
-                    MinLineDist = Dist;
-                    BestElem = Elem;
-                }
-            }
-        }
-    }
-
-    if (!BestElem)
-    {
-        ClearSyncHighlights();
+        HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
         return ;
     }
-
-    let Related = ActiveSyncMap.filter( (Elem) => Elem.span === BestElem.span);
-    if (Related.length === 0)
-    {
-        Related = [BestElem];
-    }
-
-    const GroupedBoxes = GroupElementsIntoVisualBoxes(Related);
-    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+    // Line has no rendered glyphs (empty line, blank spaces, $, mat, delimiters) -> NO HIGHLIGHT
+    ClearSyncHighlights();
 }
 // Make functions accessible from onclick handlers
 window.OpenFileFromWorkspace = OpenFileFromWorkspace;

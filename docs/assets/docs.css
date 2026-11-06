@@ -442,6 +442,7 @@ pre > .copy > button > svg {
   color: #565565;
   padding: 8px 8px 8px 0;
   cursor: pointer;
+  -webkit-user-select: none;
   user-select: none;
   border-radius: 6px;
   transition: ease 0.1s background-color;
@@ -508,6 +509,7 @@ a.chain img {
   top: 7px;
   left: 8px;
   pointer-events: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -1172,6 +1174,7 @@ nav.folding .search-results a {
   gap: 12px;
   min-width: 190px;
   text-align: center;
+  -webkit-user-select: none;
   user-select: none;
   text-decoration: none;
   border: 1px solid transparent;
@@ -1555,6 +1558,7 @@ p + .symbol-grid {
 
 .symbol-grid .sym,
 .symbol-flyout .sym {
+  -webkit-user-select: none;
   user-select: none;
   font-size: 28px;
   margin-bottom: 2px;
