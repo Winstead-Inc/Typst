@@ -178,4 +178,3 @@ const exportMenuStyles = `
 css += exportMenuStyles;
 fs.writeFileSync("TypstStudio/public/Style.css", css, "utf8");
 console.log("Style.css updated with Export menu styles!");
-

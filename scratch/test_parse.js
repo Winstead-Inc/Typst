@@ -25,4 +25,3 @@ catch (e)
 {
     console.log("Error in 573 to 700:", e.message);
 }
-

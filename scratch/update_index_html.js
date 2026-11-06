@@ -1,10 +1,8 @@
 const fs = require("fs");
 
 let html = fs.readFileSync("TypstStudio/public/Index.html", "utf8");
-
 // 1. Update Style.css version
 html = html.replace('Style.css?v=20261105_06', 'Style.css?v=20261105_09');
-
 // 2. Add LayoutSwitcherNav in HeaderRight before ViewSwitcherNav
 const layoutSwitcherHtml = `            <!-- Viewport Layout Segmented Control (Priority 2) -->
             <div Class = "LayoutSwitcherNav" Id = "LayoutSwitcherNav" Title = "Viewport Layout">
@@ -43,7 +41,6 @@ const layoutSwitcherHtml = `            <!-- Viewport Layout Segmented Control (
             <div Class = "ViewSwitcherNav">`;
 
 html = html.replace('<div Class = "ViewSwitcherNav">', layoutSwitcherHtml);
-
 // 3. Add Print and Help buttons after ExportPdfButton
 const headerButtonsAddition = `            <button Type  = "button"
                     Id    = "PrintDocButton"
@@ -64,11 +61,11 @@ const headerButtonsAddition = `            <button Type  = "button"
                 <span>?</span>
             </button>`;
 
-html = html.replace(
+html = html.replace
+(
     '            </button>\n        </div>\n    </header>',
     `            </button>\n\n${headerButtonsAddition}\n        </div>\n    </header>`
 );
-
 // 4. Update MainSplitArea with OutlineSidebar and AssetDropOverlay
 const outlineSidebarHtml = `    <main Class = "MainSplitArea LayoutSplit" Id = "EditorMainView">
         <!-- Document Outline Sidebar (Priority 2) -->
@@ -114,11 +111,11 @@ const outlineSidebarHtml = `    <main Class = "MainSplitArea LayoutSplit" Id = "
                 </div>
             </div>`;
 
-html = html.replace(
+html = html.replace
+(
     '    <main Class = "MainSplitArea" Id = "EditorMainView">\n        <section Class = "EditorPane" Id = "EditorPane">',
     outlineSidebarHtml
 );
-
 // 5. Add Outline button into EditorStatusBar
 const outlineStatusButton = `                <div Class = "StatusItem" Id = "CharacterCount">0 chars</div>
                 <button Type  = "button"
@@ -128,11 +125,11 @@ const outlineStatusButton = `                <div Class = "StatusItem" Id = "Cha
                     <span>📋 Outline (<span Id = "StatusOutlineCount">0</span>)</span>
                 </button>`;
 
-html = html.replace(
+html = html.replace
+(
     '                <div Class = "StatusItem" Id = "CharacterCount">0 chars</div>',
     outlineStatusButton
 );
-
 // 6. Add ShortcutsModal before ToastContainer
 const shortcutsModalHtml = `    <!-- Keyboard Shortcut Cheat Sheet Modal (Priority 4) -->
     <div Class = "ModalOverlay" Id = "ShortcutsModal" Style = "display: none;">
@@ -179,10 +176,8 @@ const shortcutsModalHtml = `    <!-- Keyboard Shortcut Cheat Sheet Modal (Priori
     <!-- Floating Toast Notification System -->`;
 
 html = html.replace('    <!-- Floating Toast Notification System -->', shortcutsModalHtml);
-
 // 7. Update App.js script tag
 html = html.replace('App.js?v=20261105_08', 'App.js?v=20261105_09');
 
 fs.writeFileSync("TypstStudio/public/Index.html", html, "utf8");
 console.log("SUCCESS: Index.html updated");
-

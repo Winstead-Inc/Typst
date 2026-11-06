@@ -1,4 +1,5 @@
-const { execFileSync } = require('child_process');
+const { execFileSync }
+= require('child_process');
 // Add test 5 to test_knr_vectors.js
 const fs = require('fs');
 let code = fs.readFileSync('scratch/test_knr_vectors.js', 'utf-8');
@@ -24,4 +25,3 @@ const test6 = [
 console.log("Errors:", DetectKnrSlop(test6));
 `;
 fs.writeFileSync('scratch/test_knr_vectors.js', code, 'utf-8');
-

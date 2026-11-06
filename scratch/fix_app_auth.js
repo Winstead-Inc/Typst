@@ -1,7 +1,6 @@
 const fs = require("fs");
 
 let appJs = fs.readFileSync("TypstStudio/public/App.js", "utf8");
-
 // Safe replace helper
 function SafeReplace(Source, Target, Replacement)
 {
@@ -23,7 +22,6 @@ function SafeReplace(Source, Target, Replacement)
     }
     return Source;
 }
-
 // 1. Add AuthenticatedFetch and EnsureSessionAuthToken after let RenderToken = 0;
 const authCode = `let RenderToken = 0;
 let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
@@ -74,7 +72,6 @@ async function AuthenticatedFetch(Url, Options = {})
 }`;
 
 appJs = SafeReplace(appJs, "let RenderToken = 0;", authCode);
-
 // 2. In TriggerCompileNow: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -86,7 +83,6 @@ appJs = SafeReplace
         (
             "/api/compile",`
 );
-
 // 3. In ExportPdf: use AuthenticatedFetch and send BlackMode / Transparent
 appJs = SafeReplace
 (
@@ -121,7 +117,6 @@ appJs = SafeReplace
             }
         );`
 );
-
 // 4. In ExportPng: use AuthenticatedFetch and send BlackMode / Transparent
 appJs = SafeReplace
 (
@@ -157,7 +152,6 @@ appJs = SafeReplace
             }
         );`
 );
-
 // 5. In HandleDroppedAssetFile: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -179,7 +173,6 @@ appJs = SafeReplace
                     method: "POST",
                     headers: { "Content-Type": "application/json" },`
 );
-
 // 6. In PickFolderFromDisk: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -187,7 +180,6 @@ appJs = SafeReplace
     `const Response = await fetch("/api/workspace/pick-folder", { method: "POST" });`,
     `const Response = await AuthenticatedFetch("/api/workspace/pick-folder", { method: "POST" });`
 );
-
 // 7. In LoadWorkspaceInfo: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -195,7 +187,6 @@ appJs = SafeReplace
     `const Response = await fetch("/api/workspace/info");`,
     `const Response = await AuthenticatedFetch("/api/workspace/info");`
 );
-
 // 8. In OpenFileFromWorkspace: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -203,7 +194,6 @@ appJs = SafeReplace
     `const Response = await fetch(\`/api/workspace/file?path=\${encodeURIComponent(FilePath)}\`);`,
     `const Response = await AuthenticatedFetch(\`/api/workspace/file?path=\${encodeURIComponent(FilePath)}\`);`
 );
-
 // 9. In SaveCurrentFile: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -221,7 +211,6 @@ appJs = SafeReplace
                 method: "POST",
                 headers: { "Content-Type": "application/json" },`
 );
-
 // 10. In CreateNewTypstFile: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -239,7 +228,6 @@ appJs = SafeReplace
                 method: "POST",
                 headers: { "Content-Type": "application/json" },`
 );
-
 // 11. In AddWorkspaceDirectory: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -257,7 +245,6 @@ appJs = SafeReplace
                 method: "POST",
                 headers: { "Content-Type": "application/json" },`
 );
-
 // 12. In RemoveWorkspaceDirectory: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -275,7 +262,6 @@ appJs = SafeReplace
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },`
 );
-
 // 13. In DeleteWorkspaceFile: use AuthenticatedFetch
 appJs = SafeReplace
 (
@@ -295,7 +281,6 @@ appJs = SafeReplace
             }
         );`
 );
-
 // 14. In SetupEventListeners: add Export options sync & localStorage persistence
 const exportSyncCode = `    // Export Options Sync & Persistence
     const ExportBlackCb = document.getElementById("ExportBlackModeCheckbox");
@@ -382,7 +367,6 @@ appJs = SafeReplace
     `    // Priority 1: Jump to Primary Error button`,
     `${exportSyncCode}\n    // Priority 1: Jump to Primary Error button`
 );
-
 // 15. In InitializeMonaco: ensure auth token before initial compilation
 appJs = SafeReplace
 (
@@ -395,7 +379,6 @@ appJs = SafeReplace
     await EnsureSessionAuthToken();
     window.require.config`
 );
-
 // 16. In DOMContentLoaded: ensure token immediately
 appJs = SafeReplace
 (

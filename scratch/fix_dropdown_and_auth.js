@@ -2,9 +2,9 @@ const fs = require("fs");
 
 console.log("=== Step 1: Fixing Style.css Stacking & Overflow ===");
 let css = fs.readFileSync("TypstStudio/public/Style.css", "utf8");
-
 // 1. Fix .AppHeader at line 152
-css = css.replace(
+css = css.replace
+(
     `.AppHeader
 {
     display: flex;
@@ -33,9 +33,9 @@ css = css.replace(
     flex-wrap: nowrap;
 }`
 );
-
 // 2. Remove the conflicting .AppHeader overflow-y: hidden at bottom
-css = css.replace(
+css = css.replace
+(
     `/* Ensure AppHeader never wraps awkwardly */
 .AppHeader
 {
@@ -56,9 +56,9 @@ css = css.replace(
     overflow: visible !important;
 }`
 );
-
 // 3. Make sure .ExportGroupWrapper and .ExportMenuDropdown have highest z-index
-css = css.replace(
+css = css.replace
+(
     `.ExportGroupWrapper
 {
     position: relative;
@@ -74,7 +74,8 @@ css = css.replace(
 }`
 );
 
-css = css.replace(
+css = css.replace
+(
     `    z-index: 1000;
     animation: DropdownFadeIn 0.15s ease-out;
 }
@@ -87,7 +88,8 @@ css = css.replace(
 @keyframes DropdownFadeIn`
 );
 
-css = css.replace(
+css = css.replace
+(
     `    width: var(--ui-width-doc-menu);
     max-height: 420px;
     background-color: #0d0d0e;
@@ -106,4 +108,3 @@ css = css.replace(
 
 fs.writeFileSync("TypstStudio/public/Style.css", css, "utf8");
 console.log("Style.css updated with proper stacking and overflow: visible!");
-

@@ -22,11 +22,26 @@ const Colors =
 };
 
 console.log("Converted Colors in Black Mode:");
-console.log("  Alternating Row (fafafa):   #" + Colors.AltRow + " (Brightness: " + parseInt(Colors.AltRow.slice(0, 2), 16) + ")");
-console.log("  Metric Box (f1f3f6):        #" + Colors.MetricBox + " (Brightness: " + parseInt(Colors.MetricBox.slice(0, 2), 16) + ")");
-console.log("  Table Header (e4e9f0):      #" + Colors.TableHeader + " (Brightness: " + parseInt(Colors.TableHeader.slice(0, 2), 16) + ")");
-console.log("  Borders (dddddd):           #" + Colors.Borders + " (Brightness: " + parseInt(Colors.Borders.slice(0, 2), 16) + ")");
-console.log("  Text (000000):              #" + Colors.Text + " (Brightness: " + parseInt(Colors.Text.slice(0, 2), 16) + ")");
+console.log
+(
+    "  Alternating Row (fafafa):   #" + Colors.AltRow + " (Brightness: " + parseInt(Colors.AltRow.slice(0, 2), 16) + ")"
+);
+console.log
+(
+    "  Metric Box (f1f3f6):        #" + Colors.MetricBox + " (Brightness: " + parseInt(Colors.MetricBox.slice(0, 2), 16) + ")"
+);
+console.log
+(
+    "  Table Header (e4e9f0):      #" + Colors.TableHeader + " (Brightness: " + parseInt(Colors.TableHeader.slice(0, 2), 16) + ")"
+);
+console.log
+(
+    "  Borders (dddddd):           #" + Colors.Borders + " (Brightness: " + parseInt(Colors.Borders.slice(0, 2), 16) + ")"
+);
+console.log
+(
+    "  Text (000000):              #" + Colors.Text + " (Brightness: " + parseInt(Colors.Text.slice(0, 2), 16) + ")"
+);
 console.log("  Green Accent (16a34a):      #" + Colors.GreenAccent + " (Preserved Saturated Hue)");
 console.log("  Blue Accent (2563eb):       #" + Colors.BlueAccent + " (Preserved Saturated Hue)");
 
@@ -36,8 +51,14 @@ const BrightnessHeader = parseInt(Colors.TableHeader.slice(0, 2), 16);
 
 console.log("\nDistinguishability Verification:");
 console.log("  Page Canvas (0)  -> Alternating Row (" + BrightnessAlt + "): Delta = +" + (BrightnessAlt - 0) + " (Clearly visible dark gray)");
-console.log("  Alternating Row (" + BrightnessAlt + ") -> Metric Box (" + BrightnessBox + "):      Delta = +" + (BrightnessBox - BrightnessAlt) + " (Distinct card background)");
-console.log("  Metric Box (" + BrightnessBox + ")      -> Table Header (" + BrightnessHeader + "):    Delta = +" + (BrightnessHeader - BrightnessBox) + " (Prominent header, distinguishable)");
+console.log
+(
+    "  Alternating Row (" + BrightnessAlt + ") -> Metric Box (" + BrightnessBox + "):      Delta = +" + (BrightnessBox - BrightnessAlt) + " (Distinct card background)"
+);
+console.log
+(
+    "  Metric Box (" + BrightnessBox + ")      -> Table Header (" + BrightnessHeader + "):    Delta = +" + (BrightnessHeader - BrightnessBox) + " (Prominent header, distinguishable)"
+);
 
 if (BrightnessAlt >= 30 && BrightnessBox >= 46 && BrightnessHeader >= 64 && (BrightnessBox - BrightnessAlt) >= 12 && (BrightnessHeader - BrightnessBox) >= 15)
 {
@@ -49,4 +70,3 @@ else
     console.error("\n[FAIL] Brightness steps do not meet distinguishability threshold.");
     process.exit(1);
 }
-

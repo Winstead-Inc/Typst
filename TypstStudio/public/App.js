@@ -625,7 +625,8 @@ async function EnsureSessionAuthToken()
 async function AuthenticatedFetch(Url, Options = {})
 {
     const Token = await EnsureSessionAuthToken();
-    const Headers = Options.headers ? { ...Options.headers } : {};
+    const Headers = Options.headers ? { ...Options.headers }
+    : {};
 
     if (Token)
     {
@@ -696,7 +697,7 @@ function ShowToast(Message, Type = "info", DurationMs = 3000)
 
 function MarkDocumentClean(Content)
 {
-    LastSavedContent = typeof Content === "string" ? Content : (MonacoInstance ? MonacoInstance.getValue() : "");
+    LastSavedContent = typeof Content === "string" ? Content: (MonacoInstance ? MonacoInstance.getValue(): "");
     IsDocumentDirty = false;
     UpdateDirtyStateUI();
 }
@@ -717,11 +718,11 @@ function UpdateDirtyStateUI()
 {
     const Dot = document.getElementById("UnsavedDirtyDot");
     const TitleInput = document.getElementById("DocumentTitleInput");
-    const ActiveName = TitleInput ? TitleInput.value.trim() : (CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop() : "main.typ");
+    const ActiveName = TitleInput ? TitleInput.value.trim(): (CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop(): "main.typ");
 
     if (Dot)
     {
-        Dot.style.display = IsDocumentDirty ? "inline-block" : "none";
+        Dot.style.display = IsDocumentDirty ? "inline-block": "none";
     }
 
     if (IsDocumentDirty)
@@ -737,11 +738,10 @@ function UpdateDirtyStateUI()
 function JumpToEditorLocation(Line, Col)
 {
     if (!MonacoInstance) { return; }
-    MonacoInstance.revealPositionInCenter({ lineNumber: Line, column: Col });
-    MonacoInstance.setPosition({ lineNumber: Line, column: Col });
+    MonacoInstance.revealPositionInCenter( { lineNumber: Line, column: Col });
+    MonacoInstance.setPosition( { lineNumber: Line, column: Col });
     MonacoInstance.focus();
 }
-
 // Appearance & UI Settings
 const UI_SETTINGS_STORAGE_KEY = "TypstStudio_UISettings";
 
@@ -802,53 +802,53 @@ const UI_FONT_PRESETS =
 
 const UI_DIMENSION_CALIBRATION =
 {
-    "--ui-font-body": [16, 19],
-    "--ui-font-ctrl": [12, 17],
-    "--ui-font-header-logo": [16, 18],
-    "--ui-font-brand": [18, 21],
-    "--ui-font-engine-tag": [11, 12],
-    "--ui-font-doc-input": [13, 14],
-    "--ui-width-doc-input": [180, 210],
-    "--ui-width-doc-menu": [320, 350],
-    "--ui-font-menu-title": [11, 16],
-    "--ui-font-menu-item": [12, 17],
-    "--ui-font-menu-path": [10, 13],
-    "--ui-font-menu-footer": [11, 16],
-    "--ui-font-status": [11, 16],
-    "--ui-font-status-text": [11, 17],
-    "--ui-font-duration": [11, 13],
-    "--ui-font-toggle": [12, 16],
-    "--ui-font-select": [12, 16],
-    "--ui-font-btn": [12, 18],
-    "--ui-font-icon-btn": [12, 17],
-    "--ui-font-nav-tab": [12, 17],
-    "--ui-font-statusbar": [11, 15],
-    "--ui-font-preview-btn": [11, 16],
-    "--ui-font-preview-indicator": [12, 14],
-    "--ui-font-error-title": [12, 16],
-    "--ui-font-error-content": [13, 14],
-    "--ui-font-dash-title": [22, 34],
-    "--ui-font-dash-sub": [13, 19],
-    "--ui-font-stat-label": [14, 16],
-    "--ui-font-stat-val": [32, 42],
-    "--ui-font-stat-doc": [14, 19],
-    "--ui-font-panel-title": [15, 22],
-    "--ui-font-panel-hint": [12, 16],
-    "--ui-font-dash-input": [13, 14],
-    "--ui-font-dir-path": [13, 14],
-    "--ui-font-dir-badge": [13, 16],
-    "--ui-font-filter-banner": [15, 18],
-    "--ui-font-filter-btn": [13, 15],
-    "--ui-font-dash-search": [12, 16],
-    "--ui-font-card-name": [13, 19],
-    "--ui-font-card-dir": [11, 13],
-    "--ui-font-card-details": [11, 14],
-    "--ui-font-card-size": [11, 12],
-    "--ui-font-card-btn": [11, 16],
-    "--ui-font-empty": [12, 17],
-    "--ui-height-header": [48, 52],
-    "--ui-height-statusbar": [24, 28],
-    "--ui-height-toolbar": [36, 40]
+    "--ui-font-body":[16, 19],
+    "--ui-font-ctrl":[12, 17],
+    "--ui-font-header-logo":[16, 18],
+    "--ui-font-brand":[18, 21],
+    "--ui-font-engine-tag":[11, 12],
+    "--ui-font-doc-input":[13, 14],
+    "--ui-width-doc-input":[180, 210],
+    "--ui-width-doc-menu":[320, 350],
+    "--ui-font-menu-title":[11, 16],
+    "--ui-font-menu-item":[12, 17],
+    "--ui-font-menu-path":[10, 13],
+    "--ui-font-menu-footer":[11, 16],
+    "--ui-font-status":[11, 16],
+    "--ui-font-status-text":[11, 17],
+    "--ui-font-duration":[11, 13],
+    "--ui-font-toggle":[12, 16],
+    "--ui-font-select":[12, 16],
+    "--ui-font-btn":[12, 18],
+    "--ui-font-icon-btn":[12, 17],
+    "--ui-font-nav-tab":[12, 17],
+    "--ui-font-statusbar":[11, 15],
+    "--ui-font-preview-btn":[11, 16],
+    "--ui-font-preview-indicator":[12, 14],
+    "--ui-font-error-title":[12, 16],
+    "--ui-font-error-content":[13, 14],
+    "--ui-font-dash-title":[22, 34],
+    "--ui-font-dash-sub":[13, 19],
+    "--ui-font-stat-label":[14, 16],
+    "--ui-font-stat-val":[32, 42],
+    "--ui-font-stat-doc":[14, 19],
+    "--ui-font-panel-title":[15, 22],
+    "--ui-font-panel-hint":[12, 16],
+    "--ui-font-dash-input":[13, 14],
+    "--ui-font-dir-path":[13, 14],
+    "--ui-font-dir-badge":[13, 16],
+    "--ui-font-filter-banner":[15, 18],
+    "--ui-font-filter-btn":[13, 15],
+    "--ui-font-dash-search":[12, 16],
+    "--ui-font-card-name":[13, 19],
+    "--ui-font-card-dir":[11, 13],
+    "--ui-font-card-details":[11, 14],
+    "--ui-font-card-size":[11, 12],
+    "--ui-font-card-btn":[11, 16],
+    "--ui-font-empty":[12, 17],
+    "--ui-height-header":[48, 52],
+    "--ui-height-statusbar":[24, 28],
+    "--ui-height-toolbar":[36, 40]
 };
 
 function CalculateDimensionValue(ScalePercent, NormalVal, LargeVal)
@@ -862,7 +862,10 @@ function CalculateDimensionValue(ScalePercent, NormalVal, LargeVal)
         return LargeVal;
     }
     const Interpolation = (ScalePercent - 100) / 25.0;
-    return Math.max(9, Math.round(NormalVal + (LargeVal - NormalVal) * Interpolation));
+    return Math.max
+    (
+        9, Math.round(NormalVal + (LargeVal - NormalVal) * Interpolation)
+    );
 }
 
 function SaveUISettings()
@@ -909,14 +912,15 @@ function ApplyUISettings()
 {
     const RootStyle = document.documentElement.style;
     const Scale = CurrentUISettings.Scale;
-
     // Apply Dimensions
-    for (const [PropName, [NormalVal, LargeVal]] of Object.entries(UI_DIMENSION_CALIBRATION))
+    for
+    (
+        const [PropName,[NormalVal, LargeVal]] of Object.entries(UI_DIMENSION_CALIBRATION)
+    )
     {
         const Calculated = CalculateDimensionValue(Scale, NormalVal, LargeVal);
         RootStyle.setProperty(PropName, `${Calculated}px`);
     }
-
     // Apply Padding & Interactive Dimension Adjustments
     if (Scale >= 120)
     {
@@ -948,12 +952,11 @@ function ApplyUISettings()
         RootStyle.setProperty("--ui-slider-knob", "10px");
         RootStyle.setProperty("--ui-slider-translate", "12px");
     }
-
     // Apply Font Configuration
     let FontConfig = UI_FONT_PRESETS[CurrentUISettings.Font];
     if (!FontConfig)
     {
-        const CustomName = CurrentUISettings.CustomFont ? CurrentUISettings.CustomFont.trim() : "sans-serif";
+        const CustomName = CurrentUISettings.CustomFont ? CurrentUISettings.CustomFont.trim(): "sans-serif";
         FontConfig =
         {
             Family: `"${CustomName}", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`,
@@ -964,12 +967,14 @@ function ApplyUISettings()
     RootStyle.setProperty("--ui-font-family", FontConfig.Family);
     RootStyle.setProperty("--ui-font-weight", FontConfig.Weight);
     RootStyle.setProperty("--ui-letter-spacing", FontConfig.LetterSpacing);
-
     // Apply Monaco Editor scaling
     const EditorFontSize = Math.round(13 + (Scale - 100) * (1 / 25.0));
     if (MonacoInstance)
     {
-        MonacoInstance.updateOptions({ fontSize: Math.max(12, EditorFontSize) });
+        MonacoInstance.updateOptions
+        ({
+            fontSize: Math.max(12, EditorFontSize)
+        });
     }
 
     UpdateSettingsPanelUI();
@@ -1049,8 +1054,7 @@ function SetupAppearanceEventListeners()
         {
             Btn.addEventListener
             (
-                "click",
-                () =>
+                "click", () =>
                 {
                     const TargetScale = parseInt(Btn.getAttribute("DataScale"), 10);
                     if (!isNaN(TargetScale))
@@ -1062,15 +1066,13 @@ function SetupAppearanceEventListeners()
             );
         }
     );
-
     // Range Slider
     const ScaleSlider = document.getElementById("UIScaleSlider");
     if (ScaleSlider)
     {
         ScaleSlider.addEventListener
         (
-            "input",
-            (E) =>
+            "input", (E) =>
             {
                 const Val = parseInt(E.target.value, 10);
                 if (!isNaN(Val))
@@ -1081,15 +1083,13 @@ function SetupAppearanceEventListeners()
             }
         );
     }
-
     // Font Dropdown
     const FontSelect = document.getElementById("UIFontSelect");
     if (FontSelect)
     {
         FontSelect.addEventListener
         (
-            "change",
-            (E) =>
+            "change", (E) =>
             {
                 const Chosen = E.target.value;
                 CurrentUISettings.Font = Chosen;
@@ -1118,7 +1118,6 @@ function SetupAppearanceEventListeners()
             }
         );
     }
-
     // Custom Font Apply Button & Enter Key
     const ApplyCustomBtn = document.getElementById("ApplyCustomFontBtn");
     const CustomInput = document.getElementById("CustomFontInput");
@@ -1141,8 +1140,7 @@ function SetupAppearanceEventListeners()
     {
         CustomInput.addEventListener
         (
-            "keydown",
-            (E) =>
+            "keydown", (E) =>
             {
                 if (E.key === "Enter")
                 {
@@ -1151,15 +1149,13 @@ function SetupAppearanceEventListeners()
             }
         );
     }
-
     // Reset Button
     const ResetBtn = document.getElementById("ResetAppearanceBtn");
     if (ResetBtn)
     {
         ResetBtn.addEventListener
         (
-            "click",
-            () =>
+            "click", () =>
             {
                 CurrentUISettings.Scale = DEFAULT_UI_SETTINGS.Scale;
                 CurrentUISettings.Font = DEFAULT_UI_SETTINGS.Font;
@@ -1174,7 +1170,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 {
     const Lines = (Source || "").split(/\r?\n/);
     const Errors = [];
-
     // Stack holds active openers: { Delim, Line, Col, LineText }
     const Stack = [];
 
@@ -1182,20 +1177,19 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawBlock = false;
     let InRawInline = false;
     let BlockCommentDepth = 0;
-
     // Helper to get clean line text with strings/comments masked
     function GetMaskedLine(LineText)
     {
         let Masked = "";
         let InStr = false;
-        for (let I = 0; I < LineText.length; I++)
+        for (let I = 0; I < LineText.length; I ++)
         {
             const C = LineText[I];
-            const NextC = I + 1 < LineText.length ? LineText[I + 1] : "";
-            const PrevC = I > 0 ? LineText[I - 1] : "";
+            const NextC = I + 1 < LineText.length ? LineText[I + 1]: "";
+            const PrevC = I > 0 ? LineText[I - 1]: "";
             if (C === '"' && PrevC !== "\\")
             {
-                InStr = !InStr;
+                InStr = ! InStr;
                 Masked += " ";
                 continue;
             }
@@ -1214,68 +1208,63 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         return Masked;
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx++)
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
     {
         const LineNum = LineIdx + 1;
         const LineText = Lines[LineIdx];
         let InLineComment = false;
 
-        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx++)
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
         {
             const ColNum = ColIdx + 1;
             const Char = LineText[ColIdx];
-            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1] : "";
-            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1] : "";
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
+            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1]: "";
 
             if (InLineComment) { break; }
-
             // Raw blocks ```
             if (!InString && BlockCommentDepth === 0 && Char === "`")
             {
                 if (LineText.substring(ColIdx, ColIdx + 3) === "```")
                 {
-                    InRawBlock = !InRawBlock;
+                    InRawBlock = ! InRawBlock;
                     ColIdx += 2;
                     continue;
                 }
                 else if (!InRawBlock)
                 {
-                    InRawInline = !InRawInline;
+                    InRawInline = ! InRawInline;
                     continue;
                 }
             }
             if (InRawBlock || InRawInline) { continue; }
-
             // Block comments /* */
             if (!InString && Char === "/" && NextChar === "*")
             {
-                BlockCommentDepth++;
-                ColIdx++;
+                BlockCommentDepth ++;
+                ColIdx ++;
                 continue;
             }
             if (!InString && BlockCommentDepth > 0 && Char === "*" && NextChar === "/")
             {
-                BlockCommentDepth--;
-                ColIdx++;
+                BlockCommentDepth --;
+                ColIdx ++;
                 continue;
             }
             if (BlockCommentDepth > 0) { continue; }
-
             // Line comments //
             if (!InString && Char === "/" && NextChar === "/")
             {
                 InLineComment = true;
                 break;
             }
-
             // String literals "..."
             if (Char === '"' && PrevChar !== "\\")
             {
-                InString = !InString;
+                InString = ! InString;
                 continue;
             }
             if (InString) { continue; }
-
             // Multiline display math container: $
             if (Char === "$" && PrevChar !== "\\")
             {
@@ -1375,7 +1364,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
                 continue;
             }
-
             // Standard containers: (, [, {
             if (Char === "(" || Char === "{" || Char === "[")
             {
@@ -1389,7 +1377,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
             else if (Char === ")" || Char === "}" || Char === "]")
             {
-                const MatchDelim = Char === ")" ? "(" : (Char === "}" ? "{" : "[");
+                const MatchDelim = Char === ")" ? "(": (Char === "}" ? "{": "[");
 
                 if (Stack.length === 0 || Stack[Stack.length - 1].Delim !== MatchDelim)
                 {
@@ -1409,17 +1397,14 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
 
                 const Opener = Stack.pop();
-
                 // Monolith Check: Same line openers and closers are valid Monoliths
                 if (LineNum === Opener.Line)
                 {
                     continue;
                 }
-
                 // Multiline container: Evaluate Vector 1 (Opener line) and Vector 2 (Closer line)
                 const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
                 const MaskedCloserLine = GetMaskedLine(LineText);
-
                 // --- VECTOR 1 EVALUATION (Opening Container Line) ---
                 const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
                 const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
@@ -1458,7 +1443,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                         Reason: "Proceeding Semantic Content on Unpaired Opening Container"
                     });
                 }
-
                 // --- VECTOR 2 EVALUATION (Closing Container Line) ---
                 const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
                 const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
@@ -1500,7 +1484,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Remaining unclosed openers that span beyond end of file
     for (const Opener of Stack)
     {
@@ -1527,7 +1510,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Deduplicate errors by Line + Col + Vector + Subtype
     const UniqueErrors = [];
     const SeenKeys = new Set();
@@ -1543,7 +1525,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 
     if (UniqueErrors.length === 0)
     {
-        return { HasError: false, Errors: [] };
+        return { HasError: false, Errors:[] };
     }
 
     const First = UniqueErrors[0];
@@ -1551,7 +1533,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     const Margin = " ".repeat(Math.max(2, LineStr.length));
     const FormattedLineNum = LineStr.padStart(Margin.length, " ");
     const PointerIndent = " ".repeat(Math.max(0, First.Col - 1));
-    const AnchorTarget = First.Anchor ? `'${First.Anchor}'` : "the statement";
+    const AnchorTarget = First.Anchor ? `'${First.Anchor}'`: "the statement";
 
     let ActionHint = "";
     if (First.Vector === 1)
@@ -1590,7 +1572,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     }
 
     const FormattedMessage =
-`error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
+    `error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
 ${Margin}┌─ ${FileName}:${First.Line}:${First.Col}
 ${Margin}│
 ${FormattedLineNum}│ ${First.LineText}
@@ -1610,17 +1592,17 @@ function ValidateEditorLAFS()
 {
     if (!MonacoInstance)
     {
-        return { HasError: false, Errors: [] };
+        return { HasError: false, Errors:[] };
     }
 
     const Model = MonacoInstance.getModel();
     if (!Model)
     {
-        return { HasError: false, Errors: [] };
+        return { HasError: false, Errors:[] };
     }
 
     const Source = Model.getValue();
-    const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop() : "main.typ";
+    const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop(): "main.typ";
     const KnrResult = DetectKnrSlop(Source, ActiveFileName);
 
     if (KnrResult.HasError)
@@ -1651,7 +1633,7 @@ function ValidateEditorLAFS()
     }
     else
     {
-        monaco.editor.setModelMarkers(Model, "lafs-validator", []);
+        monaco.editor.setModelMarkers(Model, "lafs-validator",[]);
         const ErrorContent = document.getElementById("ErrorContent");
         if (ErrorContent && ErrorContent.textContent.includes("1978 K&R Slop"))
         {
@@ -1673,14 +1655,14 @@ function FormatTypstLAFS(Source)
     let InRawBlock = false;
     let InBlockComment = false;
 
-    for (let I = 0; I < Lines.length; I++)
+    for (let I = 0; I < Lines.length; I ++)
     {
         const Line = Lines[I];
         const Trimmed = Line.trim();
 
         if (Trimmed.startsWith("```"))
         {
-            InRawBlock = !InRawBlock;
+            InRawBlock = ! InRawBlock;
             ResultLines.push(Line);
             continue;
         }
@@ -1710,7 +1692,6 @@ function FormatTypstLAFS(Source)
             ResultLines.push(Line);
             continue;
         }
-
         // Handle '} else if (...) {' or '} else {'
         const ElseIfMatch = Trimmed.match(/^(\})\s*(else\s+if\s+.*?)(\s*\{)?$/);
         if (ElseIfMatch)
@@ -1731,7 +1712,6 @@ function FormatTypstLAFS(Source)
             if (ElseMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
             continue;
         }
-
         // Handle trailing delimiters '{', '(', '[' on multiline constructs
         const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[])\s*$/);
         if (EndsWithDelimiter)
@@ -1748,7 +1728,6 @@ function FormatTypstLAFS(Source)
             ResultLines.push(`${Indent}${Delim}`);
             continue;
         }
-
         // Handle control flow statements like 'if ... {' or 'while ... {' or 'for ... {'
         const ControlMatch = Trimmed.match(/^(if\s+.*?|while\s+.*?|for\s+.*?|context)\s*\{$/);
         if (ControlMatch)
@@ -1773,7 +1752,10 @@ function ApplyFormattingToEditor()
     if (CurrentValue !== FormattedValue)
     {
         const FullRange = MonacoInstance.getModel().getFullModelRange();
-        MonacoInstance.executeEdits("format-lafs", [{ range: FullRange, text: FormattedValue }]);
+        MonacoInstance.executeEdits
+        (
+            "format-lafs",[ { range: FullRange, text: FormattedValue }]
+        );
         MonacoInstance.pushUndoStop();
         TriggerCompileNow();
         ShowToast("Formatted to LAFS standard", "info");
@@ -1783,14 +1765,16 @@ function ApplyFormattingToEditor()
 async function InitializeMonaco()
 {
     await EnsureSessionAuthToken();
-    window.require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
+    window.require.config
+    ({
+        paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" }
+    });
 
     window.require
     (
-        ["vs/editor/editor.main"],
-        () =>
+        ["vs/editor/editor.main"], () =>
         {
-            monaco.languages.register({ id: "typst" });
+            monaco.languages.register( { id: "typst" });
 
             monaco.languages.setLanguageConfiguration
             (
@@ -1799,13 +1783,11 @@ async function InitializeMonaco()
                     comments:
                     {
                         lineComment: "//",
-                        blockComment: ["/*", "*/"]
+                        blockComment:["/*", "*/"]
                     },
                     brackets:
                     [
-                        ["{", "}"],
-                        ["[", "]"],
-                        ["(", ")"]
+                        ["{", "}"],["[", "]"],["(", ")"]
                     ],
                     autoClosingPairs:
                     [
@@ -1855,52 +1837,47 @@ async function InitializeMonaco()
                     {
                         root:
                         [
-                            [/\/\/.*$/, "comment"],
-                            [/\/\*/, "comment", "@comment"],
-                            [/```/, "markup.raw.block", "@rawblock"],
-                            [/`[^`\n]*`/, "markup.raw.inline"],
-                            [/"([^"\\]|\\.)*"/, "string"],
-                            [/\$[^$\n]*\$/, "string.math"],
-                            [/^(\s*=+)(.*)$/, ["keyword.heading", "markup.heading.text"]],
-                            [/<[a-zA-Z0-9_\-:]+>/, "entity.name.label"],
-                            [/@[a-zA-Z0-9_\-:]+/, "entity.name.reference"],
-                            [/\*([^*]+)\*/, "markup.bold"],
-                            [/_([^_]+)_/, "markup.italic"],
-                            [/\\([#$*_\-\\@[\]{}])/, "constant.character.escape"],
-                            [/\\$/, "constant.character.escape"],
-                            [/^\s*[-+]\s+/, "punctuation.list"],
-                            [/([a-zA-Z_]\w*)\s*(?=:)/, "variable.parameter"],
-                            [/#([a-zA-Z_]\w*)/, "keyword"],
-                            [/[a-zA-Z_]\w*/,{
-                                                cases:
-                                                {
-                                                    "@keywords": "keyword",
-                                                    "@constants": "constant.language",
-                                                    "@builtins": "type.identifier",
-                                                    "@default": "identifier"
-                                                }
-                                            }
+                            [/\/\/.*$/, "comment"],[/\/\*/, "comment", "@comment"],[/```/, "markup.raw.block", "@rawblock"],[/`[^`\n]*`/, "markup.raw.inline"],
+                            [
+                                /"([^"\\]|\\.)*"/, "string"
                             ],
-                            [/[{}()\[\]]/, "@brackets"],
-                            [/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],
-                            [/[=+\-*/<>!&|~]/, "operator"]
+                            [/\$[^$\n]*\$/, "string.math"],[/^(\s*=+)(.*)$/,["keyword.heading", "markup.heading.text"]],
+                            [
+                                /<[a-zA-Z0-9_\-:]+>/, "entity.name.label"
+                            ],
+                            [/@[a-zA-Z0-9_\-:]+/, "entity.name.reference"],[/\*([^*]+)\*/, "markup.bold"],[/_([^_]+)_/, "markup.italic"],
+                            [
+                                /\\([#$*_\-\\@[\]{}])/, "constant.character.escape"
+                            ],
+                            [/\\$/, "constant.character.escape"],[/^\s*[-+]\s+/, "punctuation.list"],[/([a-zA-Z_]\w*)\s*(?=:)/, "variable.parameter"],
+                            [
+                                /#([a-zA-Z_]\w*)/, "keyword"
+                            ],
+                            [
+                                /[a-zA-Z_]\w*/,
+                                {
+                                    cases:
+                                    {
+                                        "@keywords": "keyword",
+                                        "@constants": "constant.language",
+                                        "@builtins": "type.identifier",
+                                        "@default": "identifier"
+                                    }
+                                }
+                            ],
+                            [/[{}()\[\]]/, "@brackets"],[/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],[/[=+\-*/<>!&|~]/, "operator"]
                         ],
                         comment:
                         [
-                            [/[^\/*]+/, "comment"],
-                            [/\*\//, "comment", "@pop"],
-                            [/[\/*]/, "comment"]
+                            [/[^\/*]+/, "comment"],[/\*\//, "comment", "@pop"],[/[\/*]/, "comment"]
                         ],
                         rawblock:
                         [
-                            [/[^`]+/, "markup.raw.block"],
-                            [/```/, "markup.raw.block", "@pop"],
-                            [/`/, "markup.raw.block"]
+                            [/[^`]+/, "markup.raw.block"],[/```/, "markup.raw.block", "@pop"],[/`/, "markup.raw.block"]
                         ]
                     }
                 }
             );
-
             // Rich Vibrant Syntax Highlighting against Monochrome Canvas
             monaco.editor.defineTheme
             (
@@ -1940,16 +1917,14 @@ async function InitializeMonaco()
                         "editorLineNumber.activeForeground": "#ffffff",
                         "editorCursor.foreground": "#ffffff",
                         "editorWhitespace.foreground": "#202020",
-                        "editor.selectionBackground": "#282828",
-                        // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
+                        "editor.selectionBackground": "#282828", // Rainbow Brackets Palette (Depth levels 1 to 6 - Pure Neon & Pastel Spectrum)
                         "editorBracketHighlight.foreground1": "#7100FFFF",
                         "editorBracketHighlight.foreground2": "#F472B6",
                         "editorBracketHighlight.foreground3": "#A855F7",
                         "editorBracketHighlight.foreground4": "#4ADE80",
                         "editorBracketHighlight.foreground5": "#FB7185",
                         "editorBracketHighlight.foreground6": "#818CF8",
-                        "editorBracketHighlight.unexpectedBracket.foreground": "#FF5555",
-                        // Matching Bracket Pair Connecting Guide Lines
+                        "editorBracketHighlight.unexpectedBracket.foreground": "#FF5555", // Matching Bracket Pair Connecting Guide Lines
                         "editorBracketPairGuide.activeBackground1": "#7100FFFF",
                         "editorBracketPairGuide.activeBackground2": "#F472B6",
                         "editorBracketPairGuide.activeBackground3": "#A855F7",
@@ -1961,8 +1936,7 @@ async function InitializeMonaco()
                         "editorBracketPairGuide.background3": "#A855F755",
                         "editorBracketPairGuide.background4": "#4ADE8055",
                         "editorBracketPairGuide.background5": "#FB718555",
-                        "editorBracketPairGuide.background6": "#818CF855",
-                        // Matching Indentation Guides Palette (Depth levels 1 to 6)
+                        "editorBracketPairGuide.background6": "#818CF855", // Matching Indentation Guides Palette (Depth levels 1 to 6)
                         "editorIndentGuide.background1": "#7100FF55",
                         "editorIndentGuide.background2": "#F472B655",
                         "editorIndentGuide.background3": "#A855F755",
@@ -1978,13 +1952,12 @@ async function InitializeMonaco()
                     }
                 }
             );
-
-                        // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
+            // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
             monaco.languages.registerCompletionItemProvider
             (
                 "typst",
                 {
-                    triggerCharacters: ["#", "$", "@", "<", ".", " ", ":", "/", "\\"],
+                    triggerCharacters:["#", "$", "@", "<", ".", " ", ":", "/", "\\"],
                     provideCompletionItems: (Model, Position) =>
                     {
                         const Word = Model.getWordUntilPosition(Position);
@@ -1997,7 +1970,6 @@ async function InitializeMonaco()
                         };
 
                         const Suggestions = [];
-
                         // 1. LAFS Snippets with Allman detached delimiters
                         const Snippets =
                         [
@@ -2092,9 +2064,8 @@ async function InitializeMonaco()
                         ];
                         for (const S of Snippets)
                         {
-                            Suggestions.push({ ...S, range: Range });
+                            Suggestions.push( { ...S, range: Range });
                         }
-
                         // 2. Builtin Functions & Primitives
                         const Builtins =
                         [
@@ -2102,14 +2073,18 @@ async function InitializeMonaco()
                             { label: "text", detail: "text(size, fill)[content]", insertText: "text(${1:11pt})[${2:content}]" },
                             { label: "par", detail: "par(justify: true)[...]", insertText: "par(justify: ${1:true})[\n\t${2:content}\n]" },
                             { label: "image", detail: "image(path, width: ...)", insertText: "image(\"${1:path.png}\", width: ${2:100%})" },
-                            { label: "rect", detail: "rect(width, height, fill)", insertText: "rect(width: ${1:100%}, height: ${2:30pt}, fill: rgb(\"${3:4338CA}\"))" },
+                            {
+                                label: "rect", detail: "rect(width, height, fill)", insertText: "rect(width: ${1:100%}, height: ${2:30pt}, fill: rgb(\"${3:4338CA}\"))"
+                            },
                             { label: "circle", detail: "circle(radius, fill)", insertText: "circle(radius: ${1:15pt}, fill: rgb(\"${2:6366F1}\"))" },
                             { label: "columns", detail: "columns(n)[body]", insertText: "columns(${1:2})[\n\t${2:body}\n]" },
                             { label: "line", detail: "line(length, stroke)", insertText: "line(length: ${1:100%}, stroke: ${2:0.5pt + rgb(\"CCCCCC\")})" },
                             { label: "v", detail: "v(spacing)", insertText: "v(${1:1em})" },
                             { label: "h", detail: "h(spacing)", insertText: "h(${1:1fr})" },
                             { label: "box", detail: "box(inset: ...)[...]", insertText: "box(inset: ${1:4pt})[${2:content}]" },
-                            { label: "block", detail: "block(fill: ...)[...]", insertText: "block(fill: rgb(\"${1:F1F3F6}\"), inset: ${2:8pt})[\n\t${3:content}\n]" },
+                            {
+                                label: "block", detail: "block(fill: ...)[...]", insertText: "block(fill: rgb(\"${1:F1F3F6}\"), inset: ${2:8pt})[\n\t${3:content}\n]"
+                            },
                             { label: "outline", detail: "outline(title: ...)", insertText: "outline(title: \"${1:Document Index}\", indent: ${2:1.5em})" },
                             { label: "footnote", detail: "footnote[text]", insertText: "footnote[${1:Footnote text}]" },
                             { label: "bibliography", detail: "bibliography(path)", insertText: "bibliography(\"${1:works.bib}\")" },
@@ -2127,7 +2102,6 @@ async function InitializeMonaco()
                                 range: Range
                             });
                         }
-
                         // 3. Keywords
                         const Keywords = ["let", "set", "show", "context", "if", "else", "while", "for", "in", "return", "import", "include"];
                         for (const Kw of Keywords)
@@ -2140,7 +2114,6 @@ async function InitializeMonaco()
                                 range: Range
                             });
                         }
-
                         // 4. Math symbols & Greek
                         const MathSymbols =
                         [
@@ -2238,7 +2211,7 @@ async function InitializeMonaco()
                 {
                     if (!IsSyncTexEnabled || SuppressForwardSync)
                     {
-                        return;
+                        return ;
                     }
 
                     clearTimeout(ForwardSyncDebounceTimer);
@@ -2259,7 +2232,7 @@ async function InitializeMonaco()
                 {
                     if (!IsSyncTexEnabled || SuppressForwardSync)
                     {
-                        return;
+                        return ;
                     }
 
                     clearTimeout(ForwardSyncDebounceTimer);
@@ -2284,19 +2257,19 @@ async function InitializeMonaco()
             {
                 if (!MonacoInstance)
                 {
-                    return;
+                    return ;
                 }
 
                 const Model = MonacoInstance.getModel();
                 if (!Model)
                 {
                     MathBracketDecorations.clear();
-                    return;
+                    return ;
                 }
 
                 const Position = MonacoInstance.getPosition();
-                const CursorLine = Position ? Position.lineNumber : 0;
-                const CursorCol = Position ? Position.column : 0;
+                const CursorLine = Position ? Position.lineNumber: 0;
+                const CursorCol = Position ? Position.column: 0;
 
                 try
                 {
@@ -2315,18 +2288,18 @@ async function InitializeMonaco()
                 let NestingDepth = 0;
                 let CurrentOpen = null;
 
-                for (let L = 1; L <= TotalLines; L++)
+                for (let L = 1; L <= TotalLines; L ++)
                 {
                     const LineContent = Model.getLineContent(L);
 
-                    for (let ColIdx = 0; ColIdx < LineContent.length; ColIdx++)
+                    for (let ColIdx = 0; ColIdx < LineContent.length; ColIdx ++)
                     {
                         const Char = LineContent[ColIdx];
-                        const PrevChar = ColIdx > 0 ? LineContent[ColIdx - 1] : "";
+                        const PrevChar = ColIdx > 0 ? LineContent[ColIdx - 1]: "";
 
                         if (Char === "(" || Char === "[" || Char === "{")
                         {
-                            NestingDepth++;
+                            NestingDepth ++;
                         }
                         else if (Char === ")" || Char === "]" || Char === "}")
                         {
@@ -2375,26 +2348,23 @@ async function InitializeMonaco()
                                     IsActive = CursorLine === StartLine && CursorCol >= StartCol && CursorCol <= EndCol + 1;
                                 }
 
-                                const ActiveSuffix = IsActive ? " indent-active" : "";
-
+                                const ActiveSuffix = IsActive ? " indent-active": "";
                                 // Decorate opening $
                                 Decorations.push
                                 ({
                                     range: new monaco.Range(StartLine, StartCol, StartLine, StartCol + 1),
                                     options: { inlineClassName: `typst-math-delimiter lvl-${Level}${ActiveSuffix}` }
                                 });
-
                                 // Decorate closing $
                                 Decorations.push
                                 ({
                                     range: new monaco.Range(EndLine, EndCol, EndLine, EndCol + 1),
                                     options: { inlineClassName: `typst-math-delimiter lvl-${Level}${ActiveSuffix}` }
                                 });
-
                                 // If multiline, draw vertical indentation guide line
                                 if (IsMultiline)
                                 {
-                                    for (let Line = StartLine; Line <= EndLine; Line++)
+                                    for (let Line = StartLine; Line <= EndLine; Line ++)
                                     {
                                         let Classes = `typst-math-guide-line lvl-${Level} col-${StartCol}`;
                                         if (IsActive)
@@ -2430,7 +2400,6 @@ async function InitializeMonaco()
 
                 MathBracketDecorations.set(Decorations);
             }
-
             // Fast, non-blocking status bar update using O(1) getValueLength()
             MonacoInstance.onDidChangeModelContent
             (
@@ -2448,18 +2417,17 @@ async function InitializeMonaco()
                             clearTimeout(CompileTimeoutID);
                             CompileTimeoutID = null;
                         }
-                        return;
+                        return ;
                     }
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
                         // Check if change is large (e.g. paste) -> adaptive debounce
-                        const IsLargeChange = Event.changes.some((C) => C.text.length > 500);
-                        ScheduleCompile(IsLargeChange ? 450 : 250);
+                        const IsLargeChange = Event.changes.some( (C) => C.text.length > 500);
+                        ScheduleCompile(IsLargeChange ? 450: 250);
                     }
                 }
             );
-
             // Smooth paste listener: prevents intermediate compilation freezes while pasting
             MonacoInstance.onDidPaste
             (
@@ -2475,7 +2443,7 @@ async function InitializeMonaco()
                             clearTimeout(CompileTimeoutID);
                             CompileTimeoutID = null;
                         }
-                        return;
+                        return ;
                     }
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile) { ScheduleCompile(450); }
@@ -2494,14 +2462,12 @@ async function InitializeMonaco()
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-                () => { TriggerCompileNow(); }
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => { TriggerCompileNow(); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
-                () =>
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
                 {
                     SaveCurrentFile();
                     TriggerCompileNow();
@@ -2510,49 +2476,42 @@ async function InitializeMonaco()
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP,
-                () => { ExportPdf(); }
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => { ExportPdf(); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
-                () => { ApplyFormattingToEditor(); }
+                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => { ApplyFormattingToEditor(); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.Alt | monaco.KeyCode.Digit1,
-                () => { SetViewportLayout("split"); }
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit1, () => { SetViewportLayout("split"); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.Alt | monaco.KeyCode.Digit2,
-                () => { SetViewportLayout("editor"); }
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit2, () => { SetViewportLayout("editor"); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.Alt | monaco.KeyCode.Digit3,
-                () => { SetViewportLayout("preview"); }
+                monaco.KeyMod.Alt | monaco.KeyCode.Digit3, () => { SetViewportLayout("preview"); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.Alt | monaco.KeyCode.KeyO,
-                () => { ToggleDocumentOutline(); }
+                monaco.KeyMod.Alt | monaco.KeyCode.KeyO, () => { ToggleDocumentOutline(); }
             );
 
             MonacoInstance.addCommand
             (
-                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP,
-                () => { TriggerDocumentPrint(); }
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => { TriggerDocumentPrint(); }
             );
 
             UpdateStatusBar();
             TriggerCompileNow();
-            MarkDocumentClean(MonacoInstance ? MonacoInstance.getValue() : "");
+            MarkDocumentClean(MonacoInstance ? MonacoInstance.getValue(): "");
             UpdateDocumentOutline();
         }
     );
@@ -2563,20 +2522,23 @@ function UpdateStatusBar()
     if (!MonacoInstance) { return; }
     // High-performance O(1) character count without copying or allocating strings
     const Model = MonacoInstance.getModel();
-    const Length = Model ? Model.getValueLength() : 0;
+    const Length = Model ? Model.getValueLength(): 0;
     document.getElementById("CharacterCount").textContent = `${Length} chars`;
 }
 
 function ScheduleCompile(DelayMs)
 {
     if (CompileTimeoutID) { clearTimeout(CompileTimeoutID); }
-    CompileTimeoutID = setTimeout(() => { TriggerCompileNow(); }, DelayMs);
+    CompileTimeoutID = setTimeout
+    (
+        () => { TriggerCompileNow(); },
+        DelayMs
+    );
 }
 
 async function TriggerCompileNow()
 {
     if (!MonacoInstance) { return; }
-
     // Cancel any in-flight compilation request to avoid network and backend queue collisions
     if (ActiveAbortController)
     {
@@ -2608,8 +2570,11 @@ async function TriggerCompileNow()
         StatusDot.className = "StatusDot Error";
         StatusText.textContent = "Error";
         DurationText.textContent = "0ms";
-        ShowCompilationError(`Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: ${LAFSValidation.Errors[0] ? LAFSValidation.Errors[0].Reason : "Violation of LAFS"}`);
-        return;
+        ShowCompilationError
+        (
+            `Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: ${LAFSValidation.Errors[0] ? LAFSValidation.Errors[0].Reason : "Violation of LAFS"}`
+        );
+        return ;
     }
 
     StatusDot.className = "StatusDot Compiling";
@@ -2623,7 +2588,7 @@ async function TriggerCompileNow()
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Source: Source }),
+                body: JSON.stringify( { Source: Source }),
                 signal: Controller.signal
             }
         );
@@ -2633,7 +2598,7 @@ async function TriggerCompileNow()
         if (Result.Aborted)
         {
             // Superseded by a newer compile request
-            return;
+            return ;
         }
 
         if (Result.Success)
@@ -2688,7 +2653,7 @@ async function TriggerCompileNow()
         if (Exception.name === "AbortError")
         {
             // Fetch aborted cleanly by a newer compile trigger
-            return;
+            return ;
         }
         StatusDot.className = "StatusDot Error";
         StatusText.textContent = "Offline";
@@ -2711,7 +2676,10 @@ function InvertMonochromeColor(ColorStr)
     }
 
     const Trimmed = ColorStr.trim();
-    if (Trimmed.startsWith("url(") || ["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase()))
+    if
+    (
+        Trimmed.startsWith("url(") || ["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase())
+    )
     {
         return ColorStr;
     }
@@ -2779,9 +2747,18 @@ function InvertMonochromeColor(ColorStr)
         const RgbMatch = Trimmed.match(/^rgba?\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+))?\s*\)$/i);
         if (RgbMatch)
         {
-            Red = Math.round(parseFloat(RgbMatch[1]));
-            Green = Math.round(parseFloat(RgbMatch[2]));
-            Blue = Math.round(parseFloat(RgbMatch[3]));
+            Red = Math.round
+            (
+                parseFloat(RgbMatch[1])
+            );
+            Green = Math.round
+            (
+                parseFloat(RgbMatch[2])
+            );
+            Blue = Math.round
+            (
+                parseFloat(RgbMatch[3])
+            );
             if (RgbMatch[4] !== undefined)
             {
                 const AlphaVal = parseFloat(RgbMatch[4]);
@@ -2802,10 +2779,17 @@ function InvertMonochromeColor(ColorStr)
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 18)
     {
-        return ColorStr; // Keep original color!
+        return ColorStr;
+        // Keep original color!
     }
 
-    const InvertComponent = (Component) => Math.min(255, Math.max(0, Math.round(12 + (255 - Component) * 0.902)));
+    const InvertComponent = (Component) => Math.min
+    (
+        255, Math.max
+        (
+            0, Math.round(12 + (255 - Component) * 0.902)
+        )
+    );
     const InvertedRed = InvertComponent(Red).toString(16).padStart(2, "0");
     const InvertedGreen = InvertComponent(Green).toString(16).padStart(2, "0");
     const InvertedBlue = InvertComponent(Blue).toString(16).padStart(2, "0");
@@ -2822,11 +2806,10 @@ function ConvertSvgToDarkMode(Svg)
 
     let Result = Svg.replace
     (
-        /\b(fill|stroke|stop-color)\s*=\s*(["'][^"']*["'])/gi,
-        (Match, Attr, QuotedVal) =>
+        /\b(fill|stroke|stop-color)\s*=\s*(["'][^"']*["'])/gi, (Match, Attr, QuotedVal) =>
         {
             const Quote = QuotedVal[0];
-            const Color = QuotedVal.slice(1, -1);
+            const Color = QuotedVal.slice(1, - 1);
             const Inverted = InvertMonochromeColor(Color);
             return `${Attr}=${Quote}${Inverted}${Quote}`;
         }
@@ -2834,15 +2817,13 @@ function ConvertSvgToDarkMode(Svg)
 
     Result = Result.replace
     (
-        /\bstyle\s*=\s*(["'][^"']*["'])/gi,
-        (Match, QuotedVal) =>
+        /\bstyle\s*=\s*(["'][^"']*["'])/gi, (Match, QuotedVal) =>
         {
             const Quote = QuotedVal[0];
-            const StyleContent = QuotedVal.slice(1, -1);
+            const StyleContent = QuotedVal.slice(1, - 1);
             const Transformed = StyleContent.replace
             (
-                /\b(fill|stroke|color|background-color)\s*:\s*([^;"']+)/gi,
-                (PropMatch, Prop, Color) =>
+                /\b(fill|stroke|color|background-color)\s*:\s*([^;"']+)/gi, (PropMatch, Prop, Color) =>
                 {
                     return `${Prop}: ${InvertMonochromeColor(Color.trim())}`;
                 }
@@ -2857,8 +2838,8 @@ function ConvertSvgToDarkMode(Svg)
 function RenderPages(Pages)
 {
     const Viewport = document.getElementById("PreviewViewport");
-    const PrevScrollTop = Viewport ? Viewport.scrollTop : 0;
-    const PrevScrollLeft = Viewport ? Viewport.scrollLeft : 0;
+    const PrevScrollTop = Viewport ? Viewport.scrollTop: 0;
+    const PrevScrollLeft = Viewport ? Viewport.scrollLeft: 0;
 
     const PagesContainer = document.getElementById("PagesContainer");
     PagesContainer.innerHTML = "";
@@ -2866,10 +2847,10 @@ function RenderPages(Pages)
     if (!Pages || Pages.length === 0)
     {
         PagesContainer.innerHTML = "<p style='color: #666666; padding: 40px;'>No content rendered.</p>";
-        return;
+        return ;
     }
 
-    const CurrentToken = ++RenderToken;
+    const CurrentToken = ++ RenderToken;
 
     function CreatePageElement(SvgContent, Index)
     {
@@ -2902,12 +2883,11 @@ function RenderPages(Pages)
         {
             return RawSvg.replace
             (
-                /<svg\b([^>]*)>/i,
-                (Match, Attrs) =>
+                /<svg\b([^>]*)>/i, (Match, Attrs) =>
                 {
                     const CleanedAttrs = Attrs
-                        .replace(/\bwidth="[^"]*"/gi, "")
-                        .replace(/\bheight="[^"]*"/gi, "");
+                    .replace(/\bwidth="[^"]*"/gi, "")
+                    .replace(/\bheight="[^"]*"/gi, "");
                     return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
                 }
             );
@@ -2926,12 +2906,14 @@ function RenderPages(Pages)
 
         return PageDiv;
     }
-
     // Render the first 2 pages immediately so initial view renders in <5ms
     const InitialBatchCount = Math.min(Pages.length, 2);
-    for (let I = 0; I < InitialBatchCount; I++)
+    for (let I = 0; I < InitialBatchCount; I ++)
     {
-        PagesContainer.appendChild(CreatePageElement(Pages[I], I));
+        PagesContainer.appendChild
+        (
+            CreatePageElement(Pages[I], I)
+        );
     }
 
     if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
@@ -2939,7 +2921,6 @@ function RenderPages(Pages)
         Viewport.scrollTop = PrevScrollTop;
         Viewport.scrollLeft = PrevScrollLeft;
     }
-
     // If more pages exist, stream them progressively via requestAnimationFrame
     // This completely eliminates browser hanging/freezing on large documents
     if (Pages.length > InitialBatchCount)
@@ -2949,12 +2930,16 @@ function RenderPages(Pages)
         {
             if (CurrentToken !== RenderToken)
             {
-                return; // Newer render has started
+                return ;
+                // Newer render has started
             }
             const ChunkLimit = Math.min(Pages.length, CurrentIndex + 3);
-            for (; CurrentIndex < ChunkLimit; CurrentIndex++)
+            for (; CurrentIndex < ChunkLimit; CurrentIndex ++)
             {
-                PagesContainer.appendChild(CreatePageElement(Pages[CurrentIndex], CurrentIndex));
+                PagesContainer.appendChild
+                (
+                    CreatePageElement(Pages[CurrentIndex], CurrentIndex)
+                );
             }
             if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
             {
@@ -2977,13 +2962,11 @@ function ShowCompilationError(ErrorMessage)
     const ErrorDrawer = document.getElementById("ErrorDrawer");
     const ErrorContent = document.getElementById("ErrorContent");
     const Cleaned = ErrorErrorMessageClean(ErrorMessage);
-
     // Escape HTML entities to prevent injection
     const Escaped = Cleaned
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
     // Detect primary error line and column for direct jump
     PrimaryErrorLocation = null;
     const LocMatch = Cleaned.match(/(?:┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/);
@@ -3006,19 +2989,15 @@ function ShowCompilationError(ErrorMessage)
     {
         JumpBtn.style.display = "none";
     }
-
     // Highlight error keywords with prominent red highlight class
     let Highlighted = Escaped.replace
     (
-        /\b(error|Error|ERROR|Severe Critical Fatal Error)\b/g,
-        (Token) => `<span class = "ErrorKeywordHighlight">${Token}</span>`
+        /\b(error|Error|ERROR|Severe Critical Fatal Error)\b/g, (Token) => `<span class = "ErrorKeywordHighlight">${Token}</span>`
     );
-
     // Convert file location references into clickable links
     Highlighted = Highlighted.replace
     (
-        /(┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/g,
-        (Full, Prefix, File, Line, Col) => `${Prefix}<span Class = "ErrorLocationLink" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to Line ${Line}, Col ${Col}">${File}:${Line}:${Col} ↗</span>`
+        /(┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/g, (Full, Prefix, File, Line, Col) => `${Prefix}<span Class = "ErrorLocationLink" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to Line ${Line}, Col ${Col}">${File}:${Line}:${Col} ↗</span>`
     );
 
     ErrorContent.innerHTML = Highlighted;
@@ -3073,7 +3052,7 @@ function FitWidth()
     const FirstPage = document.querySelector(".PageSheet");
     if (!FirstPage || !Viewport)
     {
-        return;
+        return ;
     }
     const BaseW = parseFloat(FirstPage.dataset.baseWidth) || 576;
     const AvailableWidth = Math.max(300, Viewport.clientWidth - 80);
@@ -3086,7 +3065,7 @@ function FitPage()
     const FirstPage = document.querySelector(".PageSheet");
     if (!FirstPage || !Viewport)
     {
-        return;
+        return ;
     }
     const BaseH = parseFloat(FirstPage.dataset.baseHeight) || 864;
     const AvailableHeight = Math.max(300, Viewport.clientHeight - 80);
@@ -3121,8 +3100,8 @@ function UpdateBlackPageMode()
 
 function ToggleBlackPageMode()
 {
-    IsBlackPageMode = !IsBlackPageMode;
-    localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true" : "false");
+    IsBlackPageMode = ! IsBlackPageMode;
+    localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true": "false");
     UpdateBlackPageMode();
 }
 
@@ -3130,7 +3109,7 @@ async function ExportPdf()
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
 
     const Source = MonacoInstance.getValue();
@@ -3145,8 +3124,8 @@ async function ExportPdf()
     {
         const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
         const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
-        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked : false;
-        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked : false;
+        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
+        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
 
         const Response = await AuthenticatedFetch
         (
@@ -3174,7 +3153,7 @@ async function ExportPdf()
         const DownloadUrl = URL.createObjectURL(Blob);
         const Anchor = document.createElement("a");
         Anchor.href = DownloadUrl;
-        Anchor.download = DocTitle.endsWith(".pdf") ? DocTitle : `${DocTitle}.pdf`;
+        Anchor.download = DocTitle.endsWith(".pdf") ? DocTitle: `${DocTitle}.pdf`;
         document.body.appendChild(Anchor);
         Anchor.click();
         document.body.removeChild(Anchor);
@@ -3198,12 +3177,12 @@ function ExportSvg()
     if (!LastCompiledPages || LastCompiledPages.length === 0)
     {
         alert("No compiled pages to export.");
-        return;
+        return ;
     }
 
     const PageIndex = Math.min(CurrentActivePage - 1, LastCompiledPages.length - 1);
     const RawSvg = LastCompiledPages[PageIndex];
-    const SvgContent = IsBlackPageMode ? ConvertSvgToDarkMode(RawSvg) : RawSvg;
+    const SvgContent = IsBlackPageMode ? ConvertSvgToDarkMode(RawSvg): RawSvg;
     const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
 
     const Blob = new Blob([SvgContent], { type: "image/svg+xml;charset=utf-8" });
@@ -3221,7 +3200,7 @@ async function ExportPng()
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
 
     const Source = MonacoInstance.getValue();
@@ -3231,8 +3210,8 @@ async function ExportPng()
     {
         const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
         const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
-        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked : false;
-        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked : false;
+        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
+        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
 
         const Response = await AuthenticatedFetch
         (
@@ -3277,7 +3256,7 @@ function CopySource()
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
     const Source = MonacoInstance.getValue();
     navigator.clipboard.writeText(Source).then
@@ -3287,7 +3266,7 @@ function CopySource()
             const CopyBtn = document.getElementById("CopyCodeButton");
             const OriginalHTML = CopyBtn.innerHTML;
             CopyBtn.innerHTML = "<span>Copied!</span>";
-            setTimeout(() => { CopyBtn.innerHTML = OriginalHTML; }, 1500);
+            setTimeout( () => { CopyBtn.innerHTML = OriginalHTML; }, 1500);
             ShowToast("Typst source copied to clipboard", "success");
         }
     );
@@ -3301,8 +3280,7 @@ function SetupSplitResizer()
 
     Resizer.addEventListener
     (
-        "mousedown",
-        (E) =>
+        "mousedown", (E) =>
         {
             IsDragging = true;
             Resizer.classList.add("Dragging");
@@ -3313,12 +3291,11 @@ function SetupSplitResizer()
 
     window.addEventListener
     (
-        "mousemove",
-        (E) =>
+        "mousemove", (E) =>
         {
             if (!IsDragging)
             {
-                return;
+                return ;
             }
             const ContainerWidth = document.querySelector(".MainSplitArea").clientWidth;
             const NewWidth = Math.max(260, Math.min(ContainerWidth - 260, E.clientX));
@@ -3328,8 +3305,7 @@ function SetupSplitResizer()
 
     window.addEventListener
     (
-        "mouseup",
-        () =>
+        "mouseup", () =>
         {
             if (IsDragging)
             {
@@ -3341,10 +3317,10 @@ function SetupSplitResizer()
         }
     );
 }
-
 // --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
 
-let CurrentViewportLayout = "split"; // 'split', 'editor', 'preview'
+let CurrentViewportLayout = "split";
+// 'split', 'editor', 'preview'
 
 function SetViewportLayout(Layout)
 {
@@ -3379,7 +3355,7 @@ function SetViewportLayout(Layout)
     {
         localStorage.setItem("TypstStudio_Layout", Layout);
     }
-    catch (Ignored) { }
+    catch (Ignored) {}
 
     if (MonacoInstance && (Layout === "split" || Layout === "editor"))
     {
@@ -3403,7 +3379,6 @@ function SetViewportLayout(Layout)
         );
     }
 }
-
 // --- DOCUMENT OUTLINE (TOC) ARCHITECTURE (PRIORITY 2) ---
 
 let IsOutlineVisible = false;
@@ -3415,8 +3390,8 @@ function ToggleDocumentOutline(ForceState)
     const Sidebar = document.getElementById("OutlineSidebar");
     if (!Sidebar) { return; }
 
-    IsOutlineVisible = (typeof ForceState === "boolean") ? ForceState : !IsOutlineVisible;
-    Sidebar.style.display = IsOutlineVisible ? "flex" : "none";
+    IsOutlineVisible = (typeof ForceState === "boolean") ? ForceState: ! IsOutlineVisible;
+    Sidebar.style.display = IsOutlineVisible ? "flex": "none";
 
     if (IsOutlineVisible)
     {
@@ -3460,14 +3435,14 @@ function UpdateDocumentOutline()
     OutlineHeadingsList = [];
 
     let InCodeBlock = false;
-    for (let Index = 0; Index < Lines.length; Index++)
+    for (let Index = 0; Index < Lines.length; Index ++)
     {
         const LineText = Lines[Index];
         const Trimmed = LineText.trim();
 
         if (Trimmed.startsWith("```"))
         {
-            InCodeBlock = !InCodeBlock;
+            InCodeBlock = ! InCodeBlock;
             continue;
         }
         if (InCodeBlock) { continue; }
@@ -3499,18 +3474,18 @@ function RenderOutlineItems(Headings)
     if (!ListContainer) { return; }
 
     const SearchInput = document.getElementById("OutlineSearchInput");
-    const Filter = SearchInput ? SearchInput.value.toLowerCase().trim() : "";
+    const Filter = SearchInput ? SearchInput.value.toLowerCase().trim(): "";
 
     const Filtered = Filter
-        ? Headings.filter((H) => H.Title.toLowerCase().includes(Filter))
-        : Headings;
+    ? Headings.filter( (H) => H.Title.toLowerCase().includes(Filter))
+    : Headings;
 
     if (Filtered.length === 0)
     {
         ListContainer.innerHTML = Filter
-            ? `<div Class = "OutlineEmptyState">No sections match "${Filter}"</div>`
-            : `<div Class = "OutlineEmptyState">No headings in document.<br><span style="color:#71717A; font-size:10.5px;">Add '= Section Name' to generate an outline.</span></div>`;
-        return;
+        ? `<div Class = "OutlineEmptyState">No sections match "${Filter}"</div>`
+        : `<div Class = "OutlineEmptyState">No headings in document.<br><span style="color:#71717A; font-size:10.5px;">Add '= Section Name' to generate an outline.</span></div>`;
+        return ;
     }
 
     let Html = "";
@@ -3524,7 +3499,6 @@ function RenderOutlineItems(Headings)
 
     ListContainer.innerHTML = Html;
 }
-
 // --- ASSET DRAG & DROP ARCHITECTURE (PRIORITY 3) ---
 
 function SetupAssetDragAndDrop()
@@ -3536,12 +3510,11 @@ function SetupAssetDragAndDrop()
 
     window.addEventListener
     (
-        "dragenter",
-        (Event) =>
+        "dragenter", (Event) =>
         {
             if (Event.dataTransfer && Event.dataTransfer.types.includes("Files"))
             {
-                DragCounter++;
+                DragCounter ++;
                 Overlay.classList.add("Active");
             }
         }
@@ -3549,10 +3522,9 @@ function SetupAssetDragAndDrop()
 
     window.addEventListener
     (
-        "dragleave",
-        (Event) =>
+        "dragleave", (Event) =>
         {
-            DragCounter--;
+            DragCounter --;
             if (DragCounter <= 0)
             {
                 DragCounter = 0;
@@ -3563,8 +3535,7 @@ function SetupAssetDragAndDrop()
 
     window.addEventListener
     (
-        "dragover",
-        (Event) =>
+        "dragover", (Event) =>
         {
             Event.preventDefault();
         }
@@ -3579,10 +3550,10 @@ function SetupAssetDragAndDrop()
             DragCounter = 0;
             Overlay.classList.remove("Active");
 
-            const Files = Event.dataTransfer ? Event.dataTransfer.files : null;
+            const Files = Event.dataTransfer ? Event.dataTransfer.files: null;
             if (!Files || Files.length === 0) { return; }
 
-            for (let I = 0; I < Files.length; I++)
+            for (let I = 0; I < Files.length; I ++)
             {
                 await HandleDroppedAssetFile(Files[I]);
             }
@@ -3597,7 +3568,7 @@ async function HandleDroppedAssetFile(File)
     if (!ValidExtensions.includes(Ext))
     {
         ShowToast(`Unsupported file type: ${File.name}`, "error");
-        return;
+        return ;
     }
 
     const Reader = new FileReader();
@@ -3631,12 +3602,10 @@ async function HandleDroppedAssetFile(File)
                 MonacoInstance.executeEdits
                 (
                     "asset-drop",
-                    [
-                        {
-                            range: new monaco.Range(Position.lineNumber, Position.column, Position.lineNumber, Position.column),
-                            text: Snippet
-                        }
-                    ]
+                    [{
+                        range: new monaco.Range(Position.lineNumber, Position.column, Position.lineNumber, Position.column),
+                        text: Snippet
+                    }]
                 );
 
                 ShowToast(`Uploaded ${CleanFileName} and inserted #image`, "success");
@@ -3654,7 +3623,6 @@ async function HandleDroppedAssetFile(File)
     };
     Reader.readAsDataURL(File);
 }
-
 // --- KEYBOARD SHORTCUTS & PRINT ARCHITECTURE (PRIORITY 4) ---
 
 function ToggleShortcutsModal(ForceOpen)
@@ -3663,16 +3631,19 @@ function ToggleShortcutsModal(ForceOpen)
     if (!Modal) { return; }
 
     const IsOpen = Modal.style.display !== "none";
-    const ShouldOpen = (typeof ForceOpen === "boolean") ? ForceOpen : !IsOpen;
-    Modal.style.display = ShouldOpen ? "flex" : "none";
+    const ShouldOpen = (typeof ForceOpen === "boolean") ? ForceOpen: ! IsOpen;
+    Modal.style.display = ShouldOpen ? "flex": "none";
 }
 
 function TriggerDocumentPrint()
 {
     ShowToast("Preparing document for print...", "info", 1500);
-    setTimeout(() => { window.print(); }, 200);
+    setTimeout
+    (
+        () => { window.print(); },
+        200
+    );
 }
-
 // --- UNIFIED EXPORT MENU ARCHITECTURE ---
 
 function ToggleExportMenu(ForceState)
@@ -3680,34 +3651,68 @@ function ToggleExportMenu(ForceState)
     const Menu = document.getElementById("ExportMenuDropdown");
     if (!Menu) { return; }
 
-    IsExportMenuOpen = (typeof ForceState === "boolean") ? ForceState : !IsExportMenuOpen;
-    Menu.style.display = IsExportMenuOpen ? "flex" : "none";
+    IsExportMenuOpen = (typeof ForceState === "boolean") ? ForceState: ! IsExportMenuOpen;
+    Menu.style.display = IsExportMenuOpen ? "flex": "none";
 }
 
 function SetupEventListeners()
 {
-        // Priority 2: Viewport Layout Controls
+    // Priority 2: Viewport Layout Controls
     const SplitBtn = document.getElementById("LayoutSplitBtn");
     const EditorBtn = document.getElementById("LayoutEditorBtn");
     const PreviewBtn = document.getElementById("LayoutPreviewBtn");
-    if (SplitBtn) { SplitBtn.addEventListener("click", () => { SetViewportLayout("split"); }); }
-    if (EditorBtn) { EditorBtn.addEventListener("click", () => { SetViewportLayout("editor"); }); }
-    if (PreviewBtn) { PreviewBtn.addEventListener("click", () => { SetViewportLayout("preview"); }); }
-
+    if (SplitBtn)
+    {
+        SplitBtn.addEventListener
+        (
+            "click", () => { SetViewportLayout("split"); }
+        );
+    }
+    if (EditorBtn)
+    {
+        EditorBtn.addEventListener
+        (
+            "click", () => { SetViewportLayout("editor"); }
+        );
+    }
+    if (PreviewBtn)
+    {
+        PreviewBtn.addEventListener
+        (
+            "click", () => { SetViewportLayout("preview"); }
+        );
+    }
     // Priority 2: Document Outline Controls
     const OutlineToggle = document.getElementById("StatusOutlineToggle");
     const OutlineClose = document.getElementById("CloseOutlineBtn");
     const OutlineSearch = document.getElementById("OutlineSearchInput");
     const OutlineList = document.getElementById("OutlineList");
-    if (OutlineToggle) { OutlineToggle.addEventListener("click", () => { ToggleDocumentOutline(); }); }
-    if (OutlineClose) { OutlineClose.addEventListener("click", () => { ToggleDocumentOutline(false); }); }
-    if (OutlineSearch) { OutlineSearch.addEventListener("input", () => { RenderOutlineItems(OutlineHeadingsList); }); }
+    if (OutlineToggle)
+    {
+        OutlineToggle.addEventListener
+        (
+            "click", () => { ToggleDocumentOutline(); }
+        );
+    }
+    if (OutlineClose)
+    {
+        OutlineClose.addEventListener
+        (
+            "click", () => { ToggleDocumentOutline(false); }
+        );
+    }
+    if (OutlineSearch)
+    {
+        OutlineSearch.addEventListener
+        (
+            "input", () => { RenderOutlineItems(OutlineHeadingsList); }
+        );
+    }
     if (OutlineList)
     {
         OutlineList.addEventListener
         (
-            "click",
-            (E) =>
+            "click", (E) =>
             {
                 const Item = E.target.closest(".OutlineItem");
                 if (Item)
@@ -3718,7 +3723,6 @@ function SetupEventListeners()
             }
         );
     }
-
     // Unified Export Menu Toggle & Actions
     const ExportToggle = document.getElementById("ExportMenuToggleBtn");
     const ExportPdfMenu = document.getElementById("ExportPdfMenuOption");
@@ -3727,8 +3731,7 @@ function SetupEventListeners()
     {
         ExportToggle.addEventListener
         (
-            "click",
-            (E) =>
+            "click", (E) =>
             {
                 E.stopPropagation();
                 ToggleExportMenu();
@@ -3739,8 +3742,7 @@ function SetupEventListeners()
     {
         ExportPdfMenu.addEventListener
         (
-            "click",
-            () =>
+            "click", () =>
             {
                 ToggleExportMenu(false);
                 ExportPdf();
@@ -3751,20 +3753,17 @@ function SetupEventListeners()
     {
         OpenSettingsExport.addEventListener
         (
-            "click",
-            () =>
+            "click", () =>
             {
                 ToggleExportMenu(false);
                 SwitchToDashboard();
             }
         );
     }
-
     // Close export menu when clicking anywhere outside
     document.addEventListener
     (
-        "click",
-        (E) =>
+        "click", (E) =>
         {
             if (IsExportMenuOpen && !E.target.closest("#ExportGroupWrapper"))
             {
@@ -3772,67 +3771,72 @@ function SetupEventListeners()
             }
         }
     );
-
     // Priority 4: Print Document
     const PrintBtn = document.getElementById("PrintDocButton");
     if (PrintBtn)
     {
         PrintBtn.addEventListener
         (
-            "click",
-            () =>
+            "click", () =>
             {
                 ToggleExportMenu(false);
                 TriggerDocumentPrint();
             }
         );
     }
-
     // Priority 4: Keyboard Shortcuts Modal
     const HelpBtn = document.getElementById("ShortcutsHelpBtn");
     const CloseModalBtn = document.getElementById("CloseShortcutsModalBtn");
     const ShortcutsModal = document.getElementById("ShortcutsModal");
-    if (HelpBtn) { HelpBtn.addEventListener("click", () => { ToggleShortcutsModal(true); }); }
-    if (CloseModalBtn) { CloseModalBtn.addEventListener("click", () => { ToggleShortcutsModal(false); }); }
+    if (HelpBtn)
+    {
+        HelpBtn.addEventListener
+        (
+            "click", () => { ToggleShortcutsModal(true); }
+        );
+    }
+    if (CloseModalBtn)
+    {
+        CloseModalBtn.addEventListener
+        (
+            "click", () => { ToggleShortcutsModal(false); }
+        );
+    }
     if (ShortcutsModal)
     {
         ShortcutsModal.addEventListener
         (
-            "click",
-            (E) =>
+            "click", (E) =>
             {
                 if (E.target.id === "ShortcutsModal") { ToggleShortcutsModal(false); }
             }
         );
     }
-
     // Export Options Sync & Persistence
     const ExportBlackCb = document.getElementById("ExportBlackModeCheckbox");
     const ExportTransCb = document.getElementById("ExportTransparentCheckbox");
     const ExportPaperSelect = document.getElementById("ExportPaperModeSelect");
     const ExportPaperBadge = document.getElementById("ExportPaperModeBadge");
     const DefaultBgSelect = document.getElementById("DefaultExportBgSelect");
-
     // Load initial states from localStorage
     const InitialBlack = localStorage.getItem("typst_black_mode_export") === "true";
     const InitialTrans = localStorage.getItem("typst_transparent_export") === "true";
     if (ExportBlackCb) { ExportBlackCb.checked = InitialBlack; }
     if (ExportTransCb) { ExportTransCb.checked = InitialTrans; }
-    if (ExportPaperSelect) { ExportPaperSelect.value = InitialBlack ? "black" : "light"; }
-    if (ExportPaperBadge) { ExportPaperBadge.textContent = InitialBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
-    if (DefaultBgSelect) { DefaultBgSelect.value = InitialTrans ? "transparent" : "normal"; }
+    if (ExportPaperSelect) { ExportPaperSelect.value = InitialBlack ? "black": "light"; }
+    if (ExportPaperBadge) { ExportPaperBadge.textContent = InitialBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
+    if (DefaultBgSelect) { DefaultBgSelect.value = InitialTrans ? "transparent": "normal"; }
 
     if (ExportBlackCb)
     {
         ExportBlackCb.addEventListener
         (
-            "change",
-            (E) =>
+            "change", (E) =>
             {
                 const IsBlack = E.target.checked;
-                localStorage.setItem("typst_black_mode_export", IsBlack ? "true" : "false");
-                if (ExportPaperSelect) { ExportPaperSelect.value = IsBlack ? "black" : "light"; }
-                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
+                localStorage.setItem("typst_black_mode_export", IsBlack ? "true": "false");
+                if (ExportPaperSelect) { ExportPaperSelect.value = IsBlack ? "black": "light"; }
+                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
                 ShowToast(`Export in Black mode: ${IsBlack ? "Enabled" : "Disabled"}`, "info");
             }
         );
@@ -3842,12 +3846,11 @@ function SetupEventListeners()
     {
         ExportTransCb.addEventListener
         (
-            "change",
-            (E) =>
+            "change", (E) =>
             {
                 const IsTrans = E.target.checked;
-                localStorage.setItem("typst_transparent_export", IsTrans ? "true" : "false");
-                if (DefaultBgSelect) { DefaultBgSelect.value = IsTrans ? "transparent" : "normal"; }
+                localStorage.setItem("typst_transparent_export", IsTrans ? "true": "false");
+                if (DefaultBgSelect) { DefaultBgSelect.value = IsTrans ? "transparent": "normal"; }
                 ShowToast(`Transparent background: ${IsTrans ? "Enabled" : "Disabled"}`, "info");
             }
         );
@@ -3857,13 +3860,12 @@ function SetupEventListeners()
     {
         ExportPaperSelect.addEventListener
         (
-            "change",
-            (E) =>
+            "change", (E) =>
             {
                 const IsBlack = E.target.value === "black";
-                localStorage.setItem("typst_black_mode_export", IsBlack ? "true" : "false");
+                localStorage.setItem("typst_black_mode_export", IsBlack ? "true": "false");
                 if (ExportBlackCb) { ExportBlackCb.checked = IsBlack; }
-                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)" : "Light Mode (Normal)"; }
+                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
                 ShowToast(`Export paper mode set to ${IsBlack ? "Black" : "Light"}`, "info");
             }
         );
@@ -3873,25 +3875,22 @@ function SetupEventListeners()
     {
         DefaultBgSelect.addEventListener
         (
-            "change",
-            (E) =>
+            "change", (E) =>
             {
                 const IsTrans = E.target.value === "transparent";
-                localStorage.setItem("typst_transparent_export", IsTrans ? "true" : "false");
+                localStorage.setItem("typst_transparent_export", IsTrans ? "true": "false");
                 if (ExportTransCb) { ExportTransCb.checked = IsTrans; }
                 ShowToast(`Default export background set to ${IsTrans ? "Transparent" : "Solid"}`, "info");
             }
         );
     }
-
     // Priority 1: Jump to Primary Error button
     const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
     if (JumpBtn)
     {
         JumpBtn.addEventListener
         (
-            "click",
-            () =>
+            "click", () =>
             {
                 if (PrimaryErrorLocation)
                 {
@@ -3900,15 +3899,13 @@ function SetupEventListeners()
             }
         );
     }
-
     // Interactive clickable error location links in ErrorDrawer
     const ErrorContent = document.getElementById("ErrorContent");
     if (ErrorContent)
     {
         ErrorContent.addEventListener
         (
-            "click",
-            (Event) =>
+            "click", (Event) =>
             {
                 const Link = Event.target.closest(".ErrorLocationLink");
                 if (Link)
@@ -3923,12 +3920,10 @@ function SetupEventListeners()
             }
         );
     }
-
     // Unsaved dirty state warning before closing/reloading window
     window.addEventListener
     (
-        "beforeunload",
-        (Event) =>
+        "beforeunload", (Event) =>
         {
             if (IsDocumentDirty)
             {
@@ -3938,22 +3933,45 @@ function SetupEventListeners()
         }
     );
 
-    document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });
-    document.getElementById("FormatLafsButton").addEventListener("click", () => { ApplyFormattingToEditor(); });
-    document.getElementById("ExportPdfButton").addEventListener("click", () => { ExportPdf(); });
-    document.getElementById("ExportSvgButton").addEventListener("click", () => { ExportSvg(); });
-    document.getElementById("ExportPngButton").addEventListener("click", () => { ExportPng(); });
-    document.getElementById("CopyCodeButton").addEventListener("click", () => { CopySource(); });
-    document.getElementById("BlackPageToggle").addEventListener("click", () => { ToggleBlackPageMode(); });
-    document.getElementById("CloseErrorButton").addEventListener("click", () =>
-    {
-        document.getElementById("ErrorDrawer").classList.remove("Visible");
-    });
+    document.getElementById("ManualCompileButton").addEventListener
+    (
+        "click", () => { TriggerCompileNow(); }
+    );
+    document.getElementById("FormatLafsButton").addEventListener
+    (
+        "click", () => { ApplyFormattingToEditor(); }
+    );
+    document.getElementById("ExportPdfButton").addEventListener
+    (
+        "click", () => { ExportPdf(); }
+    );
+    document.getElementById("ExportSvgButton").addEventListener
+    (
+        "click", () => { ExportSvg(); }
+    );
+    document.getElementById("ExportPngButton").addEventListener
+    (
+        "click", () => { ExportPng(); }
+    );
+    document.getElementById("CopyCodeButton").addEventListener
+    (
+        "click", () => { CopySource(); }
+    );
+    document.getElementById("BlackPageToggle").addEventListener
+    (
+        "click", () => { ToggleBlackPageMode(); }
+    );
+    document.getElementById("CloseErrorButton").addEventListener
+    (
+        "click", () =>
+        {
+            document.getElementById("ErrorDrawer").classList.remove("Visible");
+        }
+    );
 
     document.getElementById("TemplateSelector").addEventListener
     (
-        "change",
-        (E) =>
+        "change", (E) =>
         {
             const Selected = E.target.value;
             if (TEMPLATES[Selected] && MonacoInstance)
@@ -3964,25 +3982,39 @@ function SetupEventListeners()
         }
     );
 
-    document.getElementById("ZoomInButton").addEventListener("click", () => { SetZoom(CurrentZoomLevel + 0.1); });
-    document.getElementById("ZoomOutButton").addEventListener("click", () => { SetZoom(CurrentZoomLevel - 0.1); });
-    document.getElementById("ZoomDisplay").addEventListener("click", () => { SetZoom(1.0); });
-    document.getElementById("ZoomFitWidthButton").addEventListener("click", () => { FitWidth(); });
-    document.getElementById("ZoomFitPageButton").addEventListener("click", () => { FitPage(); });
+    document.getElementById("ZoomInButton").addEventListener
+    (
+        "click", () => { SetZoom(CurrentZoomLevel + 0.1); }
+    );
+    document.getElementById("ZoomOutButton").addEventListener
+    (
+        "click", () => { SetZoom(CurrentZoomLevel - 0.1); }
+    );
+    document.getElementById("ZoomDisplay").addEventListener
+    (
+        "click", () => { SetZoom(1.0); }
+    );
+    document.getElementById("ZoomFitWidthButton").addEventListener
+    (
+        "click", () => { FitWidth(); }
+    );
+    document.getElementById("ZoomFitPageButton").addEventListener
+    (
+        "click", () => { FitPage(); }
+    );
 
     document.getElementById("PrevPageButton").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             if (CurrentActivePage > 1)
             {
-                CurrentActivePage--;
+                CurrentActivePage --;
                 UpdatePagination();
                 const Target = document.getElementById(`PageSheet_${CurrentActivePage}`);
                 if (Target)
                 {
-                    Target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    Target.scrollIntoView( { behavior: "smooth", block: "start" });
                 }
             }
         }
@@ -3990,29 +4022,26 @@ function SetupEventListeners()
 
     document.getElementById("NextPageButton").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             if (CurrentActivePage < CurrentPageCount)
             {
-                CurrentActivePage++;
+                CurrentActivePage ++;
                 UpdatePagination();
                 const Target = document.getElementById(`PageSheet_${CurrentActivePage}`);
                 if (Target)
                 {
-                    Target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    Target.scrollIntoView( { behavior: "smooth", block: "start" });
                 }
             }
         }
     );
 
     SetupSplitResizer();
-
     // Document Title Dropdown
     document.getElementById("DocDropdownToggle").addEventListener
     (
-        "click",
-        (E) =>
+        "click", (E) =>
         {
             E.stopPropagation();
             ToggleDocDropdown();
@@ -4021,8 +4050,7 @@ function SetupEventListeners()
 
     document.getElementById("DocDropdownSearch").addEventListener
     (
-        "input",
-        (E) =>
+        "input", (E) =>
         {
             RenderDocDropdownList(E.target.value);
         }
@@ -4030,8 +4058,7 @@ function SetupEventListeners()
 
     document.getElementById("QuickNewDocBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             CloseDocDropdown();
             CreateNewWorkspaceFile();
@@ -4040,8 +4067,7 @@ function SetupEventListeners()
 
     document.getElementById("OpenDashboardFromDropdownBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             CloseDocDropdown();
             SwitchView("dashboard");
@@ -4050,8 +4076,7 @@ function SetupEventListeners()
 
     document.addEventListener
     (
-        "click",
-        (E) =>
+        "click", (E) =>
         {
             const Group = document.getElementById("DocDropdownGroup");
             if (Group && !Group.contains(E.target))
@@ -4060,22 +4085,18 @@ function SetupEventListeners()
             }
         }
     );
-
     // Save File Button
     document.getElementById("SaveFileButton").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             SaveCurrentFile();
         }
     );
-
     // View Navigation Tabs
     document.getElementById("NavEditorBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             SwitchView("editor");
         }
@@ -4083,8 +4104,7 @@ function SetupEventListeners()
 
     document.getElementById("NavDashboardBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             SwitchView("dashboard");
         }
@@ -4092,18 +4112,15 @@ function SetupEventListeners()
 
     document.getElementById("StatResumeBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             SwitchView("editor");
         }
     );
-
     // Dashboard Actions
     document.getElementById("DashboardRefreshBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             LoadWorkspaceInfo();
             MarkDocumentClean(Content);
@@ -4113,8 +4130,7 @@ function SetupEventListeners()
 
     document.getElementById("DashboardNewFileBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             CreateNewWorkspaceFile();
         }
@@ -4122,8 +4138,7 @@ function SetupEventListeners()
 
     document.getElementById("PickFolderBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             PickFolderFromDisk();
         }
@@ -4131,8 +4146,7 @@ function SetupEventListeners()
 
     document.getElementById("AddDirectorySubmitBtn").addEventListener
     (
-        "click",
-        () =>
+        "click", () =>
         {
             AddWorkspaceDirectory();
         }
@@ -4140,8 +4154,7 @@ function SetupEventListeners()
 
     document.getElementById("NewDirectoryInput").addEventListener
     (
-        "keydown",
-        (E) =>
+        "keydown", (E) =>
         {
             if (E.key === "Enter")
             {
@@ -4152,20 +4165,17 @@ function SetupEventListeners()
 
     document.getElementById("DashboardFileSearch").addEventListener
     (
-        "input",
-        (E) =>
+        "input", (E) =>
         {
             RenderDashboard(E.target.value);
         }
     );
-
     // Window level Ctrl+S
     window.addEventListener
     (
-        "keydown",
-        (E) =>
+        "keydown", (E) =>
         {
-                        // Priority 2 & 4 Global Shortcuts
+            // Priority 2 & 4 Global Shortcuts
             if (E.altKey && E.key === "1")
             {
                 E.preventDefault();
@@ -4186,12 +4196,12 @@ function SetupEventListeners()
                 E.preventDefault();
                 ToggleDocumentOutline();
             }
-            else if ((E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "P" || E.key === "p"))
+            else if ( (E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "P" || E.key === "p"))
             {
                 E.preventDefault();
                 TriggerDocumentPrint();
             }
-            else if ((E.ctrlKey || E.metaKey) && E.key === "/")
+            else if ( (E.ctrlKey || E.metaKey) && E.key === "/")
             {
                 E.preventDefault();
                 ToggleShortcutsModal();
@@ -4208,7 +4218,7 @@ function SetupEventListeners()
                 const Drawer = document.getElementById("ErrorDrawer");
                 if (Drawer) { Drawer.classList.remove("Visible"); }
             }
-            if ((E.ctrlKey || E.metaKey) && E.key === "s")
+            if ( (E.ctrlKey || E.metaKey) && E.key === "s")
             {
                 E.preventDefault();
                 SaveCurrentFile();
@@ -4217,7 +4227,6 @@ function SetupEventListeners()
         }
     );
 }
-
 // --- WORKSPACE & DASHBOARD ARCHITECTURE ---
 
 let WorkspaceDirectories = [];
@@ -4230,14 +4239,14 @@ function SelectDashboardDirectory(Dir)
 {
     ActiveSelectedDirectory = Dir;
     const SearchInput = document.getElementById("DashboardFileSearch");
-    RenderDashboard(SearchInput ? SearchInput.value : "");
+    RenderDashboard(SearchInput ? SearchInput.value: "");
 }
 
 async function PickFolderFromDisk()
 {
     const PickBtn = document.getElementById("PickFolderBtn");
     const DirInput = document.getElementById("NewDirectoryInput");
-    const OriginalHtml = PickBtn ? PickBtn.innerHTML : "";
+    const OriginalHtml = PickBtn ? PickBtn.innerHTML: "";
 
     if (PickBtn)
     {
@@ -4343,7 +4352,7 @@ async function LoadWorkspaceInfo()
 
 function ToggleDocDropdown()
 {
-    IsDropdownOpen = !IsDropdownOpen;
+    IsDropdownOpen = ! IsDropdownOpen;
     const DropdownMenu = document.getElementById("DocDropdownMenu");
     if (IsDropdownOpen)
     {
@@ -4372,7 +4381,7 @@ function RenderDocDropdownList(FilterQuery = "")
     const CountBadge = document.getElementById("DocDropdownCount");
     if (!ListContainer)
     {
-        return;
+        return ;
     }
 
     const Query = FilterQuery.toLowerCase().trim();
@@ -4392,14 +4401,14 @@ function RenderDocDropdownList(FilterQuery = "")
     if (FilteredFiles.length === 0)
     {
         ListContainer.innerHTML = `<div Class = "DocDropdownEmpty">No matching .typ files</div>`;
-        return;
+        return ;
     }
 
     let Html = "";
     for (const File of FilteredFiles)
     {
         const IsActive = CurrentFilePath && (File.Path.toLowerCase() === CurrentFilePath.toLowerCase());
-        const ActiveClass = IsActive ? "Active" : "";
+        const ActiveClass = IsActive ? "Active": "";
         const EscapedPath = File.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
         Html += `
@@ -4462,7 +4471,7 @@ async function SaveCurrentFile()
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
 
     const Content = MonacoInstance.getValue();
@@ -4471,11 +4480,11 @@ async function SaveCurrentFile()
     if (!TargetPath)
     {
         const DocName = document.getElementById("DocumentTitleInput").value.trim() || "Document.typ";
-        const CleanDocName = DocName.endsWith(".typ") ? DocName : `${DocName}.typ`;
+        const CleanDocName = DocName.endsWith(".typ") ? DocName: `${DocName}.typ`;
         const DefaultDir = WorkspaceDirectories[0] || "";
         if (DefaultDir)
         {
-            const Separator = DefaultDir.includes("/") ? "/" : "\\";
+            const Separator = DefaultDir.includes("/") ? "/": "\\";
             TargetPath = `${DefaultDir}${Separator}${CleanDocName}`;
         }
         else
@@ -4496,7 +4505,7 @@ async function SaveCurrentFile()
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Path: TargetPath, Content: Content })
+                body: JSON.stringify( { Path: TargetPath, Content: Content })
             }
         );
         const Data = await Response.json();
@@ -4536,10 +4545,10 @@ async function CreateNewWorkspaceFile()
     const FileName = prompt("Enter new Typst file name:", "NewDocument.typ");
     if (!FileName || !FileName.trim())
     {
-        return;
+        return ;
     }
 
-    const CleanName = FileName.trim().endsWith(".typ") ? FileName.trim() : `${FileName.trim()}.typ`;
+    const CleanName = FileName.trim().endsWith(".typ") ? FileName.trim(): `${FileName.trim()}.typ`;
     const InitialContent = `#set page(paper: "a4", margin: 2.5cm)\n#set text(font: "Segoe UI", size: 11pt)\n\n= ${CleanName.replace(".typ", "")}\n\n`;
 
     try
@@ -4550,7 +4559,7 @@ async function CreateNewWorkspaceFile()
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Directory: DefaultDir, FileName: CleanName, Content: InitialContent })
+                body: JSON.stringify( { Directory: DefaultDir, FileName: CleanName, Content: InitialContent })
             }
         );
         const Data = await Response.json();
@@ -4576,7 +4585,7 @@ async function AddWorkspaceDirectory()
     const DirPath = Input.value.trim();
     if (!DirPath)
     {
-        return;
+        return ;
     }
 
     try
@@ -4587,7 +4596,7 @@ async function AddWorkspaceDirectory()
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Path: DirPath })
+                body: JSON.stringify( { Path: DirPath })
             }
         );
         const Data = await Response.json();
@@ -4611,7 +4620,7 @@ async function RemoveWorkspaceDirectory(DirPath)
 {
     if (!confirm(`Remove directory from tracked workspace?\n\n${DirPath}`))
     {
-        return;
+        return ;
     }
 
     try
@@ -4622,7 +4631,7 @@ async function RemoveWorkspaceDirectory(DirPath)
             {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Path: DirPath })
+                body: JSON.stringify( { Path: DirPath })
             }
         );
         const Data = await Response.json();
@@ -4645,7 +4654,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
 {
     if (!confirm(`Are you sure you want to permanently delete:\n\n${FileName}\n(${FilePath})`))
     {
-        return;
+        return ;
     }
 
     try
@@ -4695,7 +4704,11 @@ function SwitchView(ViewName)
         NavDashboard.classList.remove("Active");
         if (MonacoInstance)
         {
-            setTimeout(() => { MonacoInstance.layout(); }, 50);
+            setTimeout
+            (
+                () => { MonacoInstance.layout(); },
+                50
+            );
         }
     }
     else if (ViewName === "dashboard")
@@ -4725,17 +4738,15 @@ function RenderDashboard(FilterQuery = "")
     }
     if (ActiveDocElem)
     {
-        ActiveDocElem.textContent = CurrentFilePath ? CurrentFilePath.split(/[\\/]/).pop() : "None";
+        ActiveDocElem.textContent = CurrentFilePath ? CurrentFilePath.split(/[\\/]/).pop(): "None";
     }
-
     // Render Tracked Directories
     const DirListContainer = document.getElementById("TrackedDirectoryList");
     if (DirListContainer)
     {
         let DirHtml = "";
-
         // All Folders Option
-        const IsAllActive = !ActiveSelectedDirectory;
+        const IsAllActive = ! ActiveSelectedDirectory;
         DirHtml += `
             <div Class = "DirectoryItem ${IsAllActive ? "IsActiveDirectory" : ""}" onclick = "SelectDashboardDirectory(null)" Title = "View files from all tracked folders">
                 <div Class = "DirectoryItemInfo">
@@ -4759,12 +4770,13 @@ function RenderDashboard(FilterQuery = "")
                     const NormalizedDir = Dir.toLowerCase();
                     return F.Directory.toLowerCase().startsWith(NormalizedDir) || F.Path.toLowerCase().startsWith(NormalizedDir);
                 }
-            ).length;
+            )
+            .length;
 
             const EscapedDir = Dir.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             const CanDelete = WorkspaceDirectories.length > 1;
             const IsSelected = ActiveSelectedDirectory && (ActiveSelectedDirectory.toLowerCase() === Dir.toLowerCase());
-            const ActiveClass = IsSelected ? "IsActiveDirectory" : "";
+            const ActiveClass = IsSelected ? "IsActiveDirectory": "";
 
             DirHtml += `
                 <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory('${EscapedDir}')" Title = "Filter files in this directory">
@@ -4785,7 +4797,6 @@ function RenderDashboard(FilterQuery = "")
         }
         DirListContainer.innerHTML = DirHtml;
     }
-
     // Render Files Grid
     const FilesGridContainer = document.getElementById("DashboardFilesGrid");
     if (FilesGridContainer)
@@ -4842,14 +4853,14 @@ function RenderDashboard(FilterQuery = "")
         if (FilteredFiles.length === 0)
         {
             FilesGridContainer.innerHTML = BannerHtml + `<div Class = "EmptyNotice">No Typst (.typ) files found in this folder</div>`;
-            return;
+            return ;
         }
 
         let FilesHtml = BannerHtml;
         for (const File of FilteredFiles)
         {
             const IsActive = CurrentFilePath && (File.Path.toLowerCase() === CurrentFilePath.toLowerCase());
-            const ActiveClass = IsActive ? "IsActiveCard" : "";
+            const ActiveClass = IsActive ? "IsActiveCard": "";
             const EscapedPath = File.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             const EscapedName = File.Name.replace(/'/g, "\\'");
 
@@ -4890,7 +4901,6 @@ function RenderDashboard(FilterQuery = "")
         FilesGridContainer.innerHTML = FilesHtml;
     }
 }
-
 // =============================================================================
 // SyncTeX Bidirectional Synchronization Engine
 // =============================================================================
@@ -4903,11 +4913,10 @@ function InitializeSyncTex()
         SyncTexCheckbox.checked = IsSyncTexEnabled;
         SyncTexCheckbox.addEventListener
         (
-            "change",
-            () =>
+            "change", () =>
             {
                 IsSyncTexEnabled = SyncTexCheckbox.checked;
-                localStorage.setItem("typst_synctex_enabled", IsSyncTexEnabled ? "true" : "false");
+                localStorage.setItem("typst_synctex_enabled", IsSyncTexEnabled ? "true": "false");
                 if (!IsSyncTexEnabled)
                 {
                     ClearSyncHighlights();
@@ -4932,16 +4941,14 @@ function InitializeSyncTex()
 
     window.addEventListener
     (
-        "keydown",
-        (Event) =>
+        "keydown", (Event) =>
         {
             if (!IsSyncTexEnabled)
             {
-                return;
+                return ;
             }
-            const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || 
-                          (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
-            const IsInspectKey = IsMac ? Event.metaKey : Event.ctrlKey;
+            const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
+            const IsInspectKey = IsMac ? Event.metaKey: Event.ctrlKey;
             if (IsInspectKey)
             {
                 const Viewport = document.getElementById("PreviewViewport");
@@ -4955,8 +4962,7 @@ function InitializeSyncTex()
 
     window.addEventListener
     (
-        "keyup",
-        () =>
+        "keyup", () =>
         {
             const Viewport = document.getElementById("PreviewViewport");
             if (Viewport && Viewport.classList.contains("SyncInspectMode"))
@@ -4968,8 +4974,7 @@ function InitializeSyncTex()
 
     window.addEventListener
     (
-        "blur",
-        () =>
+        "blur", () =>
         {
             const Viewport = document.getElementById("PreviewViewport");
             if (Viewport)
@@ -4982,7 +4987,10 @@ function InitializeSyncTex()
 
 function ClearSyncHighlights()
 {
-    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
+    document.querySelectorAll(".SyncHighlightLayer").forEach
+    (
+        (Layer) => { Layer.remove(); }
+    );
     if (SyncLineDecorations)
     {
         SyncLineDecorations.clear();
@@ -4996,22 +5004,21 @@ function HandlePreviewClick(Event)
 {
     if (!IsSyncTexEnabled)
     {
-        return;
+        return ;
     }
 
-    const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || 
-                  (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
-    const IsInspectKey = IsMac ? (Event.metaKey && !Event.ctrlKey) : (Event.ctrlKey && !Event.metaKey);
+    const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
+    const IsInspectKey = IsMac ? (Event.metaKey && !Event.ctrlKey): (Event.ctrlKey && !Event.metaKey);
 
     if (!IsInspectKey)
     {
-        return;
+        return ;
     }
 
     const PageSheet = Event.target.closest(".PageSheet");
     if (!PageSheet)
     {
-        return;
+        return ;
     }
 
     const Svgs = PageSheet.querySelectorAll("svg");
@@ -5031,31 +5038,31 @@ function HandlePreviewClick(Event)
     }
     if (!ActiveSvg)
     {
-        return;
+        return ;
     }
 
     const SvgRect = ActiveSvg.getBoundingClientRect();
     if (SvgRect.width <= 0 || SvgRect.height <= 0)
     {
-        return;
+        return ;
     }
 
     Event.preventDefault();
     Event.stopPropagation();
 
     const PageIdMatch = PageSheet.id.match(/\d+/);
-    const PageNum = PageIdMatch ? parseInt(PageIdMatch[0], 10) : 1;
+    const PageNum = PageIdMatch ? parseInt(PageIdMatch[0], 10): 1;
 
-    const Vb = ActiveSvg.viewBox && ActiveSvg.viewBox.baseVal && ActiveSvg.viewBox.baseVal.width > 0 
-        ? ActiveSvg.viewBox.baseVal 
-        : { x: 0, y: 0, width: parseFloat(PageSheet.dataset.baseWidth) || 576, height: parseFloat(PageSheet.dataset.baseHeight) || 864 };
+    const Vb = ActiveSvg.viewBox && ActiveSvg.viewBox.baseVal && ActiveSvg.viewBox.baseVal.width > 0
+    ? ActiveSvg.viewBox.baseVal
+    : { x: 0, y: 0, width: parseFloat(PageSheet.dataset.baseWidth) || 576, height: parseFloat(PageSheet.dataset.baseHeight) || 864 };
 
     const ClickPtX = Vb.x + (Event.clientX - SvgRect.left) * (Vb.width / SvgRect.width);
     const ClickPtY = Vb.y + (Event.clientY - SvgRect.top) * (Vb.height / SvgRect.height);
 
     if (isNaN(ClickPtX) || isNaN(ClickPtY) || !isFinite(ClickPtX) || !isFinite(ClickPtY))
     {
-        return;
+        return ;
     }
 
     let BestElem = null;
@@ -5092,7 +5099,10 @@ function HandlePreviewClick(Event)
 
     if (BestElem)
     {
-        let Related = ActiveSyncMap.filter((Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line));
+        let Related = ActiveSyncMap.filter
+        (
+            (Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line)
+        );
         if (BestElem.line === BestElem.end_line)
         {
             const SameLineElems = ActiveSyncMap.filter
@@ -5112,7 +5122,7 @@ function HandlePreviewClick(Event)
                 {
                     const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
                     const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
-                    return Inside && !IsNumbering;
+                    return Inside && ! IsNumbering;
                 }
             );
             if (BlockElems.length > 0)
@@ -5124,9 +5134,9 @@ function HandlePreviewClick(Event)
         const GroupedBoxes = GroupElementsIntoVisualBoxes(Related);
         HighlightSvgRects(GroupedBoxes, false);
         SuppressForwardSync = true;
-        setTimeout(() => { SuppressForwardSync = false; }, 300);
+        setTimeout( () => { SuppressForwardSync = false; }, 300);
         JumpMonacoToLocation(BestElem.line, BestElem.col);
-        return;
+        return ;
     }
 
     AuthenticatedFetch
@@ -5135,10 +5145,10 @@ function HandlePreviewClick(Event)
         {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ Page: PageNum, X: ClickPtX, Y: ClickPtY })
+            body: JSON.stringify( { Page: PageNum, X: ClickPtX, Y: ClickPtY })
         }
     )
-    .then((Res) => Res.json())
+    .then( (Res) => Res.json())
     .then
     (
         (Result) =>
@@ -5146,23 +5156,23 @@ function HandlePreviewClick(Event)
             if (Result.Success)
             {
                 SuppressForwardSync = true;
-                setTimeout(() => { SuppressForwardSync = false; }, 300);
+                setTimeout( () => { SuppressForwardSync = false; }, 300);
                 JumpMonacoToLocation(Result.Line, Result.Column);
             }
         }
     )
-    .catch(() => {});
+    .catch ( () => {});
 }
 
 function JumpMonacoToLocation(Line, Column)
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
 
-    MonacoInstance.revealPositionInCenter({ lineNumber: Line, column: Column });
-    MonacoInstance.setPosition({ lineNumber: Line, column: Column });
+    MonacoInstance.revealPositionInCenter( { lineNumber: Line, column: Column });
+    MonacoInstance.setPosition( { lineNumber: Line, column: Column });
     MonacoInstance.focus();
     FlashMonacoLine(Line);
 }
@@ -5171,7 +5181,7 @@ function FlashMonacoLine(LineNumber)
 {
     if (!MonacoInstance)
     {
-        return;
+        return ;
     }
 
     if (!SyncLineDecorations)
@@ -5180,17 +5190,15 @@ function FlashMonacoLine(LineNumber)
     }
 
     SyncLineDecorations.set
-    ([
+    ([{
+        range: new monaco.Range(LineNumber, 1, LineNumber, 1),
+        options:
         {
-            range: new monaco.Range(LineNumber, 1, LineNumber, 1),
-            options:
-            {
-                isWholeLine: true,
-                className: "SyncMonacoLineHighlight",
-                marginClassName: "SyncMonacoLineHighlight"
-            }
+            isWholeLine: true,
+            className: "SyncMonacoLineHighlight",
+            marginClassName: "SyncMonacoLineHighlight"
         }
-    ]);
+    }]);
 
     setTimeout
     (
@@ -5218,14 +5226,14 @@ function MergeOverlappingBoxes(Boxes)
         const PageNum = Box.page || 1;
         if (!PageGroups.has(PageNum))
         {
-            PageGroups.set(PageNum, []);
+            PageGroups.set(PageNum,[]);
         }
-        PageGroups.get(PageNum).push({ ...Box });
+        PageGroups.get(PageNum).push( { ...Box });
     }
 
     const Result = [];
 
-    for (const [PageNum, PageBoxes] of PageGroups.entries())
+    for (const[PageNum, PageBoxes] of PageGroups.entries())
     {
         let Changed = true;
         let Current = [...PageBoxes];
@@ -5236,7 +5244,7 @@ function MergeOverlappingBoxes(Boxes)
             const Next = [];
             const MergedIndices = new Set();
 
-            for (let I = 0; I < Current.length; I++)
+            for (let I = 0; I < Current.length; I ++)
             {
                 if (MergedIndices.has(I))
                 {
@@ -5244,7 +5252,7 @@ function MergeOverlappingBoxes(Boxes)
                 }
                 let BoxA = Current[I];
 
-                for (let J = I + 1; J < Current.length; J++)
+                for (let J = I + 1; J < Current.length; J ++)
                 {
                     if (MergedIndices.has(J))
                     {
@@ -5256,14 +5264,14 @@ function MergeOverlappingBoxes(Boxes)
                     const CenterY_B = BoxB.y + (BoxB.height / 2);
                     const DistY = Math.abs(CenterY_A - CenterY_B);
 
-                    const OverlapX = (Math.min(BoxA.x + BoxA.width, BoxB.x + BoxB.width) - Math.max(BoxA.x, BoxB.x)) >= -1.0;
+                    const OverlapX = (Math.min(BoxA.x + BoxA.width, BoxB.x + BoxB.width) - Math.max(BoxA.x, BoxB.x)) >= - 1.0;
                     const OverlapY = (Math.min(BoxA.y + BoxA.height, BoxB.y + BoxB.height) - Math.max(BoxA.y, BoxB.y));
 
                     const MinHeight = Math.min(BoxA.height, BoxB.height);
                     const SameLine = DistY < 7.5 || (OverlapY > MinHeight * 0.45);
 
-                    const AInsideB = (BoxA.x >= BoxB.x - 2.0) && ((BoxA.x + BoxA.width) <= (BoxB.x + BoxB.width + 2.0));
-                    const BInsideA = (BoxB.x >= BoxA.x - 2.0) && ((BoxB.x + BoxB.width) <= (BoxA.x + BoxA.width + 2.0));
+                    const AInsideB = (BoxA.x >= BoxB.x - 2.0) && ( (BoxA.x + BoxA.width) <= (BoxB.x + BoxB.width + 2.0));
+                    const BInsideA = (BoxB.x >= BoxA.x - 2.0) && ( (BoxB.x + BoxB.width) <= (BoxA.x + BoxA.width + 2.0));
                     const Nested = (AInsideB || BInsideA) && DistY < 10.0;
 
                     if (OverlapX && (SameLine || Nested))
@@ -5312,40 +5320,58 @@ function GroupElementsIntoVisualBoxes(Elements)
         const PageNum = Elem.page || 1;
         if (!PageGroups.has(PageNum))
         {
-            PageGroups.set(PageNum, []);
+            PageGroups.set(PageNum,[]);
         }
-        PageGroups.get(PageNum).push({ ...Elem });
+        PageGroups.get(PageNum).push( { ...Elem });
     }
 
     const FinalBoxes = [];
 
-    for (const [PageNum, PageElements] of PageGroups.entries())
+    for (const[PageNum, PageElements] of PageGroups.entries())
     {
         const LineClusters = [];
-        PageElements.sort((A, B) => ((A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x));
+        PageElements.sort
+        (
+            (A, B) => ( (A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x)
+        );
 
         for (const Box of PageElements)
         {
             const CenterY = Box.y + (Box.height / 2);
-            let Cluster = LineClusters.find((C) => Math.abs(C.CenterY - CenterY) < 10.0);
+            let Cluster = LineClusters.find( (C) => Math.abs(C.CenterY - CenterY) < 10.0);
             if (!Cluster)
             {
-                LineClusters.push({ CenterY: CenterY, Boxes: [Box] });
+                LineClusters.push
+                ({
+                    CenterY: CenterY, Boxes:[Box]
+                });
             }
             else
             {
                 Cluster.Boxes.push(Box);
-                Cluster.CenterY = Cluster.Boxes.reduce((Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
+                Cluster.CenterY = Cluster.Boxes.reduce( (Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
             }
         }
 
         for (const Cluster of LineClusters)
         {
             const CBoxes = Cluster.Boxes;
-            const MinX = Math.min(...CBoxes.map((B) => B.x));
-            const MaxX = Math.max(...CBoxes.map((B) => B.x + B.width));
-            const MinY = Math.min(...CBoxes.map((B) => B.y));
-            const MaxY = Math.max(...CBoxes.map((B) => B.y + B.height));
+            const MinX = Math.min
+            (
+                ...CBoxes.map( (B) => B.x)
+            );
+            const MaxX = Math.max
+            (
+                ...CBoxes.map( (B) => B.x + B.width)
+            );
+            const MinY = Math.min
+            (
+                ...CBoxes.map( (B) => B.y)
+            );
+            const MaxY = Math.max
+            (
+                ...CBoxes.map( (B) => B.y + B.height)
+            );
 
             FinalBoxes.push
             ({
@@ -5366,13 +5392,16 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
     if (!IsSyncTexEnabled || !Boxes || Boxes.length === 0)
     {
         ClearSyncHighlights();
-        return;
+        return ;
     }
 
     ActiveHighlightBoxes = Boxes;
     ActiveHighlightBox = Boxes[0] || null;
 
-    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
+    document.querySelectorAll(".SyncHighlightLayer").forEach
+    (
+        (Layer) => { Layer.remove(); }
+    );
 
     const PageBoxesMap = new Map();
     for (const Box of Boxes)
@@ -5380,7 +5409,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
         const PageNum = Box.page || 1;
         if (!PageBoxesMap.has(PageNum))
         {
-            PageBoxesMap.set(PageNum, []);
+            PageBoxesMap.set(PageNum,[]);
         }
         PageBoxesMap.get(PageNum).push(Box);
     }
@@ -5401,7 +5430,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
     let PrimaryPageSheet = document.getElementById(`PageSheet_${ScrollTargetPage}`) || document.querySelectorAll(".PageSheet")[ScrollTargetPage - 1];
     let PrimaryTopY = Infinity;
 
-    for (const [PageNum, PageBoxes] of PageBoxesMap.entries())
+    for (const[PageNum, PageBoxes] of PageBoxesMap.entries())
     {
         const TargetPageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
         if (!TargetPageSheet)
@@ -5462,24 +5491,30 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             const TargetScreenY = PageRect.top + (PrimaryTopY * ScaleY);
 
             const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
-            Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
+            Viewport.scrollTo
+            ({
+                top: Math.max(0, ScrollOffset), behavior: "smooth"
+            });
         }
     }
 }
 
 function HighlightSvgRect(PageNum, X, Y, Width, Height, AutoScroll = true)
 {
-    HighlightSvgRects([{ page: PageNum, x: X, y: Y, width: Width, height: Height }], AutoScroll);
+    HighlightSvgRects
+    (
+        [ { page: PageNum, x: X, y: Y, width: Width, height: Height }], AutoScroll
+    );
 }
 
 function HighlightSvgSpan(SpanId, AutoScroll = true)
 {
     if (!IsSyncTexEnabled || !SpanId)
     {
-        return;
+        return ;
     }
 
-    const Elem = ActiveSyncMap.find((E) => E.span === SpanId) || (ActiveSpanMap && ActiveSpanMap[SpanId]);
+    const Elem = ActiveSyncMap.find( (E) => E.span === SpanId) || (ActiveSpanMap && ActiveSpanMap[SpanId]);
     if (Elem && typeof Elem.x === "number")
     {
         HighlightSvgRect(Elem.page || 1, Elem.x, Elem.y, Elem.width, Elem.height, AutoScroll);
@@ -5491,9 +5526,8 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
     {
         ClearSyncHighlights();
-        return;
+        return ;
     }
-
     // 1. Text Selection in Monaco
     if (MonacoInstance)
     {
@@ -5501,8 +5535,8 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         if (Selection && !Selection.isEmpty())
         {
             const Model = MonacoInstance.getModel();
-            const SelStart = Model ? Model.getOffsetAt({ lineNumber: Selection.startLineNumber, column: Selection.startColumn }) : 0;
-            const SelEnd = Model ? Model.getOffsetAt({ lineNumber: Selection.endLineNumber, column: Selection.endColumn }) : 0;
+            const SelStart = Model ? Model.getOffsetAt( { lineNumber: Selection.startLineNumber, column: Selection.startColumn }): 0;
+            const SelEnd = Model ? Model.getOffsetAt( { lineNumber: Selection.endLineNumber, column: Selection.endColumn }): 0;
 
             const Intersecting = ActiveSyncMap.filter
             (
@@ -5510,11 +5544,17 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
                 {
                     // Strict character range intersection so trailing whitespace never matches the next element
                     const StartsBeforeEnd = typeof Elem.start === "number" && typeof SelEnd === "number"
-                        ? Elem.start < SelEnd
-                        : (Elem.line < Selection.endLineNumber || (Elem.line === Selection.endLineNumber && Elem.col < Selection.endColumn));
+                    ? Elem.start < SelEnd
+                    : (Elem.line < Selection.endLineNumber || (Elem.line === Selection.endLineNumber && Elem.col < Selection.endColumn));
                     const EndsAfterStart = typeof Elem.end === "number" && typeof SelStart === "number"
-                        ? Elem.end > SelStart
-                        : (Elem.end_line > Selection.startLineNumber || (Elem.end_line === Selection.startLineNumber && Elem.end_col > Selection.startColumn));
+                    ? Elem.end > SelStart
+                    :
+                    (
+                        Elem.end_line > Selection.startLineNumber ||
+                        (
+                            Elem.end_line === Selection.startLineNumber && Elem.end_col > Selection.startColumn
+                        )
+                    );
 
                     if (!StartsBeforeEnd || !EndsAfterStart)
                     {
@@ -5522,7 +5562,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
                     }
                     const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
                     const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                    return !IsNumbering;
+                    return ! IsNumbering;
                 }
             );
 
@@ -5530,16 +5570,15 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             {
                 const GroupedBoxes = GroupElementsIntoVisualBoxes(Intersecting);
                 HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
-                return;
+                return ;
             }
         }
     }
-
     // 2. Cursor Position
     // Check if there are content elements on the exact current line first (excluding equation numbers)
     const SameLineCandidates = ActiveSyncMap.filter
     (
-        (Elem) => (Elem.line === Line && Elem.end_line === Line) && !(Elem.width < 50 && Elem.x > 450)
+        (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
     );
 
     let BestElem = null;
@@ -5576,7 +5615,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             {
                 const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
                 const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                return !IsNumbering;
+                return ! IsNumbering;
             }
         );
 
@@ -5597,12 +5636,12 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         else
         {
             // If inside a block without a direct line token, find closest content element inside block or nearby
-            const BlockMatch = Matches.find((Elem) => Elem.end_line - Elem.line >= 2);
-            const NonNumbering = ActiveSyncMap.filter((Elem) => !(Elem.width < 50 && Elem.x > 450));
+            const BlockMatch = Matches.find( (Elem) => Elem.end_line - Elem.line >= 2);
+            const NonNumbering = ActiveSyncMap.filter( (Elem) => ! (Elem.width < 50 && Elem.x > 450));
             let CandidatePool = NonNumbering;
             if (BlockMatch)
             {
-                const InsideBlock = NonNumbering.filter((Elem) => Elem.line >= BlockMatch.line && Elem.end_line <= BlockMatch.end_line);
+                const InsideBlock = NonNumbering.filter( (Elem) => Elem.line >= BlockMatch.line && Elem.end_line <= BlockMatch.end_line);
                 if (InsideBlock.length > 0)
                 {
                     CandidatePool = InsideBlock;
@@ -5628,11 +5667,13 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     if (!BestElem)
     {
         ClearSyncHighlights();
-        return;
+        return ;
     }
-
     // Include all occurrences of this span or line across both TOC and document body
-    let Related = ActiveSyncMap.filter((Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line));
+    let Related = ActiveSyncMap.filter
+    (
+        (Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line)
+    );
 
     if (BestElem.line === BestElem.end_line)
     {
@@ -5653,7 +5694,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             {
                 const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
                 const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
-                return Inside && !IsNumbering;
+                return Inside && ! IsNumbering;
             }
         );
         if (BlockElems.length > 0)
@@ -5665,7 +5706,6 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     const GroupedBoxes = GroupElementsIntoVisualBoxes(Related);
     HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
 }
-
 // Make functions accessible from onclick handlers
 window.OpenFileFromWorkspace = OpenFileFromWorkspace;
 window.RemoveWorkspaceDirectory = RemoveWorkspaceDirectory;

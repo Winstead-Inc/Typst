@@ -8,15 +8,26 @@ function MakeRequest(Options, Body)
         {
             const Req = HTTP.request
             (
-                Options,
-                (Res) =>
+                Options, (Res) =>
                 {
                     let Data = "";
                     Res.on("data", (Chunk) => { Data += Chunk; });
-                    Res.on("end", () => { Resolve({ Status: Res.statusCode, Headers: Res.headers, Body: Data }); });
+                    Res.on
+                    (
+                        "end", () =>
+                        {
+                            Resolve( { Status: Res.statusCode, Headers: Res.headers, Body: Data });
+                        }
+                    );
                 }
             );
-            Req.on("error", (Err) => { Resolve({ Error: Err.message }); });
+            Req.on
+            (
+                "error", (Err) =>
+                {
+                    Resolve( { Error: Err.message });
+                }
+            );
             if (Body) { Req.write(Body); }
             Req.end();
         }
@@ -28,14 +39,14 @@ async function RunTests()
     console.log("=== SECURITY HARDENING VERIFICATION SUITE ===\n");
 
     console.log("--- TEST 1: GET / (Check Security Headers & Token Injection) ---");
-    const R1 = await MakeRequest({ host: "127.0.0.1", port: 3000, path: "/", method: "GET" });
+    const R1 = await MakeRequest( { host: "127.0.0.1", port: 3000, path: "/", method: "GET" });
     console.log("HTTP Status:", R1.Status);
     console.log("X-Frame-Options:", R1.Headers["x-frame-options"]);
     console.log("X-Content-Type-Options:", R1.Headers["x-content-type-options"]);
-    console.log("Content-Security-Policy:", R1.Headers["content-security-policy"] ? "Present" : "Missing");
+    console.log("Content-Security-Policy:", R1.Headers["content-security-policy"] ? "Present": "Missing");
     const TokenMatch = R1.Body.match(/window\.__TYPST_STUDIO_AUTH_TOKEN__\s*=\s*"([a-f0-9]+)"/);
-    const Token = TokenMatch ? TokenMatch[1] : null;
-    console.log("Auth Token Injected:", Token ? `YES (${Token.substring(0, 8)}...)` : "NO");
+    const Token = TokenMatch ? TokenMatch[1]: null;
+    console.log("Auth Token Injected:", Token ? `YES (${Token.substring(0, 8)}...)`: "NO");
 
     console.log("\n--- TEST 2: DNS Rebinding / Host Header Spoofing ---");
     const R2 = await MakeRequest
@@ -58,7 +69,7 @@ async function RunTests()
             method: "POST",
             headers: { "Content-Type": "application/json" }
         },
-        JSON.stringify({ Source: "= Test" })
+        JSON.stringify( { Source: "= Test" })
     );
     console.log("CSRF Compile Status:", R3.Status, "(Expected: 403 Forbidden)");
 
@@ -84,7 +95,7 @@ async function RunTests()
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Typst-Auth-Token": Token }
         },
-        JSON.stringify({ Path: "C:\\evil.bat", Content: "malicious" })
+        JSON.stringify( { Path: "C:\\evil.bat", Content: "malicious" })
     );
     console.log("Arbitrary File Write Status:", R5.Status, "(Expected: 403 Forbidden)");
     console.log("Response Body:", R5.Body);
@@ -109,7 +120,7 @@ async function RunTests()
             method: "POST",
             headers: { "Content-Type": "application/json", "X-Typst-Auth-Token": Token }
         },
-        JSON.stringify({ Source: "= Security Hardening Complete\nTypst Studio is secure." })
+        JSON.stringify( { Source: "= Security Hardening Complete\nTypst Studio is secure." })
     );
     console.log("Legitimate Compile Status:", R7.Status, "(Expected: 200 OK)");
     console.log("Full Response Body:", R7.Body);

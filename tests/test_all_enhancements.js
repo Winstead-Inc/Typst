@@ -3,55 +3,74 @@ const FS = require("node:fs");
 
 async function FetchURL(Pathname)
 {
-    return new Promise((Resolve, Reject) =>
-    {
-        HTTP.get(`http://127.0.0.1:3000${Pathname}`, (Res) =>
+    return new Promise
+    (
+        (Resolve, Reject) =>
         {
-            let Body = "";
-            Res.on("data", (Chunk) => Body += Chunk);
-            Res.on("end", () => Resolve({ Status: Res.statusCode, Body, Headers: Res.headers }));
-        }).on("error", Reject);
-    });
+            HTTP.get
+            (
+                `http://127.0.0.1:3000${Pathname}`, (Res) =>
+                {
+                    let Body = "";
+                    Res.on("data", (Chunk) => Body += Chunk);
+                    Res.on
+                    (
+                        "end", () => Resolve( { Status: Res.statusCode, Body, Headers: Res.headers })
+                    );
+                }
+            )
+            .on("error", Reject);
+        }
+    );
 }
 
 async function PostJSON(Pathname, Data, Headers = {})
 {
     const Payload = JSON.stringify(Data);
-    return new Promise((Resolve, Reject) =>
-    {
-        const Req = HTTP.request
-        (
-            `http://127.0.0.1:3000${Pathname}`,
-            {
-                method: "POST",
-                headers:
+    return new Promise
+    (
+        (Resolve, Reject) =>
+        {
+            const Req = HTTP.request
+            (
+                `http://127.0.0.1:3000${Pathname}`,
                 {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(Payload),
-                    ...Headers
+                    method: "POST",
+                    headers:
+                    {
+                        "Content-Type": "application/json",
+                        "Content-Length": Buffer.byteLength(Payload),
+                        ...Headers
+                    }
+                },
+                (Res) =>
+                {
+                    let Body = "";
+                    Res.on("data", (Chunk) => Body += Chunk);
+                    Res.on
+                    (
+                        "end", () =>
+                        {
+                            try
+                            {
+                                Resolve
+                                ({
+                                    Status: Res.statusCode, Data: JSON.parse(Body)
+                                });
+                            }
+                            catch (E)
+                            {
+                                Resolve( { Status: Res.statusCode, Body });
+                            }
+                        }
+                    );
                 }
-            },
-            (Res) =>
-            {
-                let Body = "";
-                Res.on("data", (Chunk) => Body += Chunk);
-                Res.on("end", () =>
-                {
-                    try
-                    {
-                        Resolve({ Status: Res.statusCode, Data: JSON.parse(Body) });
-                    }
-                    catch (E)
-                    {
-                        Resolve({ Status: Res.statusCode, Body });
-                    }
-                });
-            }
-        );
-        Req.on("error", Reject);
-        Req.write(Payload);
-        Req.end();
-    });
+            );
+            Req.on("error", Reject);
+            Req.write(Payload);
+            Req.end();
+        }
+    );
 }
 
 async function RunAllEnhancementTests()
@@ -65,11 +84,11 @@ async function RunAllEnhancementTests()
 
     function Assert(Condition, Description)
     {
-        Total++;
+        Total ++;
         if (Condition)
         {
             console.log(`  [PASS] Test ${Total}: ${Description}`);
-            Passed++;
+            Passed ++;
         }
         else
         {
@@ -77,7 +96,6 @@ async function RunAllEnhancementTests()
             process.exit(1);
         }
     }
-
     // 1. Fetch HTML and verify DOM Elements
     console.log("\nSECTION 1: UI DOM & Component Architecture");
     const HtmlRes = await FetchURL("/");
@@ -98,7 +116,6 @@ async function RunAllEnhancementTests()
     Assert(/Id\s*=\s*"ToastContainer"/.test(Html), "Floating Toast notification container present");
     Assert(/Id\s*=\s*"UnsavedDirtyDot"/.test(Html), "Unsaved dirty state indicator present");
     Assert(/Id\s*=\s*"JumpToPrimaryErrorBtn"/.test(Html), "Jump to Primary Error button present");
-
     // 2. Verify CSS Styles
     console.log("\nSECTION 2: CSS Architecture & Formatting");
     const CssRes = await FetchURL("/Style.css?v=20261105_14");
@@ -117,7 +134,6 @@ async function RunAllEnhancementTests()
 
     const HexColors = Css.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
     console.log(`  (Verified ${HexColors.length} total hex color tokens in stylesheet)`);
-
     // 3. Verify JavaScript Logic in App.js
     console.log("\nSECTION 3: Client Application Logic");
     const AppJsRes = await FetchURL("/App.js?v=20261105_14");
@@ -134,7 +150,6 @@ async function RunAllEnhancementTests()
     Assert(AppJs.includes("registerCompletionItemProvider"), "Monaco IntelliSense provider registered");
     Assert(AppJs.includes("function ShowToast"), "ShowToast function present");
     Assert(AppJs.includes("function MarkDocumentClean"), "MarkDocumentClean dirty state manager present");
-
     // 4. Verify Server Endpoints
     console.log("\nSECTION 4: Server API & Security Verification");
     const TokenRes = await FetchURL("/api/auth/token");
@@ -142,7 +157,6 @@ async function RunAllEnhancementTests()
     const TokenData = JSON.parse(TokenRes.Body);
     const Token = TokenData.Token;
     Assert(Boolean(Token && Token.length === 64), "Cryptographic Session Auth Token valid");
-
     // Test asset upload
     const TestPng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
     const UploadRes = await PostJSON
@@ -156,7 +170,6 @@ async function RunAllEnhancementTests()
     );
     Assert(UploadRes.Status === 200 && UploadRes.Data.Success, "Asset upload endpoint returns success");
     Assert(UploadRes.Data.FileName === "test_asset.png", "Uploaded file name preserved and sanitized");
-
     // Test clean compile with LAFS
     const CompileRes = await PostJSON
     (
@@ -168,7 +181,6 @@ async function RunAllEnhancementTests()
         { "x-typst-auth-token": Token }
     );
     Assert(CompileRes.Status === 200 && CompileRes.Data.Success, "Clean LAFS document compiles successfully");
-
     // Test K&R Slop rejection
     const KnrRes = await PostJSON
     (
@@ -186,8 +198,11 @@ async function RunAllEnhancementTests()
     console.log("================================================================================");
 }
 
-RunAllEnhancementTests().catch((Err) =>
-{
-    console.error(Err);
-    process.exit(1);
-});
+RunAllEnhancementTests().catch
+(
+    (Err) =>
+    {
+        console.error(Err);
+        process.exit(1);
+    }
+);

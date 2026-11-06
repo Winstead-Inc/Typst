@@ -12,4 +12,3 @@ const test7 = [
 console.log("Errors:", DetectKnrSlop(test7));
 `;
 fs.writeFileSync('scratch/test_knr_vectors.js', code, 'utf-8');
-

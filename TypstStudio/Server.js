@@ -7,27 +7,21 @@ const OS = require("node:os");
 const Crypto = require("node:crypto");
 const JSZip = require("./public/vendor/jszip.min.js");
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10): 3000;
 const HOST = "127.0.0.1";
 const SESSION_AUTH_TOKEN = Crypto.randomBytes(32).toString("hex");
-const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024; // 10 MB maximum request payload
+const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
+// 10 MB maximum request payload
 const FORBIDDEN_EXTENSIONS = new Set
 ([
     // Windows Executables & Binaries
-    ".exe", ".msi", ".msp", ".com", ".scr", ".pif", ".cpl", ".dll", ".sys", ".drv", ".ocx",
-    // Windows Scripting & Batch
-    ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".ws", ".wsf", ".wsc", ".wsh", ".ps1", ".psm1", ".psd1",
-    // Shortcuts & Links
-    ".lnk", ".url", ".scf",
-    // Unix Shell & Scripting
-    ".sh", ".bash", ".zsh", ".fish", ".csh", ".tcsh", ".ksh", ".awk", ".sed",
-    // Dynamic Interpreted Languages
-    ".py", ".pyw", ".pyc", ".pyo", ".pyd", ".rb", ".pl", ".pm", ".php", ".cgi",
-    // Java & Managed Runtimes
-    ".jar", ".class",
-    // Native Shared Objects & Installers
-    ".so", ".dylib", ".bin", ".app", ".dmg", ".pkg", ".deb", ".rpm",
-    // Windows Setup & System Configurations
+    ".exe", ".msi", ".msp", ".com", ".scr", ".pif", ".cpl", ".dll", ".sys", ".drv", ".ocx", // Windows Scripting & Batch
+    ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".ws", ".wsf", ".wsc", ".wsh", ".ps1", ".psm1", ".psd1", // Shortcuts & Links
+    ".lnk", ".url", ".scf", // Unix Shell & Scripting
+    ".sh", ".bash", ".zsh", ".fish", ".csh", ".tcsh", ".ksh", ".awk", ".sed", // Dynamic Interpreted Languages
+    ".py", ".pyw", ".pyc", ".pyo", ".pyd", ".rb", ".pl", ".pm", ".php", ".cgi", // Java & Managed Runtimes
+    ".jar", ".class", // Native Shared Objects & Installers
+    ".so", ".dylib", ".bin", ".app", ".dmg", ".pkg", ".deb", ".rpm", // Windows Setup & System Configurations
     ".inf", ".sct", ".reg", ".hta"
 ]);
 const PROTECTED_SYSTEM_FILES = new Set
@@ -76,7 +70,7 @@ const ALLOWED_SPAWN_BINARIES = new Set
 
 function ResolveTypstBinary()
 {
-    const BinaryName = process.platform === "win32" ? "typst.exe" : "typst";
+    const BinaryName = process.platform === "win32" ? "typst.exe": "typst";
     const SearchLocations =
     [
         process.env.TYPST_BINARY,
@@ -135,11 +129,10 @@ function ValidateWorkspacePath(CandidatePath, MustExist = false, CheckExtension 
     {
         return { Valid: false, Error: "Access denied: Path contains prohibited null byte." };
     }
-
     // Windows Alternate Data Streams (ADS) protection: Colon is only allowed as drive letter (e.g. C:)
     const AfterDrive = process.platform === "win32" && /^[a-zA-Z]:/.test(CandidatePath)
-        ? CandidatePath.slice(2)
-        : CandidatePath;
+    ? CandidatePath.slice(2)
+    : CandidatePath;
 
     if (AfterDrive.includes(":"))
     {
@@ -147,14 +140,14 @@ function ValidateWorkspacePath(CandidatePath, MustExist = false, CheckExtension 
     }
 
     const Resolved = Path.resolve(CandidatePath);
-    const AllowedRoots = GetTrackedDirectories().map((D) => Path.resolve(D));
+    const AllowedRoots = GetTrackedDirectories().map( (D) => Path.resolve(D));
 
     const IsContained = AllowedRoots.some
     (
         (Root) =>
         {
             const Relative = Path.relative(Root, Resolved);
-            return !Relative.startsWith("..") && !Path.isAbsolute(Relative);
+            return ! Relative.startsWith("..") && ! Path.isAbsolute(Relative);
         }
     );
 
@@ -205,7 +198,6 @@ function VerifyClientAuthorization(Request)
     {
         return { Authorized: false, Status: 400, Error: "Bad Request: Invalid Host header." };
     }
-
     // Protect all state-modifying requests and sensitive file operations with local session token
     const URLInstance = new URL(Request.url, `http://${Request.headers.host}`);
     const Pathname = URLInstance.pathname;
@@ -233,7 +225,7 @@ function VerifyClientAuthorization(Request)
                 `http://localhost:${PORT}`,
                 `http://[::1]:${PORT}`
             ];
-            const IsAllowedOrigin = AllowedOriginPrefixes.some((Prefix) => OriginHeader.startsWith(Prefix));
+            const IsAllowedOrigin = AllowedOriginPrefixes.some( (Prefix) => OriginHeader.startsWith(Prefix));
             if (!IsAllowedOrigin)
             {
                 return { Authorized: false, Status: 403, Error: "Forbidden: Cross-origin token access denied." };
@@ -249,7 +241,7 @@ function VerifyClientAuthorization(Request)
                 `http://localhost:${PORT}/`,
                 `http://[::1]:${PORT}/`
             ];
-            const IsAllowedReferer = AllowedRefererPrefixes.some((Prefix) => RefererHeader.startsWith(Prefix));
+            const IsAllowedReferer = AllowedRefererPrefixes.some( (Prefix) => RefererHeader.startsWith(Prefix));
             if (!IsAllowedReferer)
             {
                 return { Authorized: false, Status: 403, Error: "Forbidden: Cross-site referer denied." };
@@ -279,24 +271,30 @@ function NormalizeMathFunctionCalls(Source)
     {
         return Source;
     }
-
     // In Typst math mode ($ ... $), function calls formatted with detached delimiters
     // (e.g., 'mat\n  (' or 'vec\n  (' or 'cases\n  (') must have the opening delimiter attached to the identifier
     // so the Typst math parser recognizes them as MathCall rather than literal text spill.
     // Crucially, we preserve the EXACT line count so Synctex line numbers and compiler diagnostics
     // remain 100% synchronized with the user's Monaco editor lines: 'mat\n  (' -> 'mat(\n   '.
-    return Source.replace(/\$(?:[^$]|\\\$)+\$/g, (MathBlock) => {
-        return MathBlock.replace(/([a-zA-Z_][a-zA-Z0-9_.]*)[^\S\r\n]*(\r?\n)(\s*)([\(\[\{])/g, (Match, Ident, Newline, Indent, Delim) => {
-            return `${Ident}${Delim}${Newline}${Indent} `;
-        });
-    });
+    return Source.replace
+    (
+        /\$(?:[^$]|\\\$)+\$/g, (MathBlock) =>
+        {
+            return MathBlock.replace
+            (
+                /([a-zA-Z_][a-zA-Z0-9_.]*)[^\S\r\n]*(\r?\n)(\s*)([\(\[\{])/g, (Match, Ident, Newline, Indent, Delim) =>
+                {
+                    return `${Ident}${Delim}${Newline}${Indent} `;
+                }
+            );
+        }
+    );
 }
 
 function DetectKnrSlop(Source, FileName = "main.typ")
 {
     const Lines = (Source || "").split(/\r?\n/);
     const Errors = [];
-
     // Stack holds active openers: { Delim, Line, Col, LineText }
     const Stack = [];
 
@@ -304,20 +302,19 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawBlock = false;
     let InRawInline = false;
     let BlockCommentDepth = 0;
-
     // Helper to get clean line text with strings/comments masked
     function GetMaskedLine(LineText)
     {
         let Masked = "";
         let InStr = false;
-        for (let I = 0; I < LineText.length; I++)
+        for (let I = 0; I < LineText.length; I ++)
         {
             const C = LineText[I];
-            const NextC = I + 1 < LineText.length ? LineText[I + 1] : "";
-            const PrevC = I > 0 ? LineText[I - 1] : "";
+            const NextC = I + 1 < LineText.length ? LineText[I + 1]: "";
+            const PrevC = I > 0 ? LineText[I - 1]: "";
             if (C === '"' && PrevC !== "\\")
             {
-                InStr = !InStr;
+                InStr = ! InStr;
                 Masked += " ";
                 continue;
             }
@@ -336,68 +333,63 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         return Masked;
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx++)
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
     {
         const LineNum = LineIdx + 1;
         const LineText = Lines[LineIdx];
         let InLineComment = false;
 
-        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx++)
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
         {
             const ColNum = ColIdx + 1;
             const Char = LineText[ColIdx];
-            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1] : "";
-            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1] : "";
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
+            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1]: "";
 
             if (InLineComment) { break; }
-
             // Raw blocks ```
             if (!InString && BlockCommentDepth === 0 && Char === "`")
             {
                 if (LineText.substring(ColIdx, ColIdx + 3) === "```")
                 {
-                    InRawBlock = !InRawBlock;
+                    InRawBlock = ! InRawBlock;
                     ColIdx += 2;
                     continue;
                 }
                 else if (!InRawBlock)
                 {
-                    InRawInline = !InRawInline;
+                    InRawInline = ! InRawInline;
                     continue;
                 }
             }
             if (InRawBlock || InRawInline) { continue; }
-
             // Block comments /* */
             if (!InString && Char === "/" && NextChar === "*")
             {
-                BlockCommentDepth++;
-                ColIdx++;
+                BlockCommentDepth ++;
+                ColIdx ++;
                 continue;
             }
             if (!InString && BlockCommentDepth > 0 && Char === "*" && NextChar === "/")
             {
-                BlockCommentDepth--;
-                ColIdx++;
+                BlockCommentDepth --;
+                ColIdx ++;
                 continue;
             }
             if (BlockCommentDepth > 0) { continue; }
-
             // Line comments //
             if (!InString && Char === "/" && NextChar === "/")
             {
                 InLineComment = true;
                 break;
             }
-
             // String literals "..."
             if (Char === '"' && PrevChar !== "\\")
             {
-                InString = !InString;
+                InString = ! InString;
                 continue;
             }
             if (InString) { continue; }
-
             // Multiline display math container: $
             if (Char === "$" && PrevChar !== "\\")
             {
@@ -497,7 +489,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
                 continue;
             }
-
             // Standard containers: (, [, {
             if (Char === "(" || Char === "{" || Char === "[")
             {
@@ -511,7 +502,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
             else if (Char === ")" || Char === "}" || Char === "]")
             {
-                const MatchDelim = Char === ")" ? "(" : (Char === "}" ? "{" : "[");
+                const MatchDelim = Char === ")" ? "(": (Char === "}" ? "{": "[");
 
                 if (Stack.length === 0 || Stack[Stack.length - 1].Delim !== MatchDelim)
                 {
@@ -531,17 +522,14 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
 
                 const Opener = Stack.pop();
-
                 // Monolith Check: Same line openers and closers are valid Monoliths
                 if (LineNum === Opener.Line)
                 {
                     continue;
                 }
-
                 // Multiline container: Evaluate Vector 1 (Opener line) and Vector 2 (Closer line)
                 const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
                 const MaskedCloserLine = GetMaskedLine(LineText);
-
                 // --- VECTOR 1 EVALUATION (Opening Container Line) ---
                 const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
                 const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
@@ -580,7 +568,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                         Reason: "Proceeding Semantic Content on Unpaired Opening Container"
                     });
                 }
-
                 // --- VECTOR 2 EVALUATION (Closing Container Line) ---
                 const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
                 const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
@@ -622,7 +609,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Remaining unclosed openers that span beyond end of file
     for (const Opener of Stack)
     {
@@ -649,7 +635,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Deduplicate errors by Line + Col + Vector + Subtype
     const UniqueErrors = [];
     const SeenKeys = new Set();
@@ -665,7 +650,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 
     if (UniqueErrors.length === 0)
     {
-        return { HasError: false, Errors: [] };
+        return { HasError: false, Errors:[] };
     }
 
     const First = UniqueErrors[0];
@@ -673,7 +658,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     const Margin = " ".repeat(Math.max(2, LineStr.length));
     const FormattedLineNum = LineStr.padStart(Margin.length, " ");
     const PointerIndent = " ".repeat(Math.max(0, First.Col - 1));
-    const AnchorTarget = First.Anchor ? `'${First.Anchor}'` : "the statement";
+    const AnchorTarget = First.Anchor ? `'${First.Anchor}'`: "the statement";
 
     let ActionHint = "";
     if (First.Vector === 1)
@@ -712,7 +697,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     }
 
     const FormattedMessage =
-`error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
+    `error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
 ${Margin}┌─ ${FileName}:${First.Line}:${First.Col}
 ${Margin}│
 ${FormattedLineNum}│ ${First.LineText}
@@ -735,14 +720,14 @@ function FormatTypstLAFS(Source)
     let InRawBlock = false;
     let InBlockComment = false;
 
-    for (let I = 0; I < Lines.length; I++)
+    for (let I = 0; I < Lines.length; I ++)
     {
         const Line = Lines[I];
         const Trimmed = Line.trim();
 
         if (Trimmed.startsWith("```"))
         {
-            InRawBlock = !InRawBlock;
+            InRawBlock = ! InRawBlock;
             ResultLines.push(Line);
             continue;
         }
@@ -772,7 +757,6 @@ function FormatTypstLAFS(Source)
             ResultLines.push(Line);
             continue;
         }
-
         // Handle '} else if (...) {' or '} else {'
         const ElseIfMatch = Trimmed.match(/^(\})\s*(else\s+if\s+.*?)(\s*\{)?$/);
         if (ElseIfMatch)
@@ -793,7 +777,6 @@ function FormatTypstLAFS(Source)
             if (ElseMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
             continue;
         }
-
         // Handle control flow statements like 'if ... {' or 'while ... {' or 'for ... {'
         const ControlMatch = Trimmed.match(/^(if\s+.*?|while\s+.*?|for\s+.*?|context)\s*\{$/);
         if (ControlMatch)
@@ -803,7 +786,6 @@ function FormatTypstLAFS(Source)
             ResultLines.push(`${Indent}{`);
             continue;
         }
-
         // Handle trailing delimiters '{', '(', '[' on multiline constructs
         const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[])\s*$/);
         if (EndsWithDelimiter)
@@ -819,7 +801,6 @@ function FormatTypstLAFS(Source)
                 continue;
             }
         }
-
         // Handle lines with attached delimiters and inner content, e.g. '#set text(font: "Inter",'
         const AttachedWithContent = Trimmed.match(/^([#a-zA-Z0-9_\-\.]+.*?)(\s*)([\(\{\[])(\s*[^\)\}\]]+)$/);
         if (AttachedWithContent && !Trimmed.endsWith(")") && !Trimmed.endsWith("}") && !Trimmed.endsWith("]"))
@@ -856,14 +837,17 @@ function GetTrackedDirectories()
         Path.join(UserHome, "Documents", "Typst")
     ];
 
-    const ExistingDefaults = PotentialDefaults.filter((Dir) => FS.existsSync(Dir));
-    const DefaultDirs = ExistingDefaults.length > 0 ? ExistingDefaults : [Path.join(UserHome, "Documents")];
+    const ExistingDefaults = PotentialDefaults.filter( (Dir) => FS.existsSync(Dir));
+    const DefaultDirs = ExistingDefaults.length > 0 ? ExistingDefaults:[Path.join(UserHome, "Documents")];
 
     if (!FS.existsSync(WORKSPACE_CONFIG_FILE))
     {
         try
         {
-            FS.writeFileSync(WORKSPACE_CONFIG_FILE, JSON.stringify({ Directories: DefaultDirs }, null, 4), "utf-8");
+            FS.writeFileSync
+            (
+                WORKSPACE_CONFIG_FILE, JSON.stringify( { Directories: DefaultDirs }, null, 4), "utf-8"
+            );
         }
         catch (Ignored)
         {
@@ -875,7 +859,7 @@ function GetTrackedDirectories()
     {
         const Raw = FS.readFileSync(WORKSPACE_CONFIG_FILE, "utf-8");
         const Parsed = JSON.parse(Raw);
-        return Array.isArray(Parsed.Directories) ? Parsed.Directories : DefaultDirs;
+        return Array.isArray(Parsed.Directories) ? Parsed.Directories: DefaultDirs;
     }
     catch (E)
     {
@@ -887,7 +871,10 @@ function SaveTrackedDirectories(Directories)
 {
     try
     {
-        FS.writeFileSync(WORKSPACE_CONFIG_FILE, JSON.stringify({ Directories: Directories }, null, 4), "utf-8");
+        FS.writeFileSync
+        (
+            WORKSPACE_CONFIG_FILE, JSON.stringify( { Directories: Directories }, null, 4), "utf-8"
+        );
     }
     catch (E)
     {
@@ -896,7 +883,7 @@ function SaveTrackedDirectories(Directories)
 
 async function ScanDirectoryRecursive(CurrentDir, MaxDepth = 6, CurrentDepth = 0)
 {
-    const Result = { Files: [], Folders: [] };
+    const Result = { Files:[], Folders:[] };
     if (CurrentDepth > MaxDepth || !FS.existsSync(CurrentDir))
     {
         return Result;
@@ -1012,7 +999,8 @@ async function ScanTypstFiles()
                 const FileDirNorm = Path.resolve(F.Directory).toLowerCase();
                 return FileDirNorm === FolderNorm || FileDirNorm.startsWith(FolderPrefix);
             }
-        ).length;
+        )
+        .length;
     }
 
     return { Directories: Dirs, Files: UniqueFiles, Folders: UniqueFolders };
@@ -1030,7 +1018,7 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
         return Promise.resolve
         ({
             Success: false,
-            Code: -1,
+            Code: - 1,
             Stdout: "",
             Stderr: `Security Error: Execution of unauthorized binary '${Command}' is strictly prohibited.`
         });
@@ -1047,7 +1035,7 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
                 {
                     cwd: Options.cwd,
                     timeout: Options.timeout || 30000,
-                    windowsHide: Options.windowsHide !== undefined ? Options.windowsHide : true,
+                    windowsHide: Options.windowsHide !== undefined ? Options.windowsHide: true,
                     shell: false
                 }
             );
@@ -1073,13 +1061,12 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
 
             Child.on
             (
-                "error",
-                (Error) =>
+                "error", (Error) =>
                 {
                     Resolve
                     ({
                         Success: false,
-                        Code: Error.code || -1,
+                        Code: Error.code || - 1,
                         Stdout: Stdout,
                         Stderr: Error.message || Stderr
                     });
@@ -1088,8 +1075,7 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
 
             Child.on
             (
-                "close",
-                (Code) =>
+                "close", (Code) =>
                 {
                     Resolve
                     ({
@@ -1114,7 +1100,7 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
         return Promise.resolve
         ({
             Success: false,
-            Code: -1,
+            Code: - 1,
             Stdout: "",
             Stderr: `Security Error: Execution of unauthorized compile binary '${Command}' is strictly prohibited.`
         });
@@ -1157,14 +1143,13 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
 
             Child.on
             (
-                "error",
-                (Error) =>
+                "error", (Error) =>
                 {
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
                     Resolve
                     ({
                         Success: false,
-                        Code: Error.code || -1,
+                        Code: Error.code || - 1,
                         Killed: Child.killed,
                         Stdout: Stdout,
                         Stderr: Error.message || Stderr
@@ -1174,8 +1159,7 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
 
             Child.on
             (
-                "close",
-                (Code) =>
+                "close", (Code) =>
                 {
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
                     Resolve
@@ -1205,22 +1189,27 @@ function ReadRequestBody(Request)
 
             Request.on
             (
-                "data",
-                (Chunk) =>
+                "data", (Chunk) =>
                 {
                     TotalBytes += Chunk.length;
                     if (TotalBytes > MAX_REQUEST_BODY_BYTES)
                     {
                         Request.destroy();
                         Reject(new Error("Payload entity too large. Limit is 10 MB."));
-                        return;
+                        return ;
                     }
                     Body += Chunk;
                 }
             );
 
-            Request.on("end", () => { Resolve(Body); });
-            Request.on("error", (Error) => { Reject(Error); });
+            Request.on
+            (
+                "end", () => { Resolve(Body); }
+            );
+            Request.on
+            (
+                "error", (Error) => { Reject(Error); }
+            );
         }
     );
 }
@@ -1241,7 +1230,7 @@ async function HandleCompile(Request, Response)
         ActiveCompileProcess = null;
         if (ActiveJobDir)
         {
-            FSPromises.rm(ActiveJobDir, { recursive: true, force: true }).catch(() => {});
+            FSPromises.rm(ActiveJobDir, { recursive: true, force: true }).catch ( () => {});
             ActiveJobDir = null;
         }
     }
@@ -1251,7 +1240,7 @@ async function HandleCompile(Request, Response)
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Source = Payload.Source || "";
-        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath) : (Payload.FileName || "main.typ");
+        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
 
         const KnrCheck = DetectKnrSlop(Source, ActiveFileName);
         if (KnrCheck.HasError)
@@ -1269,7 +1258,7 @@ async function HandleCompile(Request, Response)
                     PrimaryError: KnrCheck.PrimaryError
                 })
             );
-            return;
+            return ;
         }
 
         const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -1292,25 +1281,26 @@ async function HandleCompile(Request, Response)
 
         const CompileResult = await ExecuteCompile
         (
-            TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "svg", "-", OutputPattern],
-            { cwd: JobDir, timeout: 20000 },
+            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "svg", "-", OutputPattern], { cwd: JobDir, timeout: 20000 },
             SourceToCompile
         );
 
         if (CompileResult.Killed)
         {
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Aborted: true }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Aborted: true })
+            );
+            return ;
         }
 
         const DurationMs = Date.now() - StartTime;
 
         if (!CompileResult.Success)
         {
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
             Response.writeHead(200, { "Content-Type": "application/json" });
             Response.end
             (
@@ -1321,21 +1311,21 @@ async function HandleCompile(Request, Response)
                     DurationMs: DurationMs
                 })
             );
-            return;
+            return ;
         }
 
         const Files = await FSPromises.readdir(JobDir);
         const SvgFiles = Files
-            .filter((FileName) => FileName.startsWith("page-") && FileName.endsWith(".svg"))
-            .sort
-            (
-                (A, B) =>
-                {
-                    const NumA = parseInt(A.replace("page-", "").replace(".svg", ""), 10);
-                    const NumB = parseInt(B.replace("page-", "").replace(".svg", ""), 10);
-                    return NumA - NumB;
-                }
-            );
+        .filter( (FileName) => FileName.startsWith("page-") && FileName.endsWith(".svg"))
+        .sort
+        (
+            (A, B) =>
+            {
+                const NumA = parseInt(A.replace("page-", "").replace(".svg", ""), 10);
+                const NumB = parseInt(B.replace("page-", "").replace(".svg", ""), 10);
+                return NumA - NumB;
+            }
+        );
 
         const Pages = [];
         for (const SvgFile of SvgFiles)
@@ -1369,7 +1359,7 @@ async function HandleCompile(Request, Response)
         }
         LastActiveSpanMap = SpanMap;
 
-        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
         ActiveJobDir = null;
 
         Response.writeHead(200, { "Content-Type": "application/json" });
@@ -1415,8 +1405,11 @@ async function HandleResolveClick(Request, Response)
         if (isNaN(X) || isNaN(Y))
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Found: false, Error: "Valid X and Y coordinates are required." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Found: false, Error: "Valid X and Y coordinates are required." })
+            );
+            return ;
         }
 
         let BestElem = null;
@@ -1472,13 +1465,19 @@ async function HandleResolveClick(Request, Response)
         else
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Found: false, Error: "No matching source location found." }));
+            Response.end
+            (
+                JSON.stringify( { Success: false, Found: false, Error: "No matching source location found." })
+            );
         }
     }
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -1494,8 +1493,11 @@ async function HandleResolveCursor(Request, Response)
         if (!Line || !Col)
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Found: false, Error: "Line and Column parameters required." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Found: false, Error: "Line and Column parameters required." })
+            );
+            return ;
         }
 
         let BestElem = null;
@@ -1555,13 +1557,19 @@ async function HandleResolveCursor(Request, Response)
         else
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Found: false, Error: "No matching preview element found." }));
+            Response.end
+            (
+                JSON.stringify( { Success: false, Found: false, Error: "No matching preview element found." })
+            );
         }
     }
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -1576,8 +1584,11 @@ async function HandleResolveSpan(Request, Response)
         if (!Span || !LastActiveSpanMap[Span])
         {
             Response.writeHead(404, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Span not found in active map." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Span not found in active map." })
+            );
+            return ;
         }
 
         const Loc = LastActiveSpanMap[Span];
@@ -1600,7 +1611,10 @@ async function HandleResolveSpan(Request, Response)
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -1616,14 +1630,17 @@ async function HandleCursorSpan(Request, Response)
         if (!Line || !Col)
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Line and Column parameters required." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Line and Column parameters required." })
+            );
+            return ;
         }
 
         let BestSpan = null;
         let SmallestRange = Infinity;
 
-        for (const [SpanId, Loc] of Object.entries(LastActiveSpanMap))
+        for (const[SpanId, Loc] of Object.entries(LastActiveSpanMap))
         {
             const StartsBefore = Loc.line < Line || (Loc.line === Line && Loc.col <= Col);
             const EndsAfter = Loc.end_line > Line || (Loc.end_line === Line && Loc.end_col >= Col);
@@ -1642,8 +1659,11 @@ async function HandleCursorSpan(Request, Response)
         if (!BestSpan)
         {
             Response.writeHead(404, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "No matching span at cursor position." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "No matching span at cursor position." })
+            );
+            return ;
         }
 
         Response.writeHead(200, { "Content-Type": "application/json" });
@@ -1660,7 +1680,10 @@ async function HandleCursorSpan(Request, Response)
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -1684,7 +1707,8 @@ function ConvertColorHex(Hex)
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 18)
     {
-        return CleanHex; // Keep vibrant saturated hue!
+        return CleanHex;
+        // Keep vibrant saturated hue!
     }
 
     const Avg = (Red + Green + Blue) / 3;
@@ -1692,18 +1716,53 @@ function ConvertColorHex(Hex)
     {
         if (L >= 254.5) { return 0; }
         const D = 255 - L;
-        if (D <= 8) { return Math.round(30 + D * 0.8); } // 30 - 36 (#1e1e1e - #242424) clearly visible subtle alternating rows
-        if (D <= 18) { return Math.round(46 + (D - 8) * 1.2); } // 46 - 58 (#2e2e2e - #3a3a3a) distinct card/box backgrounds
-        if (D <= 32) { return Math.round(68 + (D - 18) * 1.2); } // 68 - 85 (#444444 - #555555) prominent table header
-        if (D <= 55) { return Math.round(86 + (D - 32) * 0.6); } // 86 - 100 (#565656 - #646464) visible borders & dividers
-        if (L <= 30) { return 245; } // crisp legible white text
+        if (D <= 8) { return Math.round(30 + D * 0.8); }
+        // 30 - 36 (#1e1e1e - #242424) clearly visible subtle alternating rows
+        if (D <= 18)
+        {
+            return Math.round(46 + (D - 8) * 1.2);
+        }
+        // 46 - 58 (#2e2e2e - #3a3a3a) distinct card/box backgrounds
+        if (D <= 32)
+        {
+            return Math.round(68 + (D - 18) * 1.2);
+        }
+        // 68 - 85 (#444444 - #555555) prominent table header
+        if (D <= 55)
+        {
+            return Math.round(86 + (D - 32) * 0.6);
+        }
+        // 86 - 100 (#565656 - #646464) visible borders & dividers
+        if (L <= 30) { return 245; }
+        // crisp legible white text
         return Math.round(255 - L);
     };
 
     const BaseDark = MapComp(Avg);
-    const OutR = Math.max(0, Math.min(255, Math.round(BaseDark + (Red - Avg)))).toString(16).padStart(2, "0");
-    const OutG = Math.max(0, Math.min(255, Math.round(BaseDark + (Green - Avg)))).toString(16).padStart(2, "0");
-    const OutB = Math.max(0, Math.min(255, Math.round(BaseDark + (Blue - Avg)))).toString(16).padStart(2, "0");
+    const OutR = Math.max
+    (
+        0, Math.min
+        (
+            255, Math.round(BaseDark + (Red - Avg))
+        )
+    )
+    .toString(16).padStart(2, "0");
+    const OutG = Math.max
+    (
+        0, Math.min
+        (
+            255, Math.round(BaseDark + (Green - Avg))
+        )
+    )
+    .toString(16).padStart(2, "0");
+    const OutB = Math.max
+    (
+        0, Math.min
+        (
+            255, Math.round(BaseDark + (Blue - Avg))
+        )
+    )
+    .toString(16).padStart(2, "0");
     return `${OutR}${OutG}${OutB}`;
 }
 
@@ -1711,8 +1770,7 @@ function ConvertTypstSourceToDarkMode(Source, Transparent = false)
 {
     let Transformed = Source.replace
     (
-        /rgb\(\s*"#?([0-9a-fA-F]{3,8})"\s*\)/g,
-        (Match, HexVal) =>
+        /rgb\(\s*"#?([0-9a-fA-F]{3,8})"\s*\)/g, (Match, HexVal) =>
         {
             return `rgb("#${ConvertColorHex(HexVal)}")`;
         }
@@ -1720,18 +1778,16 @@ function ConvertTypstSourceToDarkMode(Source, Transparent = false)
 
     Transformed = Transformed.replace
     (
-        /rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)/g,
-        (Match, R, G, B) =>
+        /rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*[\d.]+\s*)?\)/g, (Match, R, G, B) =>
         {
-            const Hex = [R, G, B].map((V) => parseInt(V, 10).toString(16).padStart(2, "0")).join("");
+            const Hex = [R, G, B].map( (V) => parseInt(V, 10).toString(16).padStart(2, "0")).join("");
             return `rgb("#${ConvertColorHex(Hex)}")`;
         }
     );
 
     Transformed = Transformed.replace
     (
-        /luma\(\s*(\d{1,3})\s*\)/g,
-        (Match, Val) =>
+        /luma\(\s*(\d{1,3})\s*\)/g, (Match, Val) =>
         {
             const Num = parseInt(Val, 10);
             const Hex = Num.toString(16).padStart(2, "0").repeat(3);
@@ -1739,7 +1795,7 @@ function ConvertTypstSourceToDarkMode(Source, Transparent = false)
         }
     );
 
-    const PageFill = Transparent ? "none" : `rgb("000000")`;
+    const PageFill = Transparent ? "none": `rgb("000000")`;
     const Header = `#set page(fill: ${PageFill})\n#set text(fill: rgb("ffffff"))\n\n`;
     return Header + Transformed;
 }
@@ -1751,15 +1807,18 @@ async function HandleExportPdf(Request, Response)
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Source = Payload.Source || "";
-        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath) : (Payload.FileName || "main.typ");
+        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
         const OutputFileName = (Payload.FileName || "document").replace(/[^a-zA-Z0-9_\-]/g, "_") + ".pdf";
 
         const KnrCheck = DetectKnrSlop(Source, ActiveFileName);
         if (KnrCheck.HasError)
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: KnrCheck.FormattedMessage, KnrSlop: true }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: KnrCheck.FormattedMessage, KnrSlop: true })
+            );
+            return ;
         }
 
         const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -1792,15 +1851,13 @@ async function HandleExportPdf(Request, Response)
 
         const CompileResult = await ExecuteCommand
         (
-            TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "pdf", "-", OutputPath],
-            { cwd: JobDir, timeout: 30000 },
+            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "pdf", "-", OutputPath], { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
 
         if (!CompileResult.Success || !FS.existsSync(OutputPath))
         {
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
             Response.writeHead(400, { "Content-Type": "application/json" });
             Response.end
             (
@@ -1810,11 +1867,11 @@ async function HandleExportPdf(Request, Response)
                     Error: CompileResult.Stderr || "PDF Generation failed."
                 })
             );
-            return;
+            return ;
         }
 
         const PdfBuffer = await FSPromises.readFile(OutputPath);
-        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
 
         Response.writeHead
         (
@@ -1830,7 +1887,10 @@ async function HandleExportPdf(Request, Response)
     catch (Exception)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Exception.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Exception.message })
+        );
     }
 }
 
@@ -1841,14 +1901,17 @@ async function HandleExportPng(Request, Response)
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Source = Payload.Source || "";
-        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath) : (Payload.FileName || "main.typ");
+        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
 
         const KnrCheck = DetectKnrSlop(Source, ActiveFileName);
         if (KnrCheck.HasError)
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: KnrCheck.FormattedMessage, KnrSlop: true }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: KnrCheck.FormattedMessage, KnrSlop: true })
+            );
+            return ;
         }
 
         const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
@@ -1881,39 +1944,43 @@ async function HandleExportPng(Request, Response)
 
         const CompileResult = await ExecuteCommand
         (
-            TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "png", "--ppi", "288", "-", OutputPattern],
-            { cwd: JobDir, timeout: 30000 },
+            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "png", "--ppi", "288", "-", OutputPattern], { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
 
         if (!CompileResult.Success)
         {
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: CompileResult.Stderr || "PNG compilation failed." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: CompileResult.Stderr || "PNG compilation failed." })
+            );
+            return ;
         }
 
         const DirEntries = await FSPromises.readdir(JobDir);
         const PngFiles = DirEntries
-            .filter((F) => /^page-\d+\.png$/i.test(F))
-            .sort
-            (
-                (A, B) =>
-                {
-                    const NumA = parseInt(A.match(/\d+/)[0], 10);
-                    const NumB = parseInt(B.match(/\d+/)[0], 10);
-                    return NumA - NumB;
-                }
-            );
+        .filter( (F) => /^page-\d+\.png$/i.test(F))
+        .sort
+        (
+            (A, B) =>
+            {
+                const NumA = parseInt(A.match(/\d+/)[0], 10);
+                const NumB = parseInt(B.match(/\d+/)[0], 10);
+                return NumA - NumB;
+            }
+        );
 
         if (PngFiles.length === 0)
         {
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
             Response.writeHead(404, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Requested page not found." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Requested page not found." })
+            );
+            return ;
         }
 
         const BaseDocName = (Payload.FileName || "document").replace(/[^a-zA-Z0-9_\-]/g, "_");
@@ -1922,7 +1989,7 @@ async function HandleExportPng(Request, Response)
         {
             const SinglePath = Path.join(JobDir, PngFiles[0]);
             const PngBuffer = await FSPromises.readFile(SinglePath);
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
 
             Response.writeHead
             (
@@ -1934,19 +2001,21 @@ async function HandleExportPng(Request, Response)
                 }
             );
             Response.end(PngBuffer);
-            return;
+            return ;
         }
-
         // Multiple pages: package into a ZIP file with page numbers!
         const Zip = new JSZip();
-        for (let Index = 0; Index < PngFiles.length; Index++)
+        for (let Index = 0; Index < PngFiles.length; Index ++)
         {
-            const PageBuffer = await FSPromises.readFile(Path.join(JobDir, PngFiles[Index]));
+            const PageBuffer = await FSPromises.readFile
+            (
+                Path.join(JobDir, PngFiles[Index])
+            );
             Zip.file(`${BaseDocName}_page_${Index + 1}.png`, PageBuffer);
         }
 
-        const ZipBuffer = await Zip.generateAsync({ type: "nodebuffer" });
-        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
+        const ZipBuffer = await Zip.generateAsync( { type: "nodebuffer" });
+        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
 
         Response.writeHead
         (
@@ -1962,7 +2031,10 @@ async function HandleExportPng(Request, Response)
     catch (Exception)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Exception.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Exception.message })
+        );
     }
 }
 
@@ -1975,15 +2047,20 @@ async function HandleFormat(Request, Response)
         const Source = Payload.Source || "";
         const Formatted = FormatTypstLAFS(Source);
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Formatted: Formatted }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, Formatted: Formatted })
+        );
     }
     catch (Exception)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Exception.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Exception.message })
+        );
     }
 }
-
 // Workspace API Handlers
 async function HandleWorkspaceInfo(Request, Response)
 {
@@ -1991,12 +2068,18 @@ async function HandleWorkspaceInfo(Request, Response)
     {
         const Info = await ScanTypstFiles();
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, ...Info }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, ...Info })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2006,42 +2089,52 @@ async function HandleAddDirectory(Request, Response)
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
-        const TargetPath = Payload.Path ? Path.resolve(Payload.Path) : null;
+        const TargetPath = Payload.Path ? Path.resolve(Payload.Path): null;
 
         if (!TargetPath || !FS.existsSync(TargetPath))
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Directory does not exist." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Directory does not exist." })
+            );
+            return ;
         }
 
         const Stat = await FSPromises.stat(TargetPath);
         if (!Stat.isDirectory())
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Target path is not a directory." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Target path is not a directory." })
+            );
+            return ;
         }
 
         const RootParsed = Path.parse(TargetPath);
         if (TargetPath.toLowerCase() === RootParsed.root.toLowerCase())
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Cannot add an entire drive root as a workspace directory." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Cannot add an entire drive root as a workspace directory." })
+            );
+            return ;
         }
 
         const LowerTarget = TargetPath.toLowerCase();
         const UserHome = Path.resolve(OS.homedir()).toLowerCase();
-
         // 1. Block user home directory itself
         if (LowerTarget === UserHome)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Cannot add user home root directory directly as a workspace directory." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Cannot add user home root directory directly as a workspace directory." })
+            );
+            return ;
         }
-
         // 2. Block sensitive user profile folders & autostart directories
         const ProhibitedUserFolders =
         [
@@ -2062,19 +2155,26 @@ async function HandleAddDirectory(Request, Response)
         if (MatchesProhibitedUserFolder)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Sensitive user profile or startup directories cannot be added as workspace directories." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Sensitive user profile or startup directories cannot be added as workspace directories." })
+            );
+            return ;
         }
-
         // 3. Block sensitive subfolder names (.ssh, .gnupg) anywhere in path
-        const TargetSegments = TargetPath.split(Path.sep).map((S) => S.toLowerCase());
+        const TargetSegments = TargetPath.split(Path.sep).map( (S) => S.toLowerCase());
         if (TargetSegments.includes(".ssh") || TargetSegments.includes(".gnupg"))
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Directories containing cryptographic or credential stores cannot be added as workspace directories." }));
-            return;
+            Response.end
+            (
+                JSON.stringify
+                ({
+                    Success: false, Error: "Directories containing cryptographic or credential stores cannot be added as workspace directories."
+                })
+            );
+            return ;
         }
-
         // 4. Block system directories
         const ForbiddenSystemDirs =
         [
@@ -2097,11 +2197,17 @@ async function HandleAddDirectory(Request, Response)
             "/opt"
         ];
 
-        if (ForbiddenSystemDirs.some((Sys) => LowerTarget === Sys || LowerTarget.startsWith(Sys + Path.sep)))
+        if
+        (
+            ForbiddenSystemDirs.some( (Sys) => LowerTarget === Sys || LowerTarget.startsWith(Sys + Path.sep))
+        )
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "System directories cannot be added as workspace directories." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "System directories cannot be added as workspace directories." })
+            );
+            return ;
         }
 
         const Dirs = GetTrackedDirectories();
@@ -2113,12 +2219,18 @@ async function HandleAddDirectory(Request, Response)
 
         const Info = await ScanTypstFiles();
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, ...Info }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, ...Info })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2128,20 +2240,26 @@ async function HandleRemoveDirectory(Request, Response)
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
-        const TargetPath = Payload.Path ? Path.resolve(Payload.Path) : null;
+        const TargetPath = Payload.Path ? Path.resolve(Payload.Path): null;
 
         let Dirs = GetTrackedDirectories();
-        Dirs = Dirs.filter((D) => D !== TargetPath);
+        Dirs = Dirs.filter( (D) => D !== TargetPath);
         SaveTrackedDirectories(Dirs);
 
         const Info = await ScanTypstFiles();
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, ...Info }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, ...Info })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2153,18 +2271,30 @@ async function HandleReadFile(Request, Response, FilePath)
         if (!Validation.Valid)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: Validation.Error })
+            );
+            return ;
         }
 
         const Content = await FSPromises.readFile(Validation.Path, "utf-8");
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Content: Content, Path: Validation.Path, Name: Path.basename(Validation.Path) }));
+        Response.end
+        (
+            JSON.stringify
+            ({
+                Success: true, Content: Content, Path: Validation.Path, Name: Path.basename(Validation.Path)
+            })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2179,8 +2309,11 @@ async function HandleSaveFile(Request, Response)
         if (!Validation.Valid)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: Validation.Error })
+            );
+            return ;
         }
 
         const FilePath = Validation.Path;
@@ -2194,12 +2327,21 @@ async function HandleSaveFile(Request, Response)
 
         await FSPromises.writeFile(FilePath, Content, "utf-8");
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Path: FilePath, Name: Path.basename(FilePath) }));
+        Response.end
+        (
+            JSON.stringify
+            ({
+                Success: true, Path: FilePath, Name: Path.basename(FilePath)
+            })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2209,7 +2351,7 @@ async function HandleCreateFile(Request, Response)
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
-        let TargetDir = Payload.Directory ? Path.resolve(Payload.Directory) : GetTrackedDirectories()[0];
+        let TargetDir = Payload.Directory ? Path.resolve(Payload.Directory): GetTrackedDirectories()[0];
         const RawFileName = (Payload.FileName || "Untitled.typ").trim();
         let FileName = Path.basename(RawFileName);
         if (!FileName.endsWith(".typ")) { FileName += ".typ"; }
@@ -2220,16 +2362,22 @@ async function HandleCreateFile(Request, Response)
         if (!Validation.Valid)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: Validation.Error })
+            );
+            return ;
         }
 
         const FullPath = Validation.Path;
         const Dir = Path.dirname(FullPath);
-        if (!FS.existsSync(Dir)) { await FSPromises.mkdir(Dir, { recursive: true }); }
+        if (!FS.existsSync(Dir))
+        {
+            await FSPromises.mkdir(Dir, { recursive: true });
+        }
 
         const Content = Payload.Content ||
-`#set page
+        `#set page
 (
     paper: "a4",
     margin: 2.5cm
@@ -2248,12 +2396,18 @@ Start writing in Typst...
 
         await FSPromises.writeFile(FullPath, Content, "utf-8");
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Path: FullPath, Name: FileName, Content: Content }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, Path: FullPath, Name: FileName, Content: Content })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2283,7 +2437,7 @@ async function HandleUploadAsset(Request, Response)
                     Error: `Unsupported asset extension '${Ext}'. Allowed: ${Array.from(ALLOWED_ASSET_EXTENSIONS).join(", ")}`
                 })
             );
-            return;
+            return ;
         }
 
         let TargetDir = GetTrackedDirectories()[0];
@@ -2302,23 +2456,32 @@ async function HandleUploadAsset(Request, Response)
         if (!Validation.Valid)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: Validation.Error })
+            );
+            return ;
         }
 
         if (!Payload.Base64Data)
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Missing Base64Data in request payload." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Missing Base64Data in request payload." })
+            );
+            return ;
         }
 
-        const BufferData = Buffer.from(Payload.Base64Data, "base64");
+        const BufferData = Buffer.from (Payload.Base64Data, "base64");
         if (BufferData.length > MAX_REQUEST_BODY_BYTES)
         {
             Response.writeHead(413, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Asset exceeds maximum allowed file size of 10 MB." }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "Asset exceeds maximum allowed file size of 10 MB." })
+            );
+            return ;
         }
 
         if (!FS.existsSync(TargetDir))
@@ -2343,7 +2506,10 @@ async function HandleUploadAsset(Request, Response)
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2351,7 +2517,7 @@ async function HandleDeleteFile(Request, Response, QueryPath)
 {
     try
     {
-        let TargetPath = QueryPath ? Path.resolve(QueryPath) : null;
+        let TargetPath = QueryPath ? Path.resolve(QueryPath): null;
         if (!TargetPath)
         {
             try
@@ -2363,27 +2529,36 @@ async function HandleDeleteFile(Request, Response, QueryPath)
                     if (Payload.Path) { TargetPath = Path.resolve(Payload.Path); }
                 }
             }
-            catch (Ignored) { }
+            catch (Ignored) {}
         }
 
         const Validation = ValidateWorkspacePath(TargetPath, true, true);
         if (!Validation.Valid)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: Validation.Error })
+            );
+            return ;
         }
 
         await FSPromises.unlink(Validation.Path);
 
         const Info = await ScanTypstFiles();
         Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, ...Info }));
+        Response.end
+        (
+            JSON.stringify( { Success: true, ...Info })
+        );
     }
     catch (E)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: E.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: E.message })
+        );
     }
 }
 
@@ -2396,7 +2571,7 @@ function ServeStatic(Request, Response, FilePath)
     {
         Response.writeHead(403, { "Content-Type": "text/plain" });
         Response.end("Forbidden");
-        return;
+        return ;
     }
 
     if (!FS.existsSync(NormalizedPath))
@@ -2410,7 +2585,7 @@ function ServeStatic(Request, Response, FilePath)
             try
             {
                 const Entries = FS.readdirSync(ParentDir);
-                const Matched = Entries.find((E) => E.toLowerCase() === RequestedBase);
+                const Matched = Entries.find( (E) => E.toLowerCase() === RequestedBase);
                 if (Matched)
                 {
                     NormalizedPath = Path.join(ParentDir, Matched);
@@ -2426,7 +2601,7 @@ function ServeStatic(Request, Response, FilePath)
     {
         Response.writeHead(404, { "Content-Type": "text/plain" });
         Response.end("Not Found");
-        return;
+        return ;
     }
 
     try
@@ -2443,7 +2618,7 @@ function ServeStatic(Request, Response, FilePath)
             {
                 Response.writeHead(403, { "Content-Type": "text/plain" });
                 Response.end("Forbidden: Directory listing denied.");
-                return;
+                return ;
             }
         }
     }
@@ -2451,7 +2626,7 @@ function ServeStatic(Request, Response, FilePath)
     {
         Response.writeHead(404, { "Content-Type": "text/plain" });
         Response.end("Not Found");
-        return;
+        return ;
     }
 
     if (Path.basename(NormalizedPath).toLowerCase() === "index.html")
@@ -2470,7 +2645,7 @@ function ServeStatic(Request, Response, FilePath)
                 }
             );
             Response.end(Html);
-            return;
+            return ;
         }
         catch (Ignored)
         {
@@ -2497,8 +2672,7 @@ function ServeStatic(Request, Response, FilePath)
     const Stream = FS.createReadStream(NormalizedPath);
     Stream.on
     (
-        "error",
-        () =>
+        "error", () =>
         {
             if (!Response.headersSent)
             {
@@ -2530,36 +2704,30 @@ async function HandlePickFolder(Request, Response)
         {
             // Windows: Try modern pwsh (PowerShell 7+) first, fallback to powershell.exe
             const PsCommand =
-                "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
-                "Add-Type -AssemblyName System.Windows.Forms; " +
-                "$Dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
-                "$Dialog.Description = 'Select Typst Projects Directory'; " +
-                "$Dialog.ShowNewFolderButton = $true; " +
-                "$TopForm = New-Object System.Windows.Forms.Form; " +
-                "$TopForm.TopMost = $true; " +
-                "$TopForm.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen; " +
-                "if ($Dialog.ShowDialog($TopForm) -eq [System.Windows.Forms.DialogResult]::OK) { " +
-                "    Write-Output $Dialog.SelectedPath; " +
-                "}";
-
+            "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; " +
+            "Add-Type -AssemblyName System.Windows.Forms; " +
+            "$Dialog = New-Object System.Windows.Forms.FolderBrowserDialog; " +
+            "$Dialog.Description = 'Select Typst Projects Directory'; " +
+            "$Dialog.ShowNewFolderButton = $true; " +
+            "$TopForm = New-Object System.Windows.Forms.Form; " +
+            "$TopForm.TopMost = $true; " +
+            "$TopForm.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen; " +
+            "if ($Dialog.ShowDialog($TopForm) -eq [System.Windows.Forms.DialogResult]::OK) { " +
+            "    Write-Output $Dialog.SelectedPath; " +
+            "}";
             // Try pwsh (PowerShell 7+) first
             let Result = await ExecuteCommand
             (
-                "pwsh",
-                ["-NoProfile", "-STA", "-Command", PsCommand],
-                { timeout: 180000, windowsHide: false }
+                "pwsh",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: false }
             );
 
             Selected = (Result.Stdout || "").trim();
-
             // If pwsh failed to launch or had non-zero exit with empty output, fallback to powershell.exe
             if (!Selected && (!Result.Success || Result.Code !== 0))
             {
                 Result = await ExecuteCommand
                 (
-                    "powershell",
-                    ["-NoProfile", "-STA", "-Command", PsCommand],
-                    { timeout: 180000, windowsHide: false }
+                    "powershell",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: false }
                 );
                 Selected = (Result.Stdout || "").trim();
             }
@@ -2568,17 +2736,15 @@ async function HandlePickFolder(Request, Response)
         {
             // macOS: Bring dialog to front using System Events
             const AppleScript =
-                'tell application "System Events"\n' +
-                '    activate\n' +
-                '    set FolderPath to POSIX path of (choose folder with prompt "Select Typst Projects Directory")\n' +
-                'end tell\n' +
-                'return FolderPath';
+            'tell application "System Events"\n' +
+            '    activate\n' +
+            '    set FolderPath to POSIX path of (choose folder with prompt "Select Typst Projects Directory")\n' +
+            'end tell\n' +
+            'return FolderPath';
 
             const Result = await ExecuteCommand
             (
-                "osascript",
-                ["-e", AppleScript],
-                { timeout: 180000, windowsHide: false }
+                "osascript",["-e", AppleScript], { timeout: 180000, windowsHide: false }
             );
             Selected = (Result.Stdout || "").trim();
         }
@@ -2587,9 +2753,7 @@ async function HandlePickFolder(Request, Response)
             // Linux: Try zenity, then kdialog, then python3 tkinter
             const ZenityResult = await ExecuteCommand
             (
-                "zenity",
-                ["--file-selection", "--directory", "--title=Select Typst Projects Directory"],
-                { timeout: 180000, windowsHide: false }
+                "zenity",["--file-selection", "--directory", "--title=Select Typst Projects Directory"], { timeout: 180000, windowsHide: false }
             );
             Selected = (ZenityResult.Stdout || "").trim();
 
@@ -2597,9 +2761,7 @@ async function HandlePickFolder(Request, Response)
             {
                 const KdialogResult = await ExecuteCommand
                 (
-                    "kdialog",
-                    ["--getexistingdirectory", "--title", "Select Typst Projects Directory"],
-                    { timeout: 180000, windowsHide: false }
+                    "kdialog",["--getexistingdirectory", "--title", "Select Typst Projects Directory"], { timeout: 180000, windowsHide: false }
                 );
                 Selected = (KdialogResult.Stdout || "").trim();
             }
@@ -2607,16 +2769,14 @@ async function HandlePickFolder(Request, Response)
             if (!Selected)
             {
                 const PyScript =
-                    "import tkinter as tk; from tkinter import filedialog; " +
-                    "root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True); " +
-                    "path = filedialog.askdirectory(title='Select Typst Projects Directory'); " +
-                    "print(path if path else '')";
+                "import tkinter as tk; from tkinter import filedialog; " +
+                "root = tk.Tk(); root.withdraw(); root.attributes('-topmost', True); " +
+                "path = filedialog.askdirectory(title='Select Typst Projects Directory'); " +
+                "print(path if path else '')";
 
                 const PyResult = await ExecuteCommand
                 (
-                    "python3",
-                    ["-c", PyScript],
-                    { timeout: 180000, windowsHide: false }
+                    "python3",["-c", PyScript], { timeout: 180000, windowsHide: false }
                 );
                 Selected = (PyResult.Stdout || "").trim();
             }
@@ -2625,18 +2785,27 @@ async function HandlePickFolder(Request, Response)
         if (Selected)
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: true, Path: Selected }));
+            Response.end
+            (
+                JSON.stringify( { Success: true, Path: Selected })
+            );
         }
         else
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Cancelled: true }));
+            Response.end
+            (
+                JSON.stringify( { Success: false, Cancelled: true })
+            );
         }
     }
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -2708,7 +2877,6 @@ async function ScanAllSystemFonts()
             }
         }
     }
-
     // 0. Query Local Project Fonts in TypstStudio/public/fonts
     const LocalFontsDir = Path.join(PUBLIC_DIR, "fonts");
     if (FS.existsSync(LocalFontsDir))
@@ -2731,7 +2899,6 @@ async function ScanAllSystemFonts()
         {
         }
     }
-
     // 1. Query typst fonts --variants to extract every installed font variant and font file
     try
     {
@@ -2741,9 +2908,7 @@ async function ScanAllSystemFonts()
             {
                 ChildProcess.execFile
                 (
-                    TYPST_BINARY,
-                    ["fonts", "--variants"],
-                    { maxBuffer: 50 * 1024 * 1024, windowsHide: true },
+                    TYPST_BINARY,["fonts", "--variants"], { maxBuffer: 50 * 1024 * 1024, windowsHide: true },
                     (Err, Stdout) =>
                     {
                         Resolve(Stdout || "");
@@ -2757,7 +2922,7 @@ async function ScanAllSystemFonts()
             const Lines = TypstStdout.split(/\r?\n/);
             let CurrentFamily = "";
 
-            for (let I = 0; I < Lines.length; I++)
+            for (let I = 0; I < Lines.length; I ++)
             {
                 const Line = Lines[I];
                 if (!Line.trim()) { continue; }
@@ -2785,7 +2950,7 @@ async function ScanAllSystemFonts()
                         {
                             Style = InfoMatch[1].trim().toLowerCase();
                             Weight = InfoMatch[2].trim();
-                            Stretch = InfoMatch[3] ? InfoMatch[3].trim() : "normal";
+                            Stretch = InfoMatch[3] ? InfoMatch[3].trim(): "normal";
                         }
                     }
 
@@ -2804,17 +2969,20 @@ async function ScanAllSystemFonts()
     {
         console.error("typst fonts --variants error:", E.message);
     }
-
     // 2. Query Windows Registry for HKLM and HKCU fonts
     if (process.platform === "win32")
     {
         const WinFontsDir = "C:\\Windows\\Fonts";
         const UserFontsDir = Path.join(process.env.LOCALAPPDATA || "", "Microsoft", "Windows", "Fonts");
 
-        for (const RegPath of [
-            'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
-            'HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'
-        ])
+        for
+        (
+            const RegPath of
+            [
+                'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+                'HKCU\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts'
+            ]
+        )
         {
             try
             {
@@ -2824,9 +2992,7 @@ async function ScanAllSystemFonts()
                     {
                         ChildProcess.execFile
                         (
-                            "reg",
-                            ["query", RegPath],
-                            { windowsHide: true },
+                            "reg",["query", RegPath], { windowsHide: true },
                             (Err, Stdout) =>
                             {
                                 Resolve(Stdout || "");
@@ -2837,7 +3003,7 @@ async function ScanAllSystemFonts()
 
                 if (RegOut)
                 {
-                    const RegLines = RegOut.split(/\r?\n/).filter((L) => L.trim().length > 0 && !L.startsWith("HKEY_"));
+                    const RegLines = RegOut.split(/\r?\n/).filter( (L) => L.trim().length > 0 && !L.startsWith("HKEY_"));
                     for (const L of RegLines)
                     {
                         const Parts = L.trim().split(/\s{2,}/);
@@ -2853,11 +3019,17 @@ async function ScanAllSystemFonts()
                                 {
                                     FullPath = FontFile;
                                 }
-                                else if (FS.existsSync(Path.join(WinFontsDir, FontFile)))
+                                else if
+                                (
+                                    FS.existsSync(Path.join(WinFontsDir, FontFile))
+                                )
                                 {
                                     FullPath = Path.join(WinFontsDir, FontFile);
                                 }
-                                else if (UserFontsDir && FS.existsSync(Path.join(UserFontsDir, FontFile)))
+                                else if
+                                (
+                                    UserFontsDir && FS.existsSync(Path.join(UserFontsDir, FontFile))
+                                )
                                 {
                                     FullPath = Path.join(UserFontsDir, FontFile);
                                 }
@@ -2874,12 +3046,12 @@ async function ScanAllSystemFonts()
         }
     }
 
-    const SortedDetails = Array.from(FontMap.values()).sort
+    const SortedDetails = Array.from (FontMap.values()).sort
     (
         (A, B) => A.Name.localeCompare(B.Name, undefined, { sensitivity: "base" })
     );
 
-    const SortedNames = SortedDetails.map((D) => D.Name);
+    const SortedNames = SortedDetails.map( (D) => D.Name);
 
     CachedSystemFontsList = SortedNames;
     CachedSystemFontDetails = SortedDetails;
@@ -2913,7 +3085,10 @@ async function HandleListFonts(Request, Response)
     catch (Err)
     {
         Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Err.message })
+        );
     }
 }
 
@@ -2967,7 +3142,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
     {
         Response.writeHead(400, { "Content-Type": "text/plain" });
         Response.end("Bad Request: Font path parameter required.");
-        return;
+        return ;
     }
 
     const Resolved = Path.resolve(TargetPath);
@@ -2978,7 +3153,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
     {
         Response.writeHead(403, { "Content-Type": "text/plain" });
         Response.end("Forbidden: Only font files (.ttf, .otf, .ttc, .woff, .woff2) can be served.");
-        return;
+        return ;
     }
 
     const AllowedRoots = GetAllowedFontRoots();
@@ -2987,7 +3162,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
         (Root) =>
         {
             const Rel = Path.relative(Root, Resolved);
-            return !Rel.startsWith("..") && !Path.isAbsolute(Rel);
+            return ! Rel.startsWith("..") && ! Path.isAbsolute(Rel);
         }
     );
 
@@ -2995,14 +3170,14 @@ function HandleServeFontFile(Request, Response, TargetPath)
     {
         Response.writeHead(403, { "Content-Type": "text/plain" });
         Response.end("Forbidden: Font path outside permitted font directories.");
-        return;
+        return ;
     }
 
     if (!FS.existsSync(Resolved))
     {
         Response.writeHead(404, { "Content-Type": "text/plain" });
         Response.end("Font file not found on disk.");
-        return;
+        return ;
     }
 
     try
@@ -3012,14 +3187,14 @@ function HandleServeFontFile(Request, Response, TargetPath)
         {
             Response.writeHead(403, { "Content-Type": "text/plain" });
             Response.end("Forbidden: Target is not a file.");
-            return;
+            return ;
         }
     }
     catch (Err)
     {
         Response.writeHead(404, { "Content-Type": "text/plain" });
         Response.end("Font file not accessible.");
-        return;
+        return ;
     }
 
     const MimeMap =
@@ -3035,8 +3210,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
     const Stream = FS.createReadStream(Resolved);
     Stream.on
     (
-        "error",
-        () =>
+        "error", () =>
         {
             if (!Response.headersSent)
             {
@@ -3063,14 +3237,16 @@ const Server = HTTP.createServer
     {
         // 1. Inject Defensive Security Headers
         ApplySecurityHeaders(Response);
-
         // 2. Validate Client Authorization (Host Whitelist & Anti-CSRF Token)
         const AuthCheck = VerifyClientAuthorization(Request);
         if (!AuthCheck.Authorized)
         {
             Response.writeHead(AuthCheck.Status || 403, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: AuthCheck.Error }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: AuthCheck.Error })
+            );
+            return ;
         }
 
         const Origin = Request.headers.origin;
@@ -3092,7 +3268,7 @@ const Server = HTTP.createServer
         {
             Response.writeHead(204);
             Response.end();
-            return;
+            return ;
         }
 
         const URLInstance = new URL(Request.url, `http://${Request.headers.host}`);
@@ -3101,125 +3277,128 @@ const Server = HTTP.createServer
         if (Request.method === "GET" && Pathname === "/api/auth/token")
         {
             Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: true, Token: SESSION_AUTH_TOKEN }));
-            return;
+            Response.end
+            (
+                JSON.stringify( { Success: true, Token: SESSION_AUTH_TOKEN })
+            );
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/compile")
         {
             await HandleCompile(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/sync/click")
         {
             await HandleResolveClick(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/sync/cursor")
         {
             await HandleResolveCursor(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/sync/resolve-span")
         {
             await HandleResolveSpan(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/sync/cursor-span")
         {
             await HandleCursorSpan(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/export/pdf")
         {
             await HandleExportPdf(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/export/png")
         {
             await HandleExportPng(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/format")
         {
             await HandleFormat(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "GET" && Pathname === "/api/workspace/info")
         {
             await HandleWorkspaceInfo(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/workspace/directory")
         {
             await HandleAddDirectory(Request, Response);
-            return;
+            return ;
         }
 
-        if ((Request.method === "POST" || Request.method === "GET") && Pathname === "/api/workspace/pick-folder")
+        if ( (Request.method === "POST" || Request.method === "GET") && Pathname === "/api/workspace/pick-folder")
         {
             await HandlePickFolder(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "DELETE" && Pathname === "/api/workspace/directory")
         {
             await HandleRemoveDirectory(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "GET" && Pathname === "/api/workspace/file")
         {
             const TargetPath = URLInstance.searchParams.get("path");
             await HandleReadFile(Request, Response, TargetPath);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/workspace/file")
         {
             await HandleSaveFile(Request, Response);
-            return;
+            return ;
         }
 
-                if (Request.method === "POST" && Pathname === "/api/workspace/upload")
+        if (Request.method === "POST" && Pathname === "/api/workspace/upload")
         {
             await HandleUploadAsset(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "POST" && Pathname === "/api/workspace/create")
         {
             await HandleCreateFile(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "DELETE" && Pathname === "/api/workspace/file")
         {
             const TargetPath = URLInstance.searchParams.get("path");
             await HandleDeleteFile(Request, Response, TargetPath);
-            return;
+            return ;
         }
 
         if (Request.method === "GET" && Pathname === "/api/fonts")
         {
             await HandleListFonts(Request, Response);
-            return;
+            return ;
         }
 
         if (Request.method === "GET" && Pathname === "/api/font-file")
         {
             const TargetFontPath = URLInstance.searchParams.get("path");
             HandleServeFontFile(Request, Response, TargetFontPath);
-            return;
+            return ;
         }
 
         if (Request.method === "GET" && Pathname === "/api/status")
@@ -3235,11 +3414,11 @@ const Server = HTTP.createServer
                     Version: "0.15.1-lafs"
                 })
             );
-            return;
+            return ;
         }
 
         const DecodedPathname = decodeURIComponent(Pathname);
-        let TargetFile = Path.join(PUBLIC_DIR, DecodedPathname === "/" ? "Index.html" : DecodedPathname);
+        let TargetFile = Path.join(PUBLIC_DIR, DecodedPathname === "/" ? "Index.html": DecodedPathname);
         ServeStatic(Request, Response, TargetFile);
     }
 );
@@ -3247,8 +3426,7 @@ const Server = HTTP.createServer
 Server.listen
 (
     PORT,
-    HOST,
-    () =>
+    HOST, () =>
     {
         console.log(`Typst Studio Web Server active at http://${HOST}:${PORT}`);
         console.log(`Using LAFS-enabled Typst Engine: ${TYPST_BINARY}`);

@@ -1,7 +1,6 @@
 const fs = require("fs");
 
 let appJs = fs.readFileSync("TypstStudio/public/App.js", "utf8");
-
 // 1. Add feature architectures before SetupEventListeners
 const featureArchitectures =
 `// --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
@@ -339,7 +338,6 @@ function TriggerDocumentPrint()
 `;
 
 appJs = appJs.replace("function SetupEventListeners()", featureArchitectures + "\nfunction SetupEventListeners()");
-
 // 2. Wire event listeners into SetupEventListeners()
 const additionalEventListeners = `    // Priority 2: Viewport Layout Controls
     const SplitBtn = document.getElementById("LayoutSplitBtn");
@@ -397,11 +395,11 @@ const additionalEventListeners = `    // Priority 2: Viewport Layout Controls
     }
 `;
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });',
     additionalEventListeners + '\n    document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });'
 );
-
 // 3. Add Keyboard Shortcuts to window keydown listener
 const globalShortcutsCode = `            // Priority 2 & 4 Global Shortcuts
             if (E.altKey && E.key === "1")
@@ -446,17 +444,17 @@ const globalShortcutsCode = `            // Priority 2 & 4 Global Shortcuts
                 if (Drawer) { Drawer.classList.remove("Visible"); }
             }`;
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'if ((E.ctrlKey || E.metaKey) && E.key === "s")',
     globalShortcutsCode + '\n            if ((E.ctrlKey || E.metaKey) && E.key === "s")'
 );
-
 // 4. In Monaco onDidChangeModelContent: add UpdateDocumentOutlineThrottled()
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'CheckDocumentDirty();',
     'CheckDocumentDirty();\n                    UpdateDocumentOutlineThrottled();'
 );
-
 // 5. In Monaco commands: register Alt+1/2/3, Alt+O, Ctrl+Shift+P
 const monacoCommandsCode = `            MonacoInstance.addCommand
             (
@@ -488,23 +486,23 @@ const monacoCommandsCode = `            MonacoInstance.addCommand
                 () => { TriggerDocumentPrint(); }
             );`;
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'MonacoInstance.addCommand\n            (\n                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,\n                () => { ApplyFormattingToEditor(); }\n            );',
     'MonacoInstance.addCommand\n            (\n                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,\n                () => { ApplyFormattingToEditor(); }\n            );\n\n' + monacoCommandsCode
 );
-
 // 6. In InitializeMonaco completion: UpdateDocumentOutline()
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'MarkDocumentClean(InitialSource);',
     'MarkDocumentClean(InitialSource);\n            UpdateDocumentOutline();'
 );
-
 // 7. In DOMContentLoaded: SetupAssetDragAndDrop and restore layout
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'LoadWorkspaceInfo();',
     'LoadWorkspaceInfo();\n        SetupAssetDragAndDrop();\n        SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");'
 );
 
 fs.writeFileSync("TypstStudio/public/App.js", appJs, "utf8");
 console.log("SUCCESS: App.js updated with all priority features!");
-

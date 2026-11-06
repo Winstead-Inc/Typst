@@ -9,7 +9,7 @@ if (FS.existsSync(SvgPath) && FS.existsSync(MapPath))
 {
     const Svg = FS.readFileSync(SvgPath, "utf-8");
     const Map = JSON.parse(FS.readFileSync(MapPath, "utf-8"));
-    const Spans = [...Svg.matchAll(/data-span="([^"]+)"/g)].map((M) => M[1]);
+    const Spans = [...Svg.matchAll(/data-span="([^"]+)"/g)].map( (M) => M[1]);
     console.log("Total data-spans in SVG:", Spans.length);
 
     let FoundCount = 0;
@@ -17,7 +17,7 @@ if (FS.existsSync(SvgPath) && FS.existsSync(MapPath))
     {
         if (Map[Span])
         {
-            FoundCount++;
+            FoundCount ++;
             console.log(`✓ Direct match: SVG data-span="${Span}" -> Line ${Map[Span].line}, Col ${Map[Span].col}`);
         }
         else

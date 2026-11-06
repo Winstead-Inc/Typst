@@ -2,7 +2,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 {
     const Lines = (Source || "").split(/\r?\n/);
     const Errors = [];
-
     // First pass: tokenization ignoring strings, raw blocks, comments
     // Track each delimiter: { type, char, line, col, lineText }
     const Stack = [];
@@ -12,41 +11,39 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawInline = false;
     let BlockCommentDepth = 0;
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx++)
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
     {
         const LineNum = LineIdx + 1;
         const LineText = Lines[LineIdx];
         let InLineComment = false;
-
         // Mask comment/string contents for semantic content checks
         let CleanLineChars = [];
 
-        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx++)
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
         {
             const ColNum = ColIdx + 1;
             const Char = LineText[ColIdx];
-            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1] : "";
-            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1] : "";
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
+            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1]: "";
 
             if (InLineComment)
             {
                 CleanLineChars.push(" ");
                 continue;
             }
-
             // Raw blocks ```
             if (!InString && BlockCommentDepth === 0 && Char === "`")
             {
                 if (LineText.substring(ColIdx, ColIdx + 3) === "```")
                 {
-                    InRawBlock = !InRawBlock;
+                    InRawBlock = ! InRawBlock;
                     ColIdx += 2;
                     CleanLineChars.push(" ", " ", " ");
                     continue;
                 }
                 else if (!InRawBlock)
                 {
-                    InRawInline = !InRawInline;
+                    InRawInline = ! InRawInline;
                     CleanLineChars.push(" ");
                     continue;
                 }
@@ -56,19 +53,18 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 CleanLineChars.push(" ");
                 continue;
             }
-
             // Block comments /* */
             if (!InString && Char === "/" && NextChar === "*")
             {
-                BlockCommentDepth++;
-                ColIdx++;
+                BlockCommentDepth ++;
+                ColIdx ++;
                 CleanLineChars.push(" ", " ");
                 continue;
             }
             if (!InString && BlockCommentDepth > 0 && Char === "*" && NextChar === "/")
             {
-                BlockCommentDepth--;
-                ColIdx++;
+                BlockCommentDepth --;
+                ColIdx ++;
                 CleanLineChars.push(" ", " ");
                 continue;
             }
@@ -77,7 +73,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 CleanLineChars.push(" ");
                 continue;
             }
-
             // Line comments //
             if (!InString && Char === "/" && NextChar === "/")
             {
@@ -85,11 +80,10 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 CleanLineChars.push(" ");
                 continue;
             }
-
             // String literals "..."
             if (Char === '"' && PrevChar !== "\\")
             {
-                InString = !InString;
+                InString = ! InString;
                 CleanLineChars.push(" ");
                 continue;
             }
@@ -100,7 +94,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
 
             CleanLineChars.push(Char);
-
             // Container delimiters: (, [, {, and multiline $
             if (Char === "(" || Char === "{" || Char === "[")
             {
@@ -114,9 +107,9 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
             else if (Char === ")" || Char === "}" || Char === "]")
             {
-                const MatchDelim = Char === ")" ? "(" : (Char === "}" ? "{" : "[");
-                let FoundIdx = -1;
-                for (let S = Stack.length - 1; S >= 0; S--)
+                const MatchDelim = Char === ")" ? "(": (Char === "}" ? "{": "[");
+                let FoundIdx = - 1;
+                for (let S = Stack.length - 1; S >= 0; S --)
                 {
                     if (Stack[S].Delim === MatchDelim)
                     {
@@ -125,11 +118,10 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                     }
                 }
 
-                if (FoundIdx !== -1)
+                if (FoundIdx !== - 1)
                 {
                     const Opener = Stack[FoundIdx];
                     Stack.splice(FoundIdx, 1);
-
                     // Multiline check: if closed on a subsequent line
                     if (LineNum > Opener.Line)
                     {
@@ -169,7 +161,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                                 Reason: "Proceeding Semantic Content on Unpaired Opening Container"
                             });
                         }
-
                         // Check Vector 2 on Closer Line (LineNum):
                         // Closer Line must only contain: optional whitespace + closing delimiter(s) + optional trailing glue (, ; <label>)
                         const CloserCleanLine = GetCleanLineText(LineText);
@@ -211,18 +202,17 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Helper to strip comments from a line for clean prefix/suffix checking
     function GetCleanLineText(Txt)
     {
         if (!Txt) return "";
         let Clean = "";
         let InStr = false;
-        for (let I = 0; I < Txt.length; I++)
+        for (let I = 0; I < Txt.length; I ++)
         {
             const C = Txt[I];
-            const NextC = I + 1 < Txt.length ? Txt[I + 1] : "";
-            const PrevC = I > 0 ? Txt[I - 1] : "";
+            const NextC = I + 1 < Txt.length ? Txt[I + 1]: "";
+            const PrevC = I > 0 ? Txt[I - 1]: "";
             if (C === '"' && PrevC !== "\\") { InStr = !InStr; Clean += " "; continue; }
             if (InStr) { Clean += " "; continue; }
             if (C === "/" && NextC === "/") { break; }
@@ -230,7 +220,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         }
         return Clean;
     }
-
     // Remaining unclosed openers that span lines
     for (const Opener of Stack)
     {
@@ -257,10 +246,10 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 
     return Errors;
 }
-
 // Test cases
 console.log("=== Test 1: Clean LAFS in Math ===");
-const test1 = [
+const test1 =
+[
     "$",
     "  mat",
     "  (",
@@ -268,64 +257,77 @@ const test1 = [
     "    3, 4",
     "  )",
     "$"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test1));
 
 console.log("\n=== Test 2: K&R Slop in Math (mat() attached) ===");
-const test2 = [
+const test2 =
+[
     "$",
     "  mat(",
     "    1, 2;",
     "    3, 4",
     "  )",
     "$"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test2));
 
 console.log("\n=== Test 3: K&R Slop in Math (closing hug 3, 4 ) ) ===");
-const test3 = [
+const test3 =
+[
     "$",
     "  mat",
     "  (",
     "    1, 2;",
     "    3, 4 )",
     "$"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test3));
 
 console.log("\n=== Test 4: Monolith in Math (legal) ===");
-const test4 = [
+const test4 =
+[
     "$mat(1, 2; 3, 4)$",
     "$vec(x, y, 1)$"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test4));
 
 console.log("\n=== Test 5: K&R Slop in Math (opening with proceeding content) ===");
-const test5 = [
+const test5 =
+[
     "$",
     "  mat",
     "  ( 1, 2;",
     "    3, 4",
     "  )",
     "$"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test5));
 
 console.log("\n=== Test 6: K&R Slop in Code (#set text(font: ...) multiline) ===");
-const test6 = [
+const test6 =
+[
     "#set text(",
     "    font: \"Liberation Sans\",",
     "    size: 11pt",
     ")"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test6));
 
 console.log("\n=== Test 7: Compound Container Grouping [{( ... )}] (legal LAFS) ===");
-const test7 = [
+const test7 =
+[
     "table.cell",
     "[{(",
     '  "SecurityModule",',
     '  "DatabaseDriver"',
     ")}]"
-].join("\n");
+]
+.join("\n");
 console.log("Errors:", DetectKnrSlop(test7));

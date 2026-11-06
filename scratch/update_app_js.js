@@ -3,19 +3,15 @@ const path = require("path");
 
 const appJsPath = "TypstStudio/public/App.js";
 let appJs = fs.readFileSync(appJsPath, "utf8");
-
 // 1. Read the comprehensive showcase from projects/GenesisOfTheVanguard/main.typ
 const showcaseContent = fs.readFileSync("projects/GenesisOfTheVanguard/main.typ", "utf8");
-
 // Escape backticks and backslashes for template literal
 const escapedShowcase = showcaseContent
-    .replace(/\\/g, "\\\\")
-    .replace(/`/g, "\\`")
-    .replace(/\${/g, "\\${");
-
+.replace(/\\/g, "\\\\")
+.replace(/`/g, "\\`")
+.replace(/\${/g, "\\${");
 // Replace showcase template in TEMPLATES
 appJs = appJs.replace(/showcase:\s*`[\s\S]*?`\s*};/, `showcase: \`${escapedShowcase}\`\n};`);
-
 // 2. Add global state variables and helper functions after let RenderToken = 0;
 const globalAdditions = `let RenderToken = 0;
 let LastSavedContent = "";
@@ -126,11 +122,11 @@ function JumpToEditorLocation(Line, Col)
 }`;
 
 appJs = appJs.replace("let RenderToken = 0;", globalAdditions);
-
 // 3. Extract DetectKnrSlop from Server.js and insert it into App.js
 const serverJs = fs.readFileSync("TypstStudio/Server.js", "utf8");
 const knrMatch = serverJs.match(/function DetectKnrSlop\(Source, FileName = "main\.typ"\)[\s\S]*?\n\}/);
-if (!knrMatch) {
+if (!knrMatch)
+{
     console.error("Could not find DetectKnrSlop in Server.js");
     process.exit(1);
 }
@@ -187,10 +183,8 @@ function ValidateEditorLAFS()
 
     return KnrResult;
 }`;
-
 // Insert DetectKnrSlop and ValidateEditorLAFS before function FormatTypstLAFS
 appJs = appJs.replace(/function FormatTypstLAFS\(Source\)/, `${detectKnrSlopCode}\n${validateEditorLafsCode}\n\nfunction FormatTypstLAFS(Source)`);
-
 // 4. Register CompletionItemProvider in InitializeMonaco
 const completionProviderCode =
 `            );
@@ -386,10 +380,8 @@ const completionProviderCode =
 
 appJs = appJs.replace
 (
-    /monaco\.languages\.setMonarchTokensProvider\([\s\S]*?\n            \);/,
-    (match) => `${match}\n\n${completionProviderCode}`
+    /monaco\.languages\.setMonarchTokensProvider\([\s\S]*?\n            \);/, (match) => `${match}\n\n${completionProviderCode}`
 );
-
 // 5. Update onDidChangeModelContent to check dirty state
 appJs = appJs.replace
 (
@@ -397,7 +389,6 @@ appJs = appJs.replace
     `MonacoInstance.onDidChangeModelContent((Event) => {
                     CheckDocumentDirty();`
 );
-
 // 6. Update ShowCompilationError to support jump-to-error & clickable links
 const oldShowCompilationError = `function ShowCompilationError(ErrorMessage)
 {
@@ -476,7 +467,6 @@ const newShowCompilationError = `function ShowCompilationError(ErrorMessage)
 }`;
 
 appJs = appJs.replace(oldShowCompilationError, newShowCompilationError);
-
 // 7. In SetupEventListeners: add Jump button, Error link delegation, and beforeunload
 const eventListenersHooks = `    const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
     if (JumpBtn)
@@ -529,46 +519,50 @@ const eventListenersHooks = `    const JumpBtn = document.getElementById("JumpTo
         }
     );`;
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'document.getElementById("CloseErrorButton").addEventListener("click", () =>',
     `${eventListenersHooks}\n\n    document.getElementById("CloseErrorButton").addEventListener("click", () =>`
 );
-
 // 8. Integrate ShowToast and MarkDocumentClean into SaveCurrentFile
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'LoadWorkspaceInfo();',
     `LoadWorkspaceInfo();\n            MarkDocumentClean(Content);\n            ShowToast(\`Saved \${TargetPath.split(/[\\/\\\\]/).pop()}\`, "success");`
 );
-
 // 9. Integrate MarkDocumentClean into OpenFileFromWorkspace
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'MonacoInstance.setValue(Data.Content);',
     `MonacoInstance.setValue(Data.Content);\n            MarkDocumentClean(Data.Content);\n            ShowToast(\`Loaded \${FileName}\`, "info");`
 );
-
 // 10. Integrate ShowToast into ExportPdf, ExportPng, ExportSvg, ApplyFormattingToEditor
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'StatusText.textContent = "PDF Exported";',
     `StatusText.textContent = "PDF Exported";\n        ShowToast("PDF exported successfully", "success");`
 );
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'StatusText.textContent = "PNG Exported";',
     `StatusText.textContent = "PNG Exported";\n        ShowToast(IsMultiPage ? "Multi-page PNG ZIP exported" : "PNG exported successfully", "success");`
 );
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'StatusText.textContent = "SVG Copied";',
     `StatusText.textContent = "SVG Copied";\n    ShowToast("Page SVG copied to clipboard", "success");`
 );
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'TriggerCompileNow();\n}',
     `TriggerCompileNow();\n    ShowToast("Formatted to LAFS standard", "info");\n}`
 );
-
 // 11. Initial clean state in InitializeMonaco
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'TriggerCompileNow();\n        }\n    );',
     `TriggerCompileNow();\n            MarkDocumentClean(InitialSource);\n        }\n    );`
 );

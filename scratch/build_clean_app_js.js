@@ -3,7 +3,6 @@ const path = require("path");
 
 const appJsPath = "TypstStudio/public/App.js";
 let appJs = fs.readFileSync(appJsPath, "utf8");
-
 // Safe replace helper
 function SafeReplace(Source, Target, Replacement)
 {
@@ -25,13 +24,12 @@ function SafeReplace(Source, Target, Replacement)
     }
     return Source;
 }
-
 // 1. Read showcase from projects/GenesisOfTheVanguard/main.typ
 const showcaseContent = fs.readFileSync("projects/GenesisOfTheVanguard/main.typ", "utf8");
 const escapedShowcase = showcaseContent
-    .replace(/\\/g, "\\\\")
-    .replace(/`/g, "\\`")
-    .replace(/\${/g, "\\${");
+.replace(/\\/g, "\\\\")
+.replace(/`/g, "\\`")
+.replace(/\${/g, "\\${");
 
 appJs = SafeReplace
 (
@@ -39,7 +37,6 @@ appJs = SafeReplace
     /showcase:\s*`[\s\S]*?`\s*};/,
     `showcase: \`${escapedShowcase}\`\n};`
 );
-
 // 2. Global state and helpers after let RenderToken = 0;
 const globalAdditions = `let RenderToken = 0;
 let LastSavedContent = "";
@@ -151,7 +148,6 @@ function JumpToEditorLocation(Line, Col)
 }`;
 
 appJs = SafeReplace(appJs, "let RenderToken = 0;", globalAdditions);
-
 // 3. Extract DetectKnrSlop from Server.js and insert ValidateEditorLAFS
 const serverJs = fs.readFileSync("TypstStudio/Server.js", "utf8");
 const knrMatch = serverJs.match(/function DetectKnrSlop\(Source, FileName = "main\.typ"\)[\s\S]*?\n\}/);
@@ -219,7 +215,6 @@ appJs = SafeReplace
     "function FormatTypstLAFS(Source)",
     `${detectKnrSlopCode}\n${validateEditorLafsCode}\n\nfunction FormatTypstLAFS(Source)`
 );
-
 // 4. Register CompletionItemProvider in InitializeMonaco
 const completionProviderCode = `            // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
             monaco.languages.registerCompletionItemProvider
@@ -416,7 +411,6 @@ appJs = SafeReplace
     'const Container = document.getElementById("MonacoContainer");',
     `${completionProviderCode}\n\n            const Container = document.getElementById("MonacoContainer");`
 );
-
 // 5. In InitializeMonaco onDidChangeModelContent: add dirty check & throttled outline
 appJs = SafeReplace
 (
@@ -434,7 +428,6 @@ appJs = SafeReplace
                     UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();`
 );
-
 // 6. Monaco Commands: Add shortcuts
 const monacoCommands = `            MonacoInstance.addCommand
             (
@@ -472,7 +465,6 @@ appJs = SafeReplace
     'MonacoInstance.addCommand\n            (\n                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,\n                () => { ApplyFormattingToEditor(); }\n            );',
     'MonacoInstance.addCommand\n            (\n                monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,\n                () => { ApplyFormattingToEditor(); }\n            );\n\n' + monacoCommands
 );
-
 // 7. Initial clean state and outline in InitializeMonaco
 appJs = SafeReplace
 (
@@ -480,7 +472,6 @@ appJs = SafeReplace
     'TriggerCompileNow();\n        }\n    );',
     'TriggerCompileNow();\n            MarkDocumentClean(InitialSource);\n            UpdateDocumentOutline();\n        }\n    );'
 );
-
 // 8. Update ShowCompilationError for error navigation
 const oldShowCompilationError = `function ShowCompilationError(ErrorMessage)
 {
@@ -544,7 +535,6 @@ const newShowCompilationError = `function ShowCompilationError(ErrorMessage)
 }`;
 
 appJs = SafeReplace(appJs, oldShowCompilationError, newShowCompilationError);
-
 // 9. Feature architectures (Viewport layout, Document outline, Asset drag&drop, Shortcuts modal, Print, Export menu)
 const featureArchitectures = `// --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
 
@@ -894,7 +884,6 @@ function ToggleExportMenu(ForceState)
 `;
 
 appJs = SafeReplace(appJs, "function SetupEventListeners()", featureArchitectures + "\nfunction SetupEventListeners()");
-
 // 10. Wire up all event listeners in SetupEventListeners
 const eventListenersHooks = `    // Priority 2: Viewport Layout Controls
     const SplitBtn = document.getElementById("LayoutSplitBtn");
@@ -1076,7 +1065,6 @@ appJs = SafeReplace
     'document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });',
     `${eventListenersHooks}\n\n    document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });`
 );
-
 // 11. Global Keyboard Shortcuts in window keydown listener
 const globalShortcutsCode = `            // Priority 2 & 4 Global Shortcuts
             if (E.altKey && E.key === "1")
@@ -1128,7 +1116,6 @@ appJs = SafeReplace
     'if ((E.ctrlKey || E.metaKey) && E.key === "s")',
     `${globalShortcutsCode}\n            if ((E.ctrlKey || E.metaKey) && E.key === "s")`
 );
-
 // 12. Toasts & Clean State on File Save
 appJs = SafeReplace
 (
@@ -1136,7 +1123,6 @@ appJs = SafeReplace
     "LoadWorkspaceInfo();",
     `LoadWorkspaceInfo();\n            MarkDocumentClean(Content);\n            ShowToast(\`Saved \${TargetPath.split(/[\\/\\\\]/).pop()}\`, "success");`
 );
-
 // 13. Toasts & Clean State on File Load
 appJs = SafeReplace
 (
@@ -1144,7 +1130,6 @@ appJs = SafeReplace
     "MonacoInstance.setValue(Data.Content);",
     `MonacoInstance.setValue(Data.Content);\n            MarkDocumentClean(Data.Content);\n            ShowToast(\`Loaded \${FileName}\`, "info");`
 );
-
 // 14. Toasts on Exports & Formatting
 appJs = SafeReplace
 (
@@ -1178,7 +1163,6 @@ appJs = SafeReplace
         ShowToast("Formatted to LAFS standard", "info");
     }`
 );
-
 // 15. In DOMContentLoaded: SetupAssetDragAndDrop and restore layout
 appJs = SafeReplace
 (
@@ -1192,7 +1176,6 @@ appJs = SafeReplace
         SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
     }`
 );
-
 // Write clean file
 fs.writeFileSync(appJsPath, appJs, "utf8");
 console.log("SUCCESS: Clean, error-free App.js generated!");

@@ -4,7 +4,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 {
     const Lines = (Source || "").split(/\r?\n/);
     const Errors = [];
-
     // Stack holds active openers: { Delim, Line, Col, LineText }
     const Stack = [];
 
@@ -12,20 +11,19 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawBlock = false;
     let InRawInline = false;
     let BlockCommentDepth = 0;
-
     // Helper to get clean line text with strings/comments masked
     function GetMaskedLine(LineText)
     {
         let Masked = "";
         let InStr = false;
-        for (let I = 0; I < LineText.length; I++)
+        for (let I = 0; I < LineText.length; I ++)
         {
             const C = LineText[I];
-            const NextC = I + 1 < LineText.length ? LineText[I + 1] : "";
-            const PrevC = I > 0 ? LineText[I - 1] : "";
+            const NextC = I + 1 < LineText.length ? LineText[I + 1]: "";
+            const PrevC = I > 0 ? LineText[I - 1]: "";
             if (C === '"' && PrevC !== "\\")
             {
-                InStr = !InStr;
+                InStr = ! InStr;
                 Masked += " ";
                 continue;
             }
@@ -44,68 +42,63 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         return Masked;
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx++)
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
     {
         const LineNum = LineIdx + 1;
         const LineText = Lines[LineIdx];
         let InLineComment = false;
 
-        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx++)
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
         {
             const ColNum = ColIdx + 1;
             const Char = LineText[ColIdx];
-            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1] : "";
-            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1] : "";
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
+            const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1]: "";
 
             if (InLineComment) { break; }
-
             // Raw blocks ```
             if (!InString && BlockCommentDepth === 0 && Char === "`")
             {
                 if (LineText.substring(ColIdx, ColIdx + 3) === "```")
                 {
-                    InRawBlock = !InRawBlock;
+                    InRawBlock = ! InRawBlock;
                     ColIdx += 2;
                     continue;
                 }
                 else if (!InRawBlock)
                 {
-                    InRawInline = !InRawInline;
+                    InRawInline = ! InRawInline;
                     continue;
                 }
             }
             if (InRawBlock || InRawInline) { continue; }
-
             // Block comments /* */
             if (!InString && Char === "/" && NextChar === "*")
             {
-                BlockCommentDepth++;
-                ColIdx++;
+                BlockCommentDepth ++;
+                ColIdx ++;
                 continue;
             }
             if (!InString && BlockCommentDepth > 0 && Char === "*" && NextChar === "/")
             {
-                BlockCommentDepth--;
-                ColIdx++;
+                BlockCommentDepth --;
+                ColIdx ++;
                 continue;
             }
             if (BlockCommentDepth > 0) { continue; }
-
             // Line comments //
             if (!InString && Char === "/" && NextChar === "/")
             {
                 InLineComment = true;
                 break;
             }
-
             // String literals "..."
             if (Char === '"' && PrevChar !== "\\")
             {
-                InString = !InString;
+                InString = ! InString;
                 continue;
             }
             if (InString) { continue; }
-
             // Multiline display math container: $
             if (Char === "$" && PrevChar !== "\\")
             {
@@ -205,7 +198,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
                 continue;
             }
-
             // Standard containers: (, [, {
             if (Char === "(" || Char === "{" || Char === "[")
             {
@@ -219,7 +211,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
             else if (Char === ")" || Char === "}" || Char === "]")
             {
-                const MatchDelim = Char === ")" ? "(" : (Char === "}" ? "{" : "[");
+                const MatchDelim = Char === ")" ? "(": (Char === "}" ? "{": "[");
 
                 if (Stack.length === 0 || Stack[Stack.length - 1].Delim !== MatchDelim)
                 {
@@ -239,17 +231,14 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
 
                 const Opener = Stack.pop();
-
                 // Monolith Check: Same line openers and closers are valid Monoliths
                 if (LineNum === Opener.Line)
                 {
                     continue;
                 }
-
                 // Multiline container: Evaluate Vector 1 (Opener line) and Vector 2 (Closer line)
                 const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
                 const MaskedCloserLine = GetMaskedLine(LineText);
-
                 // --- VECTOR 1 EVALUATION (Opening Container Line) ---
                 const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
                 const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
@@ -288,7 +277,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                         Reason: "Proceeding Semantic Content on Unpaired Opening Container"
                     });
                 }
-
                 // --- VECTOR 2 EVALUATION (Closing Container Line) ---
                 const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
                 const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
@@ -330,7 +318,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Remaining unclosed openers that span beyond end of file
     for (const Opener of Stack)
     {
@@ -357,7 +344,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
         }
     }
-
     // Deduplicate errors by Line + Col + Vector + Subtype
     const UniqueErrors = [];
     const SeenKeys = new Set();
@@ -373,7 +359,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
 
     if (UniqueErrors.length === 0)
     {
-        return { HasError: false, Errors: [] };
+        return { HasError: false, Errors:[] };
     }
 
     const First = UniqueErrors[0];
@@ -381,7 +367,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     const Margin = " ".repeat(Math.max(2, LineStr.length));
     const FormattedLineNum = LineStr.padStart(Margin.length, " ");
     const PointerIndent = " ".repeat(Math.max(0, First.Col - 1));
-    const AnchorTarget = First.Anchor ? `'${First.Anchor}'` : "the statement";
+    const AnchorTarget = First.Anchor ? `'${First.Anchor}'`: "the statement";
 
     let ActionHint = "";
     if (First.Vector === 1)
@@ -420,7 +406,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     }
 
     const FormattedMessage =
-`error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
+    `error: Severe Critical Fatal Error & Structural Failure: Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: Headless multiline container: Container Asymmetry & Ugly Formatting are strictly Forbidden.
 ${Margin}┌─ ${FileName}:${First.Line}:${First.Col}
 ${Margin}│
 ${FormattedLineNum}│ ${First.LineText}

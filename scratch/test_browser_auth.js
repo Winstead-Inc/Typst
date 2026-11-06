@@ -3,17 +3,22 @@ const HTTP = require("node:http");
 async function TestBrowserFlow()
 {
     console.log("=== Testing Browser Client Authentication Flow ===");
-
     // Step 1: Client loads / (Index.html) and extracts injected token
-    const Html = await new Promise((Resolve) =>
-    {
-        HTTP.get("http://127.0.0.1:3000/", (Res) =>
+    const Html = await new Promise
+    (
+        (Resolve) =>
         {
-            let Data = "";
-            Res.on("data", (C) => Data += C);
-            Res.on("end", () => Resolve(Data));
-        });
-    });
+            HTTP.get
+            (
+                "http://127.0.0.1:3000/", (Res) =>
+                {
+                    let Data = "";
+                    Res.on("data", (C) => Data += C);
+                    Res.on("end", () => Resolve(Data));
+                }
+            );
+        }
+    );
 
     const TokenMatch = Html.match(/window\.__TYPST_STUDIO_AUTH_TOKEN__\s*=\s*"([^"]+)"/);
     if (!TokenMatch)
@@ -24,34 +29,42 @@ async function TestBrowserFlow()
 
     const Token = TokenMatch[1];
     console.log("Extracted Token from HTML:", Token.slice(0, 16) + "...");
-
     // Step 2: TriggerCompileNow calls /api/compile with x-typst-auth-token
-    const Payload = JSON.stringify({ Source: "#set page(paper: \"a4\")\n\n= Ready\n\nClient compile test." });
+    const Payload = JSON.stringify( { Source: "#set page(paper: \"a4\")\n\n= Ready\n\nClient compile test." });
 
-    const CompileRes = await new Promise((Resolve) =>
-    {
-        const Req = HTTP.request
-        (
-            "http://127.0.0.1:3000/api/compile",
-            {
-                method: "POST",
-                headers:
+    const CompileRes = await new Promise
+    (
+        (Resolve) =>
+        {
+            const Req = HTTP.request
+            (
+                "http://127.0.0.1:3000/api/compile",
                 {
-                    "Content-Type": "application/json",
-                    "Content-Length": Buffer.byteLength(Payload),
-                    "x-typst-auth-token": Token
+                    method: "POST",
+                    headers:
+                    {
+                        "Content-Type": "application/json",
+                        "Content-Length": Buffer.byteLength(Payload),
+                        "x-typst-auth-token": Token
+                    }
+                },
+                (Res) =>
+                {
+                    let Data = "";
+                    Res.on("data", (C) => Data += C);
+                    Res.on
+                    (
+                        "end", () => Resolve
+                        ({
+                            Status: Res.statusCode, Data: JSON.parse(Data)
+                        })
+                    );
                 }
-            },
-            (Res) =>
-            {
-                let Data = "";
-                Res.on("data", (C) => Data += C);
-                Res.on("end", () => Resolve({ Status: Res.statusCode, Data: JSON.parse(Data) }));
-            }
-        );
-        Req.write(Payload);
-        Req.end();
-    });
+            );
+            Req.write(Payload);
+            Req.end();
+        }
+    );
 
     if (CompileRes.Status === 200 && CompileRes.Data.Success)
     {
@@ -65,9 +78,11 @@ async function TestBrowserFlow()
     }
 }
 
-TestBrowserFlow().catch((Err) =>
-{
-    console.error(Err);
-    process.exit(1);
-});
-
+TestBrowserFlow().catch
+(
+    (Err) =>
+    {
+        console.error(Err);
+        process.exit(1);
+    }
+);

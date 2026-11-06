@@ -3,10 +3,8 @@ const cp = require("child_process");
 
 console.log("=== Step 1: Updating Index.html ===");
 let html = fs.readFileSync("TypstStudio/public/Index.html", "utf8");
-
 // Update version
 html = html.replace(/v=20261105_\d+/g, "v=20261105_10");
-
 // Replace HeaderRight contents with the compact ExportGroupWrapper
 const oldHeaderRightButtons = `<button Type  = "button"
                     Id    = "CopyCodeButton"
@@ -181,7 +179,6 @@ const newHeaderRightExportGroup = `<div Class = "ExportGroupWrapper" Id = "Expor
             </div>`;
 
 html = html.replace(oldHeaderRightButtons, newHeaderRightExportGroup);
-
 // Add Export Paper Color Mode setting to SettingsPanel in DashboardView
 const exportSettingAddition = `                        <!-- Export Paper Color Mode Setting -->
                         <div Class = "SettingItem">
@@ -195,11 +192,11 @@ const exportSettingAddition = `                        <!-- Export Paper Color M
                             </select>
                         </div>`;
 
-html = html.replace(
+html = html.replace
+(
     '                        <!-- Default Export Background Setting -->',
     exportSettingAddition + '\n\n                        <!-- Default Export Background Setting -->'
 );
 
 fs.writeFileSync("TypstStudio/public/Index.html", html, "utf8");
 console.log("Index.html updated successfully!");
-

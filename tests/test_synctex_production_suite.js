@@ -29,22 +29,21 @@ function Assert(Condition, Description)
 {
     if (Condition)
     {
-        PassedAssertions++;
+        PassedAssertions ++;
         console.log(`  ✓ PASS: ${Description}`);
     }
     else
     {
-        FailedAssertions++;
+        FailedAssertions ++;
         console.error(`  ✗ FAIL: ${Description}`);
     }
 }
-
 // -----------------------------------------------------------------------------
 // Suite 1: Multibyte Unicode & Math Alignment (No UTF-8/UTF-16 Character Drift)
 // -----------------------------------------------------------------------------
 console.log("[Test Suite 1: Native Geometric Extraction & UTF-16 Column Alignment]");
 
-const ComplexSource = 
+const ComplexSource =
 `= Mathematical Proof: Quantum & Relativistic Limits 🚀
 Let $Psi(x, t) = A e^(i (k x - omega t))$ describe the wave function.
 We consider the energy tensor $T^(mu nu) = (rho + p) u^mu u^nu + p g^(mu nu)$.
@@ -62,9 +61,7 @@ if (!FS.existsSync(TempJobDir))
 const OutputSvgPattern = Path.join(TempJobDir, "page-{n}.svg");
 const CompileProc = ChildProcess.spawnSync
 (
-    TYPST_BINARY,
-    ["compile", "--format", "svg", "-", OutputSvgPattern],
-    { input: ComplexSource, encoding: "utf-8" }
+    TYPST_BINARY,["compile", "--format", "svg", "-", OutputSvgPattern], { input: ComplexSource, encoding: "utf-8" }
 );
 
 Assert(CompileProc.status === 0, "Typst compiler exited with status code 0");
@@ -79,7 +76,6 @@ const SvgContent = FS.readFileSync(SvgFile1, "utf-8");
 const SyncElements = JSON.parse(FS.readFileSync(SynctexFile, "utf-8"));
 
 Assert(Array.isArray(SyncElements) && SyncElements.length > 0, `synctex.json contains ${SyncElements.length} geometric elements`);
-
 // Validate that every element has valid point coordinates and UTF-16 code unit offsets
 let ValidCoordinates = true;
 for (const Elem of SyncElements)
@@ -91,7 +87,6 @@ for (const Elem of SyncElements)
     }
 }
 Assert(ValidCoordinates, "All Sync elements have valid positive bounding box dimensions");
-
 // -----------------------------------------------------------------------------
 // Suite 2: Bidirectional Idempotency (Point Hit-Test -> Line/Col -> Bounding Box)
 // -----------------------------------------------------------------------------
@@ -108,9 +103,8 @@ function HitTestPoint(Elements, Page, X, Y)
     }
     return null;
 }
-
 // Test clicking inside the title heading
-const HeadingElem = SyncElements.find((E) => E.line === 1);
+const HeadingElem = SyncElements.find( (E) => E.line === 1);
 Assert(Boolean(HeadingElem), "Found heading element at line 1");
 
 if (HeadingElem)
@@ -120,16 +114,14 @@ if (HeadingElem)
     const Hit = HitTestPoint(SyncElements, HeadingElem.page, ClickX, ClickY);
     Assert(Hit && Hit.line === 1, `Click at (${ClickX.toFixed(1)}, ${ClickY.toFixed(1)}) resolved to Line 1`);
 }
-
 // Test finding shape element (the red rectangle at line 6)
-const ShapeElem = SyncElements.find((E) => E.line === 6);
+const ShapeElem = SyncElements.find( (E) => E.line === 6);
 Assert(Boolean(ShapeElem), "Found shape (#rect) element in synctex.json");
 if (ShapeElem)
 {
     Assert(Math.abs(ShapeElem.width - 50.0) < 0.1, `Shape width matches expected 50pt (${ShapeElem.width.toFixed(1)}pt)`);
     Assert(Math.abs(ShapeElem.height - 20.0) < 0.1, `Shape height matches expected 20pt (${ShapeElem.height.toFixed(1)}pt)`);
 }
-
 // -----------------------------------------------------------------------------
 // Suite 3: SVG Coordinate Space & Zoom Invariance (Vector Lock)
 // -----------------------------------------------------------------------------
@@ -161,7 +153,6 @@ for (const Zoom of ZoomLevels)
     }
 }
 Assert(ZoomInvariant, "SVG <rect> maintains exact coordinate ratio in viewBox across all zoom tiers (25%-300%)");
-
 // -----------------------------------------------------------------------------
 // Suite 4: Cross-Platform Modifier Key Emulation
 // -----------------------------------------------------------------------------
@@ -170,15 +161,29 @@ console.log("\n[Test Suite 4: Cross-Platform Modifier Key Emulation]");
 function IsInspectKey(Event, Platform)
 {
     const IsMac = /Mac|iPod|iPhone|iPad/.test(Platform);
-    return IsMac ? (Event.metaKey && !Event.ctrlKey) : (Event.ctrlKey && !Event.metaKey);
+    return IsMac ? (Event.metaKey && !Event.ctrlKey): (Event.ctrlKey && !Event.metaKey);
 }
 
-Assert(IsInspectKey({ ctrlKey: true, metaKey: false }, "Win32") === true, "Windows: Ctrl+Click accepted");
-Assert(IsInspectKey({ ctrlKey: false, metaKey: true }, "Win32") === false, "Windows: Cmd+Click rejected");
-Assert(IsInspectKey({ ctrlKey: true, metaKey: false }, "Linux x86_64") === true, "Linux: Ctrl+Click accepted");
-Assert(IsInspectKey({ ctrlKey: false, metaKey: true }, "MacIntel") === true, "macOS: Cmd+Click accepted");
-Assert(IsInspectKey({ ctrlKey: true, metaKey: false }, "MacIntel") === false, "macOS: Ctrl+Click rejected (prevents contextmenu conflict)");
-
+Assert
+(
+    IsInspectKey( { ctrlKey: true, metaKey: false }, "Win32") === true, "Windows: Ctrl+Click accepted"
+);
+Assert
+(
+    IsInspectKey( { ctrlKey: false, metaKey: true }, "Win32") === false, "Windows: Cmd+Click rejected"
+);
+Assert
+(
+    IsInspectKey( { ctrlKey: true, metaKey: false }, "Linux x86_64") === true, "Linux: Ctrl+Click accepted"
+);
+Assert
+(
+    IsInspectKey( { ctrlKey: false, metaKey: true }, "MacIntel") === true, "macOS: Cmd+Click accepted"
+);
+Assert
+(
+    IsInspectKey( { ctrlKey: true, metaKey: false }, "MacIntel") === false, "macOS: Ctrl+Click rejected (prevents contextmenu conflict)"
+);
 // -----------------------------------------------------------------------------
 // Suite 5: End-to-End Live Server API Verification
 // -----------------------------------------------------------------------------
@@ -190,7 +195,8 @@ function HttpRequest(Port, Method, Path, Headers = {}, Body = null)
     (
         (Resolve, Reject) =>
         {
-            const Opts = {
+            const Opts =
+            {
                 hostname: "127.0.0.1",
                 port: Port,
                 path: Path,
@@ -200,29 +206,34 @@ function HttpRequest(Port, Method, Path, Headers = {}, Body = null)
 
             const Req = HTTP.request
             (
-                Opts,
-                (Res) =>
+                Opts, (Res) =>
                 {
                     let Data = "";
                     Res.on("data", (Chunk) => { Data += Chunk; });
-                    Res.on("end", () =>
-                    {
-                        try
+                    Res.on
+                    (
+                        "end", () =>
                         {
-                            Resolve({ Status: Res.statusCode, Body: JSON.parse(Data) });
+                            try
+                            {
+                                Resolve
+                                ({
+                                    Status: Res.statusCode, Body: JSON.parse(Data)
+                                });
+                            }
+                            catch (Err)
+                            {
+                                Resolve( { Status: Res.statusCode, Body: Data });
+                            }
                         }
-                        catch (Err)
-                        {
-                            Resolve({ Status: Res.statusCode, Body: Data });
-                        }
-                    });
+                    );
                 }
             );
 
             Req.on("error", Reject);
             if (Body)
             {
-                Req.write(typeof Body === "string" ? Body : JSON.stringify(Body));
+                Req.write(typeof Body === "string" ? Body: JSON.stringify(Body));
             }
             Req.end();
         }
@@ -233,25 +244,23 @@ async function RunServerSuite()
 {
     const ServerProcess = ChildProcess.spawn
     (
-        "node",
-        ["TypstStudio/Server.js"],
+        "node",["TypstStudio/Server.js"],
         {
             env: { ...process.env, PORT: TEST_PORT.toString() },
-            stdio: ["pipe", "pipe", "pipe"]
+            stdio:["pipe", "pipe", "pipe"]
         }
     );
 
     try
     {
-        await new Promise((R) => setTimeout(R, 1000));
-
+        await new Promise( (R) => setTimeout(R, 1000));
         // 1. Auth token
         const AuthRes = await HttpRequest(TEST_PORT, "GET", "/api/auth/token");
         Assert(AuthRes.Status === 200 && Boolean(AuthRes.Body.Token), "GET /api/auth/token returns session token");
         const Token = AuthRes.Body.Token;
-
         // 2. Compile document
-        const CompilePayload = {
+        const CompilePayload =
+        {
             Source: ComplexSource,
             FileName: "quantum.typ"
         };
@@ -269,11 +278,13 @@ async function RunServerSuite()
 
         Assert(CompileRes.Status === 200, "POST /api/compile status 200");
         Assert(CompileRes.Body.Success === true, "POST /api/compile returns Success: true");
-        Assert(Array.isArray(CompileRes.Body.SyncMap) && CompileRes.Body.SyncMap.length > 0, "POST /api/compile embeds SyncMap array in response");
+        Assert
+        (
+            Array.isArray(CompileRes.Body.SyncMap) && CompileRes.Body.SyncMap.length > 0, "POST /api/compile embeds SyncMap array in response"
+        );
 
         const ServerSyncMap = CompileRes.Body.SyncMap || [];
         const FirstElem = ServerSyncMap[0];
-
         // 3. Resolve Click endpoint
         const ClickRes = await HttpRequest
         (
@@ -290,7 +301,6 @@ async function RunServerSuite()
         Assert(ClickRes.Status === 200, "POST /api/sync/click status 200");
         Assert(ClickRes.Body.Line === FirstElem.line, `Resolved click Line matches element line (${ClickRes.Body.Line})`);
         Assert(ClickRes.Body.Column === FirstElem.col, `Resolved click Column matches element column (${ClickRes.Body.Column})`);
-
         // 4. Resolve Cursor endpoint
         const CursorRes = await HttpRequest
         (
@@ -306,8 +316,10 @@ async function RunServerSuite()
 
         Assert(CursorRes.Status === 200, "POST /api/sync/cursor status 200");
         Assert(CursorRes.Body.Page === FirstElem.page, `Found preview box on Page ${CursorRes.Body.Page}`);
-        Assert(typeof CursorRes.Body.X === "number" && typeof CursorRes.Body.Y === "number", `Found preview box coordinates (${CursorRes.Body.X.toFixed(1)}, ${CursorRes.Body.Y.toFixed(1)})`);
-
+        Assert
+        (
+            typeof CursorRes.Body.X === "number" && typeof CursorRes.Body.Y === "number", `Found preview box coordinates (${CursorRes.Body.X.toFixed(1)}, ${CursorRes.Body.Y.toFixed(1)})`
+        );
         // 5. Invalid token security check
         const UnauthorizedRes = await HttpRequest
         (
@@ -330,24 +342,24 @@ async function RunServerSuite()
 }
 
 RunServerSuite()
-    .then
-    (
-        () =>
+.then
+(
+    () =>
+    {
+        console.log("\n===============================================================================");
+        console.log(`BATTLE-TEST SUMMARY: ${PassedAssertions} PASSED, ${FailedAssertions} FAILED`);
+        console.log("===============================================================================");
+        if (FailedAssertions > 0)
         {
-            console.log("\n===============================================================================");
-            console.log(`BATTLE-TEST SUMMARY: ${PassedAssertions} PASSED, ${FailedAssertions} FAILED`);
-            console.log("===============================================================================");
-            if (FailedAssertions > 0)
-            {
-                process.exitCode = 1;
-            }
-        }
-    )
-    .catch
-    (
-        (Err) =>
-        {
-            console.error("Server test suite encountered unexpected error:", Err);
             process.exitCode = 1;
         }
-    );
+    }
+)
+.catch
+(
+    (Err) =>
+    {
+        console.error("Server test suite encountered unexpected error:", Err);
+        process.exitCode = 1;
+    }
+);

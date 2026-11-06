@@ -13,14 +13,17 @@ async function TestFileCompile()
                 {
                     let d = "";
                     r.on("data", c => d += c);
-                    r.on("end", () => res(JSON.parse(d).Token));
+                    r.on
+                    (
+                        "end", () => res(JSON.parse(d).Token)
+                    );
                 }
-            ).on("error", rej);
+            )
+            .on("error", rej);
         }
     );
 
     console.log("Auth token acquired:", Token.substring(0, 10) + "...");
-
     // Step 2: Compile with FilePath pointing to GenesisOfTheVanguard
     const CompilePayload =
     {
@@ -51,7 +54,10 @@ async function TestFileCompile()
                 {
                     let d = "";
                     r.on("data", c => d += c);
-                    r.on("end", () => res(JSON.parse(d)));
+                    r.on
+                    (
+                        "end", () => res(JSON.parse(d))
+                    );
                 }
             );
             req.on("error", rej);
@@ -69,7 +75,6 @@ async function TestFileCompile()
     {
         console.log("TEST FAILED:", CompileRes.Error);
     }
-
     // Step 3: Test PDF export with FilePath
     const PdfPayload =
     {
@@ -98,7 +103,10 @@ async function TestFileCompile()
                 },
                 (r) =>
                 {
-                    res({ status: r.statusCode, type: r.headers["content-type"] });
+                    res
+                    ({
+                        status: r.statusCode, type : r.headers["content-type"]
+                    });
                 }
             );
             req.on("error", rej);
@@ -118,4 +126,4 @@ async function TestFileCompile()
     }
 }
 
-TestFileCompile().catch(console.error);
+TestFileCompile().catch (console.error);

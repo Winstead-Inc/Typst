@@ -1,7 +1,6 @@
 const fs = require("fs");
 
 const s = fs.readFileSync("TypstStudio/public/App.js", "utf8");
-
 // Count unescaped backticks outside of comments
 let inLineComment = false;
 let inBlockComment = false;
@@ -10,11 +9,11 @@ let inDoubleQuote = false;
 let inBacktick = false;
 let backtickStarts = [];
 
-for (let i = 0; i < s.length; i++)
+for (let i = 0; i < s.length; i ++)
 {
     const c = s[i];
-    const prev = i > 0 ? s[i - 1] : "";
-    const next = i < s.length - 1 ? s[i + 1] : "";
+    const prev = i > 0 ? s[i - 1]: "";
+    const next = i < s.length - 1 ? s[i + 1]: "";
 
     if (inLineComment)
     {
@@ -26,7 +25,7 @@ for (let i = 0; i < s.length; i++)
         if (c === "*" && next === "/")
         {
             inBlockComment = false;
-            i++;
+            i ++;
         }
         continue;
     }
@@ -49,17 +48,16 @@ for (let i = 0; i < s.length; i++)
         }
         continue;
     }
-
     // Normal code
     if (c === "/" && next === "/")
     {
         inLineComment = true;
-        i++;
+        i ++;
     }
     else if (c === "/" && next === "*")
     {
         inBlockComment = true;
-        i++;
+        i ++;
     }
     else if (c === "'")
     {
@@ -74,7 +72,7 @@ for (let i = 0; i < s.length; i++)
         inBacktick = true;
         // Calculate line number
         const line = s.slice(0, i).split("\n").length;
-        backtickStarts.push({ line, pos: i });
+        backtickStarts.push( { line, pos: i });
     }
 }
 
@@ -89,4 +87,3 @@ else
 {
     console.log("All backticks matched! Something else is wrong.");
 }
-

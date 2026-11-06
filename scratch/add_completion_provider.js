@@ -191,11 +191,11 @@ const completionProviderCode = `            // Typst IntelliSense & LAFS Snippet
                 }
             );`;
 
-appJs = appJs.replace(
+appJs = appJs.replace
+(
     'const Container = document.getElementById("MonacoContainer");',
     `${completionProviderCode}\n\n            const Container = document.getElementById("MonacoContainer");`
 );
 
 fs.writeFileSync("TypstStudio/public/App.js", appJs, "utf8");
 console.log("SUCCESS: Added registerCompletionItemProvider to App.js");
-

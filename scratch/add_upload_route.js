@@ -93,7 +93,8 @@ async function HandleUploadAsset(Request, Response)
 }
 `;
 
-serverJs = serverJs.replace(
+serverJs = serverJs.replace
+(
     "async function HandleDeleteFile(Request, Response, QueryPath)",
     assetCode + "\nasync function HandleDeleteFile(Request, Response, QueryPath)"
 );
@@ -106,11 +107,11 @@ const routeCode = `        if (Request.method === "POST" && Pathname === "/api/w
 
         if (Request.method === "POST" && Pathname === "/api/workspace/create")`;
 
-serverJs = serverJs.replace(
+serverJs = serverJs.replace
+(
     'if (Request.method === "POST" && Pathname === "/api/workspace/create")',
     routeCode
 );
 
 fs.writeFileSync("TypstStudio/Server.js", serverJs, "utf8");
 console.log("SUCCESS: Server.js updated with /api/workspace/upload");
-

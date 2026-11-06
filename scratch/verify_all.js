@@ -17,4 +17,3 @@ console.log('  MathBracketDecorations in JS:', js.includes('MathBracketDecoratio
 console.log('  LightSvgLayer in JS CreatePageElement:', js.includes('LightSvgLayer'));
 console.log('  DarkSvgLayer in JS CreatePageElement:', js.includes('DarkSvgLayer'));
 console.log('  ToggleBlackPageMode does not call RenderPages:', !js.includes('RenderPages(LastCompiledPages)'));
-

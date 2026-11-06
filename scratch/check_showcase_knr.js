@@ -14,6 +14,10 @@ const Fn = DetectKnrSlop();
 const Result = Fn(Showcase, "showcase.typ");
 console.log("K&R Slop in showcase:", Result.HasError);
 console.log("Error count:", Result.Errors.length);
-Result.Errors.forEach((E, I) => {
-    console.log(`[${I}] Line ${E.Line}:${E.Col} - ${E.Reason} (${E.LineText ? E.LineText.trim() : ""})`);
-});
+Result.Errors.forEach
+(
+    (E, I) =>
+    {
+        console.log(`[${I}] Line ${E.Line}:${E.Col} - ${E.Reason} (${E.LineText ? E.LineText.trim() : ""})`);
+    }
+);
