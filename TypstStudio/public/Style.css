@@ -3428,3 +3428,20 @@ kbd
     flex-wrap: nowrap !important;
     overflow: visible !important;
 }
+
+/* ========================================================================= */
+/* DETERMINISTIC BIDIRECTIONAL MAPPING (LAFS SYNCTEX) STYLES                */
+/* ========================================================================= */
+
+.lafs-anchor-pillar-highlight
+{
+    background-color: rgba(0, 229, 255, 0.22) !important;
+    border-left: 3px solid #00E5FF !important;
+}
+
+#lafs-forward-sync-highlight
+{
+    pointer-events: none;
+    transition: all 0.15s ease-out;
+}
+

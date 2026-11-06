@@ -6,7 +6,8 @@ use std::ops::Deref;
 use ecow::{EcoString, EcoVec, eco_format};
 use typst_library::diag::WarningSink;
 use typst_library::layout::{Abs, Angle, Em, Length, Ratio, Rel};
-use typst_library::visualize::{
+use typst_library::visualize::
+{
     Color, Hsl, LinearRgb, Oklab, Oklch, Paint, ProcessColor, Rgb,
 };
 use typst_utils::Numeric;

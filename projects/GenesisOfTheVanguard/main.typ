@@ -96,7 +96,7 @@ Typst is a next-generation document compiler designed for speed, visual beauty, 
 
 Typst features a native math engine with complete typesetting parity. All 12 mathematical categories are showcased below in both inline and coordinate-aligned display forms.
 
-== 2.1 Linear Transformations & Matrix Algebra
+== Linear Transformations & Matrix Algebra
 Matrices and vectors express linear mappings. Inline forms like $mat(1, 2; 3, 4)$ and $vec(x_1, x_2)$ integrate smoothly into text flows.
 
 Display matrix affine rotation:
@@ -122,7 +122,7 @@ $
   )
 $
 
-== 2.2 Piecewise Functions & Cases
+== Piecewise Functions & Cases
 Piecewise conditions can be expressed inline via $cases(1 "if" x > 0, 0 "otherwise")$ or expanded into display equations:
 $
   f(x)
@@ -134,7 +134,7 @@ $
   )
 $
 
-== 2.3 Rational Expressions & Fractions
+== Rational Expressions & Fractions
 Fractions format cleanly inline like $(a + b) / (c + d)$ and expand horizontally or vertically in display mode:
 $
   (x^3 - y^3)
@@ -144,7 +144,7 @@ $
   x^2 + x y + y^2
 $
 
-== 2.4 Radicals, Roots & Binomial Coefficients
+== Radicals, Roots & Binomial Coefficients
 Radicals format inline as $sqrt(x^2 + 1)$ and $root(3, 8)$, and binomial coefficients format inline as $binom(n, k)$.
 
 Display radical of high-order forms:
@@ -169,7 +169,7 @@ $
   (a + b)^n
 $
 
-== 2.5 Calculus, Integrals & Differential Forms
+== Calculus, Integrals & Differential Forms
 Integrals support standard and contour formulations. Inline forms like $integral_0^1 x^2 dif x = 1/3$ integrate directly into prose.
 
 Display Gaussian probability integral:
@@ -190,7 +190,7 @@ $
   2 pi i sum op("Res")(f, z_k)
 $
 
-== 2.6 Summations, Infinite Products & Limits
+== Summations, Infinite Products & Limits
 Summations and infinite products format inline as $sum_(i=1)^n i = (n (n+1))/2$ and $product_(i=1)^n i = n!$.
 
 Display Basel problem summation:
@@ -217,7 +217,7 @@ $
   e
 $
 
-== 2.7 Vector Calculus, Accents, Primes & Norms
+== Vector Calculus, Accents, Primes & Norms
 Diacritics and prime notation are fully supported inline: $arrow(v), hat(x), tilde(y), dot(x), dot.double(x), macron(z), f'(x)$, with norms $abs(x) < epsilon$ and $norm(arrow(v)) = 1$.
 
 Display Newton second law in vector differential form:
@@ -247,7 +247,7 @@ $
 
 Typst features high-performance tables supporting custom fills, alternating strokes, cell spanning, and nested hierarchical sub-tables.
 
-== 3.1 Advanced Merged Cells (Colspan & Rowspan)
+== Advanced Merged Cells (Colspan & Rowspan)
 The table below illustrates multi-column headers (`colspan`) and multi-row categorical spans (`rowspan`) with coordinate alignment:
 
 #table
@@ -268,7 +268,7 @@ The table below illustrates multi-column headers (`colspan`) and multi-row categ
   table.cell(colspan: 2, fill: rgb("F1F3F6"))[*43.4 ms (Real-Time Synchronous)*]
 )
 
-== 3.2 Hierarchical Nested Tables
+== Hierarchical Nested Tables
 Sub-tables can be embedded directly within container cells to display complex component structures:
 
 #table

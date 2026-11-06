@@ -3,7 +3,8 @@ const fs = require("fs");
 let appJs = fs.readFileSync("TypstStudio/public/App.js", "utf8");
 
 // 1. Add feature architectures before SetupEventListeners
-const featureArchitectures = `// --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
+const featureArchitectures =
+`// --- VIEWPORT SEGMENTED CONTROL ARCHITECTURE (PRIORITY 2) ---
 
 let CurrentViewportLayout = "split"; // 'split', 'editor', 'preview'
 
@@ -296,12 +297,10 @@ async function HandleDroppedAssetFile(File)
                 MonacoInstance.executeEdits
                 (
                     "asset-drop",
-                    [
-                        {
-                            range: new monaco.Range(Position.lineNumber, Position.column, Position.lineNumber, Position.column),
-                            text: Snippet
-                        }
-                    ]
+                    [{
+                        range: new monaco.Range(Position.lineNumber, Position.column, Position.lineNumber, Position.column),
+                        text: Snippet
+                    }]
                 );
 
                 ShowToast(\`Uploaded \${CleanFileName} and inserted #image\`, "success");

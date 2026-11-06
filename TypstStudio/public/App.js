@@ -325,7 +325,7 @@ Typst is a next-generation document compiler designed for speed, visual beauty, 
 
 Typst features a native math engine with complete typesetting parity. All 12 mathematical categories are showcased below in both inline and coordinate-aligned display forms.
 
-== 2.1 Linear Transformations & Matrix Algebra
+== Linear Transformations & Matrix Algebra
 Matrices and vectors express linear mappings. Inline forms like $mat(1, 2; 3, 4)$ and $vec(x_1, x_2)$ integrate smoothly into text flows.
 
 Display matrix affine rotation:
@@ -351,7 +351,7 @@ $
   )
 $
 
-== 2.2 Piecewise Functions & Cases
+== Piecewise Functions & Cases
 Piecewise conditions can be expressed inline via $cases(1 "if" x > 0, 0 "otherwise")$ or expanded into display equations:
 $
   f(x)
@@ -363,7 +363,7 @@ $
   )
 $
 
-== 2.3 Rational Expressions & Fractions
+== Rational Expressions & Fractions
 Fractions format cleanly inline like $(a + b) / (c + d)$ and expand horizontally or vertically in display mode:
 $
   (x^3 - y^3)
@@ -373,7 +373,7 @@ $
   x^2 + x y + y^2
 $
 
-== 2.4 Radicals, Roots & Binomial Coefficients
+== Radicals, Roots & Binomial Coefficients
 Radicals format inline as $sqrt(x^2 + 1)$ and $root(3, 8)$, and binomial coefficients format inline as $binom(n, k)$.
 
 Display radical of high-order forms:
@@ -398,7 +398,7 @@ $
   (a + b)^n
 $
 
-== 2.5 Calculus, Integrals & Differential Forms
+== Calculus, Integrals & Differential Forms
 Integrals support standard and contour formulations. Inline forms like $integral_0^1 x^2 dif x = 1/3$ integrate directly into prose.
 
 Display Gaussian probability integral:
@@ -419,7 +419,7 @@ $
   2 pi i sum op("Res")(f, z_k)
 $
 
-== 2.6 Summations, Infinite Products & Limits
+== Summations, Infinite Products & Limits
 Summations and infinite products format inline as $sum_(i=1)^n i = (n (n+1))/2$ and $product_(i=1)^n i = n!$.
 
 Display Basel problem summation:
@@ -446,7 +446,7 @@ $
   e
 $
 
-== 2.7 Vector Calculus, Accents, Primes & Norms
+== Vector Calculus, Accents, Primes & Norms
 Diacritics and prime notation are fully supported inline: $arrow(v), hat(x), tilde(y), dot(x), dot.double(x), macron(z), f'(x)$, with norms $abs(x) < epsilon$ and $norm(arrow(v)) = 1$.
 
 Display Newton second law in vector differential form:
@@ -476,7 +476,7 @@ $
 
 Typst features high-performance tables supporting custom fills, alternating strokes, cell spanning, and nested hierarchical sub-tables.
 
-== 3.1 Advanced Merged Cells (Colspan & Rowspan)
+== Advanced Merged Cells (Colspan & Rowspan)
 The table below illustrates multi-column headers (\`colspan\`) and multi-row categorical spans (\`rowspan\`) with coordinate alignment:
 
 #table
@@ -497,7 +497,7 @@ The table below illustrates multi-column headers (\`colspan\`) and multi-row cat
   table.cell(colspan: 2, fill: rgb("F1F3F6"))[*43.4 ms (Real-Time Synchronous)*]
 )
 
-== 3.2 Hierarchical Nested Tables
+== Hierarchical Nested Tables
 Sub-tables can be embedded directly within container cells to display complex component structures:
 
 #table
@@ -731,6 +731,180 @@ function JumpToEditorLocation(Line, Col)
     MonacoInstance.revealPositionInCenter({ lineNumber: Line, column: Col });
     MonacoInstance.setPosition({ lineNumber: Line, column: Col });
     MonacoInstance.focus();
+}
+
+// =========================================================================
+// DETERMINISTIC BIDIRECTIONAL MAPPING SUBSYSTEM (LAFS SYNCTEX)
+// =========================================================================
+let ActiveBidirectionalMapper   = null;
+let AnchorPillarDecorations     = [];
+let AnchorFlashTimeout          = null;
+
+function FlashAnchorPillars(OpeningLine, ClosingLine)
+{
+    if (!MonacoInstance || !window.monaco)
+    {
+        return;
+    }
+
+    if (AnchorFlashTimeout)
+    {
+        clearTimeout(AnchorFlashTimeout);
+        AnchorFlashTimeout = null;
+    }
+
+    const NewDecorations =
+    [
+        {
+            range:   new window.monaco.Range(OpeningLine, 1, OpeningLine, 1),
+            options: { isWholeLine: true, className: "lafs-anchor-pillar-highlight" }
+        },
+        {
+            range:   new window.monaco.Range(ClosingLine, 1, ClosingLine, 1),
+            options: { isWholeLine: true, className: "lafs-anchor-pillar-highlight" }
+        }
+    ];
+
+    AnchorPillarDecorations = MonacoInstance.deltaDecorations(AnchorPillarDecorations, NewDecorations);
+    AnchorFlashTimeout      = setTimeout
+    (
+        () =>
+        {
+            if (MonacoInstance)
+            {
+                AnchorPillarDecorations = MonacoInstance.deltaDecorations(AnchorPillarDecorations, []);
+            }
+        },
+        800
+    );
+}
+
+function HandleForwardSync()
+{
+    if (!MonacoInstance || !ActiveBidirectionalMapper)
+    {
+        return;
+    }
+
+    const Position = MonacoInstance.getPosition();
+    if (!Position)
+    {
+        return;
+    }
+
+    const CursorLine = Position.lineNumber;
+    const CursorCol  = Position.column;
+    const Target     = ActiveBidirectionalMapper.ResolveForwardSync(CursorLine, CursorCol);
+
+    // Remove any existing highlight rect across all preview pages
+    const ExistingHighlights = document.querySelectorAll("#lafs-forward-sync-highlight");
+    for (let I = 0; I < ExistingHighlights.length; I++)
+    {
+        ExistingHighlights[I].remove();
+    }
+
+    if (!Target || !Target.Bounds)
+    {
+        return;
+    }
+
+    const PageSheet = document.getElementById(`PageSheet_${Target.PageIndex + 1}`);
+    if (!PageSheet)
+    {
+        return;
+    }
+
+    const ActiveSvg = PageSheet.querySelector(".SvgLayer:not([style*='display: none']) svg") || PageSheet.querySelector("svg");
+    if (!ActiveSvg)
+    {
+        return;
+    }
+
+    const RectElem = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    RectElem.setAttribute("id", "lafs-forward-sync-highlight");
+    RectElem.setAttribute("x", Target.Bounds.MinX.toFixed(2));
+    RectElem.setAttribute("y", Target.Bounds.MinY.toFixed(2));
+    RectElem.setAttribute("width", Target.Bounds.Width().toFixed(2));
+    RectElem.setAttribute("height", Target.Bounds.Height().toFixed(2));
+    RectElem.setAttribute("stroke", Target.StrokeColor);
+    RectElem.setAttribute("fill", Target.FillColor);
+    RectElem.setAttribute("stroke-width", "1.5");
+    RectElem.setAttribute("rx", "2");
+    RectElem.setAttribute("pointer-events", "none");
+
+    ActiveSvg.appendChild(RectElem);
+
+    // Smooth scroll preview container if off-screen
+    const PreviewViewport = document.getElementById("PreviewViewport");
+    if (PreviewViewport)
+    {
+        const RectBounds = RectElem.getBoundingClientRect();
+        const ViewBounds = PreviewViewport.getBoundingClientRect();
+
+        const IsOffScreen = RectBounds.top < ViewBounds.top || RectBounds.bottom > ViewBounds.bottom;
+        if (IsOffScreen)
+        {
+            const ScrollOffset = (RectBounds.top - ViewBounds.top) + PreviewViewport.scrollTop - (ViewBounds.height / 2);
+            PreviewViewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
+        }
+    }
+}
+
+function HandleReverseSync(Event)
+{
+    if (!Event.ctrlKey && !Event.metaKey)
+    {
+        return;
+    }
+    if (!ActiveBidirectionalMapper)
+    {
+        return;
+    }
+
+    const SvgElement = Event.target.closest("svg");
+    if (!SvgElement)
+    {
+        return;
+    }
+
+    Event.preventDefault();
+    Event.stopPropagation();
+
+    const PageSheet = SvgElement.closest(".PageSheet");
+    let PageIndex = 0;
+    if (SvgElement.hasAttribute("data-lafs-page-index"))
+    {
+        PageIndex = parseInt(SvgElement.getAttribute("data-lafs-page-index"), 10);
+    }
+    else if (PageSheet)
+    {
+        PageIndex = Math.max(0, parseInt(PageSheet.id.replace("PageSheet_", ""), 10) - 1);
+    }
+
+    const ScreenCTM = SvgElement.getScreenCTM();
+    if (!ScreenCTM)
+    {
+        return;
+    }
+
+    const InvCTM  = ScreenCTM.inverse();
+    const Pt      = new DOMPoint(Event.clientX, Event.clientY).matrixTransform(InvCTM);
+    const ClickX  = Pt.x;
+    const ClickY  = Pt.y;
+
+    const Target = ActiveBidirectionalMapper.ResolveReverseSync(PageIndex, ClickX, ClickY);
+    if (!Target)
+    {
+        return;
+    }
+
+    JumpToEditorLocation(Target.SourceLine, Target.SourceCol);
+
+    // If container with opening and closing anchors, flash highlight anchor pillars in #00E5FF
+    if (Target.EnclosingSpan && Target.EnclosingSpan.OpeningAnchorLine && Target.EnclosingSpan.ClosingAnchorLine)
+    {
+        FlashAnchorPillars(Target.EnclosingSpan.OpeningAnchorLine, Target.EnclosingSpan.ClosingAnchorLine);
+    }
 }
 
 // Appearance & UI Settings
@@ -2402,6 +2576,7 @@ async function InitializeMonaco()
                     const Pos = Event.position;
                     document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
                     UpdateMathBracketHighlighting();
+                    HandleForwardSync();
                 }
             );
 
@@ -2541,6 +2716,16 @@ async function TriggerCompileNow()
             CurrentPageCount = Result.PageCount;
             RenderPages(Result.Pages);
             UpdatePagination();
+
+            if (typeof Deterministic_Bidirectional_Mapper_Module !== "undefined")
+            {
+                if (!ActiveBidirectionalMapper)
+                {
+                    ActiveBidirectionalMapper = new Deterministic_Bidirectional_Mapper_Module.Deterministic_Bidirectional_Mapper();
+                }
+                ActiveBidirectionalMapper.BuildFromSourceAndLayout(Source);
+                HandleForwardSync();
+            }
         }
         else
         {
@@ -2762,16 +2947,20 @@ function RenderPages(Pages)
         PageDiv.style.width = `${ScaledWidth}px`;
         PageDiv.style.height = `${ScaledHeight}px`;
 
-        function NormalizeSvg(RawSvg)
+        function NormalizeSvg(RawSvg, PageIdx)
         {
             return RawSvg.replace
             (
                 /<svg\b([^>]*)>/i,
                 (Match, Attrs) =>
                 {
-                    const CleanedAttrs = Attrs
+                    let CleanedAttrs = Attrs
                         .replace(/\bwidth="[^"]*"/gi, "")
                         .replace(/\bheight="[^"]*"/gi, "");
+                    if (!CleanedAttrs.includes("data-lafs-page-index"))
+                    {
+                        CleanedAttrs += ` data-lafs-page-index="${PageIdx}"`;
+                    }
                     return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
                 }
             );
@@ -2779,11 +2968,11 @@ function RenderPages(Pages)
 
         const LightLayer = document.createElement("div");
         LightLayer.className = "SvgLayer LightSvgLayer";
-        LightLayer.innerHTML = NormalizeSvg(SvgContent);
+        LightLayer.innerHTML = NormalizeSvg(SvgContent, Index);
 
         const DarkLayer = document.createElement("div");
         DarkLayer.className = "SvgLayer DarkSvgLayer";
-        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent));
+        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent), Index);
 
         PageDiv.appendChild(LightLayer);
         PageDiv.appendChild(DarkLayer);
@@ -3785,6 +3974,13 @@ function SetupEventListeners()
             }
         }
     );
+
+    // Preview Viewport Reverse Sync (Ctrl+Click / Cmd+Click)
+    const PagesContainerElement = document.getElementById("PagesContainer");
+    if (PagesContainerElement)
+    {
+        PagesContainerElement.addEventListener("click", HandleReverseSync);
+    }
 
     document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });
     document.getElementById("FormatLafsButton").addEventListener("click", () => { ApplyFormattingToEditor(); });
