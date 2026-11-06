@@ -2,7 +2,9 @@ const fs = require("fs");
 
 let appJs = fs.readFileSync("TypstStudio/public/App.js", "utf8");
 
-const completionProviderCode = `            // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
+const completionProviderCode =
+`
+            // Typst IntelliSense & LAFS Snippets Provider (Priority 1)
             monaco.languages.registerCompletionItemProvider
             (
                 "typst",

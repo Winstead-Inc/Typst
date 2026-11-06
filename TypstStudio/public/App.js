@@ -577,6 +577,7 @@ let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
 let IsBlackPageMode = localStorage.getItem("typst_black_page_mode") === "true";
+const IsTauriDesktop = Boolean(typeof window !== "undefined" && (window.__TAURI_INTERNALS__ || window.__TAURI__));
 let ActiveAbortController = null;
 let RenderToken = 0;
 let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
@@ -2864,18 +2865,38 @@ function InvertMonochromeColor(ColorStr)
         return ColorStr;
     }
 
+    if (Lower === "rgb(12, 12, 12)" || Lower === "#0c0c0c")
+    {
+        const DarkPageColor = Trimmed.startsWith("#") ? "#000000" : "rgb(0, 0, 0)";
+        InvertColorCache.set(ColorStr, DarkPageColor);
+        return DarkPageColor;
+    }
+
     const InvertComponent = (Component) => Math.min
     (
         255, Math.max
         (
-            0, Math.round(12 + (255 - Component) * 0.902)
+            0, Math.round(255 - Component)
         )
     );
-    const InvertedRed = InvertComponent(Red).toString(16).padStart(2, "0");
-    const InvertedGreen = InvertComponent(Green).toString(16).padStart(2, "0");
-    const InvertedBlue = InvertComponent(Blue).toString(16).padStart(2, "0");
 
-    const FinalColor = `#${InvertedRed}${InvertedGreen}${InvertedBlue}${Alpha}`;
+    if (Trimmed.toLowerCase().startsWith("rgb"))
+    {
+        const InvertedR = InvertComponent(Red);
+        const InvertedG = InvertComponent(Green);
+        const InvertedB = InvertComponent(Blue);
+        const FinalColor = Alpha !== ""
+            ? `rgba(${InvertedR}, ${InvertedG}, ${InvertedB}, ${(parseInt(Alpha, 16) / 255).toFixed(3).replace(/\.?0+$/, "")})`
+            : `rgb(${InvertedR}, ${InvertedG}, ${InvertedB})`;
+        InvertColorCache.set(ColorStr, FinalColor);
+        return FinalColor;
+    }
+
+    const InvertedRed = InvertComponent(Red).toString(16).padStart(2, "0").toUpperCase();
+    const InvertedGreen = InvertComponent(Green).toString(16).padStart(2, "0").toUpperCase();
+    const InvertedBlue = InvertComponent(Blue).toString(16).padStart(2, "0").toUpperCase();
+
+    const FinalColor = `#${InvertedRed}${InvertedGreen}${InvertedBlue}${Alpha.toUpperCase()}`;
     InvertColorCache.set(ColorStr, FinalColor);
     return FinalColor;
 }
@@ -2921,6 +2942,10 @@ function ConvertSvgToDarkMode(Svg)
             return `style=${Quote}${Transformed}${Quote}`;
         }
     );
+
+    Result = Result.replace(/\bfill\s*:\s*rgb\(\s*12\s*,\s*12\s*,\s*12\s*\)/gi, "fill: rgb(0, 0, 0)");
+    Result = Result.replace(/\bfill\s*=\s*["']#0[cC]0[cC]0[cC]["']/gi, 'fill="#000000"');
+    Result = Result.replace(/\bfill\s*=\s*["']rgb\(\s*12\s*,\s*12\s*,\s*12\s*\)["']/gi, 'fill="rgb(0, 0, 0)"');
 
     SvgDarkModeCache.set(SvgKey, Result);
     if (SvgDarkModeCache.size > 40)
@@ -3270,7 +3295,6 @@ async function ExportPdf()
         Anchor.click();
         document.body.removeChild(Anchor);
         URL.revokeObjectURL(DownloadUrl);
-        ShowToast("PNG exported successfully", "success");
 
         StatusDot.className = "StatusDot";
         StatusText.textContent = "PDF Exported";
@@ -3284,28 +3308,127 @@ async function ExportPdf()
     }
 }
 
-function ExportSvg()
+async function ExportSvg()
 {
-    if (!LastCompiledPages || LastCompiledPages.length === 0)
+    if (!MonacoInstance)
     {
-        alert("No compiled pages to export.");
         return ;
     }
 
-    const PageIndex = Math.min(CurrentActivePage - 1, LastCompiledPages.length - 1);
-    const RawSvg = LastCompiledPages[PageIndex];
-    const SvgContent = IsBlackPageMode ? ConvertSvgToDarkMode(RawSvg): RawSvg;
+    const Source = MonacoInstance.getValue();
     const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
+    const BaseDocName = DocTitle.replace(/[^a-zA-Z0-9_\-]/g, "_");
+    const StatusDot = document.getElementById("StatusDot");
+    const StatusText = document.getElementById("StatusText");
 
-    const Blob = new Blob([SvgContent], { type: "image/svg+xml;charset=utf-8" });
-    const DownloadUrl = URL.createObjectURL(Blob);
-    const Anchor = document.createElement("a");
-    Anchor.href = DownloadUrl;
-    Anchor.download = `${DocTitle}_page_${CurrentActivePage}.svg`;
-    document.body.appendChild(Anchor);
-    Anchor.click();
-    document.body.removeChild(Anchor);
-    URL.revokeObjectURL(DownloadUrl);
+    if (StatusDot) { StatusDot.className = "StatusDot Compiling"; }
+    if (StatusText) { StatusText.textContent = "Generating SVG ZIP..."; }
+    ShowToast("Generating SVG vector archive...", "info");
+
+    try
+    {
+        const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
+        const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
+        const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
+        const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
+
+        const Response = await AuthenticatedFetch
+        (
+            "/api/export/svg",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify
+                ({
+                    Source: Source,
+                    FileName: BaseDocName,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
+                })
+            }
+        );
+
+        if (!Response.ok)
+        {
+            const ErrData = await Response.json();
+            throw new Error(ErrData.Error || "Failed to export SVG archive");
+        }
+
+        const Blob = await Response.blob();
+        const DownloadUrl = URL.createObjectURL(Blob);
+        const Anchor = document.createElement("a");
+        Anchor.href = DownloadUrl;
+        Anchor.download = `${BaseDocName}_svg.zip`;
+        document.body.appendChild(Anchor);
+        Anchor.click();
+        document.body.removeChild(Anchor);
+        URL.revokeObjectURL(DownloadUrl);
+
+        if (StatusDot) { StatusDot.className = "StatusDot"; }
+        if (StatusText) { StatusText.textContent = "SVG Exported"; }
+        ShowToast("SVG ZIP exported successfully", "success");
+    }
+    catch (Err)
+    {
+        // Client-side fallback using in-memory LastCompiledPages and JSZip if server endpoint fails
+        if (typeof JSZip !== "undefined" && LastCompiledPages && LastCompiledPages.length > 0)
+        {
+            try
+            {
+                const BlackModeCheckbox = document.getElementById("ExportBlackModeCheckbox");
+                const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
+                const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
+                const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
+
+                const Zip = new JSZip();
+                for (let Index = 0; Index < LastCompiledPages.length; Index ++)
+                {
+                    let PageSvg = LastCompiledPages[Index];
+                    if (BlackMode)
+                    {
+                        PageSvg = ConvertSvgToDarkMode(PageSvg);
+                    }
+                    if (Transparent)
+                    {
+                        PageSvg = PageSvg.replace
+                        (
+                            /<path\s+[^>]*\bfill\s*=\s*["']#(?:ffffff|000000|0c0c0c)["'][^>]*d\s*=\s*["']M\s*0\s+0v[^"']*Z\s*["'][^>]*\/?>/gi,
+                            ""
+                        );
+                        PageSvg = PageSvg.replace
+                        (
+                            /<path\s+[^>]*d\s*=\s*["']M\s*0\s+0v[^"']*Z\s*["'][^>]*\bfill\s*=\s*["']#(?:ffffff|000000|0c0c0c)["'][^>]*\/?>/gi,
+                            ""
+                        );
+                    }
+                    Zip.file(`${BaseDocName}_page_${Index + 1}.svg`, PageSvg);
+                }
+
+                const ZipBlob = await Zip.generateAsync( { type: "blob" });
+                const DownloadUrl = URL.createObjectURL(ZipBlob);
+                const Anchor = document.createElement("a");
+                Anchor.href = DownloadUrl;
+                Anchor.download = `${BaseDocName}_svg.zip`;
+                document.body.appendChild(Anchor);
+                Anchor.click();
+                document.body.removeChild(Anchor);
+                URL.revokeObjectURL(DownloadUrl);
+
+                if (StatusDot) { StatusDot.className = "StatusDot"; }
+                if (StatusText) { StatusText.textContent = "SVG Exported"; }
+                ShowToast("SVG ZIP exported successfully", "success");
+                return ;
+            }
+            catch (FallbackErr)
+            {
+                // Fall through to error toast below
+            }
+        }
+
+        if (StatusDot) { StatusDot.className = "StatusDot Error"; }
+        if (StatusText) { StatusText.textContent = "Export Failed"; }
+        ShowToast(`SVG export failed: ${Err.message}`, "error");
+    }
 }
 
 async function ExportPng()
@@ -3317,6 +3440,13 @@ async function ExportPng()
 
     const Source = MonacoInstance.getValue();
     const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
+    const BaseDocName = DocTitle.replace(/[^a-zA-Z0-9_\-]/g, "_");
+    const StatusDot = document.getElementById("StatusDot");
+    const StatusText = document.getElementById("StatusText");
+
+    if (StatusDot) { StatusDot.className = "StatusDot Compiling"; }
+    if (StatusText) { StatusText.textContent = "Generating PNG ZIP..."; }
+    ShowToast("Generating PNG archive (300 PPI)...", "info");
 
     try
     {
@@ -3334,8 +3464,7 @@ async function ExportPng()
                 body: JSON.stringify
                 ({
                     Source: Source,
-                    FileName: DocTitle,
-                    PageNum: CurrentActivePage,
+                    FileName: BaseDocName,
                     BlackMode: BlackMode,
                     Transparent: Transparent
                 })
@@ -3345,22 +3474,28 @@ async function ExportPng()
         if (!Response.ok)
         {
             const ErrData = await Response.json();
-            throw new Error(ErrData.Error || "Failed to export PNG");
+            throw new Error(ErrData.Error || "Failed to export PNG archive");
         }
 
         const Blob = await Response.blob();
         const DownloadUrl = URL.createObjectURL(Blob);
         const Anchor = document.createElement("a");
         Anchor.href = DownloadUrl;
-        Anchor.download = `${DocTitle}_page_${CurrentActivePage}.png`;
+        Anchor.download = `${BaseDocName}_png.zip`;
         document.body.appendChild(Anchor);
         Anchor.click();
         document.body.removeChild(Anchor);
         URL.revokeObjectURL(DownloadUrl);
+
+        if (StatusDot) { StatusDot.className = "StatusDot"; }
+        if (StatusText) { StatusText.textContent = "PNG Exported"; }
+        ShowToast("PNG ZIP exported successfully", "success");
     }
     catch (Err)
     {
-        alert(`PNG export failed: ${Err.message}`);
+        if (StatusDot) { StatusDot.className = "StatusDot Error"; }
+        if (StatusText) { StatusText.textContent = "Export Failed"; }
+        ShowToast(`PNG export failed: ${Err.message}`, "error");
     }
 }
 
@@ -4077,11 +4212,19 @@ function SetupEventListeners()
     );
     document.getElementById("ExportSvgButton").addEventListener
     (
-        "click", () => { ExportSvg(); }
+        "click", () =>
+        {
+            ToggleExportMenu(false);
+            ExportSvg();
+        }
     );
     document.getElementById("ExportPngButton").addEventListener
     (
-        "click", () => { ExportPng(); }
+        "click", () =>
+        {
+            ToggleExportMenu(false);
+            ExportPng();
+        }
     );
     document.getElementById("CopyCodeButton").addEventListener
     (
@@ -4391,6 +4534,22 @@ async function PickFolderFromDisk()
 
     try
     {
+        if (window.__TAURI__ && window.__TAURI__.dialog && typeof window.__TAURI__.dialog.open === "function")
+        {
+            const SelectedPath = await window.__TAURI__.dialog.open
+            ({
+                directory: true,
+                multiple: false,
+                title: "Select Typst Project Folder"
+            });
+            if (SelectedPath && DirInput)
+            {
+                DirInput.value = SelectedPath;
+                DirInput.focus();
+                return ;
+            }
+        }
+
         const Response = await AuthenticatedFetch("/api/workspace/pick-folder", { method: "POST" });
         if (Response.ok)
         {

@@ -1873,7 +1873,7 @@ async function HandleCompile(Request, Response)
             }
         }
 
-        const OutputPattern = Path.join(JobDir, "page-{n}.svg");
+        const OutputPattern = Path.join(JobDir, "page-{p}.svg");
         const SourceToCompile = NormalizeMathFunctionCalls(Source);
 
         const CompileResult = await ExecuteCompile
@@ -2396,6 +2396,11 @@ function ConvertTypstSourceToDarkMode(Source, Transparent = false)
     );
 
     const PageFill = Transparent ? "none": `rgb("000000")`;
+    Transformed = Transformed.replace
+    (
+        /(#set\s+page\s*\([^)]*)\bfill\s*:\s*(?:rgb\([^)]*\)|"[^"]*"|'[^']*'|[a-zA-Z0-9_\.]+)/g,
+        `$1fill: ${PageFill}`
+    );
     const Header = `#set page(fill: ${PageFill})\n#set text(fill: rgb("ffffff"))\n\n`;
     return Header + Transformed;
 }
@@ -2535,16 +2540,23 @@ async function HandleExportPng(Request, Response)
         }
         else if (Payload.Transparent)
         {
-            SourceToCompile = `#set page(fill: none)\n\n` + Source;
+            SourceToCompile = SourceToCompile.replace
+            (
+                /(#set\s+page\s*\([^)]*)\bfill\s*:\s*(?:rgb\([^)]*\)|"[^"]*"|'[^']*'|[a-zA-Z0-9_\.]+)/g,
+                `$1fill: none`
+            );
+            SourceToCompile = `#set page(fill: none)\n\n` + SourceToCompile;
         }
 
         SourceToCompile = NormalizeMathFunctionCalls(SourceToCompile);
 
-        const OutputPattern = Path.join(JobDir, "page-{n}.png");
+        const OutputPattern = Path.join(JobDir, "page-{p}.png");
 
         const CompileResult = await ExecuteCommand
         (
-            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "png", "--ppi", "288", "-", OutputPattern], { cwd: JobDir, timeout: 30000 },
+            TYPST_BINARY,
+            ["compile", "--root", DocRoot, "--format", "png", "--ppi", "300", "-", OutputPattern],
+            { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
 
@@ -2585,25 +2597,7 @@ async function HandleExportPng(Request, Response)
 
         const BaseDocName = (Payload.FileName || "document").replace(/[^a-zA-Z0-9_\-]/g, "_");
 
-        if (PngFiles.length === 1)
-        {
-            const SinglePath = Path.join(JobDir, PngFiles[0]);
-            const PngBuffer = await FSPromises.readFile(SinglePath);
-            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
-
-            Response.writeHead
-            (
-                200,
-                {
-                    "Content-Type": "image/png",
-                    "Content-Disposition": `attachment; filename="${BaseDocName}_page_1.png"`,
-                    "Content-Length": PngBuffer.length
-                }
-            );
-            Response.end(PngBuffer);
-            return ;
-        }
-        // Multiple pages: package into a ZIP file with page numbers!
+        // Always package all pages into a ZIP file with page numbers!
         const Zip = new JSZip();
         for (let Index = 0; Index < PngFiles.length; Index ++)
         {
@@ -2622,7 +2616,156 @@ async function HandleExportPng(Request, Response)
             200,
             {
                 "Content-Type": "application/zip",
-                "Content-Disposition": `attachment; filename="${BaseDocName}_png_pages.zip"`,
+                "Content-Disposition": `attachment; filename="${BaseDocName}_png.zip"`,
+                "Content-Length": ZipBuffer.length
+            }
+        );
+        Response.end(ZipBuffer);
+    }
+    catch (Exception)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end
+        (
+            JSON.stringify( { Success: false, Error: Exception.message })
+        );
+    }
+}
+
+async function HandleExportSvg(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody);
+        const Source = Payload.Source || "";
+        const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
+
+        const KnrCheck = DetectKnrSlop(Source, ActiveFileName);
+        if (KnrCheck.HasError)
+        {
+            Response.writeHead(400, { "Content-Type": "application/json" });
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: KnrCheck.FormattedMessage, KnrSlop: true })
+            );
+            return ;
+        }
+
+        const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const JobDir = Path.join(TEMP_DIR, JobID);
+        await FSPromises.mkdir(JobDir, { recursive: true });
+
+        let DocRoot = JobDir;
+        if (Payload.FilePath)
+        {
+            const Validated = ValidateWorkspacePath(Payload.FilePath, false, false);
+            if (Validated.Valid)
+            {
+                DocRoot = Path.dirname(Validated.Path);
+            }
+        }
+
+        let SourceToCompile = Source;
+        if (Payload.BlackMode)
+        {
+            SourceToCompile = ConvertTypstSourceToDarkMode(Source, Boolean(Payload.Transparent));
+        }
+        else if (Payload.Transparent)
+        {
+            SourceToCompile = SourceToCompile.replace
+            (
+                /(#set\s+page\s*\([^)]*)\bfill\s*:\s*(?:rgb\([^)]*\)|"[^"]*"|'[^']*'|[a-zA-Z0-9_\.]+)/g,
+                `$1fill: none`
+            );
+            SourceToCompile = `#set page(fill: none)\n\n` + SourceToCompile;
+        }
+
+        SourceToCompile = NormalizeMathFunctionCalls(SourceToCompile);
+
+        const OutputPattern = Path.join(JobDir, "page-{p}.svg");
+
+        const CompileResult = await ExecuteCommand
+        (
+            TYPST_BINARY,
+            ["compile", "--root", DocRoot, "--format", "svg", "-", OutputPattern],
+            { cwd: JobDir, timeout: 30000 },
+            SourceToCompile
+        );
+
+        if (!CompileResult.Success)
+        {
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
+            Response.writeHead(400, { "Content-Type": "application/json" });
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: CompileResult.Stderr || "SVG compilation failed." })
+            );
+            return ;
+        }
+
+        const DirEntries = await FSPromises.readdir(JobDir);
+        const SvgFiles = DirEntries
+        .filter( (F) => /^page-\d+\.svg$/i.test(F))
+        .sort
+        (
+            (A, B) =>
+            {
+                const NumA = parseInt(A.match(/\d+/)[0], 10);
+                const NumB = parseInt(B.match(/\d+/)[0], 10);
+                return NumA - NumB;
+            }
+        );
+
+        if (SvgFiles.length === 0)
+        {
+            await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
+            Response.writeHead(404, { "Content-Type": "application/json" });
+            Response.end
+            (
+                JSON.stringify( { Success: false, Error: "No SVG pages found." })
+            );
+            return ;
+        }
+
+        const BaseDocName = (Payload.FileName || "document").replace(/[^a-zA-Z0-9_\-]/g, "_");
+
+        // Package all SVG pages into a ZIP file with page numbers!
+        const Zip = new JSZip();
+        for (let Index = 0; Index < SvgFiles.length; Index ++)
+        {
+            let PageContent = await FSPromises.readFile
+            (
+                Path.join(JobDir, SvgFiles[Index]),
+                "utf8"
+            );
+
+            if (Payload.Transparent)
+            {
+                PageContent = PageContent.replace
+                (
+                    /<path\s+[^>]*\bfill\s*=\s*["']#(?:ffffff|000000|0c0c0c)["'][^>]*d\s*=\s*["']M\s*0\s+0v[^"']*Z\s*["'][^>]*\/?>/gi,
+                    ""
+                );
+                PageContent = PageContent.replace
+                (
+                    /<path\s+[^>]*d\s*=\s*["']M\s*0\s+0v[^"']*Z\s*["'][^>]*\bfill\s*=\s*["']#(?:ffffff|000000|0c0c0c)["'][^>]*\/?>/gi,
+                    ""
+                );
+            }
+
+            Zip.file(`${BaseDocName}_page_${Index + 1}.svg`, PageContent);
+        }
+
+        const ZipBuffer = await Zip.generateAsync( { type: "nodebuffer" });
+        await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
+
+        Response.writeHead
+        (
+            200,
+            {
+                "Content-Type": "application/zip",
+                "Content-Disposition": `attachment; filename="${BaseDocName}_svg.zip"`,
                 "Content-Length": ZipBuffer.length
             }
         );
@@ -3938,6 +4081,12 @@ const Server = HTTP.createServer
         if (Request.method === "POST" && Pathname === "/api/export/png")
         {
             await HandleExportPng(Request, Response);
+            return ;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/export/svg")
+        {
+            await HandleExportSvg(Request, Response);
             return ;
         }
 

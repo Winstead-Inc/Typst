@@ -29,6 +29,7 @@ package-lock.json
 TypstStudio/bin/
 TypstStudio/.temp/
 TypstStudio/.workspace_config.json
+TypstStudio Backup/
 LAFS.exe
 
 # Nix
