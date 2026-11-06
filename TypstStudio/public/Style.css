@@ -3428,3 +3428,59 @@ kbd
     flex-wrap: nowrap !important;
     overflow: visible !important;
 }
+
+/* ==========================================================================
+   SyncTeX Highlighting & Inspection Styles (Strict Color: #7100FF Purple)
+   ========================================================================== */
+
+.SyncHighlightRect
+{
+    fill: rgba(113, 0, 255, 0.18);
+    stroke: #7100FF;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+    animation: SyncPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes SyncPulse
+{
+    0%
+    {
+        fill: rgba(113, 0, 255, 0.14);
+        stroke-width: 1.5;
+    }
+    100%
+    {
+        fill: rgba(113, 0, 255, 0.28);
+        stroke-width: 2.2;
+    }
+}
+
+.PreviewViewport.SyncInspectMode,
+.PreviewViewport.SyncInspectMode .PageSheet,
+.PreviewViewport.SyncInspectMode .SvgLayer,
+.PreviewViewport.SyncInspectMode svg
+{
+    cursor: crosshair !important;
+}
+
+.SyncMonacoLineHighlight
+{
+    background-color: rgba(113, 0, 255, 0.22) !important;
+    border-left: 3px solid #7100FF !important;
+    animation: MonacoFlashFade 1.6s ease-out forwards;
+}
+
+@keyframes MonacoFlashFade
+{
+    0%
+    {
+        background-color: rgba(113, 0, 255, 0.35);
+    }
+    100%
+    {
+        background-color: transparent;
+    }
+}

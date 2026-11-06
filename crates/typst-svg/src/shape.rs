@@ -1,7 +1,8 @@
 use crate::path::SvgPathBuilder;
 use crate::write::{SvgElem, SvgTransform, SvgUrl, SvgWrite};
 use crate::{SVGRenderer, State};
-use ecow::EcoString;
+use ecow::{EcoString, eco_format};
+use typst_syntax::Span;
 use typst_library::layout::{Abs, Point, Ratio, Size, Transform};
 use typst_library::visualize::{
     Curve, CurveItem, FixedStroke, Geometry, LineCap, LineJoin, Paint, RelativeTo, Shape,
@@ -11,9 +12,20 @@ use typst_utils::Numeric;
 impl SVGRenderer<'_>
 {
     /// Render a shape element.
-    pub(super) fn render_shape(&mut self, svg: &mut SvgElem, state: &State, shape: &Shape)
+    pub(super) fn render_shape(
+        &mut self,
+        svg: &mut SvgElem,
+        state: &State,
+        shape: &Shape,
+        span: Span,
+    )
     {
         let svg = &mut svg.elem("path");
+
+        if !span.is_detached()
+        {
+            svg.attr("data-span", eco_format!("{:x}", span.into_raw().get()));
+        }
 
         if let Some(paint) = &shape.fill
         {

@@ -346,7 +346,7 @@ impl<'a> SVGRenderer<'a>
                 Geometry::Rect(page.frame.size() + page.bleed.sum_by_axis()).filled(fill);
             let state =
                 &state.pre_translate(Point { x: -page.bleed.left, y: -page.bleed.top });
-            self.render_shape(svg.lazy(), state, &shape);
+            self.render_shape(svg.lazy(), state, &shape, typst_syntax::Span::detached());
         }
 
         self.render_frame(svg.lazy(), state, &page.frame);
@@ -362,10 +362,10 @@ impl<'a> SVGRenderer<'a>
             {
                 FrameItem::Group(group) => self.render_group(svg, &state, group),
                 FrameItem::Text(text) => self.render_text(svg, &state, text),
-                FrameItem::Shape(shape, _) => self.render_shape(svg, &state, shape),
-                FrameItem::Image(image, size, _) =>
+                FrameItem::Shape(shape, span) => self.render_shape(svg, &state, shape, *span),
+                FrameItem::Image(image, size, span) =>
                 {
-                    self.render_image(svg, &state, image, size);
+                    self.render_image(svg, &state, image, size, *span);
                 }
                 FrameItem::Link(dest, size) => self.render_link(svg, &state, dest, *size),
                 FrameItem::Tag(_) =>

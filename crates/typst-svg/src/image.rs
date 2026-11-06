@@ -7,6 +7,7 @@ use hayro::hayro_interpret::font::{FontData, FontQuery, StandardFont};
 use hayro_svg::{RenderCache, SvgRenderSettings};
 use image::{ImageEncoder, codecs::png::PngEncoder};
 use typst_library::foundations::{Bytes, Smart};
+use typst_syntax::Span;
 use typst_library::layout::{Abs, Axes};
 use typst_library::visualize::{
     ExchangeFormat, Image, ImageKind, ImageScaling, PdfImage, RasterFormat,
@@ -24,10 +25,15 @@ impl SVGRenderer<'_>
         state: &State,
         image: &Image,
         size: &Axes<Abs>,
+        span: Span,
     )
     {
         let url = WebImage::new(image).to_base64_url();
         let mut svg = svg.elem("image");
+        if !span.is_detached()
+        {
+            svg.attr("data-span", eco_format!("{:x}", span.into_raw().get()));
+        }
         if !state.transform.is_identity()
         {
             svg.attr("transform", SvgTransform(state.transform));

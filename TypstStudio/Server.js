@@ -104,6 +104,7 @@ const WORKSPACE_CONFIG_FILE = Path.resolve(__dirname, ".workspace_config.json");
 
 let ActiveCompileProcess = null;
 let ActiveJobDir = null;
+let LastActiveSpanMap = {};
 
 if (!FS.existsSync(TEMP_DIR))
 {
@@ -1338,6 +1339,21 @@ async function HandleCompile(Request, Response)
             Pages.push(SvgContent);
         }
 
+        let SpanMap = {};
+        const SpanMapPath = Path.join(JobDir, "span-map.json");
+        if (FS.existsSync(SpanMapPath))
+        {
+            try
+            {
+                const RawMap = await FSPromises.readFile(SpanMapPath, "utf-8");
+                SpanMap = JSON.parse(RawMap);
+                LastActiveSpanMap = SpanMap;
+            }
+            catch (Ignored)
+            {
+            }
+        }
+
         await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
         ActiveJobDir = null;
 
@@ -1349,6 +1365,7 @@ async function HandleCompile(Request, Response)
                 Success: true,
                 Pages: Pages,
                 PageCount: Pages.length,
+                SpanMap: SpanMap,
                 DurationMs: DurationMs
             })
         );
@@ -1366,6 +1383,105 @@ async function HandleCompile(Request, Response)
                 DurationMs: DurationMs
             })
         );
+    }
+}
+
+async function HandleResolveSpan(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody);
+        const Span = Payload.Span;
+
+        if (!Span || !LastActiveSpanMap[Span])
+        {
+            Response.writeHead(404, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Error: "Span not found in active map." }));
+            return;
+        }
+
+        const Loc = LastActiveSpanMap[Span];
+        Response.writeHead(200, { "Content-Type": "application/json" });
+        Response.end
+        (
+            JSON.stringify
+            ({
+                Success: true,
+                Span: Span,
+                Line: Loc.line,
+                Column: Loc.col,
+                EndLine: Loc.end_line,
+                EndColumn: Loc.end_col,
+                Start: Loc.start,
+                End: Loc.end
+            })
+        );
+    }
+    catch (Err)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+    }
+}
+
+async function HandleCursorSpan(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody);
+        const Line = parseInt(Payload.Line, 10);
+        const Col = parseInt(Payload.Column || Payload.Col, 10);
+
+        if (!Line || !Col)
+        {
+            Response.writeHead(400, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Error: "Line and Column parameters required." }));
+            return;
+        }
+
+        let BestSpan = null;
+        let SmallestRange = Infinity;
+
+        for (const [SpanId, Loc] of Object.entries(LastActiveSpanMap))
+        {
+            const StartsBefore = Loc.line < Line || (Loc.line === Line && Loc.col <= Col);
+            const EndsAfter = Loc.end_line > Line || (Loc.end_line === Line && Loc.end_col >= Col);
+
+            if (StartsBefore && EndsAfter)
+            {
+                const RangeLen = Loc.end - Loc.start;
+                if (RangeLen < SmallestRange)
+                {
+                    SmallestRange = RangeLen;
+                    BestSpan = SpanId;
+                }
+            }
+        }
+
+        if (!BestSpan)
+        {
+            Response.writeHead(404, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Error: "No matching span at cursor position." }));
+            return;
+        }
+
+        Response.writeHead(200, { "Content-Type": "application/json" });
+        Response.end
+        (
+            JSON.stringify
+            ({
+                Success: true,
+                Span: BestSpan,
+                ...LastActiveSpanMap[BestSpan]
+            })
+        );
+    }
+    catch (Err)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
     }
 }
 
@@ -2813,6 +2929,18 @@ const Server = HTTP.createServer
         if (Request.method === "POST" && Pathname === "/api/compile")
         {
             await HandleCompile(Request, Response);
+            return;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/sync/resolve-span")
+        {
+            await HandleResolveSpan(Request, Response);
+            return;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/sync/cursor-span")
+        {
+            await HandleCursorSpan(Request, Response);
             return;
         }
 

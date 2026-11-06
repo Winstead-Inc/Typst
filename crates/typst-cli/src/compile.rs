@@ -5,7 +5,8 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use ecow::eco_format;
 use parking_lot::RwLock;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use typst::diag::{
+use typst::diag::
+{
     At, HintedStrResult, HintedString, SourceDiagnostic, SourceResult, StrResult, Warned,
     bail,
 };
@@ -13,6 +14,7 @@ use typst::foundations::{Datetime, Smart};
 use typst::layout::{PageRange, PageRanges};
 use typst::model::Document;
 use typst::syntax::Span;
+use typst::World;
 use typst_bundle::{Bundle, BundleOptions, VirtualFs};
 use typst_html::{HtmlDocument, HtmlFormatOptions, HtmlOptions};
 use typst_kit::diagnostics::DiagnosticWorld;
@@ -23,7 +25,8 @@ use typst_render::{PngFormat, PngFormatOptions, RenderOptions};
 use typst_svg::{SvgFormat, SvgFormatOptions, SvgOptions};
 use typst_utils::Scalar;
 
-use crate::args::{
+use crate::args::
+{
     self, CompileArgs, CompileCommand, DepsFormat, DiagnosticFormat, Input, Output,
     OutputFormat, WatchCommand,
 };
@@ -391,8 +394,13 @@ fn compile_and_export(
     {
         OutputFormat::Pdf | OutputFormat::Png | OutputFormat::Svg =>
         {
-            typst::compile::<PagedDocument>(world)
-                .and_then(|document| export_paged(&document, config))
+            let res = typst::compile::<PagedDocument>(world)
+                .and_then(|document| export_paged(&document, config));
+            if config.output_format == OutputFormat::Svg
+            {
+                export_span_map(world, config);
+            }
+            res
         }
         OutputFormat::Html =>
         {
@@ -911,5 +919,89 @@ impl From<args::PdfStandard> for typst_pdf::PdfStandard
             args::PdfStandard::A_4e => typst_pdf::PdfStandard::A_4e,
             args::PdfStandard::UA_1 => typst_pdf::PdfStandard::UA_1,
         }
+    }
+}
+
+#[derive(serde::Serialize)]
+struct SpanLocation
+{
+    line: usize,
+    col: usize,
+    end_line: usize,
+    end_col: usize,
+    start: usize,
+    end: usize,
+}
+
+fn collect_node_spans(
+    node: &typst::syntax::LinkedNode,
+    source: &typst::syntax::Source,
+    map: &mut std::collections::BTreeMap<String, SpanLocation>,
+)
+{
+    let span = node.span();
+    if !span.is_detached()
+    {
+        let raw = span.into_raw().get();
+        let span_hex = ecow::eco_format!("{:x}", raw);
+        let range = node.range();
+        if let Some((line, _)) = source.lines().byte_to_line_column(range.start)
+        {
+            let start_line_byte = source.lines().line_to_byte(line).unwrap_or(0);
+            let head = source.text().get(start_line_byte..range.start).unwrap_or("");
+            let col = head.chars().map(char::len_utf16).sum::<usize>() + 1;
+
+            let (end_line, _) =
+                source.lines().byte_to_line_column(range.end).unwrap_or((line, 0));
+            let end_line_byte = source.lines().line_to_byte(end_line).unwrap_or(0);
+            let end_head = source.text().get(end_line_byte..range.end).unwrap_or("");
+            let end_col = end_head.chars().map(char::len_utf16).sum::<usize>() + 1;
+
+            map.insert
+            (
+                span_hex.to_string(),
+                SpanLocation
+                {
+                    line: line + 1,
+                    col,
+                    end_line: end_line + 1,
+                    end_col,
+                    start: range.start,
+                    end: range.end,
+                },
+            );
+        }
+    }
+
+    for child in node.children()
+    {
+        collect_node_spans(&child, source, map);
+    }
+}
+
+fn export_span_map(world: &SystemWorld, config: &CompileConfig)
+{
+    let Output::Path(ref path) = config.output
+    else
+    {
+        return;
+    };
+    let Some(parent) = path.parent()
+    else
+    {
+        return;
+    };
+    let map_path = parent.join("span-map.json");
+
+    let mut map = std::collections::BTreeMap::new();
+    if let Ok(source) = world.source(world.main())
+    {
+        let root = typst::syntax::LinkedNode::new(source.root());
+        collect_node_spans(&root, &source, &mut map);
+    }
+
+    if let Ok(json) = serde_json::to_string(&map)
+    {
+        let _ = std::fs::write(map_path, json);
     }
 }

@@ -577,14 +577,17 @@ mod tests
 
     fn pos(page: usize, x: f64, y: f64) -> Option<PagedPosition>
     {
-        Some(PagedPosition {
+        Some(PagedPosition
+        {
             page: NonZeroUsize::new(page).unwrap(),
             point: point(x, y),
         })
     }
 
-    macro_rules! assert_approx_eq {
-        ($l:expr, $r:expr) => {
+    macro_rules! assert_approx_eq
+    {
+        ($l:expr, $r:expr) =>
+        {
             assert!(($l - $r).abs() < Abs::pt(0.1), "{:?} ≉ {:?}", $l, $r);
         };
     }
@@ -611,11 +614,7 @@ mod tests
         let world = world.acquire();
         let world = world.borrow();
         let doc: PagedDocument = typst::compile(world).output.unwrap();
-        let jump = jump_from_click(
-            world,
-            &doc,
-            &PagedPosition { page: NonZeroUsize::ONE, point: click },
-        );
+        let jump = jump_from_click(world, &doc, &PagedPosition{ page: NonZeroUsize::ONE, point: click });
         assert_jump_eq(jump, expected);
     }
 

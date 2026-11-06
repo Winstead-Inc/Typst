@@ -580,6 +580,12 @@ let IsBlackPageMode = localStorage.getItem("typst_black_page_mode") === "true";
 let ActiveAbortController = null;
 let RenderToken = 0;
 let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
+let IsSyncTexEnabled = localStorage.getItem("typst_synctex_enabled") !== "false";
+let ActiveSpanMap = {};
+let ActiveHighlightSpan = null;
+let SuppressForwardSync = false;
+let SyncLineDecorations = null;
+let ForwardSyncDebounceTimer = null;
 
 async function EnsureSessionAuthToken()
 {
@@ -2211,6 +2217,29 @@ async function InitializeMonaco()
 
             window.MonacoInstance = MonacoInstance;
 
+            SyncLineDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            MonacoInstance.onDidChangeCursorPosition
+            (
+                (Event) =>
+                {
+                    if (!IsSyncTexEnabled || SuppressForwardSync)
+                    {
+                        return;
+                    }
+
+                    clearTimeout(ForwardSyncDebounceTimer);
+                    ForwardSyncDebounceTimer = setTimeout
+                    (
+                        () =>
+                        {
+                            PerformForwardSync(Event.position.lineNumber, Event.position.column);
+                        },
+                        80
+                    );
+                }
+            );
+
             let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
 
             function UpdateMathBracketHighlighting()
@@ -2539,8 +2568,13 @@ async function TriggerCompileNow()
 
             LastCompiledPages = Result.Pages;
             CurrentPageCount = Result.PageCount;
+            ActiveSpanMap = Result.SpanMap || {};
             RenderPages(Result.Pages);
             UpdatePagination();
+            if (ActiveHighlightSpan)
+            {
+                setTimeout(() => { HighlightSvgSpan(ActiveHighlightSpan, false); }, 50);
+            }
         }
         else
         {
@@ -4739,6 +4773,353 @@ function RenderDashboard(FilterQuery = "")
     }
 }
 
+// =============================================================================
+// SyncTeX Bidirectional Synchronization Engine
+// =============================================================================
+
+function InitializeSyncTex()
+{
+    const SyncTexCheckbox = document.getElementById("SyncTexToggle");
+    if (SyncTexCheckbox)
+    {
+        SyncTexCheckbox.checked = IsSyncTexEnabled;
+        SyncTexCheckbox.addEventListener
+        (
+            "change",
+            () =>
+            {
+                IsSyncTexEnabled = SyncTexCheckbox.checked;
+                localStorage.setItem("typst_synctex_enabled", IsSyncTexEnabled ? "true" : "false");
+                if (!IsSyncTexEnabled)
+                {
+                    ClearSyncHighlights();
+                }
+                else if (MonacoInstance)
+                {
+                    const Pos = MonacoInstance.getPosition();
+                    if (Pos)
+                    {
+                        PerformForwardSync(Pos.lineNumber, Pos.column);
+                    }
+                }
+            }
+        );
+    }
+
+    const PagesContainer = document.getElementById("PagesContainer");
+    if (PagesContainer)
+    {
+        PagesContainer.addEventListener("click", HandlePreviewClick);
+    }
+
+    window.addEventListener
+    (
+        "keydown",
+        (Event) =>
+        {
+            if (!IsSyncTexEnabled)
+            {
+                return;
+            }
+            const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || 
+                          (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
+            const IsInspectKey = IsMac ? Event.metaKey : Event.ctrlKey;
+            if (IsInspectKey)
+            {
+                const Viewport = document.getElementById("PreviewViewport");
+                if (Viewport && !Viewport.classList.contains("SyncInspectMode"))
+                {
+                    Viewport.classList.add("SyncInspectMode");
+                }
+            }
+        }
+    );
+
+    window.addEventListener
+    (
+        "keyup",
+        () =>
+        {
+            const Viewport = document.getElementById("PreviewViewport");
+            if (Viewport && Viewport.classList.contains("SyncInspectMode"))
+            {
+                Viewport.classList.remove("SyncInspectMode");
+            }
+        }
+    );
+
+    window.addEventListener
+    (
+        "blur",
+        () =>
+        {
+            const Viewport = document.getElementById("PreviewViewport");
+            if (Viewport)
+            {
+                Viewport.classList.remove("SyncInspectMode");
+            }
+        }
+    );
+}
+
+function ClearSyncHighlights()
+{
+    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
+    if (SyncLineDecorations)
+    {
+        SyncLineDecorations.clear();
+    }
+    ActiveHighlightSpan = null;
+}
+
+function HandlePreviewClick(Event)
+{
+    if (!IsSyncTexEnabled)
+    {
+        return;
+    }
+
+    const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || 
+                  (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
+    const IsInspectKey = IsMac ? (Event.metaKey && !Event.ctrlKey) : (Event.ctrlKey && !Event.metaKey);
+
+    if (!IsInspectKey)
+    {
+        return;
+    }
+
+    const Target = Event.target.closest("[data-span]");
+    if (!Target)
+    {
+        return;
+    }
+
+    Event.preventDefault();
+    Event.stopPropagation();
+
+    const SpanId = Target.getAttribute("data-span");
+    if (!SpanId)
+    {
+        return;
+    }
+
+    HighlightSvgSpan(SpanId, false);
+
+    SuppressForwardSync = true;
+    setTimeout(() => { SuppressForwardSync = false; }, 300);
+
+    if (ActiveSpanMap[SpanId])
+    {
+        const Loc = ActiveSpanMap[SpanId];
+        JumpMonacoToLocation(Loc.line, Loc.col);
+    }
+    else
+    {
+        AuthenticatedFetch
+        (
+            "/api/sync/resolve-span",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ Span: SpanId })
+            }
+        )
+        .then((Res) => Res.json())
+        .then
+        (
+            (Result) =>
+            {
+                if (Result.Success)
+                {
+                    JumpMonacoToLocation(Result.Line, Result.Column);
+                }
+            }
+        )
+        .catch(() => {});
+    }
+}
+
+function JumpMonacoToLocation(Line, Column)
+{
+    if (!MonacoInstance)
+    {
+        return;
+    }
+
+    MonacoInstance.revealPositionInCenter({ lineNumber: Line, column: Column });
+    MonacoInstance.setPosition({ lineNumber: Line, column: Column });
+    MonacoInstance.focus();
+    FlashMonacoLine(Line);
+}
+
+function FlashMonacoLine(LineNumber)
+{
+    if (!MonacoInstance)
+    {
+        return;
+    }
+
+    if (!SyncLineDecorations)
+    {
+        SyncLineDecorations = MonacoInstance.createDecorationsCollection([]);
+    }
+
+    SyncLineDecorations.set
+    ([
+        {
+            range: new monaco.Range(LineNumber, 1, LineNumber, 1),
+            options:
+            {
+                isWholeLine: true,
+                className: "SyncMonacoLineHighlight",
+                marginClassName: "SyncMonacoLineHighlight"
+            }
+        }
+    ]);
+
+    setTimeout
+    (
+        () =>
+        {
+            if (SyncLineDecorations)
+            {
+                SyncLineDecorations.clear();
+            }
+        },
+        1600
+    );
+}
+
+function HighlightSvgSpan(SpanId, AutoScroll = false)
+{
+    if (!IsSyncTexEnabled || !SpanId)
+    {
+        return;
+    }
+
+    ActiveHighlightSpan = SpanId;
+    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
+
+    const Target = document.querySelector(`g[data-span="${SpanId}"]`);
+    if (!Target)
+    {
+        return;
+    }
+
+    const ParentSvg = Target.closest("svg");
+    if (!ParentSvg)
+    {
+        return;
+    }
+
+    let HighlightLayer = ParentSvg.querySelector(".SyncHighlightLayer");
+    if (!HighlightLayer)
+    {
+        HighlightLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        HighlightLayer.setAttribute("class", "SyncHighlightLayer");
+        ParentSvg.appendChild(HighlightLayer);
+    }
+    HighlightLayer.innerHTML = "";
+
+    try
+    {
+        const BBox = Target.getBBox();
+        const Transform = Target.getAttribute("transform") || "";
+
+        const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        Rect.setAttribute("class", "SyncHighlightRect");
+        Rect.setAttribute("x", (BBox.x - 2).toString());
+        Rect.setAttribute("y", (BBox.y - 2).toString());
+        Rect.setAttribute("width", (BBox.width + 4).toString());
+        Rect.setAttribute("height", (BBox.height + 4).toString());
+        Rect.setAttribute("rx", "3");
+        Rect.setAttribute("ry", "3");
+
+        if (Transform)
+        {
+            Rect.setAttribute("transform", Transform);
+        }
+
+        HighlightLayer.appendChild(Rect);
+
+        if (AutoScroll)
+        {
+            const PageSheet = Target.closest(".PageSheet");
+            const Viewport = document.getElementById("PreviewViewport");
+            if (PageSheet && Viewport)
+            {
+                const ViewportRect = Viewport.getBoundingClientRect();
+                const TargetRect = Target.getBoundingClientRect();
+
+                if (TargetRect.top < ViewportRect.top + 60 || TargetRect.bottom > ViewportRect.bottom - 60)
+                {
+                    const ScrollOffset = Viewport.scrollTop + (TargetRect.top - ViewportRect.top) - (Viewport.clientHeight / 2);
+                    Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
+                }
+            }
+        }
+    }
+    catch (Ignored)
+    {
+    }
+}
+
+function PerformForwardSync(Line, Col)
+{
+    if (!IsSyncTexEnabled || !ActiveSpanMap)
+    {
+        return;
+    }
+
+    let BestSpan = null;
+    let SmallestRange = Infinity;
+
+    for (const [SpanId, Loc] of Object.entries(ActiveSpanMap))
+    {
+        const StartsBefore = Loc.line < Line || (Loc.line === Line && Loc.col <= Col);
+        const EndsAfter = Loc.end_line > Line || (Loc.end_line === Line && Loc.end_col >= Col);
+
+        if (StartsBefore && EndsAfter)
+        {
+            const RangeLen = Loc.end - Loc.start;
+            if (RangeLen < SmallestRange)
+            {
+                SmallestRange = RangeLen;
+                BestSpan = SpanId;
+            }
+        }
+    }
+
+    if (BestSpan)
+    {
+        HighlightSvgSpan(BestSpan, true);
+    }
+    else
+    {
+        AuthenticatedFetch
+        (
+            "/api/sync/cursor-span",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ Line: Line, Column: Col })
+            }
+        )
+        .then((Res) => Res.json())
+        .then
+        (
+            (Result) =>
+            {
+                if (Result.Success && Result.Span)
+                {
+                    HighlightSvgSpan(Result.Span, true);
+                }
+            }
+        )
+        .catch(() => {});
+    }
+}
+
 // Make functions accessible from onclick handlers
 window.OpenFileFromWorkspace = OpenFileFromWorkspace;
 window.RemoveWorkspaceDirectory = RemoveWorkspaceDirectory;
@@ -4758,6 +5139,7 @@ window.addEventListener
         SetupAppearanceEventListeners();
         UpdateBlackPageMode();
         InitializeMonaco();
+        InitializeSyncTex();
         LoadWorkspaceInfo();
         SetupAssetDragAndDrop();
         SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
