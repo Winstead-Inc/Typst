@@ -186,15 +186,28 @@ function ValidateWorkspacePath(CandidatePath, MustExist = false, CheckExtension 
 function VerifyClientAuthorization(Request)
 {
     // Whitelist Host header to mitigate DNS Rebinding
-    const HostHeader = (Request.headers.host || "").toLowerCase();
+    const RawHost = (Request.headers.host || "").toLowerCase().trim();
+    const HostWithoutPort = RawHost.replace(/:\d+$/, "");
+
+    const AllowedBaseHosts = new Set
+    ([
+        "127.0.0.1",
+        "localhost",
+        "[::1]",
+        "::1"
+    ]);
+
     const AllowedHosts = new Set
     ([
         `127.0.0.1:${PORT}`,
         `localhost:${PORT}`,
-        `[::1]:${PORT}`
+        `[::1]:${PORT}`,
+        "127.0.0.1",
+        "localhost",
+        "[::1]"
     ]);
 
-    if (!AllowedHosts.has(HostHeader))
+    if (!AllowedHosts.has(RawHost) && !AllowedBaseHosts.has(HostWithoutPort))
     {
         return { Authorized: false, Status: 400, Error: "Bad Request: Invalid Host header." };
     }
@@ -1214,6 +1227,479 @@ function ReadRequestBody(Request)
     );
 }
 
+const PREDEFINED_MATH_OPERATORS = new Set
+([
+    "arccos", "arcsin", "arctan", "arg", "cos", "cosh", "cot", "coth",
+    "csc", "csch", "ctg", "deg", "det", "dim", "exp", "gcd", "lcm",
+    "hom", "id", "im", "inf", "ker", "lg", "lim", "liminf", "limsup",
+    "ln", "log", "max", "min", "mod", "Pr", "sec", "sech", "sin",
+    "sinc", "sinh", "sup", "tan", "tanh", "tg", "tr", "dif", "Dif"
+]);
+
+function GetMathIntervals(Source)
+{
+    const Intervals = [];
+    const Regex = /(?<!\\)\$(?:[^$]|\\\$)*\$/g;
+    let Match;
+
+    while
+    (
+        (Match = Regex.exec(Source)) !== null
+    )
+    {
+        Intervals.push
+        ({
+            Start: Match.index, End: Match.index + Match[0].length
+        });
+    }
+
+    return Intervals;
+}
+
+function EnrichMathSyncMap(SyncMap, Source, SvgPages)
+{
+    if (!SyncMap || !Source)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = Source.split(/\r?\n/);
+    const MathIntervals = GetMathIntervals(Source);
+    let ByteOffset = 0;
+    const ClaimedGroups = new Map();
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    {
+        const LineText = Lines[LineIdx];
+        const LineNum = LineIdx + 1;
+
+        const Regex = /\b([a-zA-Z_]+)\b/g;
+        let Match;
+
+        while
+        (
+            (Match = Regex.exec(LineText)) !== null
+        )
+        {
+            const Ident = Match[1];
+            if (!PREDEFINED_MATH_OPERATORS.has(Ident))
+            {
+                continue;
+            }
+
+            const Col = Match.index + 1;
+            const EndCol = Col + Ident.length;
+            const Start = ByteOffset + Match.index;
+            const End = Start + Ident.length;
+
+            const InsideMath = MathIntervals.some( (Int) => Start >= Int.Start && End <= Int.End);
+            if (!InsideMath)
+            {
+                continue;
+            }
+
+            const Exists = Enriched.some
+            (
+                (E) => E.line === LineNum && Math.abs(E.col - Col) <= 1 && Math.abs(E.end_col - EndCol) <= 1
+            );
+
+            if (Exists)
+            {
+                continue;
+            }
+
+            const LineElems = Enriched.filter
+            (
+                (E) => E.line === LineNum && E.end_line === LineNum
+            );
+            LineElems.sort( (A, B) => A.col - B.col);
+
+            let PageNum = 1;
+            let EstY = null;
+            let EstH = 11.0;
+            let EstX = null;
+            let EstW = Ident.length * 5.3;
+
+            const NextElem = LineElems.find( (E) => E.col >= EndCol);
+            const PrevElem = [...LineElems].reverse().find( (E) => E.end_col <= Col);
+
+            if (NextElem)
+            {
+                PageNum = NextElem.page;
+                EstY = NextElem.y;
+                EstH = NextElem.height;
+                EstX = NextElem.x - EstW - 1.0;
+            }
+            else if (PrevElem)
+            {
+                PageNum = PrevElem.page;
+                EstY = PrevElem.y;
+                EstH = PrevElem.height;
+                EstX = PrevElem.x + PrevElem.width + 1.0;
+            }
+            else
+            {
+                const EqElems = Enriched.filter( (E) => LineNum >= E.line && LineNum <= E.end_line);
+                if (EqElems.length > 0)
+                {
+                    PageNum = EqElems[0].page;
+                    EstY = EqElems[0].y;
+                    EstH = EqElems[0].height;
+                }
+            }
+
+            if (SvgPages && SvgPages[PageNum - 1])
+            {
+                const Svg = SvgPages[PageNum - 1];
+                if (!ClaimedGroups.has(PageNum))
+                {
+                    ClaimedGroups.set(PageNum, new Set());
+                }
+                const Claimed = ClaimedGroups.get(PageNum);
+
+                const GroupRegex = /<g transform="matrix\(1 0 0 -1 ([^ ]+) ([^)]+)\)">([\s\S]*?)<\/g>/g;
+                let GMatch;
+                let BestGroup = null;
+                let BestDist = Infinity;
+                let BestMatchIndex = - 1;
+
+                while
+                (
+                    (GMatch = GroupRegex.exec(Svg)) !== null
+                )
+                {
+                    const GroupIndex = GMatch.index;
+                    if (Claimed.has(GroupIndex))
+                    {
+                        continue;
+                    }
+
+                    const Tx = parseFloat(GMatch[1]);
+                    const Ty = parseFloat(GMatch[2]);
+                    const Uses = [...GMatch[3].matchAll(/<use[^>]*x="([^"]*)"/g)].map
+                    (
+                        (U) => parseFloat(U[1])
+                    );
+
+                    if (Uses.length === Ident.length)
+                    {
+                        const GroupY = Ty - EstH;
+                        const YDist = EstY !== null ? Math.abs(GroupY - EstY): 0;
+                        const XDist = EstX !== null ? Math.abs(Tx - EstX): 0;
+                        const TotalDist = (YDist * 10) + XDist;
+
+                        if (YDist < 4.0 && TotalDist < BestDist)
+                        {
+                            BestDist = TotalDist;
+                            const MinUseX = Math.min(...Uses);
+                            const MaxUseX = Math.max(...Uses);
+                            BestGroup =
+                            {
+                                X: Tx + MinUseX,
+                                Y: GroupY,
+                                Width: (MaxUseX - MinUseX) + 5.5,
+                                Height: EstH
+                            };
+                            BestMatchIndex = GroupIndex;
+                        }
+                    }
+                }
+
+                if (BestGroup)
+                {
+                    Claimed.add(BestMatchIndex);
+                    EstX = BestGroup.X;
+                    EstY = BestGroup.Y;
+                    EstW = BestGroup.Width;
+                    EstH = BestGroup.Height;
+                }
+            }
+
+            if (EstX !== null && EstY !== null)
+            {
+                Enriched.push
+                ({
+                    page: PageNum,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    x: EstX,
+                    y: EstY,
+                    width: EstW,
+                    height: EstH,
+                    span: `synth_math_${LineNum}_${Col}`
+                });
+            }
+        }
+
+        ByteOffset += LineText.length + 1;
+    }
+
+    return Enriched;
+}
+
+function EnrichFunctionCalls(SyncMap, SourceCode)
+{
+    if (!SyncMap || !SourceCode)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = SourceCode.split(/\r?\n/);
+
+    const DefRegex = /#let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*=/g;
+    let DefMatch;
+    const Definitions = [];
+
+    while
+    (
+        (DefMatch = DefRegex.exec(SourceCode)) !== null
+    )
+    {
+        const FuncName = DefMatch[1];
+        const Params = DefMatch[2].split(",").map( (P) => P.trim());
+        const DefOffset = DefMatch.index;
+
+        let DefLine = 1;
+        let CurrOff = 0;
+        for (let I = 0; I < Lines.length; I ++)
+        {
+            if (CurrOff + Lines[I].length + 1 > DefOffset)
+            {
+                DefLine = I + 1;
+                break;
+            }
+            CurrOff += Lines[I].length + 1;
+        }
+
+        let OpenChar = "";
+        let CloseChar = "";
+        let BodyStart = - 1;
+        for (let I = DefMatch.index + DefMatch[0].length; I < SourceCode.length; I ++)
+        {
+            if (SourceCode[I] === "{" || SourceCode[I] === "(")
+            {
+                OpenChar = SourceCode[I];
+                CloseChar = OpenChar === "{" ? "}": ")";
+                BodyStart = I;
+                break;
+            }
+        }
+        if (BodyStart === - 1)
+        {
+            continue;
+        }
+
+        let Depth = 1;
+        let BodyEnd = - 1;
+        for (let I = BodyStart + 1; I < SourceCode.length; I ++)
+        {
+            if (SourceCode[I] === OpenChar)
+            {
+                Depth ++;
+            }
+            else if (SourceCode[I] === CloseChar)
+            {
+                Depth --;
+                if (Depth === 0)
+                {
+                    BodyEnd = I;
+                    break;
+                }
+            }
+        }
+        if (BodyEnd === - 1)
+        {
+            continue;
+        }
+
+        let EndLine = 1;
+        CurrOff = 0;
+        for (let I = 0; I < Lines.length; I ++)
+        {
+            if (CurrOff + Lines[I].length + 1 > BodyEnd)
+            {
+                EndLine = I + 1;
+                break;
+            }
+            CurrOff += Lines[I].length + 1;
+        }
+
+        Definitions.push
+        ({
+            Name: FuncName,
+            Params: Params,
+            DefOffset: DefOffset,
+            DefEndOffset: BodyEnd,
+            DefLineStart: DefLine,
+            DefLineEnd: EndLine
+        });
+    }
+
+    for (const Def of Definitions)
+    {
+        const BodyElems = SyncMap.filter( (E) => E.line >= Def.DefLineStart && E.end_line <= Def.DefLineEnd);
+        const RawRects = BodyElems.filter( (E) => E.width > 50 && E.height > 20);
+        const UniqueRects = [];
+
+        for (const R of RawRects)
+        {
+            const Exists = UniqueRects.some
+            (
+                (U) => (U.page || 1) === (R.page || 1) && Math.abs(U.x - R.x) < 2 && Math.abs(U.y - R.y) < 2
+            );
+            if (!Exists)
+            {
+                UniqueRects.push(R);
+            }
+        }
+
+        UniqueRects.sort
+        (
+            (A, B) => ( (A.page || 1) - (B.page || 1)) || (A.y - B.y) || (A.x - B.x)
+        );
+
+        const CallRegex = new RegExp("\\b" + Def.Name + "\\s*\\(([^)]*)\\)", "g");
+        let CallMatch;
+        let InstanceIndex = 0;
+
+        while
+        (
+            (CallMatch = CallRegex.exec(SourceCode)) !== null
+        )
+        {
+            if (CallMatch.index < Def.DefEndOffset)
+            {
+                continue;
+            }
+
+            const CallStart = CallMatch.index;
+            const CallEnd = CallStart + CallMatch[0].length;
+            const ArgsText = CallMatch[1];
+
+            let CallLine = 1;
+            let LineStartOff = 0;
+            for (let I = 0; I < Lines.length; I ++)
+            {
+                if (LineStartOff + Lines[I].length + 1 > CallStart)
+                {
+                    CallLine = I + 1;
+                    break;
+                }
+                LineStartOff += Lines[I].length + 1;
+            }
+            const CallCol = CallStart - LineStartOff + 1;
+            const CallEndCol = CallCol + CallMatch[0].length;
+
+            if (InstanceIndex < UniqueRects.length)
+            {
+                const InstanceRect = UniqueRects[InstanceIndex];
+                const PageNum = InstanceRect.page || 1;
+
+                const InstElems = BodyElems.filter
+                (
+                    (E) => (E.page || 1) === PageNum &&
+                    E.x >= InstanceRect.x - 2 && (E.x + E.width) <= (InstanceRect.x + InstanceRect.width + 2) &&
+                    E.y >= InstanceRect.y - 2 && (E.y + E.height) <= (InstanceRect.y + InstanceRect.height + 2)
+                );
+
+                Enriched.push
+                ({
+                    page: PageNum,
+                    line: CallLine,
+                    col: CallCol,
+                    end_line: CallLine,
+                    end_col: CallEndCol,
+                    start: CallStart,
+                    end: CallEnd,
+                    x: InstanceRect.x,
+                    y: InstanceRect.y,
+                    width: InstanceRect.width,
+                    height: InstanceRect.height,
+                    span: "call_box_" + CallLine + "_" + CallCol
+                });
+
+                const ArgRegex = /"([^"]*)"|(\b\d+\b)/g;
+                let ArgMatch;
+
+                while
+                (
+                    (ArgMatch = ArgRegex.exec(ArgsText)) !== null
+                )
+                {
+                    const ArgOffsetInCall = CallMatch[0].indexOf(ArgMatch[0]);
+                    const ArgStart = CallStart + ArgOffsetInCall;
+                    const ArgEnd = ArgStart + ArgMatch[0].length;
+                    const ArgCol = CallCol + ArgOffsetInCall;
+                    const ArgEndCol = ArgCol + ArgMatch[0].length;
+
+                    if (ArgMatch[1] !== undefined)
+                    {
+                        const TextElem = InstElems.find
+                        (
+                            (E) => E.line === Def.DefLineStart + 6 || (E.height < 15 && E.width > 20 && E.x < InstanceRect.x + InstanceRect.width * 0.5)
+                        );
+                        if (TextElem)
+                        {
+                            Enriched.push
+                            ({
+                                page: PageNum,
+                                line: CallLine,
+                                col: ArgCol,
+                                end_line: CallLine,
+                                end_col: ArgEndCol,
+                                start: ArgStart,
+                                end: ArgEnd,
+                                x: TextElem.x,
+                                y: TextElem.y,
+                                width: TextElem.width,
+                                height: TextElem.height,
+                                span: "call_arg_" + CallLine + "_" + ArgCol
+                            });
+                        }
+                    }
+                    else if (ArgMatch[2] !== undefined)
+                    {
+                        const ScoreElems = InstElems.filter( (E) => E.x > InstanceRect.x + InstanceRect.width * 0.5 && E.height < 15);
+                        if (ScoreElems.length > 0)
+                        {
+                            const MinX = Math.min(...ScoreElems.map( (E) => E.x));
+                            const MaxX = Math.max(...ScoreElems.map( (E) => E.x + E.width));
+                            const MinY = Math.min(...ScoreElems.map( (E) => E.y));
+                            const MaxY = Math.max(...ScoreElems.map( (E) => E.y + E.height));
+
+                            Enriched.push
+                            ({
+                                page: PageNum,
+                                line: CallLine,
+                                col: ArgCol,
+                                end_line: CallLine,
+                                end_col: ArgEndCol,
+                                start: ArgStart,
+                                end: ArgEnd,
+                                x: MinX,
+                                y: MinY,
+                                width: MaxX - MinX,
+                                height: MaxY - MinY,
+                                span: "call_arg_" + CallLine + "_" + ArgCol
+                            });
+                        }
+                    }
+                }
+            }
+
+            InstanceIndex ++;
+        }
+    }
+
+    return Enriched;
+}
+
 async function HandleCompile(Request, Response)
 {
     const StartTime = Date.now();
@@ -1342,6 +1828,8 @@ async function HandleCompile(Request, Response)
             {
                 const RawSync = await FSPromises.readFile(SynctexPath, "utf-8");
                 SyncMap = JSON.parse(RawSync);
+                SyncMap = EnrichMathSyncMap(SyncMap, Source, Pages);
+                SyncMap = EnrichFunctionCalls(SyncMap, Source);
                 LastActiveSyncMap = SyncMap;
             }
             catch (Ignored)
