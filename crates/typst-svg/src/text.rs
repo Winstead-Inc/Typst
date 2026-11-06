@@ -1,6 +1,5 @@
-use ecow::{EcoString, eco_format};
+use ecow::EcoString;
 use ttf_parser::GlyphId;
-use typst_syntax::Span;
 use typst_library::layout::{Abs, Ratio, Size, Transform};
 use typst_library::text::TextItem;
 use typst_library::text::color::{
@@ -37,11 +36,6 @@ impl SVGRenderer<'_>
     )
     {
         let svg = &mut svg.elem("g");
-
-        if let Some(span) = text.glyphs.iter().map(|g| g.span.0).find(|s| !s.is_detached())
-        {
-            svg.attr("data-span", eco_format!("{:x}", span.into_raw().get()));
-        }
 
         // Flip the transform since fonts use a Y-Up coordinate system.
         let state = state.pre_concat(Transform::scale(Ratio::one(), -Ratio::one()));
@@ -236,11 +230,11 @@ impl SVGRenderer<'_>
                     {
                         GlyphFrameItem::Tofu(_, shape) =>
                         {
-                            self.render_shape(&mut symbol, &state, shape, Span::detached());
+                            self.render_shape(&mut symbol, &state, shape);
                         }
                         GlyphFrameItem::Image(_, image, size) =>
                         {
-                            self.render_image(&mut symbol, &state, image, size, Span::detached());
+                            self.render_image(&mut symbol, &state, image, size);
                         }
                     }
                 }
