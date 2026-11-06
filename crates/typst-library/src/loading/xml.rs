@@ -1,10 +1,10 @@
 use roxmltree::ParsingOptions;
 use typst_syntax::Spanned;
 
-use crate::diag::{LoadError, LoadedWithin, SourceResult, format_xml_like_error};
+use crate::diag:: { LoadError, LoadedWithin, SourceResult, format_xml_like_error };
 use crate::engine::Engine;
-use crate::foundations::{Array, Dict, IntoValue, Str, Value, dict, func};
-use crate::loading::{DataSource, Load};
+use crate::foundations:: { Array, Dict, IntoValue, Str, Value, dict, func };
+use crate::loading:: { DataSource, Load };
 
 /// Reads structured data from an XML file.
 ///
@@ -55,54 +55,39 @@ use crate::loading::{DataSource, Load};
 /// }
 /// ```
 #[func(title = "XML", since = "forever")]
-pub fn xml(
-    engine: &mut Engine,
+pub fn xml
+(
+    engine: & mut Engine,
     /// A path to an XML file or raw XML bytes.
     source: Spanned<DataSource>,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
     let loaded = source.load(engine.world)?;
-    let text = loaded.data.as_str().within(&loaded)?;
-    let document = roxmltree::Document::parse_with_options(
-        text,
-        ParsingOptions { allow_dtd: true, ..Default::default() },
-    )
+    let text = loaded.data.as_str().within( & loaded)?;
+    let document = roxmltree::Document::parse_with_options(text, ParsingOptions { allow_dtd: true,..Default::default () },)
     .map_err(format_xml_error)
-    .within(&loaded)?;
+    .within( & loaded)?;
     Ok(convert_xml(document.root()))
 }
 
 /// Convert an XML node to a Typst value.
-fn convert_xml(node: roxmltree::Node) -> Value
+fn convert_xml(node: roxmltree::Node)->Value
 {
-    if node.is_text()
-    {
-        return node.text().unwrap_or_default().into_value();
-    }
+    if node.is_text() { return node.text().unwrap_or_default().into_value(); }
 
     let children: Array = node.children().map(convert_xml).collect();
-    if node.is_root()
-    {
-        return Value::Array(children);
-    }
+    if node.is_root() { return Value::Array(children); }
 
-    let namespace = node.tag_name().namespace();
+    let namespace = node.tag_name(). namespace ();
     let tag: Str = node.tag_name().name().into();
     let attrs: Dict = node
-        .attributes()
-        .map(|attr| (attr.name().into(), attr.value().into_value()))
-        .collect();
+    .attributes()
+    .map( | attr | (attr.name().into(), attr.value().into_value()))
+    .collect();
 
-    Value::Dict(dict! {
-        "namespace" => namespace,
-        "tag" => tag,
-        "attrs" => attrs,
-        "children" => children,
-    })
+    Value::Dict(dict ! { "namespace" => namespace , "tag" => tag, "attrs" => attrs, "children" => children, })
 }
 
 /// Format the user-facing XML error message.
-fn format_xml_error(error: roxmltree::Error) -> LoadError
-{
-    format_xml_like_error("XML", error)
-}
+fn format_xml_error(error: roxmltree::Error)->LoadError { format_xml_like_error("XML", error) }

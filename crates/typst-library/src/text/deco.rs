@@ -1,7 +1,7 @@
-use crate::foundations::{Content, Smart, elem};
-use crate::layout::{Abs, Corners, Length, Rel, Sides};
-use crate::text::{BottomEdge, BottomEdgeMetric, TopEdge, TopEdgeMetric};
-use crate::visualize::{Color, FixedStroke, Paint, Stroke};
+use crate::foundations:: { Content, Smart, elem };
+use crate::layout:: { Abs, Corners, Length, Rel, Sides };
+use crate::text:: { BottomEdge, BottomEdgeMetric, TopEdge, TopEdgeMetric };
+use crate::visualize:: { Color, FixedStroke, Paint, Stroke };
 
 /// Underlines text.
 ///
@@ -24,7 +24,7 @@ pub struct UnderlineElem
     ///   [care],
     /// )
     /// ```
-    #[fold]
+    # [fold]
     pub stroke: Smart<Stroke>,
 
     /// The position of the line relative to the baseline, read from the font
@@ -54,7 +54,7 @@ pub struct UnderlineElem
     /// This #underline(evade: true)[is great].
     /// This #underline(evade: false)[is less great].
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub evade: bool,
 
     /// Whether the line is placed behind the content it underlines.
@@ -64,11 +64,11 @@ pub struct UnderlineElem
     /// #underline(background: true)[Fully visible.] \
     /// #underline(background: false)[Partially hidden.]
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub background: bool,
 
     /// The content to underline.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -94,7 +94,7 @@ pub struct OverlineElem
     ///   [The Forest Theme],
     /// )
     /// ```
-    #[fold]
+    # [fold]
     pub stroke: Smart<Stroke>,
 
     /// The position of the line relative to the baseline. Read from the font
@@ -129,7 +129,7 @@ pub struct OverlineElem
     ///   [Temple],
     /// )
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub evade: bool,
 
     /// Whether the line is placed behind the content it overlines.
@@ -139,11 +139,11 @@ pub struct OverlineElem
     /// #overline(background: true)[Fully visible.] \
     /// #overline(background: false)[Partially hidden.]
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub background: bool,
 
     /// The content to add a line over.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -168,7 +168,7 @@ pub struct StrikeElem
     /// This is #strike(stroke: 1.5pt + red)[very stricken through]. \
     /// This is #strike(stroke: 10pt)[redacted].
     /// ```
-    #[fold]
+    # [fold]
     pub stroke: Smart<Stroke>,
 
     /// The position of the line relative to the baseline. Read from the font
@@ -199,11 +199,11 @@ pub struct StrikeElem
     /// #strike(background: true)[This is behind.] \
     /// #strike(background: false)[This is in front.]
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub background: bool,
 
     /// The content to strike through.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -223,7 +223,7 @@ pub struct HighlightElem
     ///   fill: blue
     /// )[highlighted with blue].
     /// ```
-    #[default(Some(Color::from_u8(0xFF, 0xFD, 0x11, 0xA1).into()))]
+    # [default (Some(Color::from_u8(0xFF, 0xFD, 0x11, 0xA1).into()))]
     pub fill: Option<Paint>,
 
     /// The highlight's border color. See the
@@ -234,8 +234,8 @@ pub struct HighlightElem
     ///   stroke: fuchsia
     /// )[stroked highlighting].
     /// ```
-    #[fold]
-    pub stroke: Sides<Option<Option<Stroke>>>,
+    # [fold]
+    pub stroke: Sides < Option < Option < Stroke >>> ,
 
     /// The top end of the background rectangle.
     ///
@@ -246,7 +246,7 @@ pub struct HighlightElem
     /// #set highlight(top-edge: "x-height")
     /// #highlight[a] #highlight[aib]
     /// ```
-    #[default(TopEdge::Metric(TopEdgeMetric::Ascender))]
+    # [default (TopEdge::Metric(TopEdgeMetric::Ascender))]
     pub top_edge: TopEdge,
 
     /// The bottom end of the background rectangle.
@@ -258,7 +258,7 @@ pub struct HighlightElem
     /// #set highlight(bottom-edge: "baseline")
     /// #highlight[a] #highlight[ap]
     /// ```
-    #[default(BottomEdge::Metric(BottomEdgeMetric::Descender))]
+    # [default (BottomEdge::Metric(BottomEdgeMetric::Descender))]
     pub bottom_edge: BottomEdge,
 
     /// The amount by which to extend the background to the sides beyond (or
@@ -277,11 +277,11 @@ pub struct HighlightElem
     ///   radius: 5pt, extent: 2pt
     /// )[carefully], it will be on the test.
     /// ```
-    #[fold]
-    pub radius: Corners<Option<Rel<Length>>>,
+    # [fold]
+    pub radius: Corners < Option < Rel < Length >>> ,
 
     /// The content that should be highlighted.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -290,41 +290,15 @@ pub struct HighlightElem
 /// Can be positioned over, under, or on top of text, or highlight the text with
 /// a background.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Decoration
-{
-    pub line: DecoLine,
-    pub extent: Abs,
-}
+pub struct Decoration { pub line: DecoLine, pub extent: Abs, }
 
 /// A kind of decorative line.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[expect(clippy::large_enum_variant)]
 pub enum DecoLine
 {
-    Underline
-    {
-        stroke: Stroke<Abs>,
-        offset: Smart<Abs>,
-        evade: bool,
-        background: bool,
-    },
-    Strikethrough
-    {
-        stroke: Stroke<Abs>, offset: Smart<Abs>, background: bool
-    },
-    Overline
-    {
-        stroke: Stroke<Abs>,
-        offset: Smart<Abs>,
-        evade: bool,
-        background: bool,
-    },
-    Highlight
-    {
-        fill: Option<Paint>,
-        stroke: Sides<Option<FixedStroke>>,
-        top_edge: TopEdge,
-        bottom_edge: BottomEdge,
-        radius: Corners<Rel<Abs>>,
-    },
+    Underline { stroke: Stroke<Abs>, offset: Smart<Abs>, evade: bool , background: bool , },
+    Strikethrough { stroke: Stroke<Abs>, offset: Smart<Abs>, background: bool },
+    Overline { stroke: Stroke<Abs>, offset: Smart<Abs>, evade: bool , background: bool , },
+    Highlight { fill: Option<Paint>, stroke: Sides<Option<FixedStroke>>, top_edge: TopEdge, bottom_edge: BottomEdge, radius: Corners<Rel<Abs>>, },
 }

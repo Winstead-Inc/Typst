@@ -1,12 +1,12 @@
 use std::cmp::Ordering;
-use std::fmt::{self, Display, Formatter, Write};
+use std::fmt:: { self, Display, Formatter, Write };
 use std::hash::Hash;
 use std::iter::repeat;
 
-use ecow::{EcoString, EcoVec, eco_format};
+use ecow:: { EcoString, EcoVec, eco_format };
 
-use crate::diag::{StrResult, bail};
-use crate::foundations::{Repr, cast, func, repr, scope, ty};
+use crate::diag:: { StrResult, bail };
+use crate::foundations:: { Repr, cast, func, repr, scope, ty };
 
 /// A version with an arbitrary number of components.
 ///
@@ -29,38 +29,29 @@ pub struct Version(EcoVec<u32>);
 impl Version
 {
     /// The names for the first components of a version.
-    pub const COMPONENTS: [&'static str; 3] = ["major", "minor", "patch"];
+    pub const COMPONENTS: [ & 'static str; 3] = ["major", "minor", "patch"];
 
     /// Create a new (empty) version.
-    pub fn new() -> Self
-    {
-        Self::default()
-    }
+    pub fn new ()->Self { Self::default () }
 
     /// Get a named component of a version.
     ///
     /// Always non-negative. Returns `0` if the version isn't specified to the
     /// necessary length.
-    pub fn component(&self, name: &str) -> StrResult<i64>
+    pub fn component( & self, name: & str)->StrResult<i64>
     {
-        self.0
-            .iter()
-            .zip(Self::COMPONENTS)
-            .find_map(|(&i, s)| (s == name).then_some(i as i64))
-            .ok_or_else(|| "unknown version component".into())
+        self .0
+        .iter()
+        .zip(Self::COMPONENTS)
+        .find_map( | ( & i, s) | (s == name).then_some(i as i64))
+        .ok_or_else( || "unknown version component".into())
     }
 
     /// Push a component to the end of this version.
-    pub fn push(&mut self, component: u32)
-    {
-        self.0.push(component);
-    }
+    pub fn push( & mut self, component: u32) { self .0.push(component); }
 
     /// The values of the version
-    pub fn values(&self) -> &[u32]
-    {
-        &self.0
-    }
+    pub fn values( & self)-> & [u32] { & self .0 }
 }
 
 #[scope]
@@ -92,26 +83,22 @@ impl Version
     ///   #(version(3, 2, 0) > version(4, 1, 0))
     ///   ```
     /// )
-    #[func(constructor, since = "0.9.0")]
-    pub fn construct(
+    # [func(constructor, since = "0.9.0")]
+    pub fn construct
+    (
         /// The components of the version (array arguments are flattened)
-        #[variadic]
+        # [variadic]
         components: Vec<VersionComponents>,
-    ) -> Version
+    )
+   ->Version
     {
-        let mut version = Version::new();
+        let mut version = Version:: new ();
         for c in components
         {
             match c
             {
                 VersionComponents::Single(v) => version.push(v),
-                VersionComponents::Multiple(values) =>
-                {
-                    for v in values
-                    {
-                        version.push(v);
-                    }
-                }
+                VersionComponents::Multiple(values) => { for v in values { version.push(v); } }
             }
         }
         version
@@ -121,132 +108,80 @@ impl Version
     ///
     /// The returned integer is always non-negative. Returns `0` if the version
     /// isn't specified to the necessary length.
-    #[func(since = "0.9.0")]
-    pub fn at(
-        &self,
+    # [func(since = "0.9.0")]
+    pub fn at
+    (
+        & self,
         /// The index at which to retrieve the component. If negative, indexes
         /// from the back of the explicitly given components.
         index: i64,
-    ) -> StrResult<i64>
+    )
+   ->StrResult<i64>
     {
         let mut index = index;
         if index < 0
         {
-            match (self.0.len() as i64).checked_add(index)
-            {
-                Some(pos_index) if pos_index >= 0 => index = pos_index,
-                _ => bail!(
-                    "component index out of bounds (index: {index}, len: {})",
-                    self.0.len(),
-                ),
-            }
+            match (self .0.len() as i64).checked_add(index) { Some(pos_index) if pos_index >= 0 => index = pos_index, _ => bail ! ("component index out of bounds (index: {index}, len: {})", self .0.len(),), }
         }
-        Ok(usize::try_from(index)
-            .ok()
-            .and_then(|i| self.0.get(i).copied())
-            .unwrap_or_default() as i64)
+        Ok(usize::try_from(index).ok().and_then( | i | self .0.get(i).copied()).unwrap_or_default() as i64)
     }
 }
 
-impl FromIterator<u32> for Version
-{
-    fn from_iter<T: IntoIterator<Item = u32>>(iter: T) -> Self
-    {
-        Self(EcoVec::from_iter(iter))
-    }
-}
+impl FromIterator<u32> for Version { fn from_iter<T: IntoIterator<Item = u32>>(iter: T)->Self { Self(EcoVec::from_iter(iter)) } }
 
 impl IntoIterator for Version
 {
     type Item = u32;
     type IntoIter = ecow::vec::IntoIter<u32>;
 
-    fn into_iter(self) -> Self::IntoIter
-    {
-        self.0.into_iter()
-    }
+    fn into_iter(self)->Self::IntoIter { self .0.into_iter() }
 }
 
 impl Ord for Version
 {
-    fn cmp(&self, other: &Self) -> Ordering
+    fn cmp( & self, other: & Self)->Ordering
     {
-        let max_len = self.0.len().max(other.0.len());
-        let tail = repeat(&0);
+        let max_len = self .0.len().max(other .0.len());
+        let tail = repeat( & 0);
 
-        let self_iter = self.0.iter().chain(tail.clone());
-        let other_iter = other.0.iter().chain(tail);
+        let self_iter = self .0.iter().chain(tail.clone());
+        let other_iter = other .0.iter().chain(tail);
 
-        for (l, r) in self_iter.zip(other_iter).take(max_len)
-        {
-            match l.cmp(r)
-            {
-                Ordering::Equal => (),
-                ord => return ord,
-            }
-        }
+        for (l, r) in self_iter.zip(other_iter).take(max_len) { match l.cmp(r) { Ordering::Equal => (), ord => return ord, } }
 
         Ordering::Equal
     }
 }
 
-impl PartialOrd for Version
-{
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering>
-    {
-        Some(self.cmp(other))
-    }
-}
+impl PartialOrd for Version { fn partial_cmp( & self, other: & Self)->Option<Ordering> { Some(self.cmp(other)) } }
 
 impl Eq for Version {}
 
-impl PartialEq for Version
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        matches!(self.cmp(other), Ordering::Equal)
-    }
-}
+impl PartialEq for Version { fn eq( & self, other: & Self)->bool { matches ! (self.cmp(other), Ordering::Equal) } }
 
 impl Display for Version
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         let mut first = true;
-        for &v in &self.0
-        {
-            if !first
-            {
-                f.write_char('.')?;
-            }
-            write!(f, "{v}")?;
-            first = false;
-        }
+        for & v in & self .0 { if ! first { f.write_char('.')?; } write ! (f, "{v}")?; first = false; }
         Ok(())
     }
 }
 
 impl Repr for Version
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
-        let parts: Vec<_> = self.0.iter().map(|v| eco_format!("{v}")).collect();
-        eco_format!("version{}", &repr::pretty_array_like(&parts, false))
+        let parts: Vec < _ > = self .0.iter().map( | v | eco_format ! ("{v}")).collect();
+        eco_format!("version{}", & repr::pretty_array_like( & parts, false))
     }
 }
 
 /// One or multiple version components.
-pub enum VersionComponents
-{
-    Single(u32),
-    Multiple(Vec<u32>),
-}
+pub enum VersionComponents { Single(u32), Multiple(Vec<u32>), }
 
-cast! {
-    VersionComponents,
-    v: u32 => Self::Single(v),
-    v: Vec<u32> => Self::Multiple(v)
-}
+cast! { VersionComponents, v: u32 => Self::Single(v), v: Vec < u32 > => Self::Multiple(v) }
 
 /// When a feature was introduced.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -260,19 +195,20 @@ pub enum Since
     Unreleased,
 }
 
-cast! {
+cast!
+{
     Since,
-    self => match self {
+    self => match self
+    {
         Self::Forever => "forever".into_value(),
         Self::Version(v) => Version::from_iter(v.into_iter()).into_value(),
         Self::Unreleased => "unreleased".into_value(),
     },
     "forever" => Self::Forever,
     "unreleased" => Self::Unreleased,
-    v: Version => {
-        let &[major, minor, patch] = v.values() else {
-            bail!("expected a version with exactly three components")
-        };
+    v: Version =>
+    {
+        let & [major, minor, patch] = v.values() else { bail ! ("expected a version with exactly three components") };
         Self::Version([major, minor, patch])
     },
 }

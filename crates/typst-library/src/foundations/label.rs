@@ -1,8 +1,8 @@
-use ecow::{EcoString, eco_format};
-use typst_utils::{PicoStr, ResolvedPicoStr};
+use ecow:: { EcoString, eco_format };
+use typst_utils:: { PicoStr, ResolvedPicoStr };
 
 use crate::diag::StrResult;
-use crate::foundations::{Repr, Str, bail, func, scope, ty};
+use crate::foundations:: { Repr, Str, bail, func, scope, ty };
 
 /// A label for an element.
 ///
@@ -55,70 +55,42 @@ impl Label
     /// Creates a label from an interned string.
     ///
     /// Returns `None` if the given string is empty.
-    pub fn new(name: PicoStr) -> Option<Self>
-    {
-        const EMPTY: PicoStr = PicoStr::constant("");
-        (name != EMPTY).then_some(Self(name))
-    }
+    pub fn new (name: PicoStr)->Option<Self> { const EMPTY: PicoStr = PicoStr::constant("");(name != EMPTY).then_some(Self(name)) }
 
     /// Resolves the label to a string.
-    pub fn resolve(self) -> ResolvedPicoStr
-    {
-        self.0.resolve()
-    }
+    pub fn resolve(self)->ResolvedPicoStr { self .0.resolve() }
 
     /// Turns this label into its inner interned string.
-    pub fn into_inner(self) -> PicoStr
-    {
-        self.0
-    }
+    pub fn into_inner(self)->PicoStr { self .0 }
 }
 
 #[scope]
 impl Label
 {
     /// Creates a label from a string.
-    #[func(constructor, since = "forever")]
-    pub fn construct(
+    # [func(constructor, since = "forever")]
+    pub fn construct
+    (
         /// The name of the label.
         ///
         /// Unlike the @label:syntax[dedicated syntax], this constructor accepts
         /// any non-empty string, including names with special characters.
         name: Str,
-    ) -> StrResult<Label>
-    {
-        if name.is_empty()
-        {
-            bail!("label name must not be empty");
-        }
-
-        Ok(Self(PicoStr::intern(name.as_str())))
-    }
+    )
+   ->StrResult<Label> { if name.is_empty() { bail ! ("label name must not be empty"); } Ok(Self(PicoStr::intern(name.as_str()))) }
 }
 
 impl Repr for Label
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
         let resolved = self.resolve();
-        if typst_syntax::is_valid_label_literal_id(&resolved)
-        {
-            eco_format!("<{resolved}>")
-        }
-        else
-        {
-            eco_format!("label({})", resolved.repr())
-        }
+        if typst_syntax::is_valid_label_literal_id( & resolved) { eco_format ! ("<{resolved}>") }
+        else { eco_format ! ("label({})", resolved.repr()) }
     }
 }
 
-impl From<Label> for PicoStr
-{
-    fn from(value: Label) -> Self
-    {
-        value.into_inner()
-    }
-}
+impl From<Label> for PicoStr { fn from(value: Label)->Self { value.into_inner() } }
 
 /// Indicates that an element cannot be labelled.
 pub trait Unlabellable {}

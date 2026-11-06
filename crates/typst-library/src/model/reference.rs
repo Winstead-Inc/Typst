@@ -1,21 +1,13 @@
 use comemo::Track;
 use ecow::eco_format;
-use typst_syntax::{LooselySpanned, Span};
+use typst_syntax:: { LooselySpanned, Span };
 
-use crate::diag::{At, Hint, SourceResult, Trace, Tracepoint, bail};
+use crate::diag:: { At, Hint, SourceResult, Trace, Tracepoint, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Cast, Content, Context, Func, IntoValue, Label, NativeElement, Packed, Repr, Smart,
-    StyleChain, Synthesize, Value, cast, elem,
-};
-use crate::introspection::{
-    Counter, CounterKey, PageNumberingIntrospection, PageSupplementIntrospection,
-    QueryLabelIntrospection,
-};
+use crate::foundations:: { Cast, Content, Context, Func, IntoValue, Label, NativeElement, Packed, Repr, Smart, StyleChain, Synthesize, Value, cast, elem, };
+use crate::introspection:: { Counter, CounterKey, PageNumberingIntrospection, PageSupplementIntrospection, QueryLabelIntrospection, };
 use crate::math::EquationElem;
-use crate::model::{
-    BibliographyElem, CiteElem, DirectLinkElem, Figurable, FootnoteElem, Numbering,
-};
+use crate::model:: { BibliographyElem, CiteElem, DirectLinkElem, Figurable, FootnoteElem, Numbering, };
 use crate::text::TextElem;
 
 /// A reference to a label or bibliography.
@@ -144,7 +136,7 @@ pub struct RefElem
     /// Can be a label that is defined in the document or, if the
     /// @ref.form[`form`] is set to `["normal"]`, an entry from the
     /// @bibliography.
-    #[required]
+    # [required]
     pub target: Label,
 
     /// A supplement for the reference.
@@ -178,7 +170,7 @@ pub struct RefElem
     /// in @intro[Part], it is done
     /// manually.
     /// ```
-    pub supplement: LooselySpanned<Smart<Option<Supplement>>>,
+    pub supplement: LooselySpanned < Smart < Option < Supplement >>> ,
 
     /// The kind of reference to produce.
     ///
@@ -188,22 +180,22 @@ pub struct RefElem
     /// Here <here> we are on
     /// #ref(<here>, form: "page").
     /// ```
-    #[default(RefForm::Normal)]
+    # [default (RefForm::Normal)]
     pub form: RefForm,
 
     /// A synthesized citation.
-    #[synthesized]
+    # [synthesized]
     pub citation: Option<Packed<CiteElem>>,
 
     /// The referenced element.
-    #[synthesized]
+    # [synthesized]
     pub element: Option<Content>,
 }
 
 impl Synthesize for Packed<RefElem>
 {
-    fn synthesize(&mut self, engine: &mut Engine, styles: StyleChain)
-    -> SourceResult<()>
+    fn synthesize( & mut self, engine: & mut Engine, styles: StyleChain)
+   ->SourceResult<()>
     {
         let span = self.span();
         let citation = to_citation(self, engine, styles)?;
@@ -212,13 +204,9 @@ impl Synthesize for Packed<RefElem>
         elem.citation = Some(Some(citation));
         elem.element = Some(None);
 
-        if !BibliographyElem::has(engine, elem.target, span)
-            && let Ok(found) =
-                engine.introspect(QueryLabelIntrospection(elem.target, span))
-        {
-            elem.element = Some(Some(found));
-            return Ok(());
-        }
+        if ! BibliographyElem::has(engine, elem.target, span)
+        && let Ok(found) =
+        engine.introspect(QueryLabelIntrospection(elem.target, span)) { elem.element = Some(Some(found)); return Ok(()); }
 
         Ok(())
     }
@@ -227,16 +215,12 @@ impl Synthesize for Packed<RefElem>
 impl Packed<RefElem>
 {
     /// Realize as a linked, textual reference.
-    pub fn realize(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-    ) -> SourceResult<Content>
+    pub fn realize( & self, engine: & mut Engine, styles: StyleChain,)->SourceResult<Content>
     {
         let span = self.span();
         let elem = engine.introspect(QueryLabelIntrospection(self.target, span));
 
-        let form = self.form.get(styles);
+        let form = self.form. get(styles);
         if form == RefForm::Page
         {
             let elem = elem.at(span)?;
@@ -244,23 +228,13 @@ impl Packed<RefElem>
 
             let loc = elem.location().unwrap();
             let numbering = engine
-                .introspect(PageNumberingIntrospection(loc, span))
-                .ok_or_else(|| eco_format!("cannot reference without page numbering"))
-                .hint(eco_format!(
-                    "you can enable page numbering with `#set page(numbering: \"1\")`"
-                ))
-                .at(span)?;
+            .introspect(PageNumberingIntrospection(loc, span))
+            .ok_or_else( || eco_format ! ("cannot reference without page numbering"))
+            .hint(eco_format ! ("you can enable page numbering with `#set page(numbering: \"1\")`"))
+            .at(span)?;
             let supplement = engine.introspect(PageSupplementIntrospection(loc, span));
 
-            return realize_reference(
-                self,
-                engine,
-                styles,
-                Counter::new(CounterKey::Page),
-                numbering,
-                supplement,
-                elem,
-            );
+            return realize_reference(self, engine, styles, Counter::new (CounterKey::Page), numbering, supplement, elem,);
         }
         // RefForm::Normal
 
@@ -268,7 +242,8 @@ impl Packed<RefElem>
         {
             if let Ok(elem) = elem
             {
-                bail!(
+                bail!
+                (
                     span,
                     "label `{}` occurs both in the document and a bibliography",
                     self.target.repr();
@@ -283,116 +258,84 @@ impl Packed<RefElem>
 
         let elem = elem.at(span)?;
 
-        if let Some(footnote) = elem.to_packed::<FootnoteElem>()
-        {
-            return Ok(footnote.into_ref(self.target).pack().spanned(span));
-        }
+        if let Some(footnote) = elem.to_packed::<FootnoteElem>() { return Ok(footnote.into_ref(self.target).pack().spanned(span)); }
 
         let elem = elem.clone();
         let refable = elem
-            .with::<dyn Refable>()
-            .ok_or_else(|| {
-                if elem.can::<dyn Figurable>()
-                {
-                    eco_format!(
-                        "cannot reference {} directly, try putting it into a figure",
-                        elem.func().name()
-                    )
-                }
-                else
-                {
-                    eco_format!("cannot reference {}", elem.func().name())
-                }
-            })
-            .at(span)?;
+        .with::<dyn Refable>()
+        .ok_or_else
+        (
+            ||
+            {
+                if elem.can::<dyn Figurable>() { eco_format ! ("cannot reference {} directly, try putting it into a figure", elem.func().name()) }
+                else { eco_format ! ("cannot reference {}", elem.func().name()) }
+            }
+        )
+        .at(span)?;
 
         let numbering = refable
-            .numbering()
-            .ok_or_else(|| {
-                eco_format!("cannot reference {} without numbering", elem.func().name())
-            })
-            .hint(eco_format!(
+        .numbering()
+        .ok_or_else( || { eco_format ! ("cannot reference {} without numbering", elem.func().name()) })
+        .hint
+        (
+            eco_format!
+            (
                 "you can enable {} numbering with `#set {}(numbering: \"1.\")`",
                 elem.func().name(),
-                if elem.func() == EquationElem::ELEM
-                {
-                    "math.equation"
-                }
-                else
-                {
-                    elem.func().name()
-                }
-            ))
-            .at(span)?;
-
-        realize_reference(
-            self,
-            engine,
-            styles,
-            refable.counter(),
-            numbering.clone(),
-            refable.supplement(),
-            elem,
+                if elem.func() == EquationElem::ELEM { "math.equation" }
+                else { elem.func().name() }
+            )
         )
+        .at(span)?;
+
+        realize_reference(self, engine, styles, refable.counter(), numbering.clone(), refable.supplement(), elem,)
     }
 }
 
 /// Show a reference.
-fn realize_reference(
-    reference: &Packed<RefElem>,
-    engine: &mut Engine,
+fn realize_reference
+(
+    reference: & Packed<RefElem>,
+    engine: & mut Engine,
     styles: StyleChain,
     counter: Counter,
     numbering: Numbering,
     supplement: Content,
     elem: Content,
-) -> SourceResult<Content>
+)
+->SourceResult<Content>
 {
     let span = reference.span();
     let loc = elem.location().unwrap();
-    let numbers = counter.display_at(engine, loc, styles, &numbering.trimmed(), span)?;
+    let numbers = counter.display_at(engine, loc, styles, & numbering.trimmed(), span)?;
 
     let sup = reference.supplement.get_ref(styles);
-    let supplement = match &sup.v
+    let supplement = match & sup.v
     {
         Smart::Auto => supplement,
         Smart::Custom(None) => Content::empty(),
         Smart::Custom(Some(supplement)) => supplement
-            .resolve(engine, styles, [elem], sup.span)
-            .trace(engine.world, Tracepoint::process::<RefElem>, span)?,
+        .resolve(engine, styles, [elem], sup.span)
+        .trace(engine.world, Tracepoint::process::<RefElem>, span)?,
     };
 
-    let alt = {
-        let supplement = supplement.plain_text();
-        let numbering = numbers.plain_text();
-        eco_format!("{supplement} {numbering}",)
-    };
+    let alt = { let supplement = supplement.plain_text(); let numbering = numbers.plain_text(); eco_format ! ("{supplement} {numbering}",) };
 
     let mut content = numbers;
-    if !supplement.is_empty()
-    {
-        content = supplement + TextElem::packed("\u{a0}") + content;
-    }
+    if ! supplement.is_empty() { content = supplement + TextElem::packed("\u{a0}") + content; }
 
     content = content.spanned(span);
 
-    Ok(DirectLinkElem::new(loc, content, Some(alt)).pack().spanned(span))
+    Ok(DirectLinkElem::new (loc, content, Some(alt)).pack().spanned(span))
 }
 
 /// Turn a reference into a citation.
-fn to_citation(
-    reference: &Packed<RefElem>,
-    engine: &mut Engine,
-    styles: StyleChain,
-) -> SourceResult<Packed<CiteElem>>
+fn to_citation(reference: & Packed<RefElem>, engine: & mut Engine, styles: StyleChain,)->SourceResult<Packed<CiteElem>>
 {
-    let mut elem = Packed::new(CiteElem::new(reference.target).with_supplement(
-        match reference.supplement.get_cloned(styles).v
-        {
-            Smart::Custom(Some(Supplement::Content(content))) => Some(content),
-            _ => None,
-        },
-    ));
+    let mut elem = Packed:: new
+    (
+        CiteElem:: new (reference.target).with_supplement(match reference.supplement.get_cloned(styles).v { Smart::Custom(Some(Supplement::Content(content))) => Some(content), _ => None, },)
+    );
 
     elem.synthesize(engine, styles)?;
 
@@ -401,41 +344,32 @@ fn to_citation(
 
 /// Additional content for a reference.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum Supplement
-{
-    Content(Content),
-    Func(Func),
-}
+pub enum Supplement { Content(Content), Func(Func), }
 
 impl Supplement
 {
     /// Tries to resolve the supplement into its content.
-    pub fn resolve<T: IntoValue>(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-        args: impl IntoIterator<Item = T>,
-        span: Span,
-    ) -> SourceResult<Content>
+    pub fn resolve<T: IntoValue>( & self, engine: & mut Engine, styles: StyleChain, args: impl IntoIterator<Item = T>, span: Span,)->SourceResult<Content>
     {
-        Ok(match self
-        {
-            Supplement::Content(content) => content.clone(),
-            Supplement::Func(func) =>
+        Ok
+        (
+            match self
             {
-                let context = Context::new(None, Some(styles));
-                func.call::<Value>(engine, context.track(), args, span)?.display()
+                Supplement::Content(content) => content.clone(),
+                Supplement::Func(func) =>
+                {
+                    let context = Context:: new (None, Some(styles));
+                    func.call::<Value>(engine, context.track(), args, span)?.display()
+                }
             }
-        })
+        )
     }
 }
 
-cast! {
+cast!
+{
     Supplement,
-    self => match self {
-        Self::Content(v) => v.into_value(),
-        Self::Func(v) => v.into_value(),
-    },
+    self => match self { Self::Content(v) => v.into_value(), Self::Func(v) => v.into_value(), },
     v: Content => Self::Content(v),
     v: Func => Self::Func(v),
 }
@@ -445,7 +379,7 @@ cast! {
 pub enum RefForm
 {
     /// Produces a textual reference to a label.
-    #[default]
+    # [default]
     Normal,
     /// Produces a page reference to a label.
     Page,
@@ -456,11 +390,11 @@ pub enum RefForm
 pub trait Refable
 {
     /// The supplement, if not overridden by the reference.
-    fn supplement(&self) -> Content;
+    fn supplement( & self)->Content;
 
     /// Returns the counter of this element.
-    fn counter(&self) -> Counter;
+    fn counter( & self)->Counter;
 
     /// Returns the numbering of this element.
-    fn numbering(&self) -> Option<&Numbering>;
+    fn numbering( & self)->Option <& Numbering > ;
 }

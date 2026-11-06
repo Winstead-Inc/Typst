@@ -1,13 +1,10 @@
 //! Defines syntactical properties of HTML tags, attributes, and text.
 
 /// Check whether a character is in a tag name.
-pub const fn is_valid_in_tag_name(c: char) -> bool
-{
-    c.is_ascii_alphanumeric() || c == '-'
-}
+pub const fn is_valid_in_tag_name(c: char)-> bool { c.is_ascii_alphanumeric() || c == '-' }
 
 /// Check whether a character is valid in an attribute name.
-pub const fn is_valid_in_attribute_name(c: char) -> bool
+pub const fn is_valid_in_attribute_name(c: char)-> bool
 {
     match c
     {
@@ -25,7 +22,7 @@ pub const fn is_valid_in_attribute_name(c: char) -> bool
 /// escaping.
 ///
 /// See <https://html.spec.whatwg.org/multipage/syntax.html#attributes-2>
-pub const fn is_valid_in_attribute_value(c: char) -> bool
+pub const fn is_valid_in_attribute_value(c: char)-> bool
 {
     match c
     {
@@ -42,7 +39,7 @@ pub const fn is_valid_in_attribute_value(c: char) -> bool
 
 /// Check whether a character can be an used in normal text without
 /// escaping.
-pub const fn is_valid_in_normal_element_text(c: char) -> bool
+pub const fn is_valid_in_normal_element_text(c: char)-> bool
 {
     match c
     {
@@ -57,7 +54,7 @@ pub const fn is_valid_in_normal_element_text(c: char) -> bool
 }
 
 /// Check if something is valid text in HTML.
-pub const fn is_w3c_text_char(c: char) -> bool
+pub const fn is_w3c_text_char(c: char)-> bool
 {
     match c
     {
@@ -70,25 +67,25 @@ pub const fn is_w3c_text_char(c: char) -> bool
     }
 }
 
-const fn is_whatwg_non_char(c: char) -> bool
+const fn is_whatwg_non_char(c: char)-> bool
 {
     match c
     {
-        '\u{fdd0}'..='\u{fdef}' => true,
+        '\u{fdd0}'.. = '\u{fdef}' => true,
         // Non-characters matching xxFFFE or xxFFFF up to x10FFFF (inclusive).
         c if c as u32 & 0xfffe == 0xfffe && c as u32 <= 0x10ffff => true,
         _ => false,
     }
 }
 
-const fn is_whatwg_control_char(c: char) -> bool
+const fn is_whatwg_control_char(c: char)-> bool
 {
     match c
     {
         // C0 control characters.
-        '\u{00}'..='\u{1f}' => true,
+        '\u{00}'.. = '\u{1f}' => true,
         // Other control characters.
-        '\u{7f}'..='\u{9f}' => true,
+        '\u{7f}'.. = '\u{9f}' => true,
         _ => false,
     }
 }

@@ -1,12 +1,12 @@
-use std::f64::consts::{PI, TAU};
-use std::fmt::{self, Debug, Formatter};
+use std::f64::consts:: { PI, TAU };
+use std::fmt:: { self, Debug, Formatter };
 use std::iter::Sum;
-use std::ops::{Add, Div, Mul, Neg};
+use std::ops:: { Add, Div, Mul, Neg };
 
 use ecow::EcoString;
-use typst_utils::{Numeric, Scalar};
+use typst_utils:: { Numeric, Scalar };
 
-use crate::foundations::{Repr, func, repr, scope, ty};
+use crate::foundations:: { Repr, func, repr, scope, ty };
 use crate::layout::Ratio;
 
 /// An angle describing a rotation.
@@ -27,110 +27,59 @@ pub struct Angle(Scalar);
 impl Angle
 {
     /// The zero angle.
-    pub const fn zero() -> Self
-    {
-        Self(Scalar::ZERO)
-    }
+    pub const fn zero()->Self { Self(Scalar::ZERO) }
 
     /// Create an angle from a number of raw units.
-    pub const fn raw(raw: f64) -> Self
-    {
-        Self(Scalar::new(raw))
-    }
+    pub const fn raw(raw: f64)->Self { Self(Scalar::new (raw)) }
 
     /// Create an angle from a value in a unit.
-    pub fn with_unit(val: f64, unit: AngleUnit) -> Self
-    {
-        Self(Scalar::new(val * unit.raw_scale()))
-    }
+    pub fn with_unit(val: f64, unit: AngleUnit)->Self { Self(Scalar::new (val * unit.raw_scale())) }
 
     /// Create an angle from a number of radians.
-    pub fn rad(rad: f64) -> Self
-    {
-        Self::with_unit(rad, AngleUnit::Rad)
-    }
+    pub fn rad(rad: f64)->Self { Self::with_unit(rad, AngleUnit::Rad) }
 
     /// Create an angle from a number of degrees.
-    pub fn deg(deg: f64) -> Self
-    {
-        Self::with_unit(deg, AngleUnit::Deg)
-    }
+    pub fn deg(deg: f64)->Self { Self::with_unit(deg, AngleUnit::Deg) }
 
     /// Create an angle from a ratio. 100% corresponds to `360deg`
-    pub fn from_ratio(r: Ratio) -> Angle
-    {
-        Self::rad(r.get() * TAU)
-    }
+    pub fn from_ratio(r: Ratio)->Angle { Self::rad(r.get () * TAU) }
 
     /// Get the value of this angle in raw units.
-    pub const fn to_raw(self) -> f64
-    {
-        (self.0).get()
-    }
+    pub const fn to_raw(self)->f64 { (self .0).get () }
 
     /// Get the value of this angle in a unit.
-    pub fn to_unit(self, unit: AngleUnit) -> f64
-    {
-        self.to_raw() / unit.raw_scale()
-    }
+    pub fn to_unit(self, unit: AngleUnit)->f64 { self.to_raw() / unit.raw_scale() }
 
     /// Calculates the non-negative remainder in relation to a full angle.
     ///
     /// Returns an angle within the interval of `0deg..=360deg`.
-    pub fn normalized(self) -> Self
-    {
-        Self::rad(self.to_rad().rem_euclid(TAU))
-    }
+    pub fn normalized(self)->Self { Self::rad(self.to_rad().rem_euclid(TAU)) }
 
     /// The absolute value of the this angle.
-    pub fn abs(self) -> Self
-    {
-        Self::raw(self.to_raw().abs())
-    }
+    pub fn abs(self)->Self { Self::raw(self.to_raw().abs()) }
 
     /// Get the sine of this angle in radians.
-    pub fn sin(self) -> f64
-    {
-        libm::sin(self.to_rad())
-    }
+    pub fn sin(self)->f64 { libm::sin(self.to_rad()) }
 
     /// Get the cosine of this angle in radians.
-    pub fn cos(self) -> f64
-    {
-        libm::cos(self.to_rad())
-    }
+    pub fn cos(self)->f64 { libm::cos(self.to_rad()) }
 
     /// Get the tangent of this angle in radians.
-    pub fn tan(self) -> f64
-    {
-        libm::tan(self.to_rad())
-    }
+    pub fn tan(self)->f64 { libm::tan(self.to_rad()) }
 
     /// Get the arcsine of a number.
-    pub fn asin(x: f64) -> Self
-    {
-        Self::rad(libm::asin(x))
-    }
+    pub fn asin(x: f64)->Self { Self::rad(libm::asin(x)) }
 
     /// Get the arccosine of a number.
-    pub fn acos(x: f64) -> Self
-    {
-        Self::rad(libm::acos(x))
-    }
+    pub fn acos(x: f64)->Self { Self::rad(libm::acos(x)) }
 
     /// Get the arctangent of a number.
-    pub fn atan(x: f64) -> Self
-    {
-        Self::rad(libm::atan(x))
-    }
+    pub fn atan(x: f64)->Self { Self::rad(libm::atan(x)) }
 
     /// Get the four-quadrant arctangent of a coordinate.
     ///
     /// Returns a value in the range of `-180deg..=180deg`.
-    pub fn atan2(y: f64, x: f64) -> Self
-    {
-        Self::rad(libm::atan2(y, x))
-    }
+    pub fn atan2(y: f64, x: f64)->Self { Self::rad(libm::atan2(y, x)) }
 
     /// Get the quadrant of the Cartesian plane that this angle lies in.
     ///
@@ -141,25 +90,13 @@ impl Angle
     /// - Second: `90deg..=180deg` (top-left)
     /// - Third: `180deg..=270deg` (bottom-left)
     /// - Fourth: `270deg..=360deg` (bottom-right)
-    pub fn quadrant(self) -> Quadrant
+    pub fn quadrant(self)->Quadrant
     {
         let angle = self.to_deg().rem_euclid(360.0);
-        if angle <= 90.0
-        {
-            Quadrant::First
-        }
-        else if angle <= 180.0
-        {
-            Quadrant::Second
-        }
-        else if angle <= 270.0
-        {
-            Quadrant::Third
-        }
-        else
-        {
-            Quadrant::Fourth
-        }
+        if angle <= 90.0 { Quadrant::First }
+        else if angle <= 180.0 { Quadrant::Second }
+        else if angle <= 270.0 { Quadrant::Third }
+        else { Quadrant::Fourth }
     }
 }
 
@@ -167,123 +104,40 @@ impl Angle
 impl Angle
 {
     /// Converts this angle to radians.
-    #[func(name = "rad", title = "Radians", since = "0.7.0")]
-    pub fn to_rad(self) -> f64
-    {
-        self.to_unit(AngleUnit::Rad)
-    }
+    # [func(name = "rad", title = "Radians", since = "0.7.0")]
+    pub fn to_rad(self)->f64 { self.to_unit(AngleUnit::Rad) }
 
     /// Converts this angle to degrees.
-    #[func(name = "deg", title = "Degrees", since = "0.7.0")]
-    pub fn to_deg(self) -> f64
-    {
-        self.to_unit(AngleUnit::Deg)
-    }
+    # [func(name = "deg", title = "Degrees", since = "0.7.0")]
+    pub fn to_deg(self)->f64 { self.to_unit(AngleUnit::Deg) }
 }
 
-impl Numeric for Angle
-{
-    fn zero() -> Self
-    {
-        Self::zero()
-    }
+impl Numeric for Angle { fn zero()->Self { Self::zero() } fn is_finite(self)->bool { self .0.is_finite() } }
 
-    fn is_finite(self) -> bool
-    {
-        self.0.is_finite()
-    }
-}
+impl Debug for Angle { fn fmt( & self, f: & mut Formatter)->fmt::Result { write ! (f, "{:?}deg", self.to_deg()) } }
 
-impl Debug for Angle
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        write!(f, "{:?}deg", self.to_deg())
-    }
-}
+impl Repr for Angle { fn repr( & self)->EcoString { repr::format_float_with_unit(self.to_deg(),"deg") } }
 
-impl Repr for Angle
-{
-    fn repr(&self) -> EcoString
-    {
-        repr::format_float_with_unit(self.to_deg(), "deg")
-    }
-}
+impl Neg for Angle { type Output = Self; fn neg(self)->Self { Self( - self .0) } }
 
-impl Neg for Angle
-{
-    type Output = Self;
+impl Add for Angle { type Output = Self; fn add(self, other: Self)->Self { Self(self .0 + other .0) } }
 
-    fn neg(self) -> Self
-    {
-        Self(-self.0)
-    }
-}
+typst_utils::sub_impl!(Angle - Angle->Angle);
 
-impl Add for Angle
-{
-    type Output = Self;
+impl Mul<f64> for Angle { type Output = Self; fn mul(self, other: f64)->Self { Self(self .0 * other) } }
 
-    fn add(self, other: Self) -> Self
-    {
-        Self(self.0 + other.0)
-    }
-}
+impl Mul<Angle> for f64 { type Output = Angle; fn mul(self, other: Angle)->Angle { other * self } }
 
-typst_utils::sub_impl!(Angle - Angle -> Angle);
+impl Div for Angle { type Output = f64; fn div(self, other: Self)->f64 { self.to_raw() / other.to_raw() } }
 
-impl Mul<f64> for Angle
-{
-    type Output = Self;
-
-    fn mul(self, other: f64) -> Self
-    {
-        Self(self.0 * other)
-    }
-}
-
-impl Mul<Angle> for f64
-{
-    type Output = Angle;
-
-    fn mul(self, other: Angle) -> Angle
-    {
-        other * self
-    }
-}
-
-impl Div for Angle
-{
-    type Output = f64;
-
-    fn div(self, other: Self) -> f64
-    {
-        self.to_raw() / other.to_raw()
-    }
-}
-
-impl Div<f64> for Angle
-{
-    type Output = Self;
-
-    fn div(self, other: f64) -> Self
-    {
-        Self(self.0 / other)
-    }
-}
+impl Div<f64> for Angle { type Output = Self; fn div(self, other: f64)->Self { Self(self .0 / other) } }
 
 typst_utils::assign_impl!(Angle += Angle);
 typst_utils::assign_impl!(Angle -= Angle);
 typst_utils::assign_impl!(Angle *= f64);
 typst_utils::assign_impl!(Angle /= f64);
 
-impl Sum for Angle
-{
-    fn sum<I: Iterator<Item = Angle>>(iter: I) -> Self
-    {
-        Self(iter.map(|s| s.0).sum())
-    }
-}
+impl Sum for Angle { fn sum<I: Iterator<Item = Angle>>(iter: I)->Self { Self(iter.map( | s | s .0).sum()) } }
 
 /// Different units of angular measurement.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -298,14 +152,7 @@ pub enum AngleUnit
 impl AngleUnit
 {
     /// How many raw units correspond to a value of `1.0` in this unit.
-    fn raw_scale(self) -> f64
-    {
-        match self
-        {
-            Self::Rad => 1.0,
-            Self::Deg => PI / 180.0,
-        }
-    }
+    fn raw_scale(self)->f64 { match self { Self::Rad => 1.0, Self::Deg => PI / 180.0, } }
 }
 
 /// A quadrant of the Cartesian plane.
@@ -325,12 +172,12 @@ pub enum Quadrant
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
+    # [test]
     fn test_angle_unit_conversion()
     {
-        assert!((Angle::rad(2.0 * PI).to_deg() - 360.0) < 1e-4);
-        assert!((Angle::deg(45.0).to_rad() - std::f64::consts::FRAC_PI_4) < 1e-4);
+        assert!((Angle::rad(2.0 * PI).to_deg() - 360.0) < 1e - 4);
+        assert!((Angle::deg(45.0).to_rad() - std::f64::consts::FRAC_PI_4) < 1e - 4);
     }
 }

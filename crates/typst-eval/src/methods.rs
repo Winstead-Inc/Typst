@@ -1,35 +1,21 @@
 //! Handles special built-in methods on values.
 
-use ecow::{EcoString, eco_format};
-use typst_library::diag::{At, SourceResult};
-use typst_library::foundations::{Args, Str, Type, Value};
+use ecow:: { EcoString, eco_format };
+use typst_library::diag:: { At, SourceResult };
+use typst_library::foundations:: { Args, Str, Type, Value };
 use typst_syntax::Span;
 
 /// Whether a specific method is mutating.
-pub(crate) fn is_mutating_method(method: &str) -> bool
-{
-    matches!(method, "push" | "pop" | "insert" | "remove")
-}
+pub (crate) fn is_mutating_method(method: & str)-> bool { matches ! (method, "push" | "pop" | "insert" | "remove") }
 
 /// Mutating methods for dictionaries.
-pub(crate) fn is_dict_mutating_method(method: &str) -> bool
-{
-    matches!(method, "insert" | "remove")
-}
+pub (crate) fn is_dict_mutating_method(method: & str)-> bool { matches ! (method, "insert" | "remove") }
 
 /// Whether a specific method is an accessor.
-pub(crate) fn is_accessor_method(method: &str) -> bool
-{
-    matches!(method, "first" | "last" | "at")
-}
+pub (crate) fn is_accessor_method(method: & str)-> bool { matches ! (method, "first" | "last" | "at") }
 
 /// Call a mutating method on a value.
-pub(crate) fn call_method_mut(
-    value: &mut Value,
-    method: &str,
-    mut args: Args,
-    span: Span,
-) -> SourceResult<Value>
+pub (crate) fn call_method_mut(value: & mut Value, method: & str, mut args: Args, span: Span,)->SourceResult<Value>
 {
     let ty = value.ty();
     let missing = || Err(missing_method(ty, method)).at(span);
@@ -41,27 +27,15 @@ pub(crate) fn call_method_mut(
         {
             "push" => array.push(args.expect("value")?),
             "pop" => output = array.pop().at(span)?,
-            "insert" =>
-            {
-                array.insert(args.expect("index")?, args.expect("value")?).at(span)?;
-            }
-            "remove" =>
-            {
-                output = array
-                    .remove(args.expect("index")?, args.named("default")?)
-                    .at(span)?;
-            }
+            "insert" => { array.insert(args.expect("index")?, args.expect("value")?).at(span)?; }
+            "remove" => { output = array.remove(args.expect("index")?, args.named("default")?).at(span)?; }
             _ => return missing(),
         },
 
         Value::Dict(dict) => match method
         {
             "insert" => dict.insert(args.expect::<Str>("key")?, args.expect("value")?),
-            "remove" =>
-            {
-                output =
-                    dict.remove(args.expect("key")?, args.named("default")?).at(span)?;
-            }
+            "remove" => { output = dict.remove(args.expect("key")?, args.named("default")?).at(span)?; }
             _ => return missing(),
         },
 
@@ -73,25 +47,12 @@ pub(crate) fn call_method_mut(
 }
 
 /// Call an accessor method on a value.
-pub(crate) fn call_method_access<'a>(
-    value: &'a mut Value,
-    method: &str,
-    mut args: Args,
-    span: Span,
-) -> SourceResult<&'a mut Value>
+pub (crate) fn call_method_access<'a>(value: & 'a mut Value, method: & str, mut args: Args, span: Span,)->SourceResult <& 'a mut Value >
 {
     let ty = value.ty();
-    let temp_or_missing = || {
-        Err(
-            if ty.scope().get(method).is_some()
-            {
-                "cannot mutate a temporary value".into()
-            }
-            else
-            {
-                missing_method(ty, method)
-            },
-        )
+    let temp_or_missing = ||
+    {
+        Err(if ty.scope().get (method).is_some() { "cannot mutate a temporary value".into() } else { missing_method(ty, method) },)
         .at(span)
     };
 
@@ -104,11 +65,7 @@ pub(crate) fn call_method_access<'a>(
             "at" => array.at_mut(args.expect("index")?).at(span)?,
             _ => return temp_or_missing(),
         },
-        Value::Dict(dict) => match method
-        {
-            "at" => dict.at_mut(&args.expect::<Str>("key")?).at(span)?,
-            _ => return temp_or_missing(),
-        },
+        Value::Dict(dict) => match method { "at" => dict.at_mut( & args.expect::<Str>("key")?).at(span)?, _ => return temp_or_missing(), },
         _ => return temp_or_missing(),
     };
 
@@ -118,7 +75,4 @@ pub(crate) fn call_method_access<'a>(
 
 /// The missing method error message.
 #[cold]
-fn missing_method(ty: Type, method: &str) -> EcoString
-{
-    eco_format!("type {ty} has no method `{method}`")
-}
+fn missing_method(ty: Type, method: & str)->EcoString { eco_format ! ("type {ty} has no method `{method}`") }

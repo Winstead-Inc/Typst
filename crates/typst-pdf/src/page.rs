@@ -1,29 +1,26 @@
 use std::num::NonZeroU32;
 
-use krilla::page::{NumberingStyle, PageLabel};
+use krilla::page:: { NumberingStyle, PageLabel };
 use typst_library::model::Numbering;
 
-pub(crate) trait PageLabelExt
+pub (crate) trait PageLabelExt
 {
     /// Create a new `PageLabel` from a `Numbering` applied to a page
     /// number.
-    fn generate(numbering: &Numbering, number: u64) -> Option<PageLabel>;
+    fn generate(numbering: & Numbering, number: u64)->Option<PageLabel>;
 
     /// Creates an arabic page label with the specified page number.
     /// For example, this will display page label `11` when given the page
     /// number 11.
-    fn arabic(number: u64) -> PageLabel;
+    fn arabic(number: u64)->PageLabel;
 }
 
 impl PageLabelExt for PageLabel
 {
-    fn generate(numbering: &Numbering, number: u64) -> Option<PageLabel>
+    fn generate(numbering: & Numbering, number: u64)->Option<PageLabel>
     {
         let Numbering::Pattern(pat) = numbering
-        else
-        {
-            return None;
-        };
+        else { return None; };
 
         let (prefix, system) = pat.pieces.first()?;
 
@@ -43,33 +40,17 @@ impl PageLabelExt for PageLabel
                 _ => None,
             }
         }
-        else
-        {
-            None
-        };
+        else { None };
 
         // Prefix and offset depend on the style: If it is supported by the PDF
         // spec, we use the given prefix and an offset. Otherwise, everything
         // goes into prefix.
-        let prefix = if style.is_none()
-        {
-            pat.apply(None, &[number]).ok()
-        }
-        else
-        {
-            (!prefix.is_empty()).then(|| prefix.clone())
-        };
+        let prefix = if style.is_none() { pat.apply(None, & [number]).ok() }
+        else { ( ! prefix.is_empty()).then( || prefix.clone()) };
 
         let offset = style.and(number.try_into().ok().and_then(NonZeroU32::new));
-        Some(PageLabel::new(style, prefix.map(Into::into), offset))
+        Some(PageLabel::new (style, prefix.map(Into::into), offset))
     }
 
-    fn arabic(number: u64) -> PageLabel
-    {
-        PageLabel::new(
-            Some(NumberingStyle::Arabic),
-            None,
-            number.try_into().ok().and_then(NonZeroU32::new),
-        )
-    }
+    fn arabic(number: u64)->PageLabel { PageLabel::new (Some(NumberingStyle::Arabic), None, number.try_into().ok().and_then(NonZeroU32::new),) }
 }

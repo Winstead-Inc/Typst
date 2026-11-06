@@ -24,32 +24,32 @@ mod table;
 mod terms;
 mod title;
 
-pub use self::accessibility::*;
-pub use self::bibliography::*;
-pub use self::cite::*;
-pub use self::divider::*;
-pub use self::document::*;
-pub use self::emph::*;
-pub use self::enum_::*;
-pub use self::figure::*;
-pub use self::footnote::*;
-pub use self::heading::*;
-pub use self::link::*;
-pub use self::list::*;
-pub use self::numbering_::*;
-pub use self::outline::*;
-pub use self::par::*;
-pub use self::quote::*;
-pub use self::reference::*;
-pub use self::strong::*;
-pub use self::table::*;
-pub use self::terms::*;
-pub use self::title::*;
+pub use self::accessibility:: * ;
+pub use self::bibliography:: * ;
+pub use self::cite:: * ;
+pub use self::divider:: * ;
+pub use self::document:: * ;
+pub use self::emph:: * ;
+pub use self::enum_:: * ;
+pub use self::figure:: * ;
+pub use self::footnote:: * ;
+pub use self::heading:: * ;
+pub use self::link:: * ;
+pub use self::list:: * ;
+pub use self::numbering_:: * ;
+pub use self::outline:: * ;
+pub use self::par:: * ;
+pub use self::quote:: * ;
+pub use self::reference:: * ;
+pub use self::strong:: * ;
+pub use self::table:: * ;
+pub use self::terms:: * ;
+pub use self::title:: * ;
 
 use crate::foundations::Scope;
 
 /// Hook up all `model` definitions.
-pub fn define(global: &mut Scope)
+pub fn define(global: & mut Scope)
 {
     global.start_category(crate::Category::Model);
     global.define_elem::<DocumentElem>();

@@ -1,8 +1,8 @@
 use ttf_parser::Tag;
 
-use crate::foundations::{Content, Smart, elem};
-use crate::layout::{Em, Length};
-use crate::text::{FontMetrics, ScriptMetrics, TextSize};
+use crate::foundations:: { Content, Smart, elem };
+use crate::layout:: { Em, Length };
+use crate::text:: { FontMetrics, ScriptMetrics, TextSize };
 
 /// Renders text in subscript.
 ///
@@ -30,7 +30,7 @@ pub struct SubElem
     /// N#sub(typographic: true)[1]
     /// N#sub(typographic: false)[1]
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub typographic: bool,
 
     /// The downward baseline shift for synthesized subscripts.
@@ -60,7 +60,7 @@ pub struct SubElem
     pub size: Smart<TextSize>,
 
     /// The text to display in subscript.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -90,7 +90,7 @@ pub struct SuperElem
     /// N#super(typographic: true)[1]
     /// N#super(typographic: false)[1]
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub typographic: bool,
 
     /// The downward baseline shift for synthesized superscripts.
@@ -143,7 +143,7 @@ pub struct SuperElem
     pub size: Smart<TextSize>,
 
     /// The text to display in superscript.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -172,11 +172,7 @@ pub struct ShiftSettings
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ScriptKind
-{
-    Sub,
-    Super,
-}
+pub enum ScriptKind { Sub, Super, }
 
 impl ScriptKind
 {
@@ -184,46 +180,19 @@ impl ScriptKind
     ///
     /// This can be used as a last resort if neither the user nor the font
     /// provided those metrics.
-    pub fn default_metrics(self) -> &'static ScriptMetrics
-    {
-        match self
-        {
-            Self::Sub => &DEFAULT_SUBSCRIPT_METRICS,
-            Self::Super => &DEFAULT_SUPERSCRIPT_METRICS,
-        }
-    }
+    pub fn default_metrics(self)-> & 'static ScriptMetrics { match self { Self::Sub => & DEFAULT_SUBSCRIPT_METRICS, Self::Super => & DEFAULT_SUPERSCRIPT_METRICS, } }
 
     /// Reads the script metrics from the font table for to this script kind.
-    pub fn read_metrics(self, font_metrics: &FontMetrics) -> &ScriptMetrics
+    pub fn read_metrics(self, font_metrics: & FontMetrics)-> & ScriptMetrics
     {
-        match self
-        {
-            Self::Sub => font_metrics.subscript.as_ref(),
-            Self::Super => font_metrics.superscript.as_ref(),
-        }
+        match self { Self::Sub => font_metrics.subscript.as_ref(), Self::Super => font_metrics.superscript.as_ref(), }
         .unwrap_or(self.default_metrics())
     }
 
     /// The corresponding OpenType feature.
-    pub const fn feature(self) -> Tag
-    {
-        match self
-        {
-            Self::Sub => Tag::from_bytes(b"subs"),
-            Self::Super => Tag::from_bytes(b"sups"),
-        }
-    }
+    pub const fn feature(self)->Tag { match self { Self::Sub => Tag::from_bytes(b"subs"), Self::Super => Tag::from_bytes(b"sups"), } }
 }
-pub static DEFAULT_SUBSCRIPT_METRICS: ScriptMetrics = ScriptMetrics {
-    width: Em::new(0.6),
-    height: Em::new(0.6),
-    horizontal_offset: Em::zero(),
-    vertical_offset: Em::new(-0.2),
-};
 
-pub static DEFAULT_SUPERSCRIPT_METRICS: ScriptMetrics = ScriptMetrics {
-    width: Em::new(0.6),
-    height: Em::new(0.6),
-    horizontal_offset: Em::zero(),
-    vertical_offset: Em::new(0.5),
-};
+pub static DEFAULT_SUBSCRIPT_METRICS: ScriptMetrics = ScriptMetrics { width: Em::new (0.6), height: Em::new (0.6), horizontal_offset: Em::zero(), vertical_offset: Em::new ( - 0.2), };
+
+pub static DEFAULT_SUPERSCRIPT_METRICS: ScriptMetrics = ScriptMetrics { width: Em::new (0.6), height: Em::new (0.6), horizontal_offset: Em::zero(), vertical_offset: Em::new (0.5), };

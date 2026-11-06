@@ -1,7 +1,7 @@
 use std::collections::HashSet;
-use std::fmt::{self, Debug, Display, Formatter};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::fmt:: { self, Debug, Display, Formatter };
+use std::path:: { Path, PathBuf };
+use std::process:: { Command, Output };
 
 use tempfile::TempDir;
 use typst::foundations::Bytes;
@@ -11,9 +11,9 @@ fn test_help()
 {
     let output = exec().arg("--help").must_succeed();
     output
-        .stdout
-        .must_contain("Compiles an input file")
-        .must_contain("https://typst.app/docs/tutorial/");
+    .stdout
+    .must_contain("Compiles an input file")
+    .must_contain("https://typst.app/docs/tutorial/");
 }
 
 #[test]
@@ -21,8 +21,8 @@ fn test_compile_pdf()
 {
     let project = tempfs();
     let title = "Hello from CLI";
-    let hello = project.write("hello.typ", format!("#set document(title: \"{title}\")"));
-    exec().arg("compile").arg(&hello).must_succeed();
+    let hello = project.write("hello.typ", format ! ("#set document(title: \"{title}\")"));
+    exec().arg("compile").arg( & hello).must_succeed();
     project.read("hello.pdf").must_start_with("%PDF").must_contain(title);
 }
 
@@ -32,16 +32,16 @@ fn test_compile_pdf_version()
     let project = tempfs();
     let output = exec().arg("--version").must_succeed();
     let version = output
-        .stdout
-        .lines()
-        .flat_map(|line| line.split_whitespace())
-        .nth(1)
-        .unwrap();
+    .stdout
+    .lines()
+    .flat_map( | line | line.split_whitespace())
+    .nth(1)
+    .unwrap();
     let hello = project.write("hello.typ", "Hi");
-    exec().arg("compile").arg(&hello).must_succeed();
+    exec().arg("compile").arg( & hello).must_succeed();
     project
-        .read("hello.pdf")
-        .must_contain(format!("/Creator(Typst {version})").as_bytes());
+    .read("hello.pdf")
+    .must_contain(format ! ("/Creator(Typst {version})").as_bytes());
 }
 
 #[test]
@@ -50,14 +50,14 @@ fn test_compile_pdf_tagged_and_pages()
     let project = tempfs();
     let hello = project.write("hello.typ", "");
     let output = exec()
-        .arg("compile")
-        .arg("--pdf-tagged")
-        .arg("--pages=1")
-        .arg(&hello)
-        .must_fail();
+    .arg("compile")
+    .arg("--pdf-tagged")
+    .arg("--pages=1")
+    .arg( & hello)
+    .must_fail();
     output
-        .stderr
-        .must_contain("cannot enable PDF tags when exporting a page range");
+    .stderr
+    .must_contain("cannot enable PDF tags when exporting a page range");
 }
 
 #[test]
@@ -65,10 +65,10 @@ fn test_compile_pages_warning_untagged()
 {
     let project = tempfs();
     let hello = project.write("hello.typ", "");
-    let output = exec().arg("compile").arg("--pages=1").arg(&hello).must_succeed();
+    let output = exec().arg("compile").arg("--pages=1").arg( & hello).must_succeed();
     output
-        .stderr
-        .must_contain("using `--pages` implies `--pdf-tagged=false`");
+    .stderr
+    .must_contain("using `--pages` implies `--pdf-tagged=false`");
 }
 
 #[test]
@@ -77,14 +77,14 @@ fn test_compile_pdf_untagged_and_accessible_standard()
     let project = tempfs();
     let hello = project.write("hello.typ", "");
     let output = exec()
-        .arg("compile")
-        .arg("--pdf-tagged=false")
-        .arg("--pdf-standard=a-3a")
-        .arg(&hello)
-        .must_fail();
+    .arg("compile")
+    .arg("--pdf-tagged=false")
+    .arg("--pdf-standard=a-3a")
+    .arg( & hello)
+    .must_fail();
     output
-        .stderr
-        .must_contain("cannot disable PDF tags when exporting a PDF/A-3a document");
+    .stderr
+    .must_contain("cannot disable PDF tags when exporting a PDF/A-3a document");
 }
 
 #[test]
@@ -92,7 +92,7 @@ fn test_compile_no_pdf_tags_deprecated()
 {
     let project = tempfs();
     let hello = project.write("hello.typ", "");
-    let output = exec().arg("compile").arg("--no-pdf-tags").arg(&hello).must_succeed();
+    let output = exec().arg("compile").arg("--no-pdf-tags").arg( & hello).must_succeed();
     output.stderr.must_contain("`--no-pdf-tags` is deprecated");
 }
 
@@ -101,48 +101,43 @@ fn test_compile_png_default_ppi()
 {
     let project = tempfs();
 
-    let assert_size = |width: u32, height: u32| {
+    let assert_size = | width: u32, height: u32 |
+    {
         let size = image::image_dimensions(project.path().join("hello.png")).unwrap();
         assert_eq!(size, (width, height));
     };
 
     // The default resolution is 144 pixels per inch.
     let hello = project.write("hello.typ", "#page(width: 2in, height: 1in)[]");
-    exec().arg("compile").arg(&hello).arg("--format=png").must_succeed();
+    exec().arg("compile").arg( & hello).arg("--format=png").must_succeed();
     assert_size(144 * 2, 144);
 
     // Specify via CLI.
     exec()
-        .arg("compile")
-        .arg(&hello)
-        .arg("--format=png")
-        .arg("--ppi=300")
-        .must_succeed();
+    .arg("compile")
+    .arg( & hello)
+    .arg("--format=png")
+    .arg("--ppi=300")
+    .must_succeed();
     assert_size(300 * 2, 300);
 
     // Specify in the style chain.
-    let hello = project.write(
-        "hello.typ",
-        "#set format.png(ppi: 300)\n#page(width: 2in, height: 1in)[]",
-    );
-    exec().arg("compile").arg(&hello).arg("--format=png").must_succeed();
+    let hello = project.write("hello.typ", "#set format.png(ppi: 300)\n#page(width: 2in, height: 1in)[]",);
+    exec().arg("compile").arg( & hello).arg("--format=png").must_succeed();
     assert_size(300 * 2, 300);
 
     // Specify in the style chain multiple times.
-    let hello = project.write(
-        "hello.typ",
-        "#set format.png(ppi: 300)\n#set format.png(ppi: 600)\n#page(width: 2in, height: 1in)[]",
-    );
-    exec().arg("compile").arg(&hello).arg("--format=png").must_succeed();
+    let hello = project.write("hello.typ", "#set format.png(ppi: 300)\n#set format.png(ppi: 600)\n#page(width: 2in, height: 1in)[]",);
+    exec().arg("compile").arg( & hello).arg("--format=png").must_succeed();
     assert_size(600 * 2, 600);
 
     // CLI overrides the style chain.
     exec()
-        .arg("compile")
-        .arg(&hello)
-        .arg("--format=png")
-        .arg("--ppi=144")
-        .must_succeed();
+    .arg("compile")
+    .arg( & hello)
+    .arg("--format=png")
+    .arg("--ppi=144")
+    .must_succeed();
     assert_size(144 * 2, 144);
 }
 
@@ -153,19 +148,19 @@ fn test_eval()
     output.stdout.must_match_lines(["3"]);
 
     let output = exec()
-        .arg("eval")
-        .arg("--format=raw")
-        .arg("bytes((1,2,3,0xff))")
-        .must_succeed();
-    assert_eq!(output.stdout.0, b"\x01\x02\x03\xff");
+    .arg("eval")
+    .arg("--format=raw")
+    .arg("bytes((1,2,3,0xff))")
+    .must_succeed();
+    assert_eq!(output.stdout .0, b"\x01\x02\x03\xff");
 
     // Trailing newline.
     let output = exec().arg("eval").arg("str(42)").must_succeed();
-    assert_eq!(output.stdout.0, b"\"42\"\n");
+    assert_eq!(output.stdout .0, b"\"42\"\n");
 
     // No trailing newline.
     let output = exec().arg("eval").arg("--format=raw").arg("str(42)").must_succeed();
-    assert_eq!(output.stdout.0, b"42");
+    assert_eq!(output.stdout .0, b"42");
 
     // Unsupported type.
     let output = exec().arg("eval").arg("--format=raw").arg("42").must_fail();
@@ -181,16 +176,16 @@ fn test_eval_format()
 
     // JSON manually specified.
     let output = exec()
-        .arg("eval")
-        .args(["(1, 2, 3, 4)", "--format", "json"])
-        .must_succeed();
+    .arg("eval")
+    .args(["(1, 2, 3, 4)", "--format", "json"])
+    .must_succeed();
     output.stdout.must_match_lines(["[1,2,3,4]"]);
 
     // YAML manually specified.
     let output = exec()
-        .arg("eval")
-        .args(["(1, 2, 3, 4)", "--format", "yaml"])
-        .must_succeed();
+    .arg("eval")
+    .args(["(1, 2, 3, 4)", "--format", "yaml"])
+    .must_succeed();
     output.stdout.must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
 }
 
@@ -201,9 +196,9 @@ fn test_eval_output()
 
     // Named path.
     let output = exec()
-        .args(["eval", "(1, 2, 3, 4)", "-o"])
-        .arg(project.resolve("foo.json"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "-o"])
+    .arg(project.resolve("foo.json"))
+    .must_succeed();
     output.stdout.must_be_empty();
     output.stderr.must_be_empty();
     project.read("foo.json").must_match_lines(["[1,2,3,4]"]);
@@ -221,78 +216,73 @@ fn test_eval_infer_format()
 
     // Unknown extension (default format).
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "-o"])
-        .arg(project.resolve("foo.extension"))
-        .must_fail()
-        .stderr
-        .must_contain("could not infer output format");
+    .args(["eval", "(1, 2, 3, 4)", "-o"])
+    .arg(project.resolve("foo.extension"))
+    .must_fail()
+    .stderr
+    .must_contain("could not infer output format");
 
     // Unknown extension, default format overwritten.
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "--format", "yaml", "-o"])
-        .arg(project.resolve("foo.extension"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "--format", "yaml", "-o"])
+    .arg(project.resolve("foo.extension"))
+    .must_succeed();
     project
-        .read("foo.extension")
-        .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
+    .read("foo.extension")
+    .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
 
     // JSON inferred.
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "-o"])
-        .arg(project.resolve("foo.json"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "-o"])
+    .arg(project.resolve("foo.json"))
+    .must_succeed();
     project.read("foo.json").must_match_lines(["[1,2,3,4]"]);
 
     // YAML inferred (1).
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "-o"])
-        .arg(project.resolve("foo.yaml"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "-o"])
+    .arg(project.resolve("foo.yaml"))
+    .must_succeed();
     project
-        .read("foo.yaml")
-        .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
+    .read("foo.yaml")
+    .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
 
     // YAML inferred (2).
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "-o"])
-        .arg(project.resolve("foo.yml"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "-o"])
+    .arg(project.resolve("foo.yml"))
+    .must_succeed();
     project.read("foo.yml").must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
 
     // YAML overwritten.
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "--format", "yaml", "-o"])
-        .arg(project.resolve("foo.json"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "--format", "yaml", "-o"])
+    .arg(project.resolve("foo.json"))
+    .must_succeed();
     project
-        .read("foo.json")
-        .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
+    .read("foo.json")
+    .must_match_lines(["- 1", "- 2", "- 3", "- 4"]);
 
     // JSON overwritten.
     exec()
-        .args(["eval", "(1, 2, 3, 4)", "--format=json", "-o"])
-        .arg(project.resolve("foo.yml"))
-        .must_succeed();
+    .args(["eval", "(1, 2, 3, 4)", "--format=json", "-o"])
+    .arg(project.resolve("foo.yml"))
+    .must_succeed();
     project.read("foo.yml").must_match_lines(["[1,2,3,4]"]);
 
     // Raw set.
     exec()
-        .args(["eval", "\"foo\"", "--format=raw", "-o"])
-        .arg(project.resolve("foo.raw"))
-        .must_succeed();
-    assert_eq!(project.read("foo.raw").0, b"foo");
+    .args(["eval", "\"foo\"", "--format=raw", "-o"])
+    .arg(project.resolve("foo.raw"))
+    .must_succeed();
+    assert_eq!(project.read("foo.raw") .0, b"foo");
 }
 
 #[test]
 fn test_fonts_embedded()
 {
     let output = exec().arg("fonts").arg("--ignore-system-fonts").must_succeed();
-    output.stdout.must_match_lines([
-        "DejaVu Sans Mono",
-        "Libertinus Serif",
-        "New Computer Modern",
-        "New Computer Modern Math",
-    ]);
+    output.stdout.must_match_lines(["DejaVu Sans Mono", "Libertinus Serif", "New Computer Modern", "New Computer Modern Math",]);
 }
 
 #[test]
@@ -300,31 +290,31 @@ fn test_fonts_empty_path()
 {
     let fonts = tempfs();
     let data = typst_dev_assets::fonts().next().unwrap();
-    let family = typst::text::Font::new(Bytes::new(data), 0)
-        .unwrap()
-        .info()
-        .family
-        .clone();
+    let family = typst::text::Font:: new (Bytes::new (data), 0)
+    .unwrap()
+    .info()
+    .family
+    .clone();
     fonts.write("test.ttf", data);
 
     let output = exec()
-        .current_dir(fonts.path())
-        .env("TYPST_FONT_PATHS", fonts.path())
-        .arg("fonts")
-        .arg("--ignore-embedded-fonts")
-        .arg("--ignore-system-fonts")
-        .must_succeed();
+    .current_dir(fonts.path())
+    .env("TYPST_FONT_PATHS", fonts.path())
+    .arg("fonts")
+    .arg("--ignore-embedded-fonts")
+    .arg("--ignore-system-fonts")
+    .must_succeed();
     output.stdout.must_match_lines([family.as_str()]);
 
     let output = exec()
-        .current_dir(fonts.path())
-        .env("TYPST_FONT_PATHS", fonts.path())
-        .arg("fonts")
-        .arg("--ignore-embedded-fonts")
-        .arg("--ignore-system-fonts")
-        .arg("--font-path")
-        .arg("")
-        .must_succeed();
+    .current_dir(fonts.path())
+    .env("TYPST_FONT_PATHS", fonts.path())
+    .arg("fonts")
+    .arg("--ignore-embedded-fonts")
+    .arg("--ignore-system-fonts")
+    .arg("--font-path")
+    .arg("")
+    .must_succeed();
     output.stdout.must_match_lines([]);
 }
 
@@ -332,34 +322,30 @@ fn test_fonts_empty_path()
 fn test_fonts_path()
 {
     let fonts = tempfs();
-    let mut expected = HashSet::new();
+    let mut expected = HashSet:: new ();
     for (i, data) in typst_dev_assets::fonts().enumerate()
     {
-        let font = typst::text::Font::new(Bytes::new(data), 0).unwrap();
-        fonts.write(format!("{i}.ttf"), data);
+        let font = typst::text::Font:: new (Bytes::new (data), 0).unwrap();
+        fonts.write(format ! ("{i}.ttf"), data);
         expected.insert(font.info().family.clone());
     }
     let output = exec()
-        .arg("fonts")
-        .arg("--ignore-embedded-fonts")
-        .arg("--ignore-system-fonts")
-        .arg("--font-path")
-        .arg(fonts.path())
-        .must_succeed();
+    .arg("fonts")
+    .arg("--ignore-embedded-fonts")
+    .arg("--ignore-system-fonts")
+    .arg("--font-path")
+    .arg(fonts.path())
+    .must_succeed();
     let found = output
-        .stdout
-        .lines()
-        .map(|line| line.to_string())
-        .collect::<HashSet<_>>();
+    .stdout
+    .lines()
+    .map( | line | line.to_string())
+    .collect::<HashSet<_>>();
     assert_eq!(found, expected);
 }
 
 #[test]
-fn test_info()
-{
-    let output = exec().arg("info").must_succeed();
-    output.stderr.must_start_with("Version");
-}
+fn test_info() { let output = exec().arg("info").must_succeed(); output.stderr.must_start_with("Version"); }
 
 #[test]
 fn test_deps()
@@ -379,7 +365,7 @@ fn test_path_resolved()
     project.write("dir/a.typ", "#include \"/dir/b.typ\"");
     project.write("dir/b.typ", "#import \"../utils.typ\": f; #f()!");
     project.write("utils.typ", "#let f() = panic(42)");
-    let output = exec().arg("compile").arg(&main).must_fail();
+    let output = exec().arg("compile").arg( & main).must_fail();
     output.stderr.must_contain("error: panicked with: 42");
 }
 
@@ -388,11 +374,11 @@ fn test_path_unresolved()
 {
     let project = tempfs();
     let main = project.write("main.typ", "#include \"other.typ\"");
-    let output = exec().arg("compile").arg(&main).must_fail();
+    let output = exec().arg("compile").arg( & main).must_fail();
     output
-        .stderr
-        .must_contain("error: file not found")
-        .must_contain("#include \"other.typ\"");
+    .stderr
+    .must_contain("error: file not found")
+    .must_contain("#include \"other.typ\"");
 }
 
 #[test]
@@ -402,11 +388,11 @@ fn test_path_project_root()
     let main = project.write("src/main.typ", "#include \"/a.typ\"");
     project.write("a.typ", "#panic(42)");
     let output = exec()
-        .arg("compile")
-        .arg(&main)
-        .arg("--root")
-        .arg(project.path())
-        .must_fail();
+    .arg("compile")
+    .arg( & main)
+    .arg("--root")
+    .arg(project.path())
+    .must_fail();
     output.stderr.must_contain("error: panicked with: 42");
 }
 
@@ -416,7 +402,8 @@ fn test_package_resolved()
     let project = tempfs();
     let package = tempfs();
     let main = project.write("main.typ", "#import \"@local/demo:0.1.0\": f; #f()");
-    package.write(
+    package.write
+    (
         "local/demo/0.1.0/typst.toml",
         r#"[package]
            name = "demo"
@@ -426,11 +413,11 @@ fn test_package_resolved()
     package.write("local/demo/0.1.0/lib.typ", "#import \"utils.typ\": f");
     package.write("local/demo/0.1.0/utils.typ", "#let f() = panic(42)");
     let output = exec()
-        .arg("compile")
-        .arg(&main)
-        .arg("--package-path")
-        .arg(package.path())
-        .must_fail();
+    .arg("compile")
+    .arg( & main)
+    .arg("--package-path")
+    .arg(package.path())
+    .must_fail();
     output.stderr.must_contain("error: panicked with: 42");
 }
 
@@ -441,14 +428,14 @@ fn test_package_unresolved()
     let package = tempfs();
     let main = project.write("main.typ", "#import \"@local/demo:0.1.0\": f; #f()");
     let output = exec()
-        .arg("compile")
-        .arg(&main)
-        .arg("--package-path")
-        .arg(package.path())
-        .must_fail();
+    .arg("compile")
+    .arg( & main)
+    .arg("--package-path")
+    .arg(package.path())
+    .must_fail();
     output
-        .stderr
-        .must_contain("error: package not found (searched for @local/demo:0.1.0)");
+    .stderr
+    .must_contain("error: package not found (searched for @local/demo:0.1.0)");
 }
 
 #[test]
@@ -456,7 +443,8 @@ fn test_path_to_package()
 {
     let project = tempfs();
     let package = tempfs();
-    let main = project.write(
+    let main = project.write
+    (
         "main.typ",
         "#import \"@local/demo:0.1.0\": g
          #let x = g(path(\"a.typ\")) // from project
@@ -464,7 +452,8 @@ fn test_path_to_package()
          #panic((x, y))",
     );
     project.write("a.typ", "#let f() = 7");
-    package.write(
+    package.write
+    (
         "local/demo/0.1.0/typst.toml",
         r#"[package]
            name = "demo"
@@ -474,11 +463,11 @@ fn test_path_to_package()
     package.write("local/demo/0.1.0/lib.typ", "#let g(p) = { import p: f; f() }");
     package.write("local/demo/0.1.0/a.typ", "#let f() = 42");
     let output = exec()
-        .arg("compile")
-        .arg(&main)
-        .arg("--package-path")
-        .arg(package.path())
-        .must_fail();
+    .arg("compile")
+    .arg( & main)
+    .arg("--package-path")
+    .arg(package.path())
+    .must_fail();
     output.stderr.must_contain("error: panicked with: (7, 42)");
 }
 
@@ -486,7 +475,8 @@ fn test_path_to_package()
 fn test_template_path_escapes()
 {
     let package = tempfs();
-    package.write(
+    package.write
+    (
         "local/escaping/0.1.0/typst.toml",
         r#"[package]
            name = "escaping"
@@ -498,14 +488,14 @@ fn test_template_path_escapes()
            entrypoint = "main.typ""#,
     );
     let output = exec()
-        .arg("init")
-        .arg("@local/escaping:0.1.0")
-        .arg("--package-path")
-        .arg(package.path())
-        .must_fail();
+    .arg("init")
+    .arg("@local/escaping:0.1.0")
+    .arg("--package-path")
+    .arg(package.path())
+    .must_fail();
     output
-        .stderr
-        .must_contain("error: package manifest is malformed (path escapes root)");
+    .stderr
+    .must_contain("error: package manifest is malformed (path escapes root)");
 }
 
 #[test]
@@ -513,7 +503,8 @@ fn test_template_path_absolute()
 {
     let project = tempfs();
     let package = tempfs();
-    package.write(
+    package.write
+    (
         "local/absolute/0.1.0/typst.toml",
         r#"[package]
            name = "absolute"
@@ -526,12 +517,12 @@ fn test_template_path_absolute()
     );
     package.write("local/absolute/0.1.0/template/main.typ", "Hello");
     exec()
-        .arg("init")
-        .arg("@local/absolute:0.1.0")
-        .arg(project.path().join("project"))
-        .arg("--package-path")
-        .arg(package.path())
-        .must_succeed();
+    .arg("init")
+    .arg("@local/absolute:0.1.0")
+    .arg(project.path().join("project"))
+    .arg("--package-path")
+    .arg(package.path())
+    .must_succeed();
     project.read("project/main.typ").must_match_lines(["Hello"]);
 }
 
@@ -551,13 +542,15 @@ fn test_network_access_hint()
 fn test_tracepoints()
 {
     let project = tempfs();
-    let main = project.write(
+    let main = project.write
+    (
         "main.typ",
         r#"#show strong: _ => include "chap" + "ter1.typ"
            *Slightly unusual
             strong text*"#,
     );
-    project.write(
+    project.write
+    (
         "chapter1.typ",
         r#"#import "system.typ": my-figure
            #my-figure(
@@ -565,64 +558,66 @@ fn test_tracepoints()
            )"#,
     );
     project.write("system.typ", "#let my-figure(p) = image(p)");
-    let output = exec().arg("compile").arg(&main).must_fail();
+    let output = exec().arg("compile").arg( & main).must_fail();
     output
-        .stderr
-        .must_contain("while calling `my-figure` at")
-        .must_contain("chapter1.typ:2:12")
-        .must_contain("my-figure(…)");
+    .stderr
+    .must_contain("while calling `my-figure` at")
+    .must_contain("chapter1.typ:2:12")
+    .must_contain("my-figure(…)");
     output
-        .stderr
-        .must_contain("while including `chapter1.typ` at")
-        .must_contain("main.typ:1:19")
-        .must_contain(r#"include "chap" + "ter1.typ""#);
+    .stderr
+    .must_contain("while including `chapter1.typ` at")
+    .must_contain("main.typ:1:19")
+    .must_contain(r#"include "chap" + "ter1.typ""#);
     output
-        .stderr
-        .must_contain("while calling function")
-        .must_contain("main.typ:1:1")
-        .must_contain("show strong:");
+    .stderr
+    .must_contain("while calling function")
+    .must_contain("main.typ:1:1")
+    .must_contain("show strong:");
     output
-        .stderr
-        .must_contain("while showing strong element at")
-        .must_contain("main.typ:2:11")
-        .must_contain("*Slightly unusual…*");
+    .stderr
+    .must_contain("while showing strong element at")
+    .must_contain("main.typ:2:11")
+    .must_contain("*Slightly unusual…*");
 }
 
 #[test]
 fn test_tracepoints_of_bare_show()
 {
     let project = tempfs();
-    let main = project.write(
+    let main = project.write
+    (
         "main.typ",
         "#let foo(body) = panic()
          #show: foo",
     );
-    let output = exec().arg("compile").arg(&main).must_fail();
+    let output = exec().arg("compile").arg( & main).must_fail();
     output
-        .stderr
-        .must_contain("while calling `foo`")
-        .must_contain("main.typ:2:1")
-        .must_contain("show: foo");
+    .stderr
+    .must_contain("while calling `foo`")
+    .must_contain("main.typ:2:1")
+    .must_contain("show: foo");
 }
 
 #[test]
 fn test_tracepoints_of_panic_in_show_rule()
 {
     let project = tempfs();
-    let main = project.write(
+    let main = project.write
+    (
         "main.typ",
         "#show strong: _ => panic()
          *strong*",
     );
-    let output = exec().arg("compile").arg(&main).must_fail();
+    let output = exec().arg("compile").arg( & main).must_fail();
     // The tracepoint is filtered out, because its span overlaps with the
     // `panic()` call.
     output.stderr.must_not_contain("while calling function");
     output
-        .stderr
-        .must_contain("while showing strong element at")
-        .must_contain("main.typ:2:9")
-        .must_contain("*strong*");
+    .stderr
+    .must_contain("while showing strong element at")
+    .must_contain("main.typ:2:9")
+    .must_contain("*strong*");
 }
 
 #[test]
@@ -630,171 +625,104 @@ fn test_target_available()
 {
     let project = tempfs();
     let main = project.write("main.typ", "#context target()");
-    exec().arg("compile").arg(&main).must_succeed();
+    exec().arg("compile").arg( & main).must_succeed();
 }
 
 /// Executes a command with the Typst CLI.
-fn exec() -> Command
-{
-    Command::new(env!("CARGO_BIN_EXE_typst"))
-}
+fn exec()->Command { Command::new (env ! ("CARGO_BIN_EXE_typst")) }
 
-trait CommandExt
-{
-    fn must_succeed(&mut self) -> TestOutput;
-    fn must_fail(&mut self) -> TestOutput;
-}
+trait CommandExt { fn must_succeed( & mut self)->TestOutput; fn must_fail( & mut self)->TestOutput; }
 
 impl CommandExt for Command
 {
-    #[track_caller]
-    fn must_succeed(&mut self) -> TestOutput
+    # [track_caller]
+    fn must_succeed( & mut self)->TestOutput
     {
         let output = self.output().unwrap();
-        assert!(
-            output.status.success(),
-            "process failed ({}):\n{}",
-            output.status,
-            Stream(output.stderr),
-        );
+        assert!(output.status.success(),"process failed ({}):\n{}", output.status, Stream(output.stderr),);
         output.into()
     }
 
-    #[track_caller]
-    fn must_fail(&mut self) -> TestOutput
+    # [track_caller]
+    fn must_fail( & mut self)->TestOutput
     {
         let output = self.output().unwrap();
-        assert!(!output.status.success(), "process succeeded ({})", output.status);
+        assert!( ! output.status.success(),"process succeeded ({})", output.status);
         output.into()
     }
 }
 
-struct TestOutput
-{
-    stdout: Stream,
-    stderr: Stream,
-}
+struct TestOutput { stdout: Stream, stderr: Stream, }
 
 impl From<Output> for TestOutput
 {
-    fn from(value: Output) -> Self
-    {
-        Self {
-            stdout: Stream(value.stdout),
-            stderr: Stream(value.stderr),
-        }
-    }
+    fn from(value: Output)->Self { Self { stdout: Stream(value.stdout), stderr: Stream(value.stderr), } }
 }
 
 #[track_caller]
-fn tempfs() -> TempFs
-{
-    TempFs(tempfile::tempdir().unwrap())
-}
+fn tempfs()->TempFs { TempFs(tempfile::tempdir().unwrap()) }
 
 struct TempFs(TempDir);
 
 impl TempFs
 {
-    fn path(&self) -> &Path
-    {
-        self.0.path()
-    }
+    fn path( & self)-> & Path { self .0.path() }
 
-    fn resolve(&self, path: impl AsRef<Path>) -> PathBuf
-    {
-        self.path().join(path)
-    }
+    fn resolve( & self, path: impl AsRef<Path>)->PathBuf { self.path().join(path) }
 
-    #[track_caller]
-    fn write(&self, path: impl AsRef<Path>, data: impl AsRef<[u8]>) -> PathBuf
+    # [track_caller]
+    fn write( & self, path: impl AsRef<Path>, data: impl AsRef<[u8]>)->PathBuf
     {
         let full = self.resolve(path);
-        if let Some(parent) = full.parent()
-        {
-            std::fs::create_dir_all(parent).unwrap();
-        }
-        std::fs::write(&full, data).unwrap();
+        if let Some(parent) = full.parent() { std::fs::create_dir_all(parent).unwrap(); }
+        std::fs::write( & full, data).unwrap();
         full
     }
 
-    #[track_caller]
-    fn read(&self, path: impl AsRef<Path>) -> Stream<Vec<u8>>
-    {
-        Stream(std::fs::read(self.resolve(path)).unwrap())
-    }
+    # [track_caller]
+    fn read( & self, path: impl AsRef<Path>)->Stream<Vec<u8>> { Stream(std::fs::read(self.resolve(path)).unwrap()) }
 }
 
 struct Stream<T = Vec<u8>>(T);
 
-impl<T: AsRef<[u8]>> Stream<T>
+impl <T: AsRef<[u8]>> Stream<T>
 {
-    #[track_caller]
-    fn must_contain(&self, data: impl Debug + AsRef<[u8]>) -> &Self
+    # [track_caller]
+    fn must_contain( & self, data: impl Debug + AsRef<[u8]>)-> & Self
     {
-        assert!(self.contains(data.as_ref()), "{self:?} did not contain {data:?}");
+        assert!(self.contains(data.as_ref()),"{self:?} did not contain {data:?}");
         self
     }
 
-    #[track_caller]
-    fn must_not_contain(&self, data: impl Debug + AsRef<[u8]>) -> &Self
+    # [track_caller]
+    fn must_not_contain( & self, data: impl Debug + AsRef<[u8]>)-> & Self
     {
-        assert!(!self.contains(data.as_ref()), "{self:?} did contain {data:?}");
+        assert!( ! self.contains(data.as_ref()),"{self:?} did contain {data:?}");
         self
     }
 
-    #[track_caller]
-    fn must_start_with(&self, data: impl Debug + AsRef<[u8]>) -> &Self
+    # [track_caller]
+    fn must_start_with( & self, data: impl Debug + AsRef<[u8]>)-> & Self
     {
-        assert!(
-            self.0.as_ref().starts_with(data.as_ref()),
-            "{self:?} did not start with {data:?}",
-        );
+        assert!(self .0.as_ref().starts_with(data.as_ref()),"{self:?} did not start with {data:?}",);
         self
     }
 
-    #[track_caller]
-    fn must_match_lines<'s>(&self, lines: impl IntoIterator<Item = &'s str>) -> &Self
+    # [track_caller]
+    fn must_match_lines<'s>( & self, lines: impl IntoIterator<Item = & 's str>)-> & Self
     {
-        assert_eq!(
-            self.lines().collect::<Vec<_>>(),
-            lines.into_iter().collect::<Vec<_>>(),
-        );
+        assert_eq!(self.lines().collect::<Vec<_>>(), lines.into_iter().collect::<Vec<_>>(),);
         self
     }
 
-    #[track_caller]
-    fn must_be_empty(&self) -> &Self
-    {
-        assert!(self.0.as_ref().is_empty(), "{self:?} is not empty");
-        self
-    }
+    # [track_caller]
+    fn must_be_empty( & self)-> & Self { assert ! (self .0.as_ref().is_empty(),"{self:?} is not empty"); self }
 
-    fn contains(&self, data: impl AsRef<[u8]>) -> bool
-    {
-        memchr::memmem::find(self.0.as_ref(), data.as_ref()).is_some()
-    }
+    fn contains( & self, data: impl AsRef<[u8]>)-> bool { memchr::memmem::find(self .0.as_ref(), data.as_ref()).is_some() }
 
-    fn lines(&self) -> impl Iterator<Item = &str>
-    {
-        std::str::from_utf8(self.0.as_ref())
-            .unwrap_or_else(|_| panic!("{self} is not valid utf-8"))
-            .lines()
-    }
+    fn lines( & self)-> impl Iterator<Item = & str> { std::str::from_utf8(self .0.as_ref()).unwrap_or_else( | _ | panic ! ("{self} is not valid utf-8")).lines() }
 }
 
-impl<T: AsRef<[u8]>> Debug for Stream<T>
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        Debug::fmt(&String::from_utf8_lossy(self.0.as_ref()), f)
-    }
-}
+impl <T: AsRef<[u8]>> Debug for Stream<T> { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { Debug::fmt( & String::from_utf8_lossy(self .0.as_ref()), f) } }
 
-impl<T: AsRef<[u8]>> Display for Stream<T>
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        Display::fmt(&String::from_utf8_lossy(self.0.as_ref()), f)
-    }
-}
+impl <T: AsRef<[u8]>> Display for Stream<T> { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { Display::fmt( & String::from_utf8_lossy(self .0.as_ref()), f) } }

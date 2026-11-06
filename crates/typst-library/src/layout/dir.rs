@@ -1,7 +1,7 @@
 use ecow::EcoString;
 
-use crate::foundations::{Repr, func, scope, ty};
-use crate::layout::{Axis, Side};
+use crate::foundations:: { Repr, func, scope, ty };
+use crate::layout:: { Axis, Side };
 
 /// The four directions into which content can be laid out.
 ///
@@ -34,14 +34,7 @@ impl Dir
     /// Whether this direction points into the positive coordinate direction.
     ///
     /// The positive directions are left-to-right and top-to-bottom.
-    pub const fn is_positive(self) -> bool
-    {
-        match self
-        {
-            Self::LTR | Self::TTB => true,
-            Self::RTL | Self::BTT => false,
-        }
-    }
+    pub const fn is_positive(self)-> bool { match self { Self::LTR | Self::TTB => true, Self::RTL | Self::BTT => false, } }
 }
 
 #[scope]
@@ -58,7 +51,7 @@ impl Dir
     ///   square(),
     /// )
     /// ```
-    #[constant(title = "Left to right", since = "forever")]
+    # [constant(title = "Left to right", since = "forever")]
     pub const LTR: Self = Self::LTR;
 
     /// Right to left.
@@ -72,7 +65,7 @@ impl Dir
     ///   square(),
     /// )
     /// ```
-    #[constant(title = "Right to left", since = "forever")]
+    # [constant(title = "Right to left", since = "forever")]
     pub const RTL: Self = Self::RTL;
 
     /// Top to bottom.
@@ -86,7 +79,7 @@ impl Dir
     ///   square(),
     /// )
     /// ```
-    #[constant(title = "Top to bottom", since = "forever")]
+    # [constant(title = "Top to bottom", since = "forever")]
     pub const TTB: Self = Self::TTB;
 
     /// Bottom to top.
@@ -100,7 +93,7 @@ impl Dir
     ///   square(),
     /// )
     /// ```
-    #[constant(title = "Bottom to top", since = "forever")]
+    # [constant(title = "Bottom to top", since = "forever")]
     pub const BTT: Self = Self::BTT;
 
     /// Returns a direction from a starting point.
@@ -113,22 +106,15 @@ impl Dir
     /// #direction.from(top) \
     /// #direction.from(bottom)
     /// ```
-    #[func(since = "0.14.0")]
-    pub const fn from(
+    # [func(since = "0.14.0")]
+    pub const fn from
+    (
         /// The starting point for the direction.
         ///
         /// This cannot be `{start}` or `{end}`.
         side: Side,
-    ) -> Dir
-    {
-        match side
-        {
-            Side::Left => Self::LTR,
-            Side::Right => Self::RTL,
-            Side::Top => Self::TTB,
-            Side::Bottom => Self::BTT,
-        }
-    }
+    )
+   ->Dir { match side { Side::Left => Self::LTR, Side::Right => Self::RTL, Side::Top => Self::TTB, Side::Bottom => Self::BTT, } }
 
     /// Returns a direction from an end point.
     ///
@@ -140,22 +126,15 @@ impl Dir
     /// #direction.to(top) \
     /// #direction.to(bottom)
     /// ```
-    #[func(since = "0.14.0")]
-    pub const fn to(
+    # [func(since = "0.14.0")]
+    pub const fn to
+    (
         /// The end point for the direction.
         ///
         /// This cannot be `{start}` or `{end}`.
         side: Side,
-    ) -> Dir
-    {
-        match side
-        {
-            Side::Right => Self::LTR,
-            Side::Left => Self::RTL,
-            Side::Bottom => Self::TTB,
-            Side::Top => Self::BTT,
-        }
-    }
+    )
+   ->Dir { match side { Side::Right => Self::LTR, Side::Left => Self::RTL, Side::Bottom => Self::TTB, Side::Top => Self::BTT, } }
 
     /// The axis this direction belongs to, either `{"horizontal"}` or
     /// `{"vertical"}`.
@@ -164,15 +143,8 @@ impl Dir
     /// #ltr.axis() \
     /// #ttb.axis()
     /// ```
-    #[func(since = "0.7.0")]
-    pub const fn axis(self) -> Axis
-    {
-        match self
-        {
-            Self::LTR | Self::RTL => Axis::X,
-            Self::TTB | Self::BTT => Axis::Y,
-        }
-    }
+    # [func(since = "0.7.0")]
+    pub const fn axis(self)->Axis { match self { Self::LTR | Self::RTL => Axis::X, Self::TTB | Self::BTT => Axis::Y, } }
 
     /// The corresponding sign, for use in calculations.
     ///
@@ -185,15 +157,8 @@ impl Dir
     /// #ttb.sign() \
     /// #btt.sign()
     /// ```
-    #[func(since = "0.14.0")]
-    pub const fn sign(self) -> i64
-    {
-        match self
-        {
-            Self::LTR | Self::TTB => 1,
-            Self::RTL | Self::BTT => -1,
-        }
-    }
+    # [func(since = "0.14.0")]
+    pub const fn sign(self)->i64 { match self { Self::LTR | Self::TTB => 1, Self::RTL | Self::BTT => - 1, } }
 
     /// The starting point of this direction.
     ///
@@ -205,17 +170,8 @@ impl Dir
     /// #ttb.start() \
     /// #btt.start()
     /// ```
-    #[func(since = "0.7.0")]
-    pub const fn start(self) -> Side
-    {
-        match self
-        {
-            Self::LTR => Side::Left,
-            Self::RTL => Side::Right,
-            Self::TTB => Side::Top,
-            Self::BTT => Side::Bottom,
-        }
-    }
+    # [func(since = "0.7.0")]
+    pub const fn start(self)->Side { match self { Self::LTR => Side::Left, Self::RTL => Side::Right, Self::TTB => Side::Top, Self::BTT => Side::Bottom, } }
 
     /// The end point of this direction.
     ///
@@ -227,17 +183,8 @@ impl Dir
     /// #ttb.end() \
     /// #btt.end()
     /// ```
-    #[func(since = "0.7.0")]
-    pub const fn end(self) -> Side
-    {
-        match self
-        {
-            Self::LTR => Side::Right,
-            Self::RTL => Side::Left,
-            Self::TTB => Side::Bottom,
-            Self::BTT => Side::Top,
-        }
-    }
+    # [func(since = "0.7.0")]
+    pub const fn end(self)->Side { match self { Self::LTR => Side::Right, Self::RTL => Side::Left, Self::TTB => Side::Bottom, Self::BTT => Side::Top, } }
 
     /// The inverse (opposite) direction.
     ///
@@ -247,29 +194,11 @@ impl Dir
     /// #ttb.inv() \
     /// #btt.inv()
     /// ```
-    #[func(title = "Inverse", since = "forever", keywords = ["opposite"])]
-    pub const fn inv(self) -> Dir
-    {
-        match self
-        {
-            Self::LTR => Self::RTL,
-            Self::RTL => Self::LTR,
-            Self::TTB => Self::BTT,
-            Self::BTT => Self::TTB,
-        }
-    }
+    # [func(title = "Inverse", since = "forever", keywords = ["opposite"])]
+    pub const fn inv(self)->Dir { match self { Self::LTR => Self::RTL, Self::RTL => Self::LTR, Self::TTB => Self::BTT, Self::BTT => Self::TTB, } }
 }
 
 impl Repr for Dir
 {
-    fn repr(&self) -> EcoString
-    {
-        match self
-        {
-            Self::LTR => "ltr".into(),
-            Self::RTL => "rtl".into(),
-            Self::TTB => "ttb".into(),
-            Self::BTT => "btt".into(),
-        }
-    }
+    fn repr( & self)->EcoString { match self { Self::LTR => "ltr".into(), Self::RTL => "rtl".into(), Self::TTB => "ttb".into(), Self::BTT => "btt".into(), } }
 }

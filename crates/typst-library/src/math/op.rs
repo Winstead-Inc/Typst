@@ -1,9 +1,9 @@
 use ecow::EcoString;
 use unicode_math_class::MathClass;
 
-use crate::foundations::{Content, NativeElement, Scope, SymbolElem, elem};
+use crate::foundations:: { Content, NativeElement, Scope, SymbolElem, elem };
 use crate::layout::HElem;
-use crate::math::{ClassElem, Mathy, THIN, upright};
+use crate::math:: { ClassElem, Mathy, THIN, upright };
 use crate::text::TextElem;
 
 /// A text operator in an equation.
@@ -25,43 +25,51 @@ use crate::text::TextElem;
 pub struct OpElem
 {
     /// The operator's text.
-    #[required]
+    # [required]
     pub text: Content,
 
     /// Whether the operator should show attachments as limits in display mode.
-    #[default(false)]
+    # [default (false)]
     pub limits: bool,
 }
 
-macro_rules! ops {
-    ($($name:ident $(: $value:literal)? $(($tts:tt))?),* $(,)?) => {
-        pub(super) fn define(math: &mut Scope) {
-            $({
-                let operator = EcoString::from(ops!(@name $name $(: $value)?));
-                math.define(
+macro_rules! ops
+{
+    ($($name: ident $(: $value: literal)? $(($tts: tt))?), * $(,)?) =>
+    {
+        pub (super) fn define(math: & mut Scope)
+        {
+            $
+            ({
+                let operator = EcoString::from(ops ! ( @ name $name $(: $value)?));
+                math.define
+                (
                     stringify!($name),
                     // Latex also uses their equivalent of `TextElem` here.
-                    OpElem::new(TextElem::new(operator).into())
-                        .with_limits(ops!(@limit $($tts)*))
-                        .pack()
+                    OpElem:: new (TextElem::new (operator).into())
+                    .with_limits(ops ! ( @ limit $($tts) *))
+                    .pack()
                 );
-            })*
+            })
+            *
 
-            let dif = |d| {
-                HElem::new(THIN.into()).with_weak(true).pack()
-                    + ClassElem::new(MathClass::Unary, upright(SymbolElem::packed(d))).pack()
-            };
+            let dif = | d | { HElem::new (THIN.into()).with_weak(true).pack() + ClassElem::new (MathClass::Unary, upright(SymbolElem::packed(d))).pack() };
             math.define("dif", dif('d'));
             math.define("Dif", dif('D'));
         }
     };
-    (@name $name:ident) => { stringify!($name) };
-    (@name $name:ident: $value:literal) => { $value };
-    (@limit limits) => { true };
-    (@limit) => { false };
+
+    ( @ name $name: ident) => { stringify ! ($name) };
+
+    ( @ name $name: ident: $value: literal) => { $value };
+
+    ( @ limit limits) => { true };
+
+    ( @ limit) => { false };
 }
 
-ops! {
+ops!
+{
     arccos,
     arcsin,
     arctan,
@@ -74,32 +82,32 @@ ops! {
     csch,
     ctg,
     deg,
-    det (limits),
+    det(limits),
     dim,
     exp,
-    gcd (limits),
-    lcm (limits),
+    gcd(limits),
+    lcm(limits),
     hom,
     id,
     im,
-    inf (limits),
+    inf(limits),
     ker,
     lg,
-    lim (limits),
-    liminf: "lim inf" (limits),
-    limsup: "lim sup" (limits),
+    lim(limits),
+    liminf: "lim inf"(limits),
+    limsup: "lim sup"(limits),
     ln,
     log,
-    max (limits),
-    min (limits),
-    mod,
-    Pr (limits),
+    max(limits),
+    min(limits),
+    mod ,
+    Pr(limits),
     sec,
     sech,
     sin,
     sinc,
     sinh,
-    sup (limits),
+    sup(limits),
     tan,
     tanh,
     tg,

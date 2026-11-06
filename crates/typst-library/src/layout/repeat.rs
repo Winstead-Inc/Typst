@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 use crate::layout::Length;
 
 /// Repeats content to the available space.
@@ -31,15 +31,15 @@ use crate::layout::Length;
 pub struct RepeatElem
 {
     /// The content to repeat.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The gap between each instance of the body.
-    #[default]
+    # [default]
     pub gap: Length,
 
     /// Whether to increase the gap between instances to completely fill the
     /// available space.
-    #[default(true)]
+    # [default (true)]
     pub justify: bool,
 }

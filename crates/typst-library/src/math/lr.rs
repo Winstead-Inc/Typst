@@ -5,16 +5,17 @@ use bumpalo::Bump;
 use comemo::Tracked;
 
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Args, CastInfo, Content, Context, Func, IntoValue, NativeElement, NativeFunc,
     NativeFuncData, NativeFuncPtr, NativeParamInfo, Reflect, Scope, SymbolElem, Type,
     elem, func,
 };
-use crate::layout::{Em, Length, Rel};
+use crate::layout:: { Em, Length, Rel };
 use crate::math::Mathy;
 
 /// How much less high scaled delimiters can be than what they wrap.
-pub const DELIM_SHORT_FALL: Em = Em::new(0.1);
+pub const DELIM_SHORT_FALL: Em = Em:: new (0.1);
 
 /// Scales delimiters.
 ///
@@ -24,17 +25,21 @@ pub const DELIM_SHORT_FALL: Em = Em::new(0.1);
 pub struct LrElem
 {
     /// The size of the brackets, relative to the height of the wrapped content.
-    #[default(Rel::one())]
+    # [default (Rel::one())]
     pub size: Rel<Length>,
 
     /// The delimited content, including the delimiters.
-    #[required]
-    #[parse(
-        let mut arguments = args.all::<Content>()?.into_iter();
-        let mut body = arguments.next().unwrap_or_default();
-        arguments.for_each(|arg| body += SymbolElem::packed(',') + arg);
-        body
-    )]
+    # [required]
+    #
+    [
+        parse
+        (
+            let mut arguments = args.all::<Content>()?.into_iter();
+            let mut body = arguments.next().unwrap_or_default();
+            arguments.for_each( | arg | body += SymbolElem::packed(',') + arg);
+            body
+        )
+    ]
     pub body: Content,
 }
 
@@ -47,7 +52,7 @@ pub struct LrElem
 pub struct MidElem
 {
     /// The content to be scaled.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -57,18 +62,17 @@ pub struct MidElem
 /// $ floor(x/2) $
 /// ```
 #[func(since = "forever")]
-pub fn floor(
+pub fn floor
+(
     /// The size of the brackets, relative to the height of the wrapped content.
     ///
     /// Default: The current value of @math.lr.size[`lr.size`].
-    #[named]
+    # [named]
     size: Option<Rel<Length>>,
     /// The expression to floor.
     body: Content,
-) -> Content
-{
-    delimited(body, '⌊', '⌋', size)
-}
+)
+->Content { delimited(body, '⌊', '⌋', size) }
 
 /// Ceils an expression.
 ///
@@ -76,18 +80,17 @@ pub fn floor(
 /// $ ceil(x/2) $
 /// ```
 #[func(since = "forever")]
-pub fn ceil(
+pub fn ceil
+(
     /// The size of the brackets, relative to the height of the wrapped content.
     ///
     /// Default: The current value of @math.lr.size[`lr.size`].
-    #[named]
+    # [named]
     size: Option<Rel<Length>>,
     /// The expression to ceil.
     body: Content,
-) -> Content
-{
-    delimited(body, '⌈', '⌉', size)
-}
+)
+->Content { delimited(body, '⌈', '⌉', size) }
 
 /// Rounds an expression.
 ///
@@ -95,18 +98,17 @@ pub fn ceil(
 /// $ round(x/2) $
 /// ```
 #[func(since = "forever")]
-pub fn round(
+pub fn round
+(
     /// The size of the brackets, relative to the height of the wrapped content.
     ///
     /// Default: The current value of @math.lr.size[`lr.size`].
-    #[named]
+    # [named]
     size: Option<Rel<Length>>,
     /// The expression to round.
     body: Content,
-) -> Content
-{
-    delimited(body, '⌊', '⌉', size)
-}
+)
+->Content { delimited(body, '⌊', '⌉', size) }
 
 /// Takes the absolute value of an expression.
 ///
@@ -114,18 +116,17 @@ pub fn round(
 /// $ abs(x/2) $
 /// ```
 #[func(since = "forever")]
-pub fn abs(
+pub fn abs
+(
     /// The size of the brackets, relative to the height of the wrapped content.
     ///
     /// Default: The current value of @math.lr.size[`lr.size`].
-    #[named]
+    # [named]
     size: Option<Rel<Length>>,
     /// The expression to take the absolute value of.
     body: Content,
-) -> Content
-{
-    delimited(body, '|', '|', size)
-}
+)
+->Content { delimited(body, '|', '|', size) }
 
 /// Takes the norm of an expression.
 ///
@@ -133,22 +134,21 @@ pub fn abs(
 /// $ norm(x/2) $
 /// ```
 #[func(since = "forever")]
-pub fn norm(
+pub fn norm
+(
     /// The size of the brackets, relative to the height of the wrapped content.
     ///
     /// Default: The current value of @math.lr.size[`lr.size`].
-    #[named]
+    # [named]
     size: Option<Rel<Length>>,
     /// The expression to take the norm of.
     body: Content,
-) -> Content
-{
-    delimited(body, '‖', '‖', size)
-}
+)
+->Content { delimited(body, '‖', '‖', size) }
 
 /// Gets the Left/Right wrapper function corresponding to a symbol value, if
 /// any.
-pub fn get_lr_wrapper_func(value: &str) -> Option<Func>
+pub fn get_lr_wrapper_func(value: & str)->Option<Func>
 {
     let left = value.parse::<char>().ok()?;
     match left
@@ -161,99 +161,81 @@ pub fn get_lr_wrapper_func(value: &str) -> Option<Func>
         // documentation.
         '⌈' => Some(ceil::func()),
         '⌊' => Some(floor::func()),
-        l => FUNCS.get(&l).map(Func::from),
+        l => FUNCS. get( & l).map(Func::from),
     }
 }
 
 /// The delimiter pairings supported for use as callable symbols.
-const DELIMS: &[(char, char)] = &[
+const DELIMS: & [(char , char)] = &
+[
     // The `ceil` and `floor` pairs are omitted here because they are handled
     // manually.
-    ('(', ')'),
-    ('⟮', '⟯'),
-    ('⦇', '⦈'),
-    ('⦅', '⦆'),
-    ('⦓', '⦔'),
-    ('⦕', '⦖'),
-    ('{', '}'),
-    ('⦃', '⦄'),
-    ('[', ']'),
-    ('⦍', '⦐'),
-    ('⦏', '⦎'),
-    ('⟦', '⟧'),
-    ('⦋', '⦌'),
-    ('❲', '❳'),
-    ('⟬', '⟭'),
-    ('⦗', '⦘'),
-    ('⟅', '⟆'),
-    ('⎰', '⎱'),
-    ('⎱', '⎰'),
-    ('⧘', '⧙'),
-    ('⧚', '⧛'),
-    ('⟨', '⟩'),
-    ('⧼', '⧽'),
-    ('⦑', '⦒'),
-    ('⦉', '⦊'),
-    ('⟪', '⟫'),
-    ('⌜', '⌝'),
-    ('⌞', '⌟'),
+    ('(', ')'),('⟮', '⟯'),('⦇', '⦈'),('⦅', '⦆'),('⦓', '⦔'),('⦕', '⦖'),('{', '}'),('⦃', '⦄'),('[', ']'),('⦍', '⦐'),('⦏', '⦎'),('⟦', '⟧'),('⦋', '⦌'),('❲', '❳'),('⟬', '⟭'),('⦗', '⦘'),('⟅', '⟆'),('⎰', '⎱'),('⎱', '⎰'),('⧘', '⧙'),('⧚', '⧛'),('⟨', '⟩'),('⧼', '⧽'),('⦑', '⦒'),('⦉', '⦊'),('⟪', '⟫'),('⌜', '⌝'),('⌞', '⌟'),
     // Fences.
-    ('|', '|'),
-    ('‖', '‖'),
-    ('⦀', '⦀'),
-    ('⦙', '⦙'),
-    ('⦚', '⦚'),
+    ('|', '|'),('‖', '‖'),('⦀', '⦀'),('⦙', '⦙'),('⦚', '⦚'),
 ];
 
 /// Lazily created left/right wrapper functions.
-static FUNCS: LazyLock<HashMap<char, NativeFuncData>> = LazyLock::new(|| {
-    let bump = Box::leak(Box::new(Bump::new()));
-    DELIMS
+static FUNCS: LazyLock < HashMap<char , NativeFuncData> > = LazyLock:: new
+(
+    ||
+    {
+        let bump = Box::leak(Box::new (Bump::new ()));
+        DELIMS
         .iter()
         .copied()
-        .map(|(l, r)| (l, create_lr_func_data(l, r, bump)))
+        .map( | (l, r) | (l, create_lr_func_data(l, r, bump)))
         .collect()
-});
+    }
+);
 
 /// Creates metadata for an L/R wrapper function.
-fn create_lr_func_data(left: char, right: char, bump: &'static Bump) -> NativeFuncData
+fn create_lr_func_data(left: char , right: char , bump: & 'static Bump)->NativeFuncData
 {
     let title = bumpalo::format!(in bump, "{}{} Left/Right", left, right).into_bump_str();
     let docs = bumpalo::format!(in bump, "Wraps an expression in {}{}.", left, right)
-        .into_bump_str();
-    NativeFuncData {
-        function: NativeFuncPtr(bump.alloc(
-            move |_: &mut Engine, _: Tracked<Context>, args: &mut Args| {
-                let size = args.named("size")?;
-                let body = args.expect("body")?;
-                Ok(delimited(body, left, right, size).into_value())
-            },
-        )),
+    .into_bump_str();
+    NativeFuncData
+    {
+        function: NativeFuncPtr
+        (
+            bump.alloc
+            (
+                move | _: & mut Engine, _: Tracked<Context>, args: & mut Args |
+                {
+                    let size = args.named("size")?;
+                    let body = args.expect("body")?;
+                    Ok(delimited(body, left, right, size).into_value())
+                },
+            )
+        ),
         name: "(..) => ..",
         title,
         since: None,
         docs,
         def_site: None,
-        keywords: &[],
+        keywords: & [],
         contextual: false,
-        scope: LazyLock::new(&|| Scope::new()),
-        params: LazyLock::new(&|| create_lr_param_info()),
-        returns: LazyLock::new(&|| CastInfo::Type(Type::of::<Content>())),
+        scope: LazyLock:: new ( &|| Scope::new ()),
+        params: LazyLock:: new ( &|| create_lr_param_info()),
+        returns: LazyLock:: new ( &|| CastInfo::Type(Type::of::<Content>())),
     }
 }
 
 /// Creates parameter signature metadata for an L/R function.
-fn create_lr_param_info() -> Vec<NativeParamInfo>
+fn create_lr_param_info()->Vec<NativeParamInfo>
 {
-    vec![
-        NativeParamInfo {
+    vec!
+    [
+        NativeParamInfo
+        {
             name: "size",
             docs: "\
             The size of the brackets, relative to the height of the wrapped content.\n\
             \n\
             Default: The current value of [`lr.size`]($math.lr.size).",
             def_site: None,
-            input: Rel::<Length>::input(),
+            input: Rel:: < Length >:: input(),
             default: None,
             positional: false,
             named: true,
@@ -261,7 +243,8 @@ fn create_lr_param_info() -> Vec<NativeParamInfo>
             required: false,
             settable: false,
         },
-        NativeParamInfo {
+        NativeParamInfo
+        {
             name: "body",
             docs: "The expression to wrap.",
             def_site: None,
@@ -277,19 +260,12 @@ fn create_lr_param_info() -> Vec<NativeParamInfo>
 }
 
 /// Creates an L/R element with the given delimiters.
-fn delimited(body: Content, left: char, right: char, size: Option<Rel<Length>>)
--> Content
+fn delimited(body: Content, left: char , right: char , size: Option<Rel<Length>>)
+->Content
 {
     let span = body.span();
-    let mut elem = LrElem::new(Content::sequence([
-        SymbolElem::packed(left),
-        body,
-        SymbolElem::packed(right),
-    ]));
+    let mut elem = LrElem:: new (Content::sequence([SymbolElem::packed(left), body, SymbolElem::packed(right),]));
     // Push size only if size is provided
-    if let Some(size) = size
-    {
-        elem.size.set(size);
-    }
+    if let Some(size) = size { elem.size.set (size); }
     elem.pack().spanned(span)
 }

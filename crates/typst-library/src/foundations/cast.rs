@@ -1,6 +1,6 @@
 #[rustfmt::skip]
 #[doc(inline)]
-pub use typst_macros::{cast, Cast};
+pub use typst_macros:: { cast, Cast };
 
 use std::borrow::Cow;
 use std::fmt::Write;
@@ -9,13 +9,11 @@ use std::ops::Add;
 
 use ecow::eco_format;
 use smallvec::SmallVec;
-use typst_syntax::{Span, Spanned, SyntaxMode};
+use typst_syntax:: { Span, Spanned, SyntaxMode };
 use unicode_math_class::MathClass;
 
-use crate::diag::{At, HintedStrResult, HintedString, SourceResult, StrResult};
-use crate::foundations::{
-    Fold, NativeElement, Packed, Repr, Str, Type, Value, array, repr,
-};
+use crate::diag:: { At, HintedStrResult, HintedString, SourceResult, StrResult };
+use crate::foundations:: { Fold, NativeElement, Packed, Repr, Str, Type, Value, array, repr, };
 
 /// Determine details of a type.
 ///
@@ -33,17 +31,17 @@ use crate::foundations::{
 pub trait Reflect
 {
     /// Describe what can be cast into this value.
-    fn input() -> CastInfo;
+    fn input()->CastInfo;
 
     /// Describe what this value can be cast into.
-    fn output() -> CastInfo;
+    fn output()->CastInfo;
 
     /// Whether the given value can be converted to `T`.
     ///
     /// This exists for performance. The check could also be done through the
     /// [`CastInfo`], but it would be much more expensive (heap allocation +
     /// dynamic checks instead of optimized machine code for each type).
-    fn castable(value: &Value) -> bool;
+    fn castable(value: & Value)-> bool;
 
     /// Produce an error message for an unacceptable value type.
     ///
@@ -53,155 +51,24 @@ pub trait Reflect
     ///   "expected integer, found none",
     /// );
     /// ```
-    fn error(found: &Value) -> HintedString
-    {
-        Self::input().error(found)
-    }
+    fn error(found: & Value)->HintedString { Self::input().error(found) }
 }
 
-impl Reflect for Value
-{
-    fn input() -> CastInfo
-    {
-        CastInfo::Any
-    }
+impl Reflect for Value { fn input()->CastInfo { CastInfo::Any } fn output()->CastInfo { CastInfo::Any } fn castable(_: & Value)->bool { true } }
 
-    fn output() -> CastInfo
-    {
-        CastInfo::Any
-    }
+impl <T: Reflect, const SPAN_EQ: bool> Reflect for Spanned<T, Span, SPAN_EQ> { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-    fn castable(_: &Value) -> bool
-    {
-        true
-    }
-}
+impl <T: NativeElement + Reflect> Reflect for Packed<T> { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-impl<T: Reflect, const SPAN_EQ: bool> Reflect for Spanned<T, Span, SPAN_EQ>
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
+impl <T: Reflect> Reflect for StrResult<T> { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
+impl <T: Reflect> Reflect for HintedStrResult<T> { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
+impl <T: Reflect> Reflect for SourceResult<T> { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-impl<T: NativeElement + Reflect> Reflect for Packed<T>
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
+impl <T: Reflect> Reflect for & T { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
-
-impl<T: Reflect> Reflect for StrResult<T>
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
-
-impl<T: Reflect> Reflect for HintedStrResult<T>
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
-
-impl<T: Reflect> Reflect for SourceResult<T>
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
-
-impl<T: Reflect> Reflect for &T
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
-
-impl<T: Reflect> Reflect for &mut T
-{
-    fn input() -> CastInfo
-    {
-        T::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value)
-    }
-}
+impl <T: Reflect> Reflect for & mut T { fn input()->CastInfo { T::input() } fn output()->CastInfo { T::output() } fn castable(value: & Value)->bool { T::castable(value) } }
 
 /// Cast a Rust type into a Typst [`Value`].
 ///
@@ -209,48 +76,18 @@ impl<T: Reflect> Reflect for &mut T
 pub trait IntoValue
 {
     /// Cast this type into a value.
-    fn into_value(self) -> Value;
+    fn into_value(self)->Value;
 }
 
-impl IntoValue for Value
-{
-    fn into_value(self) -> Value
-    {
-        self
-    }
-}
+impl IntoValue for Value { fn into_value(self)->Value { self } }
 
-impl IntoValue for (&Str, &Value)
-{
-    fn into_value(self) -> Value
-    {
-        Value::Array(array![self.0.clone(), self.1.clone()])
-    }
-}
+impl IntoValue for ( & Str, & Value) { fn into_value(self)->Value { Value::Array(array ! [self .0.clone(), self .1.clone()]) } }
 
-impl<T: IntoValue + Clone> IntoValue for Cow<'_, T>
-{
-    fn into_value(self) -> Value
-    {
-        self.into_owned().into_value()
-    }
-}
+impl <T: IntoValue + Clone> IntoValue for Cow<'_, T> { fn into_value(self)->Value { self.into_owned().into_value() } }
 
-impl<T: NativeElement + IntoValue> IntoValue for Packed<T>
-{
-    fn into_value(self) -> Value
-    {
-        Value::Content(self.pack())
-    }
-}
+impl <T: NativeElement + IntoValue> IntoValue for Packed<T> { fn into_value(self)->Value { Value::Content(self.pack()) } }
 
-impl<T: IntoValue, const SPAN_EQ: bool> IntoValue for Spanned<T, Span, SPAN_EQ>
-{
-    fn into_value(self) -> Value
-    {
-        self.v.into_value()
-    }
-}
+impl <T: IntoValue, const SPAN_EQ: bool> IntoValue for Spanned<T, Span, SPAN_EQ> { fn into_value(self)->Value { self.v.into_value() } }
 
 /// Cast a Rust type or result into a [`SourceResult<Value>`].
 ///
@@ -259,103 +96,53 @@ impl<T: IntoValue, const SPAN_EQ: bool> IntoValue for Spanned<T, Span, SPAN_EQ>
 pub trait IntoResult
 {
     /// Cast this type into a value.
-    fn into_result(self, span: Span) -> SourceResult<Value>;
+    fn into_result(self, span: Span)->SourceResult<Value>;
 }
 
-impl<T: IntoValue> IntoResult for T
-{
-    fn into_result(self, _: Span) -> SourceResult<Value>
-    {
-        Ok(self.into_value())
-    }
-}
+impl <T: IntoValue> IntoResult for T { fn into_result(self, _: Span)->SourceResult<Value> { Ok(self.into_value()) } }
 
-impl<T: IntoValue> IntoResult for StrResult<T>
-{
-    fn into_result(self, span: Span) -> SourceResult<Value>
-    {
-        self.map(IntoValue::into_value).at(span)
-    }
-}
+impl <T: IntoValue> IntoResult for StrResult<T> { fn into_result(self, span: Span)->SourceResult<Value> { self.map(IntoValue::into_value).at(span) } }
 
-impl<T: IntoValue> IntoResult for HintedStrResult<T>
-{
-    fn into_result(self, span: Span) -> SourceResult<Value>
-    {
-        self.map(IntoValue::into_value).at(span)
-    }
-}
+impl <T: IntoValue> IntoResult for HintedStrResult<T> { fn into_result(self, span: Span)->SourceResult<Value> { self.map(IntoValue::into_value).at(span) } }
 
-impl<T: IntoValue> IntoResult for SourceResult<T>
-{
-    fn into_result(self, _: Span) -> SourceResult<Value>
-    {
-        self.map(IntoValue::into_value)
-    }
-}
+impl <T: IntoValue> IntoResult for SourceResult<T> { fn into_result(self, _: Span)->SourceResult<Value> { self.map(IntoValue::into_value) } }
 
-impl<T: IntoValue> IntoValue for fn() -> T
-{
-    fn into_value(self) -> Value
-    {
-        self().into_value()
-    }
-}
+impl <T: IntoValue> IntoValue for fn ()->T { fn into_value(self)->Value { self().into_value() } }
 
 /// Try to cast a Typst [`Value`] into a Rust type.
 ///
 /// See also: [`Reflect`].
-pub trait FromValue<V = Value>: Sized + Reflect
+pub trait FromValue < V = Value >: Sized + Reflect
 {
     /// Try to cast the value into an instance of `Self`.
-    fn from_value(value: V) -> HintedStrResult<Self>;
+    fn from_value(value: V)->HintedStrResult<Self>;
 }
 
-impl FromValue for Value
-{
-    fn from_value(value: Value) -> HintedStrResult<Self>
-    {
-        Ok(value)
-    }
-}
+impl FromValue for Value { fn from_value(value: Value)->HintedStrResult<Self> { Ok(value) } }
 
-impl<T: NativeElement + FromValue> FromValue for Packed<T>
+impl <T: NativeElement + FromValue> FromValue for Packed<T>
 {
-    fn from_value(mut value: Value) -> HintedStrResult<Self>
+    fn from_value(mut value: Value)->HintedStrResult<Self>
     {
         let mut span = Span::detached();
         if let Value::Content(content) = value
         {
-            match content.into_packed::<T>()
-            {
-                Ok(packed) => return Ok(packed),
-                Err(content) =>
-                {
-                    span = content.span();
-                    value = Value::Content(content);
-                }
-            }
+            match content.into_packed::<T>() { Ok(packed) => return Ok(packed), Err(content) => { span = content.span(); value = Value::Content(content); } }
         }
         let val = T::from_value(value)?;
-        Ok(Packed::new(val).spanned(span))
+        Ok(Packed::new (val).spanned(span))
     }
 }
 
-impl<T: FromValue, const SPAN_EQ: bool> FromValue<Spanned<Value, Span, SPAN_EQ>> for T
-{
-    fn from_value(value: Spanned<Value, Span, SPAN_EQ>) -> HintedStrResult<Self>
-    {
-        T::from_value(value.v)
-    }
-}
+impl <T: FromValue, const SPAN_EQ: bool> FromValue<Spanned<Value, Span, SPAN_EQ>> for T { fn from_value(value: Spanned<Value, Span, SPAN_EQ>)->HintedStrResult<Self> { T::from_value(value.v) } }
 
-impl<T: FromValue, const A: bool, const B: bool> FromValue<Spanned<Value, Span, A>>
-    for Spanned<T, Span, B>
+impl <T: FromValue, const A: bool , const B: bool> FromValue<Spanned<Value, Span, A>>
+for Spanned<T, Span, B>
 {
-    fn from_value(value: Spanned<Value, Span, A>) -> HintedStrResult<Self>
+    fn from_value(value: Spanned<Value, Span, A>)->HintedStrResult<Self>
     {
         let span = value.span;
-        T::from_value(value.v).map(|t| Spanned::new(t, span))
+        T::from_value(value.v).map( | t | Spanned::new (t, span))
     }
 }
 
@@ -366,7 +153,7 @@ pub enum CastInfo
     /// Any value is okay.
     Any,
     /// A specific value, plus short documentation for that value.
-    Value(Value, &'static str),
+    Value(Value, & 'static str),
     /// Any value of a type.
     Type(Type),
     /// Multiple alternatives.
@@ -377,103 +164,71 @@ impl CastInfo
 {
     /// Produce an error message describing what was expected and what was
     /// found.
-    pub fn error(&self, found: &Value) -> HintedString
+    pub fn error( & self, found: & Value)->HintedString
     {
         let mut matching_type = false;
         let mut parts = vec![];
 
-        self.walk(|info| match info
-        {
-            CastInfo::Any => parts.push("anything".into()),
-            CastInfo::Value(value, _) =>
+        self.walk
+        (
+            | info | match info
             {
-                parts.push(value.repr());
-                if value.ty() == found.ty()
-                {
-                    matching_type = true;
-                }
+                CastInfo::Any => parts.push("anything".into()),
+                CastInfo::Value(value, _) => { parts.push(value.repr()); if value.ty() == found.ty() { matching_type = true; } }
+                CastInfo::Type(ty) => parts.push(eco_format ! ("{ty}")),
+                CastInfo::Union(_) => {}
             }
-            CastInfo::Type(ty) => parts.push(eco_format!("{ty}")),
-            CastInfo::Union(_) =>
-            {}
-        });
+        );
 
         let mut msg = String::from("expected ");
-        if parts.is_empty()
-        {
-            msg.push_str(" nothing");
-        }
+        if parts.is_empty() { msg.push_str(" nothing"); }
 
-        msg.push_str(&repr::separated_list(&parts, "or"));
+        msg.push_str( & repr::separated_list( & parts, "or"));
 
-        if !matching_type
-        {
-            msg.push_str(", found ");
-            write!(msg, "{}", found.ty()).unwrap();
-        }
+        if ! matching_type { msg.push_str(", found "); write ! (msg, "{}", found.ty()).unwrap(); }
 
         let mut msg: HintedString = msg.into();
 
-        if let Value::Int(i) = found
-        {
-            if !matching_type && parts.iter().any(|p| p == "length")
-            {
-                msg.hint(eco_format!("a length needs a unit - did you mean {i}pt?"));
-            }
-        }
+        if let Value::Int(i) = found { if ! matching_type && parts.iter().any( | p | p == "length") { msg.hint(eco_format ! ("a length needs a unit - did you mean {i}pt?")); } }
         else if let Value::Str(s) = found
         {
-            if !matching_type && parts.iter().any(|p| p == "label")
+            if ! matching_type && parts.iter().any( | p | p == "label")
             {
-                if typst_syntax::is_valid_label_literal_id(s)
-                {
-                    msg.hint(eco_format!(
-                        "use `<{s}>` or `label({})` to create a label",
-                        s.repr()
-                    ));
-                }
-                else
-                {
-                    msg.hint(eco_format!("use `label({})` to create a label", s.repr()));
-                }
+                if typst_syntax::is_valid_label_literal_id(s) { msg.hint(eco_format ! ("use `<{s}>` or `label({})` to create a label", s.repr())); }
+                else { msg.hint(eco_format ! ("use `label({})` to create a label", s.repr())); }
             }
         }
         else if let Value::Decimal(_) = found
-            && !matching_type
-            && parts.iter().any(|p| p == "float")
+        && ! matching_type
+        && parts.iter().any( | p | p == "float")
         {
-            msg.hint(eco_format!(
-                "if loss of precision is acceptable, explicitly cast the \
+            msg.hint
+            (
+                eco_format!
+                (
+                    "if loss of precision is acceptable, explicitly cast the \
                      decimal to a float with `float(value)`"
-            ));
+                )
+            );
         }
 
         msg
     }
 
     /// Walk all contained non-union infos.
-    pub fn walk<F>(&self, mut f: F)
+    pub fn walk<F>( & self, mut f: F)
     where
-        F: FnMut(&Self),
+    F: FnMut( & Self),
     {
-        fn inner<F>(info: &CastInfo, f: &mut F)
+        fn inner<F>(info: & CastInfo, f: & mut F)
         where
-            F: FnMut(&CastInfo),
+        F: FnMut( & CastInfo),
         {
-            if let CastInfo::Union(infos) = info
-            {
-                for child in infos
-                {
-                    inner(child, f);
-                }
-            }
-            else
-            {
-                f(info);
-            }
+            if let CastInfo::Union(infos) = info { for child in infos { inner(child, f); } }
+            else { f(info); }
         }
 
-        inner(self, &mut f);
+        inner(self, & mut f);
     }
 }
 
@@ -481,39 +236,22 @@ impl Add for CastInfo
 {
     type Output = Self;
 
-    fn add(self, rhs: Self) -> Self
+    fn add(self, rhs: Self)->Self
     {
-        Self::Union(match (self, rhs)
-        {
-            (Self::Union(mut lhs), Self::Union(rhs)) =>
+        Self::Union
+        (
+            match (self, rhs)
             {
-                for cast in rhs
+                (Self::Union(mut lhs), Self::Union(rhs)) =>
                 {
-                    if !lhs.contains(&cast)
-                    {
-                        lhs.push(cast);
-                    }
+                    for cast in rhs { if ! lhs.contains( & cast) { lhs.push(cast); } }
+                    lhs
                 }
-                lhs
+                (Self::Union(mut lhs), rhs) => { if ! lhs.contains( & rhs) { lhs.push(rhs); } lhs }
+                (lhs, Self::Union(mut rhs)) => { if ! rhs.contains( & lhs) { rhs.insert(0, lhs); } rhs }
+                (lhs, rhs) => vec![lhs, rhs],
             }
-            (Self::Union(mut lhs), rhs) =>
-            {
-                if !lhs.contains(&rhs)
-                {
-                    lhs.push(rhs);
-                }
-                lhs
-            }
-            (lhs, Self::Union(mut rhs)) =>
-            {
-                if !rhs.contains(&lhs)
-                {
-                    rhs.insert(0, lhs);
-                }
-                rhs
-            }
-            (lhs, rhs) => vec![lhs, rhs],
-        })
+        )
     }
 }
 
@@ -524,20 +262,11 @@ pub trait Container
     type Inner;
 }
 
-impl<T> Container for Option<T>
-{
-    type Inner = T;
-}
+impl <T> Container for Option<T> { type Inner = T; }
 
-impl<T> Container for Vec<T>
-{
-    type Inner = T;
-}
+impl <T> Container for Vec<T> { type Inner = T; }
 
-impl<T, const N: usize> Container for SmallVec<[T; N]>
-{
-    type Inner = T;
-}
+impl <T, const N: usize> Container for SmallVec < [T; N] > { type Inner = T; }
 
 /// An uninhabitable type.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -545,45 +274,24 @@ pub enum Never {}
 
 impl Reflect for Never
 {
-    fn input() -> CastInfo
-    {
-        CastInfo::Union(vec![])
-    }
+    fn input()->CastInfo { CastInfo::Union(vec ! []) }
 
-    fn output() -> CastInfo
-    {
-        CastInfo::Union(vec![])
-    }
+    fn output()->CastInfo { CastInfo::Union(vec ! []) }
 
-    fn castable(_: &Value) -> bool
-    {
-        false
-    }
+    fn castable(_: & Value)-> bool { false }
 }
 
 impl IntoValue for Never
 {
-    fn into_value(self) -> Value
-    {
-        match self {}
-    }
+    fn into_value(self)->Value { match self {} }
 }
 
-impl FromValue for Never
+impl FromValue for Never { fn from_value(value: Value)->HintedStrResult<Self> { Err(Self::error( & value)) } }
+
+cast!
 {
-    fn from_value(value: Value) -> HintedStrResult<Self>
-    {
-        Err(Self::error(&value))
-    }
-}
-
-cast! {
     SyntaxMode,
-    self => IntoValue::into_value(match self {
-        SyntaxMode::Markup => "markup",
-        SyntaxMode::Math => "math",
-        SyntaxMode::Code => "code",
-    }),
+    self => IntoValue::into_value(match self { SyntaxMode::Markup => "markup", SyntaxMode::Math => "math", SyntaxMode::Code => "code", }),
     /// Evaluate as markup, as in a Typst file.
     "markup" => SyntaxMode::Markup,
     /// Evaluate as math, as in an equation.
@@ -592,25 +300,30 @@ cast! {
     "code" => SyntaxMode::Code,
 }
 
-cast! {
+cast!
+{
     MathClass,
-    self => IntoValue::into_value(match self {
-        MathClass::Normal => "normal",
-        MathClass::Alphabetic => "alphabetic",
-        MathClass::Binary => "binary",
-        MathClass::Closing => "closing",
-        MathClass::Diacritic => "diacritic",
-        MathClass::Fence => "fence",
-        MathClass::GlyphPart => "glyph-part",
-        MathClass::Large => "large",
-        MathClass::Opening => "opening",
-        MathClass::Punctuation => "punctuation",
-        MathClass::Relation => "relation",
-        MathClass::Space => "space",
-        MathClass::Unary => "unary",
-        MathClass::Vary => "vary",
-        MathClass::Special => "special",
-    }),
+    self => IntoValue::into_value
+    (
+        match self
+        {
+            MathClass::Normal => "normal",
+            MathClass::Alphabetic => "alphabetic",
+            MathClass::Binary => "binary",
+            MathClass::Closing => "closing",
+            MathClass::Diacritic => "diacritic",
+            MathClass::Fence => "fence",
+            MathClass::GlyphPart => "glyph-part",
+            MathClass::Large => "large",
+            MathClass::Opening => "opening",
+            MathClass::Punctuation => "punctuation",
+            MathClass::Relation => "relation",
+            MathClass::Space => "space",
+            MathClass::Unary => "unary",
+            MathClass::Vary => "vary",
+            MathClass::Special => "special",
+        }
+    ),
     /// The default class for non-special things.
     "normal" => MathClass::Normal,
     /// Punctuation, e.g. a comma.
@@ -655,53 +368,26 @@ pub struct Derived<S, D>
     pub derived: D,
 }
 
-impl<S, D> Derived<S, D>
+impl <S, D> Derived<S, D>
 {
     /// Create a new instance from the `source` and the `derived` data.
-    pub fn new(source: S, derived: D) -> Self
-    {
-        Self { source, derived }
-    }
+    pub fn new (source: S, derived: D)->Self { Self { source, derived } }
 }
 
-impl<S: Reflect, D> Reflect for Derived<S, D>
+impl <S: Reflect, D> Reflect for Derived<S, D>
 {
-    fn input() -> CastInfo
-    {
-        S::input()
-    }
+    fn input()->CastInfo { S::input() }
 
-    fn output() -> CastInfo
-    {
-        S::output()
-    }
+    fn output()->CastInfo { S::output() }
 
-    fn castable(value: &Value) -> bool
-    {
-        S::castable(value)
-    }
+    fn castable(value: & Value)-> bool { S::castable(value) }
 
-    fn error(found: &Value) -> HintedString
-    {
-        S::error(found)
-    }
+    fn error(found: & Value)->HintedString { S::error(found) }
 }
 
-impl<S: IntoValue, D> IntoValue for Derived<S, D>
-{
-    fn into_value(self) -> Value
-    {
-        self.source.into_value()
-    }
-}
+impl <S: IntoValue, D> IntoValue for Derived<S, D> { fn into_value(self)->Value { self.source.into_value() } }
 
-impl<S: Fold, D: Fold> Fold for Derived<S, D>
+impl <S: Fold, D: Fold> Fold for Derived<S, D>
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        Self {
-            source: self.source.fold(outer.source),
-            derived: self.derived.fold(outer.derived),
-        }
-    }
+    fn fold(self, outer: Self)->Self { Self { source: self.source.fold(outer.source), derived: self.derived.fold(outer.derived), } }
 }

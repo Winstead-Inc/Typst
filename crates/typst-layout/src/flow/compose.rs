@@ -2,31 +2,27 @@ use std::convert::Infallible;
 use std::num::NonZeroUsize;
 
 use ecow::EcoVec;
-use typst_library::diag::{SourceDiagnostic, SourceResult};
+use typst_library::diag:: { SourceDiagnostic, SourceResult };
 use typst_library::engine::Engine;
-use typst_library::foundations::{Content, NativeElement, Packed, Resolve, Smart};
-use typst_library::introspection::{
-    Counter, CounterDisplayElem, CounterState, CounterUpdate, Location, Locator,
-    SplitLocator, Tag,
-};
-use typst_library::layout::{
+use typst_library::foundations:: { Content, NativeElement, Packed, Resolve, Smart };
+use typst_library::introspection:: { Counter, CounterDisplayElem, CounterState, CounterUpdate, Location, Locator, SplitLocator, Tag, };
+use typst_library::layout::
+{
     Abs, Axes, Dir, FixedAlignment, Fragment, Frame, FrameItem, FrameParent, Inherit,
     OuterHAlignment, PlacementScope, Point, Region, Regions, Rel, Size,
 };
 use typst_library::model::ArtifactKind;
-use typst_library::model::{
-    FootnoteElem, FootnoteEntry, LineNumberingScope, Numbering, ParLineMarker,
-};
+use typst_library::model:: { FootnoteElem, FootnoteEntry, LineNumberingScope, Numbering, ParLineMarker, };
 use typst_syntax::Span;
-use typst_utils::{NonZeroExt, Numeric};
+use typst_utils:: { NonZeroExt, Numeric };
 
 use super::distribute::distribute;
-use super::{Config, FlowMode, LineNumberConfig, PlacedChild, Work};
+use super:: { Config, FlowMode, LineNumberConfig, PlacedChild, Work };
 
 /// A control flow event during layout.
 ///
 /// The type parameter `R` describes the requested relayout.
-pub(super) enum RelayoutStop<R = PlacementScope>
+pub (super) enum RelayoutStop<R = PlacementScope>
 {
     /// Indicates that the given scope should be relayouted.
     Relayout(R),
@@ -34,48 +30,30 @@ pub(super) enum RelayoutStop<R = PlacementScope>
     Error(EcoVec<SourceDiagnostic>),
 }
 
-impl<R> From<EcoVec<SourceDiagnostic>> for RelayoutStop<R>
-{
-    fn from(error: EcoVec<SourceDiagnostic>) -> Self
-    {
-        Self::Error(error)
-    }
-}
+impl <R> From<EcoVec<SourceDiagnostic>> for RelayoutStop<R> { fn from(error: EcoVec<SourceDiagnostic>)->Self { Self::Error(error) } }
 
 /// A version of [`PlacementScope`] that is known to be `Parent`.
 pub struct ParentScope;
 
-impl From<ParentScope> for PlacementScope
-{
-    fn from(_: ParentScope) -> Self
-    {
-        PlacementScope::Parent
-    }
-}
+impl From<ParentScope> for PlacementScope { fn from(_: ParentScope)->Self { PlacementScope::Parent } }
 
 /// A version of [`PlacementScope`] that is known to be `Column`.
 pub struct ColumnScope;
 
-impl From<ColumnScope> for PlacementScope
-{
-    fn from(_: ColumnScope) -> Self
-    {
-        PlacementScope::Column
-    }
-}
+impl From<ColumnScope> for PlacementScope { fn from(_: ColumnScope)->Self { PlacementScope::Column } }
 
 /// A control flow event during footnote handling.
-pub(super) type FootnoteStop<M = ()> = InsertionStop<ColumnScope, M>;
+pub (super) type FootnoteStop < M = () > = InsertionStop<ColumnScope, M>;
 
 /// A control flow event during float handling.
-pub(super) type FloatStop<M = ()> = InsertionStop<PlacementScope, M>;
+pub (super) type FloatStop < M = () > = InsertionStop<PlacementScope, M>;
 
 /// A control flow event while handling an insertion.
 ///
 /// The type parameter `R` describes the requested relayout. The type parameter
 /// `M` controls the [`MigrateOrigin`](Self::MigrateOrigin) variant. When
 /// `M = Infallible`, the variant is empty.
-pub(super) enum InsertionStop<R, M = ()>
+pub (super) enum InsertionStop<R, M = ()>
 {
     /// The insertion changed the available space.
     Relayout(R),
@@ -85,9 +63,9 @@ pub(super) enum InsertionStop<R, M = ()>
     Error(EcoVec<SourceDiagnostic>),
 }
 
-impl<M> From<FootnoteStop<M>> for FloatStop<M>
+impl <M> From<FootnoteStop<M>> for FloatStop<M>
 {
-    fn from(stop: FootnoteStop<M>) -> Self
+    fn from(stop: FootnoteStop<M>)->Self
     {
         match stop
         {
@@ -98,11 +76,11 @@ impl<M> From<FootnoteStop<M>> for FloatStop<M>
     }
 }
 
-impl<R> From<InsertionStop<R, Infallible>> for RelayoutStop
+impl <R> From<InsertionStop<R, Infallible>> for RelayoutStop
 where
-    R: Into<PlacementScope>,
+R: Into<PlacementScope>,
 {
-    fn from(stop: InsertionStop<R, Infallible>) -> Self
+    fn from(stop: InsertionStop<R, Infallible>)->Self
     {
         match stop
         {
@@ -113,22 +91,16 @@ where
     }
 }
 
-impl<R, M> From<EcoVec<SourceDiagnostic>> for InsertionStop<R, M>
-{
-    fn from(error: EcoVec<SourceDiagnostic>) -> Self
-    {
-        Self::Error(error)
-    }
-}
+impl <R, M> From<EcoVec<SourceDiagnostic>> for InsertionStop<R, M> { fn from(error: EcoVec<SourceDiagnostic>)->Self { Self::Error(error) } }
 
 /// Whether a footnote's origin frame may migrate to the next region.
 #[derive(Clone, Copy)]
-pub(super) struct Migration<M>(Option<M>);
+pub (super) struct Migration<M>(Option<M>);
 
 impl Migration<()>
 {
     /// Allow the origin frame to migrate.
-    pub(super) const ALLOW: Self = Self(Some(()));
+    pub (super) const ALLOW: Self = Self(Some(()));
 }
 
 impl Migration<Infallible>
@@ -137,25 +109,16 @@ impl Migration<Infallible>
     const FORBID: Self = Self(None);
 }
 
-impl<M> Migration<M>
+impl <M> Migration<M>
 {
     /// Forbid the origin frame from migrating.
-    fn forbid(&mut self)
-    {
-        self.0 = None;
-    }
+    fn forbid( & mut self) { self .0 = None; }
 
     /// Disable migration and return the previous setting.
-    fn take(&mut self) -> Self
-    {
-        Self(self.0.take())
-    }
+    fn take( & mut self)->Self { Self(self .0.take()) }
 
     /// Extract the inner value, if migration is allowed.
-    fn into_inner(self) -> Option<M>
-    {
-        self.0
-    }
+    fn into_inner(self)->Option<M> { self .0 }
 }
 
 /// Composes the contents of a single page/region. A region can have multiple
@@ -168,21 +131,16 @@ impl<M> Migration<M>
 ///
 /// To lay out the in-flow contents of individual subregions, the composer
 /// invokes [distribution](distribute()).
-pub fn compose(
-    engine: &mut Engine,
-    work: &mut Work,
-    config: &Config,
-    locator: Locator,
-    regions: Regions,
-) -> SourceResult<Frame>
+pub fn compose(engine: & mut Engine, work: & mut Work, config: & Config, locator: Locator, regions: Regions,)->SourceResult<Frame>
 {
-    Composer {
+    Composer
+    {
         engine,
         config,
         page_base: regions.base(),
         column: 0,
-        page_insertions: Insertions::default(),
-        column_insertions: Insertions::default(),
+        page_insertions: Insertions:: default(),
+        column_insertions: Insertions:: default(),
         column_balancing_height: None,
         work,
         footnote_spill: None,
@@ -201,9 +159,9 @@ pub fn compose(
 /// about them.
 pub struct Composer<'a, 'b, 'x, 'y>
 {
-    pub engine: &'x mut Engine<'y>,
-    pub work: &'x mut Work<'a, 'b>,
-    pub config: &'x Config<'x>,
+    pub engine: & 'x mut Engine<'y>,
+    pub work: & 'x mut Work<'a, 'b>,
+    pub config: & 'x Config<'x>,
     column: usize,
     page_base: Size,
     page_insertions: Insertions<'a, 'b>,
@@ -217,10 +175,10 @@ pub struct Composer<'a, 'b, 'x, 'y>
     footnote_queue: Vec<Packed<FootnoteElem>>,
 }
 
-impl<'a, 'b> Composer<'a, 'b, '_, '_>
+impl <'a, 'b> Composer<'a, 'b, '_, '_>
 {
     /// Lay out a container/page region, including container/page insertions.
-    fn page(mut self, locator: Locator, regions: Regions) -> SourceResult<Frame>
+    fn page(mut self, locator: Locator, regions: Regions)->SourceResult<Frame>
     {
         // This loop can restart region layout when requested to do so by a
         // `RelayoutStop::Relayout(ParentScope)`. This happens when there is a
@@ -236,10 +194,7 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
             match self.page_contents(locator.relayout(), pod)
             {
                 Ok(frame) => break frame,
-                Err(RelayoutStop::Relayout(ParentScope)) =>
-                {
-                    *self.work = checkpoint.clone();
-                }
+                Err(RelayoutStop::Relayout(ParentScope)) => { * self.work = checkpoint.clone(); }
                 Err(RelayoutStop::Error(err)) => return Err(err),
             }
         };
@@ -249,39 +204,30 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     }
 
     /// Lay out the inner contents of a container/page.
-    fn page_contents(
-        &mut self,
-        locator: Locator,
-        regions: Regions,
-    ) -> Result<Frame, RelayoutStop<ParentScope>>
+    fn page_contents( & mut self, locator: Locator, regions: Regions,)->Result<Frame, RelayoutStop<ParentScope>>
     {
         // No point in create column regions, if there's just one!
-        if self.config.columns.count == 1
-        {
-            return self.column(locator, regions).map(|(frame, ..)| frame);
-        }
+        if self.config.columns.count == 1 { return self.column(locator, regions).map( | (frame,..) | frame); }
 
         // Create a backlog for multi-column layout.
         let column_height = regions.size.y;
-        let backlog: Vec<_> = std::iter::once(&column_height)
-            .chain(regions.backlog)
-            .flat_map(|&h| std::iter::repeat_n(h, self.config.columns.count))
-            .skip(1)
-            .collect();
+        let backlog: Vec < _ > = std::iter::once( & column_height)
+        .chain(regions.backlog)
+        .flat_map( |& h | std::iter::repeat_n(h, self.config.columns.count))
+        .skip(1)
+        .collect();
 
         // Subregions for column layout.
-        let mut inner = Regions {
-            size: Size::new(self.config.columns.width, column_height),
-            backlog: &backlog,
-            expand: Axes::new(true, regions.expand.y),
+        let mut inner = Regions
+        {
+            size: Size:: new (self.config.columns.width, column_height),
+            backlog: & backlog,
+            expand: Axes:: new (true, regions.expand.y),
             ..regions
         };
 
         // The size of the merged frame hosting multiple columns.
-        let size = Size::new(
-            regions.size.x,
-            if regions.expand.y { regions.size.y } else { Abs::zero() },
-        );
+        let size = Size:: new (regions.size.x, if regions.expand.y { regions.size.y } else { Abs::zero() },);
 
         let mut output = Frame::hard(size);
         let mut offset = Abs::zero();
@@ -294,66 +240,41 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         {
             self.column = i;
             let (frame, used_height, column_separator_height) =
-                self.column(locator.next(&()), inner)?;
+            self.column(locator.next( & ()), inner)?;
             total_used_height += used_height;
 
-            if !regions.expand.y
-            {
-                output.size_mut().y.set_max(frame.height());
-            }
+            if ! regions.expand.y { output.size_mut().y.set_max(frame.height()); }
 
             // Column separator between this and the previous column.
-            if let Some(separator) = &self.config.columns.separator
-                && let Some(last_separator_height) = last_column_separator_height
-                && !column_separator_height.min(last_separator_height).is_zero()
+            if let Some(separator) = & self.config.columns.separator
+            && let Some(last_separator_height) = last_column_separator_height
+            && ! column_separator_height.min(last_separator_height).is_zero()
             {
                 let mid = offset + 0.5 * self.config.columns.gutter;
-                let x = if self.config.columns.dir == Dir::LTR
-                {
-                    mid
-                }
-                else
-                {
-                    regions.size.x - mid
-                };
+                let x = if self.config.columns.dir == Dir::LTR { mid }
+                else { regions.size.x - mid };
                 let height = column_separator_height.max(last_separator_height);
-                let frame = layout_column_separator(
-                    self.engine,
-                    separator,
-                    self.config,
-                    Size::new(self.config.columns.gutter, height),
-                )?;
-                output.prepend_frame(
+                let frame = layout_column_separator(self.engine, separator, self.config, Size::new (self.config.columns.gutter, height),)?;
+                output.prepend_frame
+                (
                     // Prepend so it's behind both adjacent columns.
                     Point::with_x(x - 0.5 * frame.width()),
                     frame,
                 );
             }
             last_column_separator_height = Some(column_separator_height);
-            if i > 0
-            {
-                offset += self.config.columns.gutter;
-            }
+            if i > 0 { offset += self.config.columns.gutter; }
 
             let width = frame.width();
-            let x = if self.config.columns.dir == Dir::LTR
-            {
-                offset
-            }
-            else
-            {
-                regions.size.x - offset - width
-            };
+            let x = if self.config.columns.dir == Dir::LTR { offset }
+            else { regions.size.x - offset - width };
             offset += width;
 
             // During distribution, the baseline of the region is set to the
             // baseline of the first frame - e.g., the first paragraph line.
             // However, this does not propagate outwards unless we also update
             // the baseline of the column that region is in.
-            if i == 0 && frame.has_baseline()
-            {
-                output.set_baseline(frame.baseline());
-            }
+            if i == 0 && frame.has_baseline() { output.set_baseline(frame.baseline()); }
 
             output.push_frame(Point::with_x(x), frame);
             inner.next();
@@ -363,7 +284,7 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         if self.config.columns.balanced && self.work.done()
         {
             let height = total_used_height / self.config.columns.count as f64;
-            if self.column_balancing_height.is_none_or(|h| h < height)
+            if self.column_balancing_height.is_none_or( | h | h < height)
             {
                 self.column_balancing_height = Some(height);
                 return Err(RelayoutStop::Relayout(ParentScope));
@@ -380,20 +301,13 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     /// - `1`: The height actually used by the inner contents (used for column
     ///   balancing logic).
     /// - `2`: The height the column separator (if any) should have.
-    fn column(
-        &mut self,
-        locator: Locator,
-        regions: Regions,
-    ) -> Result<(Frame, Abs, Abs), RelayoutStop<ParentScope>>
+    fn column( & mut self, locator: Locator, regions: Regions,)->Result<(Frame, Abs, Abs), RelayoutStop<ParentScope>>
     {
         // Reset column insertion when starting a new column.
-        self.column_insertions = Insertions::default();
+        self.column_insertions = Insertions:: default();
 
         // Process footnote spill.
-        if let Some(spill) = self.work.footnote_spill.take()
-        {
-            self.footnote_spill(spill, regions.base())?;
-        }
+        if let Some(spill) = self.work.footnote_spill.take() { self.footnote_spill(spill, regions.base())?; }
 
         // This loop can restart column layout when requested to do so by a
         // `RelayoutStop::Relayout(PlacementScope::Column)`. This happens when a
@@ -408,69 +322,32 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
 
             // For column balancing, only consider space taken by floats, not footnotes
             let float_height = self.column_insertions.float_height();
-            let balancing_target = if self.column < self.config.columns.count - 1
-            {
-                self.column_balancing_height.map(|h| h - float_height)
-            }
-            else
-            {
-                None
-            };
+            let balancing_target = if self.column < self.config.columns.count - 1 { self.column_balancing_height.map( | h | h - float_height) }
+            else { None };
 
             match self.column_contents(pod, balancing_target)
             {
-                Ok((frame, used_height)) => break (frame, used_height + float_height),
-                Err(RelayoutStop::Relayout(PlacementScope::Column)) =>
-                {
-                    *self.work = checkpoint.clone();
-                }
-                Err(RelayoutStop::Relayout(PlacementScope::Parent)) =>
-                {
-                    return Err(RelayoutStop::Relayout(ParentScope));
-                }
-                Err(RelayoutStop::Error(error)) =>
-                {
-                    return Err(RelayoutStop::Error(error));
-                }
+                Ok((frame, used_height)) => break(frame, used_height + float_height),
+                Err(RelayoutStop::Relayout(PlacementScope::Column)) => { * self.work = checkpoint.clone(); }
+                Err(RelayoutStop::Relayout(PlacementScope::Parent)) => { return Err(RelayoutStop::Relayout(ParentScope)); }
+                Err(RelayoutStop::Error(error)) => { return Err(RelayoutStop::Error(error)); }
             }
         };
         drop(checkpoint);
 
-        let column_separator_height = if self.column_insertions.bottom_floats.is_empty()
-        {
-            used_height
-        }
-        else
-        {
-            self.column_balancing_height
-                .unwrap_or(inner.height() + self.column_insertions.float_height())
-        };
+        let column_separator_height = if self.column_insertions.bottom_floats.is_empty() { used_height }
+        else { self.column_balancing_height.unwrap_or(inner.height() + self.column_insertions.float_height()) };
 
         self.work.footnotes.extend(self.footnote_queue.drain(..));
-        if let Some(spill) = self.footnote_spill.take()
-        {
-            self.work.footnote_spill = Some(spill);
-        }
+        if let Some(spill) = self.footnote_spill.take() { self.work.footnote_spill = Some(spill); }
 
-        let insertions = std::mem::take(&mut self.column_insertions);
-        let mut output = insertions.finalize(
-            self.work,
-            self.config,
-            inner,
-            self.column_balancing_height,
-        );
+        let insertions = std::mem::take( & mut self.column_insertions);
+        let mut output = insertions.finalize(self.work, self.config, inner, self.column_balancing_height,);
 
         // Lay out per-column line numbers.
-        if let Some(line_config) = &self.config.line_numbers
+        if let Some(line_config) = & self.config.line_numbers
         {
-            layout_line_numbers(
-                self.engine,
-                self.config,
-                line_config,
-                locator,
-                self.column,
-                &mut output,
-            )?;
+            layout_line_numbers(self.engine, self.config, line_config, locator, self.column, & mut output,)?;
         }
 
         Ok((output, used_height, column_separator_height))
@@ -484,23 +361,13 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     /// the footnote invariant to be broken, as it would require handling a
     /// [`FootnoteStop::MigrateOrigin`] at this point, but that is exclusively
     /// handled by the distributor.
-    fn column_contents(
-        &mut self,
-        regions: Regions,
-        balancing_target: Option<Abs>,
-    ) -> Result<(Frame, Abs), RelayoutStop>
+    fn column_contents( & mut self, regions: Regions, balancing_target: Option<Abs>,)->Result<(Frame, Abs), RelayoutStop>
     {
         // Process pending footnotes.
-        for note in std::mem::take(&mut self.work.footnotes)
-        {
-            self.footnote(note, &mut regions.clone(), Abs::zero(), Migration::FORBID)?;
-        }
+        for note in std::mem::take( & mut self.work.footnotes) { self.footnote(note, & mut regions.clone(), Abs::zero(), Migration::FORBID)?; }
 
         // Process pending floats.
-        for placed in std::mem::take(&mut self.work.floats)
-        {
-            self.float(placed, &regions, false, Migration::FORBID)?;
-        }
+        for placed in std::mem::take( & mut self.work.floats) { self.float (placed, & regions, false, Migration::FORBID)?; }
 
         distribute(self, regions, balancing_target)
     }
@@ -522,35 +389,18 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     /// references), triggering [`FloatStop::MigrateOrigin`]. This is usually
     /// [`Migration::ALLOW`] within the distributor, as it can handle that
     /// particular flow event, and [`Migration::FORBID`] elsewhere.
-    pub fn float<M: Copy>(
-        &mut self,
-        placed: &'b PlacedChild<'a>,
-        regions: &Regions,
-        clearance: bool,
-        migration: Migration<M>,
-    ) -> Result<(), FloatStop<M>>
+    pub fn float < M: Copy > ( & mut self, placed: & 'b PlacedChild<'a>, regions: & Regions, clearance: bool , migration: Migration<M>,)->Result<(), FloatStop<M>>
     {
         // If the float is already processed, skip it.
         let loc = placed.location();
-        if self.skipped(loc)
-        {
-            return Ok(());
-        }
+        if self.skipped(loc) { return Ok(()); }
 
         // If there is already a queued float, queue this one as well. We
         // don't want to disrupt the order.
-        if !self.work.floats.is_empty()
-        {
-            self.work.floats.push(placed);
-            return Ok(());
-        }
+        if ! self.work.floats.is_empty() { self.work.floats.push(placed); return Ok(()); }
 
         // Determine the base size of the chosen scope.
-        let base = match placed.scope
-        {
-            PlacementScope::Column => regions.base(),
-            PlacementScope::Parent => self.page_base,
-        };
+        let base = match placed.scope { PlacementScope::Column => regions.base(), PlacementScope::Parent => self.page_base, };
 
         // Lay out the placed element.
         let frame = placed.layout(self.engine, base)?;
@@ -563,10 +413,10 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
             PlacementScope::Parent =>
             {
                 let remaining: Abs = regions
-                    .iter()
-                    .map(|size| size.y)
-                    .take(self.config.columns.count - self.column)
-                    .sum();
+                .iter()
+                .map( | size | size.y)
+                .take(self.config.columns.count - self.column)
+                .sum();
                 remaining / self.config.columns.count as f64
             }
         };
@@ -576,33 +426,29 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         let need = frame.height() + clearance;
 
         // If the float doesn't fit, queue it for the next region.
-        if !remaining.fits(need) && regions.may_progress()
-        {
-            self.work.floats.push(placed);
-            return Ok(());
-        }
+        if ! remaining.fits(need) && regions.may_progress() { self.work.floats.push(placed); return Ok(()); }
 
         // Handle footnotes in the float.
-        self.footnotes(regions, &frame, need, false, migration)?;
+        self.footnotes(regions, & frame, need, false, migration)?;
 
         // Determine the float's vertical alignment. We can unwrap the inner
         // `Option` because `Custom(None)` is checked for during collection.
-        let align_y = placed.align_y.map(Option::unwrap).unwrap_or_else(|| {
-            // When the float's vertical midpoint would be above the middle of
-            // the page if it were layouted in-flow, we use top alignment.
-            // Otherwise, we use bottom alignment.
-            let used = base.y - remaining;
-            let half = need / 2.0;
-            let ratio = (used + half) / base.y;
-            if ratio <= 0.5 { FixedAlignment::Start } else { FixedAlignment::End }
-        });
+        let align_y = placed.align_y.map(Option::unwrap).unwrap_or_else
+        (
+            ||
+            {
+                // When the float's vertical midpoint would be above the middle of
+                // the page if it were layouted in-flow, we use top alignment.
+                // Otherwise, we use bottom alignment.
+                let used = base.y - remaining;
+                let half = need / 2.0;
+                let ratio = (used + half) / base.y;
+                if ratio <= 0.5 { FixedAlignment::Start } else { FixedAlignment::End }
+            }
+        );
 
         // Select the insertion area where we'll put this float.
-        let area = match placed.scope
-        {
-            PlacementScope::Column => &mut self.column_insertions,
-            PlacementScope::Parent => &mut self.page_insertions,
-        };
+        let area = match placed.scope { PlacementScope::Column => & mut self.column_insertions, PlacementScope::Parent => & mut self.page_insertions, };
 
         // Put the float there.
         area.push_float(placed, frame, align_y);
@@ -622,53 +468,31 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     /// [`Migration::ALLOW`] within the distributor and [`Migration::FORBID`]
     /// elsewhere, as the distributor can handle [`FootnoteStop::MigrateOrigin`]
     /// which is returned when migration is requested.
-    pub fn footnotes<M: Copy>(
-        &mut self,
-        regions: &Regions,
-        frame: &Frame,
-        flow_need: Abs,
-        breakable: bool,
-        mut migration: Migration<M>,
-    ) -> Result<(), FootnoteStop<M>>
+    pub fn footnotes<M: Copy>( & mut self, regions: & Regions, frame: & Frame, flow_need: Abs, breakable: bool , mut migration: Migration<M>,)->Result<(), FootnoteStop<M>>
     {
         // Footnotes are only supported at the root level.
-        if self.config.mode != FlowMode::Root
-        {
-            return Ok(());
-        }
+        if self.config.mode != FlowMode::Root { return Ok(()); }
 
         // Search for footnotes.
         let mut notes = vec![];
-        for tag in &self.work.tags
+        for tag in & self.work.tags
         {
             let Tag::Start(elem, _) = tag
-            else
-            {
-                continue;
-            };
+            else { continue ; };
             let Some(note) = elem.to_packed::<FootnoteElem>()
-            else
-            {
-                continue;
-            };
+            else { continue ; };
             notes.push((Abs::zero(), note.clone()));
         }
-        find_in_frame_impl::<FootnoteElem>(&mut notes, frame, Abs::zero());
-        if notes.is_empty()
-        {
-            return Ok(());
-        }
+        find_in_frame_impl::<FootnoteElem>( & mut notes, frame, Abs::zero());
+        if notes.is_empty() { return Ok(()); }
 
         let mut relayout = false;
-        let mut regions = *regions;
+        let mut regions = * regions;
 
         // The first footnote's origin frame should be migratable if the region
         // may progress (already checked by the footnote function) and if the
         // origin frame isn't breakable (checked here).
-        if breakable
-        {
-            migration.forbid();
-        }
+        if breakable { migration.forbid(); }
 
         for (y, elem) in notes
         {
@@ -682,11 +506,10 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
             let migration = migration.take();
 
             // Process the footnote.
-            match self.footnote(elem, &mut regions, flow_need, migration)
+            match self.footnote(elem, & mut regions, flow_need, migration)
             {
                 // The footnote was already processed or queued.
-                Ok(()) =>
-                {}
+                Ok(()) => {}
                 // First handle more footnotes before relayouting.
                 Err(FootnoteStop::Relayout(ColumnScope)) => relayout = true,
                 // Either of
@@ -700,38 +523,22 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
 
         // If this is set, we laid out at least one footnote, so we need a
         // relayout.
-        if relayout
-        {
-            return Err(FootnoteStop::Relayout(ColumnScope));
-        }
+        if relayout { return Err(FootnoteStop::Relayout(ColumnScope)); }
 
         Ok(())
     }
 
     /// Handles a single footnote.
-    fn footnote<M: Copy>(
-        &mut self,
-        elem: Packed<FootnoteElem>,
-        regions: &mut Regions,
-        flow_need: Abs,
-        migration: Migration<M>,
-    ) -> Result<(), FootnoteStop<M>>
+    fn footnote<M: Copy>( & mut self, elem: Packed<FootnoteElem>, regions: & mut Regions, flow_need: Abs, migration: Migration<M>,)->Result<(), FootnoteStop<M>>
     {
         // Ignore reference footnotes and already processed ones.
         let loc = elem.location().unwrap();
-        if elem.is_ref() || self.skipped(loc)
-        {
-            return Ok(());
-        }
+        if elem.is_ref() || self.skipped(loc) { return Ok(()); }
 
         // If there is already a queued spill or footnote, queue this one as
         // well. We don't want to disrupt the order.
-        let area = &mut self.column_insertions;
-        if self.footnote_spill.is_some() || !self.footnote_queue.is_empty()
-        {
-            self.footnote_queue.push(elem);
-            return Ok(());
-        }
+        let area = & mut self.column_insertions;
+        if self.footnote_spill.is_some() || ! self.footnote_queue.is_empty() { self.footnote_queue.push(elem); return Ok(()); }
 
         // If there weren't any footnotes so far, account for the footnote
         // separator.
@@ -740,24 +547,24 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         if area.footnotes.is_empty()
         {
             let frame =
-                layout_footnote_separator(self.engine, self.config, regions.base())?;
+            layout_footnote_separator(self.engine, self.config, regions.base())?;
             separator_need += self.config.footnote.clearance + frame.height();
             separator = Some(frame);
         }
 
         // Prepare regions for the footnote.
-        let mut pod = *regions;
+        let mut pod = * regions;
         pod.expand.y = false;
         pod.size.y -= flow_need + separator_need + self.config.footnote.gap;
 
         // Layout the footnote entry.
-        let frames = layout_footnote(self.engine, self.config, &elem, pod)?.into_frames();
+        let frames = layout_footnote(self.engine, self.config, & elem, pod)?.into_frames();
 
         // Find nested footnotes in the entry.
-        let nested = find_in_frames::<FootnoteElem>(&frames);
+        let nested = find_in_frames::<FootnoteElem>( & frames);
 
         // Check if there are any non-empty frames.
-        let exist_non_empty_frame = frames.iter().any(|f| !f.is_empty());
+        let exist_non_empty_frame = frames.iter().any( | f | ! f.is_empty());
 
         // Extract the first frame.
         let mut iter = frames.into_iter();
@@ -795,23 +602,12 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         if first.is_empty() && exist_non_empty_frame
         {
             if let Some(m) = migration.into_inner()
-                && regions.may_progress()
-            {
-                return Err(FootnoteStop::MigrateOrigin(m));
-            }
-            else if regions.may_progress() || !flow_need.is_zero()
-            {
-                self.footnote_queue.push(elem);
-                return Ok(());
-            }
+            && regions.may_progress() { return Err(FootnoteStop::MigrateOrigin(m)); }
+            else if regions.may_progress() || ! flow_need.is_zero() { self.footnote_queue.push(elem); return Ok(()); }
         }
 
         // Save the separator.
-        if let Some(frame) = separator
-        {
-            area.push_footnote_separator(self.config, frame);
-            regions.size.y -= separator_need;
-        }
+        if let Some(frame) = separator { area.push_footnote_separator(self.config, frame); regions.size.y -= separator_need; }
 
         // Save the footnote's frame.
         area.push_footnote(self.config, first);
@@ -819,10 +615,7 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         regions.size.y -= note_need;
 
         // Save the spill.
-        if !iter.as_slice().is_empty()
-        {
-            self.footnote_spill = Some(iter);
-        }
+        if ! iter.as_slice().is_empty() { self.footnote_spill = Some(iter); }
 
         // Lay out nested footnotes.
         for (_, note) in nested
@@ -830,14 +623,12 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
             match self.footnote(note, regions, flow_need, migration)
             {
                 // This footnote was already processed or queued.
-                Ok(()) =>
-                {}
+                Ok(()) => {}
                 // Footnotes always request a relayout when processed for the
                 // first time, so we ignore a relayout request since we're
                 // about to do so afterwards. Without this check, the first
                 // inner footnote interrupts processing of the following ones.
-                Err(FootnoteStop::Relayout(ColumnScope)) =>
-                {}
+                Err(FootnoteStop::Relayout(ColumnScope)) => {}
                 // Either of
                 // - A `FootnoteStop::MigrateOrigin` indicating that the frame's
                 //   origin element should migrate to uphold the footnote
@@ -852,13 +643,9 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
     }
 
     /// Handles spillover from a footnote.
-    fn footnote_spill(
-        &mut self,
-        mut iter: std::vec::IntoIter<Frame>,
-        base: Size,
-    ) -> SourceResult<()>
+    fn footnote_spill( & mut self, mut iter: std::vec::IntoIter<Frame>, base: Size,)->SourceResult<()>
     {
-        let area = &mut self.column_insertions;
+        let area = & mut self.column_insertions;
 
         // Create and save the separator.
         let separator = layout_footnote_separator(self.engine, self.config, base)?;
@@ -869,99 +656,54 @@ impl<'a, 'b> Composer<'a, 'b, '_, '_>
         area.push_footnote(self.config, frame);
 
         // Save the spill.
-        if !iter.as_slice().is_empty()
-        {
-            self.footnote_spill = Some(iter);
-        }
+        if ! iter.as_slice().is_empty() { self.footnote_spill = Some(iter); }
 
         Ok(())
     }
 
     /// Checks whether an insertion was already processed and doesn't need to be
     /// handled again.
-    fn skipped(&self, loc: Location) -> bool
-    {
-        self.work.skips.contains(&loc)
-            || self.page_insertions.skips.contains(&loc)
-            || self.column_insertions.skips.contains(&loc)
-    }
+    fn skipped( & self, loc: Location)-> bool { self.work.skips.contains( & loc) || self.page_insertions.skips.contains( & loc) || self.column_insertions.skips.contains( & loc) }
 
     /// The amount of width needed by insertions.
-    pub fn insertion_width(&self) -> Abs
-    {
-        self.column_insertions.width.max(self.page_insertions.width)
-    }
+    pub fn insertion_width( & self)->Abs { self.column_insertions.width.max(self.page_insertions.width) }
 }
 
 /// Lay out the footnote separator, typically a line.
-fn layout_footnote_separator(
-    engine: &mut Engine,
-    config: &Config,
-    base: Size,
-) -> SourceResult<Frame>
+fn layout_footnote_separator(engine: & mut Engine, config: & Config, base: Size,)->SourceResult<Frame>
 {
-    crate::layout_frame(
-        engine,
-        &config.footnote.separator,
-        Locator::root(),
-        config.shared,
-        Region::new(base, Axes::new(config.footnote.expand, false)),
-    )
+    crate::layout_frame(engine, & config.footnote.separator, Locator::root(), config.shared, Region::new (base, Axes::new (config.footnote.expand, false)),)
 }
 
 /// Lay out a footnote.
-fn layout_footnote(
-    engine: &mut Engine,
-    config: &Config,
-    elem: &Packed<FootnoteElem>,
-    pod: Regions,
-) -> SourceResult<Fragment>
+fn layout_footnote(engine: & mut Engine, config: & Config, elem: & Packed<FootnoteElem>, pod: Regions,)->SourceResult<Fragment>
 {
     let loc = elem.location().unwrap();
-    crate::layout_fragment(
+    crate::layout_fragment
+    (
         engine,
-        &FootnoteEntry::new(elem.clone())
-            .pack()
-            .spanned(elem.span())
-            // We attach a well-known derived location to the entry so that the
-            // note can link to this entry without first querying for it.
-            .located(loc.variant(1)),
+        & FootnoteEntry:: new (elem.clone())
+        .pack()
+        .spanned(elem.span())
+        // We attach a well-known derived location to the entry so that the
+        // note can link to this entry without first querying for it.
+        .located(loc.variant(1)),
         Locator::synthesize(loc),
         config.shared,
         pod,
     )
-    .map(|mut fragment| {
-        for frame in &mut fragment
-        {
-            frame.set_parent(FrameParent::new(loc, Inherit::No));
-        }
-        fragment
-    })
+    .map( | mut fragment | { for frame in & mut fragment { frame.set_parent(FrameParent::new (loc, Inherit::No)); } fragment })
 }
 
 /// Lay out the column separator, typically a line.
-fn layout_column_separator(
-    engine: &mut Engine,
-    separator: &Content,
-    config: &Config,
-    base: Size,
-) -> SourceResult<Frame>
-{
-    crate::layout_frame(
-        engine,
-        separator,
-        Locator::root(),
-        config.shared,
-        Region::new(base, Axes::splat(true)),
-    )
-}
+fn layout_column_separator(engine: & mut Engine, separator: & Content, config: & Config, base: Size,)->SourceResult<Frame> { crate::layout_frame(engine, separator, Locator::root(), config.shared, Region::new (base, Axes::splat(true)),) }
 
 /// An additive list of insertions.
 #[derive(Default)]
 struct Insertions<'a, 'b>
 {
-    top_floats: Vec<(&'b PlacedChild<'a>, Frame)>,
-    bottom_floats: Vec<(&'b PlacedChild<'a>, Frame)>,
+    top_floats: Vec<( & 'b PlacedChild<'a>, Frame)>,
+    bottom_floats: Vec<( & 'b PlacedChild<'a>, Frame)>,
     footnotes: Vec<Frame>,
     footnote_separator: Option<Frame>,
     top_size: Abs,
@@ -971,35 +713,22 @@ struct Insertions<'a, 'b>
     skips: Vec<Location>,
 }
 
-impl<'a, 'b> Insertions<'a, 'b>
+impl <'a, 'b> Insertions<'a, 'b>
 {
     /// Add a float to the top or bottom area.
-    fn push_float(
-        &mut self,
-        placed: &'b PlacedChild<'a>,
-        frame: Frame,
-        align_y: FixedAlignment,
-    )
+    fn push_float( & mut self, placed: & 'b PlacedChild<'a>, frame: Frame, align_y: FixedAlignment,)
     {
         self.width.set_max(frame.width());
 
         let amount = frame.height() + placed.clearance;
         let pair = (placed, frame);
 
-        if align_y == FixedAlignment::Start
-        {
-            self.top_size += amount;
-            self.top_floats.push(pair);
-        }
-        else
-        {
-            self.bottom_size += amount;
-            self.bottom_floats.push(pair);
-        }
+        if align_y == FixedAlignment::Start { self.top_size += amount; self.top_floats.push(pair); }
+        else { self.bottom_size += amount; self.bottom_floats.push(pair); }
     }
 
     /// Add a footnote to the bottom area.
-    fn push_footnote(&mut self, config: &Config, frame: Frame)
+    fn push_footnote( & mut self, config: & Config, frame: Frame)
     {
         self.width.set_max(frame.width());
         self.footnote_size += config.footnote.gap + frame.height();
@@ -1007,7 +736,7 @@ impl<'a, 'b> Insertions<'a, 'b>
     }
 
     /// Add a footnote separator to the bottom area.
-    fn push_footnote_separator(&mut self, config: &Config, frame: Frame)
+    fn push_footnote_separator( & mut self, config: & Config, frame: Frame)
     {
         self.width.set_max(frame.width());
         self.footnote_size += config.footnote.clearance + frame.height();
@@ -1017,37 +746,22 @@ impl<'a, 'b> Insertions<'a, 'b>
     /// The combined height of the top and bottom area (including clearances).
     /// Subtracting this from the total region size yields the available space
     /// for distribution.
-    fn height(&self) -> Abs
-    {
-        self.top_size + self.bottom_size + self.footnote_size
-    }
+    fn height( & self)->Abs { self.top_size + self.bottom_size + self.footnote_size }
 
     /// The combined height of the top and bottom area for floats (including
     /// clearances) but excluding footnotes.
-    fn float_height(&self) -> Abs
-    {
-        self.top_size + self.bottom_size
-    }
+    fn float_height( & self)->Abs { self.top_size + self.bottom_size }
 
     /// Produce a frame for the full region based on the `inner` frame produced
     /// by distribution or column layout.
-    fn finalize(
-        self,
-        work: &mut Work,
-        config: &Config,
-        inner: Frame,
-        column_height: Option<Abs>,
-    ) -> Frame
+    fn finalize(self, work: & mut Work, config: & Config, inner: Frame, column_height: Option<Abs>,)->Frame
     {
-        work.extend_skips(&self.skips);
+        work.extend_skips( & self.skips);
 
         if self.top_floats.is_empty()
-            && self.bottom_floats.is_empty()
-            && self.footnote_separator.is_none()
-            && self.footnotes.is_empty()
-        {
-            return inner;
-        }
+        && self.bottom_floats.is_empty()
+        && self.footnote_separator.is_none()
+        && self.footnotes.is_empty() { return inner; }
 
         let size = inner.size() + Size::with_y(self.height());
         let mut output = Frame::soft(size);
@@ -1059,7 +773,7 @@ impl<'a, 'b> Insertions<'a, 'b>
             let y = offset_top;
             let delta = placed.delta.zip_map(size, Rel::relative_to).to_point();
             offset_top += frame.height() + placed.clearance;
-            output.push_frame(Point::new(x, y) + delta, frame);
+            output.push_frame(Point::new (x, y) + delta, frame);
         }
 
         // Technically, if the flow has floats and footnotes, it's probably not
@@ -1067,10 +781,7 @@ impl<'a, 'b> Insertions<'a, 'b>
         // where the baseline doesn't matter. However, we'd keep the baseline
         // correct anyways in case future enhancements enable deeper
         // manipulation of this flow.
-        if inner.has_baseline()
-        {
-            output.set_baseline(self.top_size + inner.baseline());
-        }
+        if inner.has_baseline() { output.set_baseline(self.top_size + inner.baseline()); }
 
         output.push_frame(Point::with_y(self.top_size), inner);
 
@@ -1084,7 +795,7 @@ impl<'a, 'b> Insertions<'a, 'b>
         // configuration in the future.
 
         let mut float_offset_bottom =
-            column_height.unwrap_or(size.y - self.footnote_size) - self.bottom_size;
+        column_height.unwrap_or(size.y - self.footnote_size) - self.bottom_size;
         for (placed, frame) in self.bottom_floats
         {
             float_offset_bottom += placed.clearance;
@@ -1092,7 +803,7 @@ impl<'a, 'b> Insertions<'a, 'b>
             let y = float_offset_bottom;
             let delta = placed.delta.zip_map(size, Rel::relative_to).to_point();
             float_offset_bottom += frame.height();
-            output.push_frame(Point::new(x, y) + delta, frame);
+            output.push_frame(Point::new (x, y) + delta, frame);
         }
 
         let mut footnote_offset_bottom = size.y - self.footnote_size;
@@ -1122,34 +833,24 @@ impl<'a, 'b> Insertions<'a, 'b>
 /// counter reset is inserted if we're in the first column of the page being
 /// currently laid out and the user requested for line numbers to be reset at
 /// the start of every page.
-fn layout_line_numbers(
-    engine: &mut Engine,
-    config: &Config,
-    line_config: &LineNumberConfig,
-    locator: Locator,
-    column: usize,
-    output: &mut Frame,
-) -> SourceResult<()>
+fn layout_line_numbers(engine: & mut Engine, config: & Config, line_config: & LineNumberConfig, locator: Locator, column: usize, output: & mut Frame,)->SourceResult<()>
 {
     let mut locator = locator.split();
 
     // Reset page-scoped line numbers if currently at the first column.
     if column == 0 && line_config.scope == LineNumberingScope::Page
     {
-        let reset = layout_line_number_reset(engine, config, &mut locator)?;
+        let reset = layout_line_number_reset(engine, config, & mut locator)?;
         output.push_frame(Point::zero(), reset);
     }
 
     // Find all line markers.
     let mut lines = find_in_frame::<ParLineMarker>(output);
-    if lines.is_empty()
-    {
-        return Ok(());
-    }
+    if lines.is_empty() { return Ok(()); }
 
     // Assume the line numbers aren't sorted by height. They must be sorted so
     // we can deduplicate line numbers below based on vertical proximity.
-    lines.sort_by_key(|&(y, _)| y);
+    lines.sort_by_key( |& (y, _) | y);
 
     // Used for horizontal alignment.
     let mut max_number_width = Abs::zero();
@@ -1162,16 +863,16 @@ fn layout_line_numbers(
     let mut line_numbers = vec![];
 
     // Layout the lines.
-    for &(y, ref marker) in &lines
+    for & (y, ref marker) in & lines
     {
-        if prev_bottom.is_some_and(|bottom| y < bottom)
+        if prev_bottom.is_some_and( | bottom | y < bottom)
         {
             // Lines are too close together. Display as the same line number.
             continue;
         }
 
         // Layout the number and record its width in search of the maximum.
-        let frame = layout_line_number(engine, config, &mut locator, &marker.numbering)?;
+        let frame = layout_line_number(engine, config, & mut locator, & marker.numbering)?;
 
         // Note that this line.y is larger than the previous due to sorting.
         // Therefore, the check at the top of the loop ensures no line numbers
@@ -1187,26 +888,23 @@ fn layout_line_numbers(
     {
         // The last column will always place line numbers at the end
         // margin. This should become configurable in the future.
-        let margin = {
+        let margin =
+        {
             let opposite =
-                config.columns.count >= 2 && column + 1 == config.columns.count;
+            config.columns.count >= 2 && column + 1 == config.columns.count;
             if opposite { OuterHAlignment::End } else { marker.number_margin }
-                .resolve(config.shared)
+            .resolve(config.shared)
         };
 
         // Determine how much space to leave between the column and the number.
-        let clearance = match marker.number_clearance
-        {
-            Smart::Auto => line_config.default_clearance,
-            Smart::Custom(rel) => rel.resolve(config.shared),
-        };
+        let clearance = match marker.number_clearance { Smart::Auto => line_config.default_clearance, Smart::Custom(rel) => rel.resolve(config.shared), };
 
         // Compute the base X position.
         let x = match margin
         {
             // Move the number to the left of the left edge (at 0pt) by the maximum
             // width and the clearance.
-            FixedAlignment::Start => -max_number_width - clearance,
+            FixedAlignment::Start => - max_number_width - clearance,
             // Move the number to the right edge and add clearance.
             FixedAlignment::End => output.width() + clearance,
             // Can't happen due to `OuterHAlignment`.
@@ -1214,16 +912,17 @@ fn layout_line_numbers(
         };
 
         // Determine how much to shift the number due to its alignment.
-        let shift = {
+        let shift =
+        {
             let align = marker
-                .number_align
-                .map(|align| align.resolve(config.shared))
-                .unwrap_or_else(|| margin.inv());
+            .number_align
+            .map( | align | align.resolve(config.shared))
+            .unwrap_or_else( || margin.inv());
             align.position(max_number_width - frame.width())
         };
 
         // Compute the final position of the number and add it to the output.
-        let pos = Point::new(x + shift, y);
+        let pos = Point:: new (x + shift, y);
         output.push_frame(pos, frame);
     }
 
@@ -1231,22 +930,12 @@ fn layout_line_numbers(
 }
 
 /// Creates a frame that resets the line number counter.
-fn layout_line_number_reset(
-    engine: &mut Engine,
-    config: &Config,
-    locator: &mut SplitLocator,
-) -> SourceResult<Frame>
+fn layout_line_number_reset(engine: & mut Engine, config: & Config, locator: & mut SplitLocator,)->SourceResult<Frame>
 {
     let counter = Counter::of(ParLineMarker::ELEM);
-    let update = CounterUpdate::Set(CounterState::init(false));
+    let update = CounterUpdate::Set(CounterState::init (false));
     let content = counter.update(Span::detached(), update);
-    crate::layout_frame(
-        engine,
-        &content,
-        locator.next(&()),
-        config.shared,
-        Region::new(Axes::splat(Abs::zero()), Axes::splat(false)),
-    )
+    crate::layout_frame(engine, & content, locator.next( & ()), config.shared, Region::new (Axes::splat(Abs::zero()), Axes::splat(false)),)
 }
 
 /// Layout the line number associated with the given line marker.
@@ -1259,35 +948,21 @@ fn layout_line_number_reset(
 /// layer). When we find a solution to this, we should switch to a counter on
 /// `ParLine` instead, thus exposing the counter as `counter(par.line)` to the
 /// user.
-fn layout_line_number(
-    engine: &mut Engine,
-    config: &Config,
-    locator: &mut SplitLocator,
-    numbering: &Numbering,
-) -> SourceResult<Frame>
+fn layout_line_number(engine: & mut Engine, config: & Config, locator: & mut SplitLocator, numbering: & Numbering,)->SourceResult<Frame>
 {
     let counter = Counter::of(ParLineMarker::ELEM);
     let update = CounterUpdate::Step(NonZeroUsize::ONE);
     let numbering = Smart::Custom(numbering.clone());
 
     // Combine counter update and display into the content we'll layout.
-    let content = Content::sequence(vec![
-        counter.clone().update(Span::detached(), update),
-        CounterDisplayElem::new(counter, numbering, false).pack(),
-    ]);
+    let content = Content::sequence(vec ! [counter.clone().update(Span::detached(), update), CounterDisplayElem::new (counter, numbering, false).pack(),]);
     let content = content.artifact(ArtifactKind::LineNumber);
 
     // Layout the number.
-    let mut frame = crate::layout_frame(
-        engine,
-        &content,
-        locator.next(&()),
-        config.shared,
-        Region::new(Axes::splat(Abs::inf()), Axes::splat(false)),
-    )?;
+    let mut frame = crate::layout_frame(engine, & content, locator.next( & ()), config.shared, Region::new (Axes::splat(Abs::inf()), Axes::splat(false)),)?;
 
     // Ensure the baseline of the line number aligns with the line's baseline.
-    frame.translate(Point::with_y(-frame.baseline()));
+    frame.translate(Point::with_y( - frame.baseline()));
 
     Ok(frame)
 }
@@ -1298,45 +973,31 @@ fn layout_line_number(
 /// until we reach a tag, at which point we add the tag's position and finish.
 /// That gives us the absolute height of the tag from the start of the root
 /// frame.
-fn find_in_frame<T: NativeElement>(frame: &Frame) -> Vec<(Abs, Packed<T>)>
+fn find_in_frame<T: NativeElement>(frame: & Frame)->Vec<(Abs, Packed<T>)>
 {
     let mut output = vec![];
-    find_in_frame_impl(&mut output, frame, Abs::zero());
+    find_in_frame_impl( & mut output, frame, Abs::zero());
     output
 }
 
 /// Collect all matching elements and their vertical positions in the frames.
-fn find_in_frames<T: NativeElement>(frames: &[Frame]) -> Vec<(Abs, Packed<T>)>
+fn find_in_frames<T: NativeElement>(frames: & [Frame])->Vec<(Abs, Packed<T>)>
 {
     let mut output = vec![];
-    for frame in frames
-    {
-        find_in_frame_impl(&mut output, frame, Abs::zero());
-    }
+    for frame in frames { find_in_frame_impl( & mut output, frame, Abs::zero()); }
     output
 }
 
-fn find_in_frame_impl<T: NativeElement>(
-    output: &mut Vec<(Abs, Packed<T>)>,
-    frame: &Frame,
-    y_offset: Abs,
-)
+fn find_in_frame_impl<T: NativeElement>(output: & mut Vec<(Abs, Packed<T>)>, frame: & Frame, y_offset: Abs,)
 {
     for (pos, item) in frame.items()
     {
         let y = y_offset + pos.y;
         match item
         {
-            FrameItem::Group(group) => find_in_frame_impl(output, &group.frame, y),
-            FrameItem::Tag(Tag::Start(elem, _)) =>
-            {
-                if let Some(elem) = elem.to_packed::<T>()
-                {
-                    output.push((y, elem.clone()));
-                }
-            }
-            _ =>
-            {}
+            FrameItem::Group(group) => find_in_frame_impl(output, & group.frame, y),
+            FrameItem::Tag(Tag::Start(elem, _)) => { if let Some(elem) = elem.to_packed::<T>() { output.push((y, elem.clone())); } }
+            _ => {}
         }
     }
 }

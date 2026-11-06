@@ -1,6 +1,6 @@
 use typst_utils::singleton;
 
-use crate::foundations::{Content, NativeElement, elem};
+use crate::foundations:: { Content, NativeElement, elem };
 
 /// Inserts a line break.
 ///
@@ -35,15 +35,12 @@ pub struct LinebreakElem
     /// line breaks in this paragraph #jb
     /// for an _interesting_ result. #jb
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub justify: bool,
 }
 
 impl LinebreakElem
 {
     /// Get the globally shared linebreak element.
-    pub fn shared() -> &'static Content
-    {
-        singleton!(Content, LinebreakElem::new().pack())
-    }
+    pub fn shared()-> & 'static Content { singleton ! (Content, LinebreakElem::new ().pack()) }
 }

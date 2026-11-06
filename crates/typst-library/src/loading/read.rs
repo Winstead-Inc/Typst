@@ -1,9 +1,9 @@
 use typst_syntax::Spanned;
 
-use crate::diag::{LoadedWithin, SourceResult};
+use crate::diag:: { LoadedWithin, SourceResult };
 use crate::engine::Engine;
-use crate::foundations::{Cast, PathOrStr, func};
-use crate::loading::{DataSource, Load, Readable};
+use crate::foundations:: { Cast, PathOrStr, func };
+use crate::loading:: { DataSource, Load, Readable };
 
 /// Reads plain text or data from a file.
 ///
@@ -21,24 +21,25 @@ use crate::loading::{DataSource, Load, Readable};
 /// #read("tiger.jpg", encoding: none)
 /// ```
 #[func(since = "forever")]
-pub fn read(
-    engine: &mut Engine,
+pub fn read
+(
+    engine: & mut Engine,
     /// Path to a file.
     path: Spanned<PathOrStr>,
     /// The encoding to read the file with.
     ///
     /// If set to `{none}`, this function returns raw bytes.
-    #[named]
-    #[default(Some(Encoding::Utf8))]
+    # [named]
+    # [default (Some(Encoding::Utf8))]
     encoding: Option<Encoding>,
-) -> SourceResult<Readable>
+)
+->SourceResult<Readable>
 {
     let loaded = path.map(DataSource::Path).load(engine.world)?;
-    Ok(match encoding
-    {
-        None => Readable::Bytes(loaded.data),
-        Some(Encoding::Utf8) => Readable::Str(loaded.data.to_str().within(&loaded)?),
-    })
+    Ok
+    (
+        match encoding { None => Readable::Bytes(loaded.data), Some(Encoding::Utf8) => Readable::Str(loaded.data.to_str().within( & loaded)?), }
+    )
 }
 
 /// An encoding of a file.

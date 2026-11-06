@@ -1,44 +1,43 @@
 use std::fmt::Write;
 
 use comemo::Track;
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use typst::World;
-use typst::diag::{HintedStrResult, SourceDiagnostic, StrResult, Warned, bail, warning};
+use typst::diag:: { HintedStrResult, SourceDiagnostic, StrResult, Warned, bail, warning };
 use typst::engine::Sink;
-use typst::foundations::{
-    Content, Context, IntoValue, LocatableSelector, Output, Repr, Scope,
-};
-use typst::introspection::{EmptyIntrospector, Introspector};
+use typst::foundations:: { Content, Context, IntoValue, LocatableSelector, Output, Repr, Scope, };
+use typst::introspection:: { EmptyIntrospector, Introspector };
 use typst::routines::SpanMode;
-use typst::syntax::{Span, SyntaxMode};
+use typst::syntax:: { Span, SyntaxMode };
 use typst_bundle::Bundle;
 use typst_eval::eval_string;
 use typst_html::HtmlDocument;
 use typst_layout::PagedDocument;
 
-use crate::args::{Input, QueryCommand, Target};
+use crate::args:: { Input, QueryCommand, Target };
 use crate::compile::print_diagnostics;
 use crate::set_failed;
 use crate::world::SystemWorld;
 
 /// Execute a query command.
-pub fn query(command: &'static QueryCommand) -> HintedStrResult<()>
+pub fn query(command: & 'static QueryCommand)->HintedStrResult<()>
 {
     let mut world =
-        SystemWorld::new(Some(&command.input), &command.world, &command.process)?;
+    SystemWorld:: new (Some( & command.input), & command.world, & command.process)?;
 
     // Reset everything and ensure that the main file is present.
     world.reset();
-    world.source(world.main()).map_err(|err| err.to_string())?;
+    world.source(world.main()).map_err( | err | err.to_string())?;
 
-    let Warned { output, mut warnings } = match command.target
+    let Warned { output, mut warnings }
+    = match command.target
     {
-        Target::Paged => typst::compile::<PagedDocument>(&world)
-            .map(|output| Box::new(output) as Box<dyn Output>),
-        Target::Html => typst::compile::<HtmlDocument>(&world)
-            .map(|output| Box::new(output) as Box<dyn Output>),
-        Target::Bundle => typst::compile::<Bundle>(&world)
-            .map(|output| Box::new(output) as Box<dyn Output>),
+        Target::Paged => typst::compile::<PagedDocument>( & world)
+        .map( | output | Box::new (output) as Box<dyn Output>),
+        Target::Html => typst::compile::<HtmlDocument>( & world)
+        .map( | output | Box::new (output) as Box<dyn Output>),
+        Target::Bundle => typst::compile::<Bundle>( & world)
+        .map( | output | Box::new (output) as Box<dyn Output>),
     };
 
     // Add deprecation warning.
@@ -49,24 +48,19 @@ pub fn query(command: &'static QueryCommand) -> HintedStrResult<()>
         // Retrieve and print query results.
         Ok(output) =>
         {
-            let data = retrieve(&world, command, output.introspector())?;
+            let data = retrieve( & world, command, output.introspector())?;
             let serialized = format(data, command)?;
             println!("{serialized}");
-            print_diagnostics(&world, &[], &warnings, command.process.diagnostic_format)
-                .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
+            print_diagnostics( & world, & [], & warnings, command.process.diagnostic_format)
+            .map_err( | err | eco_format ! ("failed to print diagnostics ({err})"))?;
         }
 
         // Print diagnostics.
         Err(errors) =>
         {
             set_failed();
-            print_diagnostics(
-                &world,
-                &errors,
-                &warnings,
-                command.process.diagnostic_format,
-            )
-            .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
+            print_diagnostics( & world, & errors, & warnings, command.process.diagnostic_format,)
+            .map_err( | err | eco_format ! ("failed to print diagnostics ({err})"))?;
         }
     }
 
@@ -74,111 +68,76 @@ pub fn query(command: &'static QueryCommand) -> HintedStrResult<()>
 }
 
 /// Retrieve the matches for the selector.
-fn retrieve(
-    world: &dyn World,
-    command: &QueryCommand,
-    introspector: &dyn Introspector,
-) -> HintedStrResult<Vec<Content>>
+fn retrieve(world: & dyn World, command: & QueryCommand, introspector: & dyn Introspector,)->HintedStrResult<Vec<Content>>
 {
-    let selector = eval_string(
+    let selector = eval_string
+    (
         world.track(),
         world.library(),
         // TODO: propagate warnings
-        Sink::new().track_mut(),
+        Sink:: new ().track_mut(),
         EmptyIntrospector.track(),
         Context::none().track(),
-        &command.selector,
+        & command.selector,
         SpanMode::Uniform(Span::detached()),
         SyntaxMode::Code,
-        Scope::default(),
+        Scope:: default(),
     )
-    .map_err(|errors| {
-        let mut message = EcoString::from("failed to evaluate selector");
-        for (i, error) in errors.into_iter().enumerate()
+    .map_err
+    (
+        | errors |
         {
-            message.push_str(if i == 0 { ": " } else { ", " });
-            message.push_str(&error.message);
+            let mut message = EcoString::from("failed to evaluate selector");
+            for (i, error) in errors.into_iter().enumerate()
+            {
+                message.push_str(if i == 0 { ": " } else { ", " });
+                message.push_str( & error.message);
+            }
+            message
         }
-        message
-    })?
+    )
+    ?
     .cast::<LocatableSelector>()?;
 
-    Ok(introspector.query(&selector.0).into_iter().collect::<Vec<_>>())
+    Ok(introspector.query( & selector .0).into_iter().collect::<Vec<_>>())
 }
 
 /// Format the query result in the output format.
-fn format(elements: Vec<Content>, command: &QueryCommand) -> StrResult<String>
+fn format(elements: Vec<Content>, command: & QueryCommand)->StrResult<String>
 {
-    if command.one && elements.len() != 1
-    {
-        bail!("expected exactly one element, found {}", elements.len());
-    }
+    if command.one && elements.len() != 1 { bail ! ("expected exactly one element, found {}", elements.len()); }
 
-    let mapped: Vec<_> = elements
-        .into_iter()
-        .filter_map(|c| match &command.field
-        {
-            Some(field) => c.get_by_name(field).ok(),
-            _ => Some(c.into_value()),
-        })
-        .collect();
+    let mapped: Vec < _ > = elements
+    .into_iter()
+    .filter_map( | c | match & command.field { Some(field) => c.get_by_name(field).ok(), _ => Some(c.into_value()), })
+    .collect();
 
     if command.one
     {
         let Some(value) = mapped.first()
-        else
-        {
-            bail!("no such field found for element");
-        };
+        else { bail ! ("no such field found for element"); };
         crate::serialize(value, command.format, command.pretty)
     }
-    else
-    {
-        crate::serialize(&mapped, command.format, command.pretty)
-    }
+    else { crate::serialize( & mapped, command.format, command.pretty) }
 }
 
 /// Format the deprecation warning with the specific invocation of `typst eval` needed to replace `typst query`.
-fn deprecation_warning(command: &QueryCommand) -> SourceDiagnostic
+fn deprecation_warning(command: & QueryCommand)->SourceDiagnostic
 {
-    let query = {
+    let query =
+    {
         let mut buf = format!("query({})", command.selector);
-        let access = |field: &str| {
-            if typst::syntax::is_ident(field)
-            {
-                eco_format!(".{field}")
-            }
-            else
-            {
-                eco_format!(".at({})", field.repr())
-            }
-        };
-        match (command.one, &command.field)
+        let access = | field: & str | { if typst::syntax::is_ident(field) { eco_format ! (".{field}") } else { eco_format ! (".at({})", field.repr()) } };
+        match (command.one, & command.field)
         {
-            (false, None) =>
-            {}
-            (false, Some(field)) =>
-            {
-                write!(buf, ".map(it => it{})", access(field)).unwrap();
-            }
-            (true, None) => write!(buf, ".first()").unwrap(),
-            (true, Some(field)) => write!(buf, ".first(){}", access(field)).unwrap(),
+            (false, None) => {}
+            (false, Some(field)) => { write ! (buf, ".map(it => it{})", access(field)).unwrap(); }
+            (true, None) => write!(buf, ".first()").unwrap(),(true, Some(field)) => write!(buf, ".first(){}", access(field)).unwrap(),
         }
         shell_escape::escape(buf.into())
     };
 
-    let eval_command = match &command.input
-    {
-        Input::Path(path) =>
-        {
-            eco_format!("typst eval {query} --in {}", path.display())
-        }
-        Input::Stdin => eco_format!("typst eval {query}"),
-    };
+    let eval_command = match & command.input { Input::Path(path) => { eco_format ! ("typst eval {query} --in {}", path.display()) } Input::Stdin => eco_format ! ("typst eval {query}"), };
 
-    warning!(
-        Span::detached(),
-        "the `typst query` subcommand is deprecated";
-        hint: "use `{eval_command}` instead";
-    )
+    warning!(Span::detached(),"the `typst query` subcommand is deprecated"; hint: "use `{eval_command}` instead";)
 }

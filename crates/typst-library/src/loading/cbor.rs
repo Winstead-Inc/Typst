@@ -2,10 +2,10 @@ use ciborium::de::Error;
 use ecow::eco_format;
 use typst_syntax::Spanned;
 
-use crate::diag::{At, LoadError, LoadedWithin, SourceResult};
+use crate::diag:: { At, LoadError, LoadedWithin, SourceResult };
 use crate::engine::Engine;
-use crate::foundations::{Bytes, Value, func, scope};
-use crate::loading::{DataSource, Load};
+use crate::foundations:: { Bytes, Value, func, scope };
+use crate::loading:: { DataSource, Load };
 
 /// Reads structured data from a CBOR file.
 ///
@@ -71,32 +71,38 @@ use crate::loading::{DataSource, Load};
 /// - The `repr` function is @repr:debugging-only[for debugging purposes only],
 ///   and its output is not guaranteed to be stable across Typst versions.
 #[func(scope, title = "CBOR", since = "0.8.0")]
-pub fn cbor(
-    engine: &mut Engine,
+pub fn cbor
+(
+    engine: & mut Engine,
     /// A path to a CBOR file or raw CBOR bytes.
     source: Spanned<DataSource>,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
     let loaded = source.load(engine.world)?;
     ciborium::from_reader(loaded.data.as_slice())
-        .map_err(format_cbor_error)
-        .within(&loaded)
+    .map_err(format_cbor_error)
+    .within( & loaded)
 }
 
 /// Format a user-facing error encountered while parsing a CBOR file
 /// ([`ciborium::de::Error`]'s [`Display`](std::fmt::Display) implementation
 /// just forwards to [`Debug`]).
-fn format_cbor_error(error: Error<std::io::Error>) -> LoadError
+fn format_cbor_error(error: Error<std::io::Error>)->LoadError
 {
-    LoadError::binary(
+    LoadError::binary
+    (
         "failed to parse CBOR",
-        typst_utils::display(|f| match &error
-        {
-            Error::Io(e) => write!(f, "IO error: {e}"),
-            Error::Syntax(_) => f.write_str("syntax error"),
-            Error::Semantic(_, s) => f.write_str(s),
-            Error::RecursionLimitExceeded => f.write_str("recursion limit exceeded"),
-        }),
+        typst_utils::display
+        (
+            | f | match & error
+            {
+                Error::Io(e) => write!(f, "IO error: {e}"),
+                Error::Syntax(_) => f.write_str("syntax error"),
+                Error::Semantic(_, s) => f.write_str(s),
+                Error::RecursionLimitExceeded => f.write_str("recursion limit exceeded"),
+            }
+        ),
     )
 }
 
@@ -104,17 +110,20 @@ fn format_cbor_error(error: Error<std::io::Error>) -> LoadError
 impl cbor
 {
     /// Encode structured data into CBOR bytes.
-    #[func(title = "Encode CBOR", since = "0.8.0")]
-    pub fn encode(
+    # [func(title = "Encode CBOR", since = "0.8.0")]
+    pub fn encode
+    (
         /// Value to be encoded.
         value: Spanned<Value>,
-    ) -> SourceResult<Bytes>
+    )
+   ->SourceResult<Bytes>
     {
-        let Spanned { v: value, span } = value;
-        let mut res = Vec::new();
-        ciborium::into_writer(&value, &mut res)
-            .map(|()| Bytes::new(res))
-            .map_err(|err| eco_format!("failed to encode value as CBOR ({err})"))
-            .at(span)
+        let Spanned { v: value, span }
+        = value;
+        let mut res = Vec:: new ();
+        ciborium::into_writer( & value, & mut res)
+        .map( | () | Bytes::new (res))
+        .map_err( | err | eco_format ! ("failed to encode value as CBOR ({err})"))
+        .at(span)
     }
 }

@@ -1,40 +1,31 @@
-use std::fmt::{self, Debug};
-use std::hash::{Hash, Hasher};
-use std::ops::{Deref, DerefMut};
+use std::fmt:: { self, Debug };
+use std::hash:: { Hash, Hasher };
+use std::ops:: { Deref, DerefMut };
 use std::sync::atomic::Ordering;
 
 use portable_atomic::AtomicU128;
-use siphasher::sip128::{Hasher128, SipHasher13};
+use siphasher::sip128:: { Hasher128, SipHasher13 };
 
 /// Calculate a 128-bit siphash of a value.
 ///
 /// To make the hash stable between 64-bit and 32-bit architectures, usize is
 /// hashed as u64.
-pub fn hash128<T: Hash + ?Sized>(value: &T) -> u128
+pub fn hash128<T: Hash + ? Sized>(value: & T)->u128
 {
     struct StableHasher(SipHasher13);
 
     impl Hasher for StableHasher
     {
-        fn finish(&self) -> u64
-        {
-            self.0.finish()
-        }
+        fn finish( & self)->u64 { self .0.finish() }
 
-        fn write(&mut self, bytes: &[u8])
-        {
-            self.0.write(bytes);
-        }
+        fn write( & mut self, bytes: & [u8]) { self .0.write(bytes); }
 
-        fn write_usize(&mut self, i: usize)
-        {
-            self.0.write_u64(i as u64);
-        }
+        fn write_usize( & mut self, i: usize) { self .0.write_u64(i as u64); }
     }
 
-    let mut state = StableHasher(SipHasher13::new());
-    value.hash(&mut state);
-    state.0.finish128().as_u128()
+    let mut state = StableHasher(SipHasher13::new ());
+    value.hash( & mut state);
+    state .0.finish128().as_u128()
 }
 
 /// A wrapper type with lazily-computed hash.
@@ -74,7 +65,7 @@ pub fn hash128<T: Hash + ?Sized>(value: &T) -> u128
 /// the original type is active. Typical usages of unsized coercions have a very
 /// minimal lifetime of the original type only upon construction.
 #[derive(Clone)]
-pub struct LazyHash<T: ?Sized>
+pub struct LazyHash<T: ? Sized>
 {
     /// The hash for the value.
     hash: HashLock,
@@ -82,99 +73,39 @@ pub struct LazyHash<T: ?Sized>
     value: T,
 }
 
-impl<T: Default> Default for LazyHash<T>
-{
-    #[inline]
-    fn default() -> Self
-    {
-        Self::new(Default::default())
-    }
-}
+impl <T: Default> Default for LazyHash<T> { # [inline] fn default ()->Self { Self::new (Default::default ()) } }
 
-impl<T> LazyHash<T>
+impl <T> LazyHash<T>
 {
     /// Wraps an item without pre-computed hash.
-    #[inline]
-    pub fn new(value: T) -> Self
-    {
-        Self { hash: HashLock::new(), value }
-    }
+    # [inline]
+    pub fn new (value: T)->Self { Self { hash: HashLock::new (), value } }
 
     /// Returns the wrapped value.
-    #[inline]
-    pub fn into_inner(self) -> T
-    {
-        self.value
-    }
+    # [inline]
+    pub fn into_inner(self)->T { self.value }
 }
 
-impl<T: Hash + ?Sized + 'static> LazyHash<T>
+impl <T: Hash + ? Sized + 'static> LazyHash<T>
 {
     /// Get the hash or compute it if not set yet.
-    #[inline]
-    fn load_or_compute_hash(&self) -> u128
-    {
-        self.hash.get_or_insert_with(|| hash128(&self.value))
-    }
+    # [inline]
+    fn load_or_compute_hash( & self)->u128 { self.hash.get_or_insert_with( || hash128( & self.value)) }
 }
 
-impl<T: Hash + ?Sized + 'static> Hash for LazyHash<T>
-{
-    #[inline]
-    fn hash<H: Hasher>(&self, state: &mut H)
-    {
-        state.write_u128(self.load_or_compute_hash());
-    }
-}
+impl <T: Hash + ? Sized + 'static> Hash for LazyHash<T> { # [inline] fn hash<H: Hasher>( & self, state: & mut H) { state.write_u128(self.load_or_compute_hash()); } }
 
-impl<T> From<T> for LazyHash<T>
-{
-    #[inline]
-    fn from(value: T) -> Self
-    {
-        Self::new(value)
-    }
-}
+impl <T> From<T> for LazyHash<T> { # [inline] fn from(value: T)->Self { Self::new (value) } }
 
-impl<T: Hash + ?Sized + 'static> Eq for LazyHash<T> {}
+impl <T: Hash + ? Sized + 'static> Eq for LazyHash<T> {}
 
-impl<T: Hash + ?Sized + 'static> PartialEq for LazyHash<T>
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.load_or_compute_hash() == other.load_or_compute_hash()
-    }
-}
+impl <T: Hash + ? Sized + 'static> PartialEq for LazyHash<T> { # [inline] fn eq( & self, other: & Self)->bool { self.load_or_compute_hash() == other.load_or_compute_hash() } }
 
-impl<T: ?Sized> Deref for LazyHash<T>
-{
-    type Target = T;
+impl <T: ? Sized> Deref for LazyHash<T> { type Target = T; # [inline] fn deref( & self)-> & Self::Target { & self.value } }
 
-    #[inline]
-    fn deref(&self) -> &Self::Target
-    {
-        &self.value
-    }
-}
+impl <T: ? Sized + 'static> DerefMut for LazyHash<T> { # [inline] fn deref_mut( & mut self)-> & mut Self::Target { self.hash.reset(); & mut self.value } }
 
-impl<T: ?Sized + 'static> DerefMut for LazyHash<T>
-{
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        self.hash.reset();
-        &mut self.value
-    }
-}
-
-impl<T: Debug> Debug for LazyHash<T>
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
-    {
-        self.value.fmt(f)
-    }
-}
+impl <T: Debug> Debug for LazyHash<T> { fn fmt( & self, f: & mut fmt::Formatter)->fmt::Result { self.value.fmt(f) } }
 
 /// A wrapper type with a manually computed hash.
 ///
@@ -193,7 +124,7 @@ impl<T: Debug> Debug for LazyHash<T>
 /// **must feed all information relevant to the `PartialEq` impl to the
 /// hasher.**
 #[derive(Clone)]
-pub struct ManuallyHash<T: ?Sized>
+pub struct ManuallyHash<T: ? Sized>
 {
     /// A manually computed hash.
     hash: u128,
@@ -201,63 +132,28 @@ pub struct ManuallyHash<T: ?Sized>
     value: T,
 }
 
-impl<T> ManuallyHash<T>
+impl <T> ManuallyHash<T>
 {
     /// Wraps an item with a pre-computed hash.
     ///
     /// The hash should be computed with `typst_utils::hash128`.
-    #[inline]
-    pub fn new(value: T, hash: u128) -> Self
-    {
-        Self { hash, value }
-    }
+    # [inline]
+    pub fn new (value: T, hash: u128)->Self { Self { hash, value } }
 
     /// Returns the wrapped value.
-    #[inline]
-    pub fn into_inner(self) -> T
-    {
-        self.value
-    }
+    # [inline]
+    pub fn into_inner(self)->T { self.value }
 }
 
-impl<T: ?Sized> Hash for ManuallyHash<T>
-{
-    #[inline]
-    fn hash<H: Hasher>(&self, state: &mut H)
-    {
-        state.write_u128(self.hash);
-    }
-}
+impl <T: ? Sized> Hash for ManuallyHash<T> { # [inline] fn hash<H: Hasher>( & self, state: & mut H) { state.write_u128(self.hash); } }
 
-impl<T: ?Sized> Eq for ManuallyHash<T> {}
+impl <T: ? Sized> Eq for ManuallyHash<T> {}
 
-impl<T: ?Sized> PartialEq for ManuallyHash<T>
-{
-    #[inline]
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.hash == other.hash
-    }
-}
+impl <T: ? Sized> PartialEq for ManuallyHash<T> { # [inline] fn eq( & self, other: & Self)->bool { self.hash == other.hash } }
 
-impl<T: ?Sized> Deref for ManuallyHash<T>
-{
-    type Target = T;
+impl <T: ? Sized> Deref for ManuallyHash<T> { type Target = T; # [inline] fn deref( & self)-> & Self::Target { & self.value } }
 
-    #[inline]
-    fn deref(&self) -> &Self::Target
-    {
-        &self.value
-    }
-}
-
-impl<T: Debug> Debug for ManuallyHash<T>
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
-    {
-        self.value.fmt(f)
-    }
-}
+impl <T: Debug> Debug for ManuallyHash<T> { fn fmt( & self, f: & mut fmt::Formatter)->fmt::Result { self.value.fmt(f) } }
 
 /// Storage for lazy hash computation.
 pub struct HashLock(AtomicU128);
@@ -265,54 +161,35 @@ pub struct HashLock(AtomicU128);
 impl HashLock
 {
     /// Create a new unset hash cell.
-    pub const fn new() -> Self
-    {
-        Self(AtomicU128::new(0))
-    }
+    pub const fn new ()->Self { Self(AtomicU128::new (0)) }
 
     /// Get the hash or compute it if not set yet.
-    #[inline]
-    pub fn get_or_insert_with(&self, f: impl FnOnce() -> u128) -> u128
+    # [inline]
+    pub fn get_or_insert_with( & self, f: impl FnOnce()->u128)->u128
     {
-        let mut hash = self.get();
-        if hash == 0
-        {
-            hash = f();
-            self.0.store(hash, Ordering::Relaxed);
-        }
+        let mut hash = self. get();
+        if hash == 0 { hash = f(); self .0.store(hash, Ordering::Relaxed); }
         hash
     }
 
     /// Reset the hash to unset.
-    #[inline]
-    pub fn reset(&mut self)
+    # [inline]
+    pub fn reset( & mut self)
     {
         // Because we have a mutable reference, we can skip the atomic.
-        *self.0.get_mut() = 0;
+        * self .0.get_mut() = 0;
     }
 
     /// Get the hash, returns zero if not computed yet.
-    #[inline]
-    fn get(&self) -> u128
+    # [inline]
+    fn get( & self)->u128
     {
         // We only need atomicity and no synchronization of other operations, so
         // `Relaxed` is fine.
-        self.0.load(Ordering::Relaxed)
+        self .0.load(Ordering::Relaxed)
     }
 }
 
-impl Default for HashLock
-{
-    fn default() -> Self
-    {
-        Self::new()
-    }
-}
+impl Default for HashLock { fn default ()->Self { Self::new () } }
 
-impl Clone for HashLock
-{
-    fn clone(&self) -> Self
-    {
-        Self(AtomicU128::new(self.get()))
-    }
-}
+impl Clone for HashLock { fn clone( & self)->Self { Self(AtomicU128::new (self.get ())) } }

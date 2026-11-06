@@ -2,12 +2,10 @@ use typst_syntax::Spanned;
 
 use crate::diag::SourceResult;
 use crate::engine::Engine;
-use crate::foundations::{
-    Cast, Content, Derived, Label, Packed, Smart, StyleChain, Synthesize, cast, elem,
-};
+use crate::foundations:: { Cast, Content, Derived, Label, Packed, Smart, StyleChain, Synthesize, cast, elem, };
 use crate::model::bibliography::Works;
-use crate::model::{CslSource, CslStyle};
-use crate::text::{Lang, Region, TextElem};
+use crate::model:: { CslSource, CslStyle };
+use crate::text:: { Lang, Region, TextElem };
 
 /// Cite a work from the bibliography.
 ///
@@ -54,7 +52,7 @@ pub struct CiteElem
     /// >>> #set text(0pt)
     /// >>> #bibliography("works.bib", style: "apa")
     /// ```
-    #[required]
+    # [required]
     pub key: Label,
 
     /// A supplement for the citation such as page or chapter number.
@@ -83,7 +81,7 @@ pub struct CiteElem
     /// >>> #set text(0pt)
     /// >>> #bibliography("works.bib", style: "apa")
     /// ```
-    #[default(Some(CitationForm::Normal))]
+    # [default (Some(CitationForm::Normal))]
     pub form: Option<CitationForm>,
 
     /// The citation style.
@@ -97,48 +95,50 @@ pub struct CiteElem
     /// - A path string or @path to a
     ///   #link("https://citationstyles.org/")[CSL file].
     /// - Raw bytes from which a CSL style should be decoded.
-    #[parse(match args.named::<Spanned<Smart<CslSource>>>("style")? {
-        Some(Spanned { v: Smart::Custom(source), span }) => Some(Smart::Custom(
-            CslStyle::load(engine, Spanned::new(source, span))?
-        )),
-        Some(Spanned { v: Smart::Auto, .. }) => Some(Smart::Auto),
-        None => None,
-    })]
+    #
+    [
+        parse
+        (
+            match args.named:: < Spanned < Smart < CslSource >>> ("style")?
+            {
+                Some(Spanned { v: Smart::Custom(source), span }) => Some(Smart::Custom(CslStyle::load(engine, Spanned::new (source, span))?)),
+                Some(Spanned { v: Smart::Auto,.. }) => Some(Smart::Auto),
+                None => None,
+            }
+        )
+    ]
     pub style: Smart<Derived<CslSource, CslStyle>>,
 
     /// The text language setting where the citation is.
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub lang: Lang,
 
     /// The text region setting where the citation is.
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub region: Option<Region>,
 }
 
 impl Synthesize for Packed<CiteElem>
 {
-    fn synthesize(&mut self, _: &mut Engine, styles: StyleChain) -> SourceResult<()>
+    fn synthesize( & mut self, _: & mut Engine, styles: StyleChain)->SourceResult<()>
     {
         let elem = self.as_mut();
-        elem.lang = Some(styles.get(TextElem::lang));
-        elem.region = Some(styles.get(TextElem::region));
+        elem.lang = Some(styles.get (TextElem::lang));
+        elem.region = Some(styles.get (TextElem::region));
         Ok(())
     }
 }
 
-cast! {
-    CiteElem,
-    v: Content => v.unpack::<Self>().map_err(|_| "expected citation")?,
-}
+cast! { CiteElem, v: Content => v.unpack::<Self>().map_err( | _ | "expected citation")?, }
 
 /// The form of the citation.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, Cast)]
 pub enum CitationForm
 {
     /// Display in the standard way for the active style.
-    #[default]
+    # [default]
     Normal,
     /// Produces a citation that is suitable for inclusion in a sentence.
     Prose,
@@ -176,13 +176,13 @@ pub struct CiteGroup
     /// Holds citations and potentially spaces in between them. The spaces are
     /// retained so that they can be correctly rendered between subgroups
     /// assigned to different bibliographies.
-    #[required]
+    # [required]
     pub children: Vec<Content>,
 }
 
 impl Packed<CiteGroup>
 {
-    pub fn realize(&self, engine: &mut Engine) -> SourceResult<Content>
+    pub fn realize( & self, engine: & mut Engine)->SourceResult<Content>
     {
         let loc = self.location().unwrap();
         let span = self.span();

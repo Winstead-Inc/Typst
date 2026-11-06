@@ -4,20 +4,17 @@ use std::cmp;
 use std::cmp::Ordering;
 
 use az::SaturatingAs;
-use typst_syntax::{Span, Spanned};
-use typst_utils::{Scalar, round_int_with_precision, round_with_precision};
+use typst_syntax:: { Span, Spanned };
+use typst_utils:: { Scalar, round_int_with_precision, round_with_precision };
 
-use crate::diag::{At, HintedString, SourceResult, StrResult, bail};
-use crate::foundations::{
-    BindingDocumentation, Decimal, IntoValue, Module, Scope, Since, Value, cast, func,
-    ops,
-};
-use crate::layout::{Angle, Fr, Length, Ratio};
+use crate::diag:: { At, HintedString, SourceResult, StrResult, bail };
+use crate::foundations:: { BindingDocumentation, Decimal, IntoValue, Module, Scope, Since, Value, cast, func, ops, };
+use crate::layout:: { Angle, Fr, Length, Ratio };
 
 /// A module with calculation definitions.
-pub fn module() -> Module
+pub fn module()->Module
 {
-    let mut scope = Scope::new();
+    let mut scope = Scope:: new ();
     scope.define_func::<abs>();
     scope.define_func::<pow>();
     scope.define_func::<exp>();
@@ -60,8 +57,11 @@ pub fn module() -> Module
     scope.define_func::<quo>();
     scope.define_func::<norm>();
     scope
-        .define("inf", f64::INFINITY)
-        .with_documentation(BindingDocumentation {
+    .define("inf", f64::INFINITY)
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "inf",
             title: "Infinity",
             docs: "
@@ -71,12 +71,16 @@ pub fn module() -> Module
             documentation for more details.
             ",
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
+        }
+    );
     scope
-        .define("pi", std::f64::consts::PI)
-        .with_documentation(BindingDocumentation {
+    .define("pi", std::f64::consts::PI)
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "pi",
             title: "Pi",
             docs: "
@@ -89,12 +93,16 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Forever),
-            keywords: &["Archimedes"],
+            keywords: & ["Archimedes"],
             def_site: None,
-        });
+        }
+    );
     scope
-        .define("tau", std::f64::consts::TAU)
-        .with_documentation(BindingDocumentation {
+    .define("tau", std::f64::consts::TAU)
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "tau",
             title: "Tau",
             docs: r"
@@ -108,12 +116,16 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Version([0, 8, 0])),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
+        }
+    );
     scope
-        .define("e", std::f64::consts::E)
-        .with_documentation(BindingDocumentation {
+    .define("e", std::f64::consts::E)
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "e",
             title: "Euler's number",
             docs: "
@@ -126,10 +138,11 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
-    Module::new("calc", scope)
+        }
+    );
+    Module:: new ("calc", scope)
 }
 
 /// Calculates the absolute value of a numeric value.
@@ -141,23 +154,22 @@ pub fn module() -> Module
 /// #calc.abs(decimal("-342.440"))
 /// ```
 #[func(title = "Absolute", since = "forever")]
-pub fn abs(
+pub fn abs
+(
     /// The value whose absolute value to calculate.
     value: ToAbs,
-) -> Value
-{
-    value.0
-}
+)
+->Value { value .0 }
 
 /// A value of which the absolute value can be taken.
 pub struct ToAbs(Value);
 
-cast! {
+cast!
+{
     ToAbs,
     v: i64 => Self(v.checked_abs().ok_or_else(too_large)?.into_value()),
     v: f64 => Self(v.abs().into_value()),
-    v: Length => Self(Value::Length(v.try_abs()
-        .ok_or("cannot take absolute value of this length")?)),
+    v: Length => Self(Value::Length(v.try_abs().ok_or("cannot take absolute value of this length")?)),
     v: Angle => Self(Value::Angle(v.abs())),
     v: Ratio => Self(Value::Ratio(v.abs())),
     v: Fr => Self(Value::Fraction(v.abs())),
@@ -171,7 +183,8 @@ cast! {
 /// #calc.pow(decimal("2.5"), 2)
 /// ```
 #[func(title = "Power", since = "forever")]
-pub fn pow(
+pub fn pow
+(
     span: Span,
     /// The base of the power.
     ///
@@ -179,66 +192,35 @@ pub fn pow(
     base: DecNum,
     /// The exponent of the power.
     exponent: Spanned<Num>,
-) -> SourceResult<DecNum>
+)
+->SourceResult<DecNum>
 {
     match exponent.v
     {
-        _ if exponent.v.float() == 0.0 && base.is_zero() =>
-        {
-            bail!(span, "zero to the power of zero is undefined")
-        }
-        Num::Int(i) if i32::try_from(i).is_err() =>
-        {
-            bail!(exponent.span, "exponent is too large")
-        }
-        Num::Float(f) if !f.is_normal() && f != 0.0 =>
-        {
-            bail!(exponent.span, "exponent may not be infinite, subnormal, or NaN")
-        }
-        _ =>
-        {}
+        _ if exponent.v. float() == 0.0 && base.is_zero() => { bail ! (span, "zero to the power of zero is undefined") }
+        Num::Int(i) if i32::try_from(i).is_err() => { bail ! (exponent.span, "exponent is too large") }
+        Num::Float(f) if ! f.is_normal() && f != 0.0 => { bail ! (exponent.span, "exponent may not be infinite, subnormal, or NaN") }
+        _ => {}
     }
 
     match (base, exponent.v)
     {
         (DecNum::Int(a), Num::Int(b)) if b >= 0 => a
-            .checked_pow(b as u32)
-            .map(DecNum::Int)
-            .ok_or_else(too_large)
-            .at(span),
-        (DecNum::Decimal(a), Num::Int(b)) =>
-        {
-            a.checked_powi(b).map(DecNum::Decimal).ok_or_else(too_large).at(span)
-        }
+        .checked_pow(b as u32)
+        .map(DecNum::Int)
+        .ok_or_else(too_large)
+        .at(span),(DecNum::Decimal(a), Num::Int(b)) => { a.checked_powi(b).map(DecNum::Decimal).ok_or_else(too_large).at(span) }
         (a, b) =>
         {
-            let Some(a) = a.float()
-            else
-            {
-                return Err(cant_apply_to_decimal_and_float()).at(span);
-            };
+            let Some(a) = a. float()
+            else { return Err(cant_apply_to_decimal_and_float()).at(span); };
 
-            let result = if a == std::f64::consts::E
-            {
-                libm::exp(b.float())
-            }
-            else if a == 2.0
-            {
-                libm::exp2(b.float())
-            }
-            else if let Num::Int(b) = b
-            {
-                Scalar::new(a).powi(b as i32).get()
-            }
-            else
-            {
-                libm::pow(a, b.float())
-            };
+            let result = if a == std::f64::consts::E { libm::exp(b.float ()) }
+            else if a == 2.0 { libm::exp2(b.float ()) }
+            else if let Num::Int(b) = b { Scalar::new (a).powi(b as i32).get () }
+            else { libm::pow(a, b.float ()) };
 
-            if result.is_nan()
-            {
-                bail!(span, "the result is not a real number")
-            }
+            if result.is_nan() { bail ! (span, "the result is not a real number") }
 
             Ok(DecNum::Float(result))
         }
@@ -251,31 +233,23 @@ pub fn pow(
 /// #calc.exp(1)
 /// ```
 #[func(title = "Exponential", since = "0.5.0")]
-pub fn exp(
+pub fn exp
+(
     span: Span,
     /// The exponent of the power.
     exponent: Spanned<Num>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
     match exponent.v
     {
-        Num::Int(i) if i32::try_from(i).is_err() =>
-        {
-            bail!(exponent.span, "exponent is too large")
-        }
-        Num::Float(f) if !f.is_normal() && f != 0.0 =>
-        {
-            bail!(exponent.span, "exponent may not be infinite, subnormal, or NaN")
-        }
-        _ =>
-        {}
+        Num::Int(i) if i32::try_from(i).is_err() => { bail ! (exponent.span, "exponent is too large") }
+        Num::Float(f) if ! f.is_normal() && f != 0.0 => { bail ! (exponent.span, "exponent may not be infinite, subnormal, or NaN") }
+        _ => {}
     }
 
-    let result = libm::exp(exponent.v.float());
-    if result.is_nan()
-    {
-        bail!(span, "the result is not a real number")
-    }
+    let result = libm::exp(exponent.v.float ());
+    if result.is_nan() { bail ! (span, "the result is not a real number") }
 
     Ok(result)
 }
@@ -287,17 +261,12 @@ pub fn exp(
 /// #calc.sqrt(2.5)
 /// ```
 #[func(title = "Square Root", since = "forever")]
-pub fn sqrt(
+pub fn sqrt
+(
     /// The number whose square root to calculate. Must be non-negative.
     value: Spanned<Num>,
-) -> SourceResult<f64>
-{
-    if value.v.float() < 0.0
-    {
-        bail!(value.span, "cannot take square root of negative number");
-    }
-    Ok(value.v.float().sqrt())
-}
+)
+->SourceResult<f64> { if value.v.float () < 0.0 { bail ! (value.span, "cannot take square root of negative number"); } Ok(value.v.float ().sqrt()) }
 
 /// Calculates the real $n$#super[th] root of a number.
 ///
@@ -308,35 +277,22 @@ pub fn sqrt(
 /// #calc.root(27.0, 3)
 /// ```
 #[func(since = "0.11.0")]
-pub fn root(
+pub fn root
+(
     /// The expression to take the root of.
     radicand: f64,
     /// The value of $n$.
     index: Spanned<i64>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
-    if index.v == 0
-    {
-        bail!(index.span, "cannot take the 0th root of a number");
-    }
+    if index.v == 0 { bail ! (index.span, "cannot take the 0th root of a number"); }
     else if radicand < 0.0
     {
-        if index.v % 2 == 0
-        {
-            bail!(
-                index.span,
-                "negative numbers do not have a real nth root when n is even",
-            );
-        }
-        else
-        {
-            Ok(-libm::pow(-radicand, 1.0 / index.v as f64))
-        }
+        if index.v % 2 == 0 { bail ! (index.span, "negative numbers do not have a real nth root when n is even",); }
+        else { Ok( - libm::pow( - radicand, 1.0 / index.v as f64)) }
     }
-    else
-    {
-        Ok(libm::pow(radicand, 1.0 / index.v as f64))
-    }
+    else { Ok(libm::pow(radicand, 1.0 / index.v as f64)) }
 }
 
 /// Calculates the sine of an angle.
@@ -348,18 +304,12 @@ pub fn root(
 /// #calc.sin(90deg)
 /// ```
 #[func(title = "Sine", since = "forever")]
-pub fn sin(
+pub fn sin
+(
     /// The angle whose sine to calculate.
     angle: AngleLike,
-) -> f64
-{
-    match angle
-    {
-        AngleLike::Angle(a) => a.sin(),
-        AngleLike::Int(n) => libm::sin(n as f64),
-        AngleLike::Float(n) => libm::sin(n),
-    }
-}
+)
+->f64 { match angle { AngleLike::Angle(a) => a.sin(), AngleLike::Int(n) => libm::sin(n as f64), AngleLike::Float(n) => libm::sin(n), } }
 
 /// Calculates the cosine of an angle.
 ///
@@ -370,18 +320,12 @@ pub fn sin(
 /// #calc.cos(90deg)
 /// ```
 #[func(title = "Cosine", since = "forever")]
-pub fn cos(
+pub fn cos
+(
     /// The angle whose cosine to calculate.
     angle: AngleLike,
-) -> f64
-{
-    match angle
-    {
-        AngleLike::Angle(a) => a.cos(),
-        AngleLike::Int(n) => libm::cos(n as f64),
-        AngleLike::Float(n) => libm::cos(n),
-    }
-}
+)
+->f64 { match angle { AngleLike::Angle(a) => a.cos(), AngleLike::Int(n) => libm::cos(n as f64), AngleLike::Float(n) => libm::cos(n), } }
 
 /// Calculates the tangent of an angle.
 ///
@@ -392,18 +336,12 @@ pub fn cos(
 /// #calc.tan(90deg)
 /// ```
 #[func(title = "Tangent", since = "forever")]
-pub fn tan(
+pub fn tan
+(
     /// The angle whose tangent to calculate.
     angle: AngleLike,
-) -> f64
-{
-    match angle
-    {
-        AngleLike::Angle(a) => a.tan(),
-        AngleLike::Int(n) => libm::tan(n as f64),
-        AngleLike::Float(n) => libm::tan(n),
-    }
-}
+)
+->f64 { match angle { AngleLike::Angle(a) => a.tan(), AngleLike::Int(n) => libm::tan(n as f64), AngleLike::Float(n) => libm::tan(n), } }
 
 /// Calculates the arcsine of a number.
 ///
@@ -412,16 +350,15 @@ pub fn tan(
 /// #calc.asin(1)
 /// ```
 #[func(title = "Arcsine", since = "forever")]
-pub fn asin(
+pub fn asin
+(
     /// The number whose arcsine to calculate. Must be between $-1$ and $1$.
     value: Spanned<Num>,
-) -> SourceResult<Angle>
+)
+->SourceResult<Angle>
 {
-    let val = value.v.float();
-    if val < -1.0 || val > 1.0
-    {
-        bail!(value.span, "value must be between -1 and 1");
-    }
+    let val = value.v. float();
+    if val < - 1.0 || val > 1.0 { bail ! (value.span, "value must be between -1 and 1"); }
     Ok(Angle::asin(val))
 }
 
@@ -432,16 +369,15 @@ pub fn asin(
 /// #calc.acos(1)
 /// ```
 #[func(title = "Arccosine", since = "forever")]
-pub fn acos(
+pub fn acos
+(
     /// The number whose arccosine to calculate. Must be between $-1$ and $1$.
     value: Spanned<Num>,
-) -> SourceResult<Angle>
+)
+->SourceResult<Angle>
 {
-    let val = value.v.float();
-    if val < -1.0 || val > 1.0
-    {
-        bail!(value.span, "value must be between -1 and 1");
-    }
+    let val = value.v. float();
+    if val < - 1.0 || val > 1.0 { bail ! (value.span, "value must be between -1 and 1"); }
     Ok(Angle::acos(val))
 }
 
@@ -452,13 +388,12 @@ pub fn acos(
 /// #calc.atan(1)
 /// ```
 #[func(title = "Arctangent", since = "forever")]
-pub fn atan(
+pub fn atan
+(
     /// The number whose arctangent to calculate.
     value: Num,
-) -> Angle
-{
-    Angle::atan(value.float())
-}
+)
+->Angle { Angle::atan(value.float ()) }
 
 /// Calculates the four-quadrant arctangent of a coordinate.
 ///
@@ -474,15 +409,14 @@ pub fn atan(
 /// #calc.atan2(-2, -3)
 /// ```
 #[func(title = "Four-quadrant Arctangent", since = "0.3.0")]
-pub fn atan2(
+pub fn atan2
+(
     /// The $x$ coordinate.
     x: Num,
     /// The $y$ coordinate.
     y: Num,
-) -> Angle
-{
-    Angle::atan2(y.float(), x.float())
-}
+)
+->Angle { Angle::atan2(y.float (), x.float ()) }
 
 /// Calculates the hyperbolic sine of a hyperbolic angle.
 ///
@@ -494,13 +428,12 @@ pub fn atan2(
 /// #calc.sinh(1.5)
 /// ```
 #[func(title = "Hyperbolic Sine", since = "forever")]
-pub fn sinh(
+pub fn sinh
+(
     /// The hyperbolic angle whose hyperbolic sine to calculate.
     value: f64,
-) -> f64
-{
-    libm::sinh(value)
-}
+)
+->f64 { libm::sinh(value) }
 
 /// Calculates the hyperbolic cosine of a hyperbolic angle.
 ///
@@ -512,13 +445,12 @@ pub fn sinh(
 /// #calc.cosh(1.5)
 /// ```
 #[func(title = "Hyperbolic Cosine", since = "forever")]
-pub fn cosh(
+pub fn cosh
+(
     /// The hyperbolic angle whose hyperbolic cosine to calculate.
     value: f64,
-) -> f64
-{
-    libm::cosh(value)
-}
+)
+->f64 { libm::cosh(value) }
 
 /// Calculates the hyperbolic tangent of a hyperbolic angle.
 ///
@@ -530,13 +462,12 @@ pub fn cosh(
 /// #calc.tanh(1.5)
 /// ```
 #[func(title = "Hyperbolic Tangent", since = "forever")]
-pub fn tanh(
+pub fn tanh
+(
     /// The hyperbolic angle whose hyperbolic tangent to calculate.
     value: f64,
-) -> f64
-{
-    libm::tanh(value)
-}
+)
+->f64 { libm::tanh(value) }
 
 /// Calculates the inverse hyperbolic sine of a number.
 ///
@@ -548,13 +479,12 @@ pub fn tanh(
 /// #calc.asinh(1)
 /// ```
 #[func(title = "Inverse Hyperbolic Sine", since = "0.15.0")]
-pub fn asinh(
+pub fn asinh
+(
     /// The number whose inverse hyperbolic sine to calculate.
     value: f64,
-) -> f64
-{
-    libm::asinh(value)
-}
+)
+->f64 { libm::asinh(value) }
 
 /// Calculates the inverse hyperbolic cosine of a number.
 ///
@@ -566,19 +496,13 @@ pub fn asinh(
 /// #calc.acosh(2.5)
 /// ```
 #[func(title = "Inverse Hyperbolic Cosine", since = "0.15.0")]
-pub fn acosh(
+pub fn acosh
+(
     /// The number whose inverse hyperbolic cosine to calculate. Must be greater
     /// than or equal to $1$.
     value: Spanned<f64>,
-) -> SourceResult<f64>
-{
-    let val = value.v;
-    if val < 1.0
-    {
-        bail!(value.span, "value must be greater than or equal to 1");
-    }
-    Ok(libm::acosh(val))
-}
+)
+->SourceResult<f64> { let val = value.v; if val < 1.0 { bail ! (value.span, "value must be greater than or equal to 1"); } Ok(libm::acosh(val)) }
 
 /// Calculates the inverse hyperbolic tangent of a number.
 ///
@@ -590,17 +514,16 @@ pub fn acosh(
 /// #calc.atanh(0.5)
 /// ```
 #[func(title = "Inverse Hyperbolic Tangent", since = "0.15.0")]
-pub fn atanh(
+pub fn atanh
+(
     /// The number whose inverse hyperbolic tangent to calculate. Must be
     /// between $-1$ and $1$ (exclusive).
     value: Spanned<f64>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
     let val = value.v;
-    if val <= -1.0 || val >= 1.0
-    {
-        bail!(value.span, "value must be between -1 and 1 (exclusive)");
-    }
+    if val <= - 1.0 || val >= 1.0 { bail ! (value.span, "value must be between -1 and 1 (exclusive)"); }
     Ok(libm::atanh(val))
 }
 
@@ -612,48 +535,29 @@ pub fn atanh(
 /// #calc.log(100)
 /// ```
 #[func(title = "Logarithm", since = "forever")]
-pub fn log(
+pub fn log
+(
     span: Span,
     /// The number whose logarithm to calculate. Must be strictly positive.
     value: Spanned<Num>,
     /// The base of the logarithm. May not be zero.
-    #[named]
-    #[default(Spanned::detached(10.0))]
+    # [named]
+    # [default (Spanned::detached(10.0))]
     base: Spanned<f64>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
-    let number = value.v.float();
-    if number <= 0.0
-    {
-        bail!(value.span, "value must be strictly positive")
-    }
+    let number = value.v. float();
+    if number <= 0.0 { bail ! (value.span, "value must be strictly positive") }
 
-    if !base.v.is_normal()
-    {
-        bail!(base.span, "base may not be zero, NaN, infinite, or subnormal")
-    }
+    if ! base.v.is_normal() { bail ! (base.span, "base may not be zero, NaN, infinite, or subnormal") }
 
-    let result = if base.v == std::f64::consts::E
-    {
-        libm::log(number)
-    }
-    else if base.v == 2.0
-    {
-        libm::log2(number)
-    }
-    else if base.v == 10.0
-    {
-        libm::log10(number)
-    }
-    else
-    {
-        libm::log(number) / libm::log(base.v)
-    };
+    let result = if base.v == std::f64::consts::E { libm::log(number) }
+    else if base.v == 2.0 { libm::log2(number) }
+    else if base.v == 10.0 { libm::log10(number) }
+    else { libm::log(number) / libm::log(base.v) };
 
-    if result.is_infinite() || result.is_nan()
-    {
-        bail!(span, "the result is not a real number")
-    }
+    if result.is_infinite() || result.is_nan() { bail ! (span, "the result is not a real number") }
 
     Ok(result)
 }
@@ -664,23 +568,19 @@ pub fn log(
 /// #calc.ln(calc.e)
 /// ```
 #[func(title = "Natural Logarithm", since = "0.5.0")]
-pub fn ln(
+pub fn ln
+(
     span: Span,
     /// The number whose logarithm to calculate. Must be strictly positive.
     value: Spanned<Num>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
-    let number = value.v.float();
-    if number <= 0.0
-    {
-        bail!(value.span, "value must be strictly positive")
-    }
+    let number = value.v. float();
+    if number <= 0.0 { bail ! (value.span, "value must be strictly positive") }
 
     let result = libm::log(number);
-    if result.is_infinite()
-    {
-        bail!(span, "result close to -inf")
-    }
+    if result.is_infinite() { bail ! (span, "result close to -inf") }
 
     Ok(result)
 }
@@ -694,13 +594,12 @@ pub fn ln(
 /// #calc.erf(0.2)
 /// ```
 #[func(title = "Error Function", since = "0.15.0")]
-pub fn erf(
+pub fn erf
+(
     /// The number at which to calculate the error function.
     value: f64,
-) -> f64
-{
-    libm::erf(value)
-}
+)
+->f64 { libm::erf(value) }
 
 /// Calculates the factorial of a number.
 ///
@@ -708,13 +607,12 @@ pub fn erf(
 /// #calc.fact(5)
 /// ```
 #[func(title = "Factorial", since = "0.3.0")]
-pub fn fact(
+pub fn fact
+(
     /// The number whose factorial to calculate. Must be non-negative.
     number: u64,
-) -> StrResult<i64>
-{
-    Ok(fact_impl(1, number).ok_or_else(too_large)?)
-}
+)
+->StrResult<i64> { Ok(fact_impl(1, number).ok_or_else(too_large)?) }
 
 /// Calculates a permutation.
 ///
@@ -731,39 +629,32 @@ pub fn fact(
 /// #calc.perm(5, 3)
 /// ```
 #[func(title = "Permutation", since = "0.3.0")]
-pub fn perm(
+pub fn perm
+(
     /// The value of $n$: The number of items to choose from. Must be
     /// non-negative.
     base: u64,
     /// The value of $k$: The number of items to choose. Must be non-negative.
     numbers: u64,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
     // By convention.
-    if base < numbers
-    {
-        return Ok(0);
-    }
+    if base < numbers { return Ok(0); }
 
     Ok(fact_impl(base - numbers + 1, base).ok_or_else(too_large)?)
 }
 
 /// Calculates the product of a range of numbers. Used to calculate
 /// permutations. Returns None if the result is larger than `i64::MAX`
-fn fact_impl(start: u64, end: u64) -> Option<i64>
+fn fact_impl(start: u64, end: u64)->Option<i64>
 {
     // By convention
-    if end + 1 < start
-    {
-        return Some(0);
-    }
+    if end + 1 < start { return Some(0); }
 
     let real_start: u64 = cmp::max(1, start);
     let mut count: u64 = 1;
-    for i in real_start..=end
-    {
-        count = count.checked_mul(i)?;
-    }
+    for i in real_start.. = end { count = count.checked_mul(i)?; }
 
     count.try_into().ok()
 }
@@ -783,39 +674,29 @@ fn fact_impl(start: u64, end: u64) -> Option<i64>
 /// #calc.binom(10, 5)
 /// ```
 #[func(title = "Binomial", since = "0.3.0")]
-pub fn binom(
+pub fn binom
+(
     /// The value of $n$: The numbers of items to choose from. Must be
     /// non-negative.
     n: u64,
     /// The value of $k$: The number of items to choose. Must be non-negative.
     k: u64,
-) -> StrResult<i64>
-{
-    Ok(binom_impl(n, k).ok_or_else(too_large)?)
-}
+)
+->StrResult<i64> { Ok(binom_impl(n, k).ok_or_else(too_large)?) }
 
 /// Calculates a binomial coefficient, with `n` the upper coefficient and `k`
 /// the lower coefficient. Returns `None` if the result is larger than
 /// `i64::MAX`
-fn binom_impl(n: u64, k: u64) -> Option<i64>
+fn binom_impl(n: u64, k: u64)->Option<i64>
 {
-    if k > n
-    {
-        return Some(0);
-    }
+    if k > n { return Some(0); }
 
     // By symmetry
     let real_k = cmp::min(n - k, k);
-    if real_k == 0
-    {
-        return Some(1);
-    }
+    if real_k == 0 { return Some(1); }
 
     let mut result: u64 = 1;
-    for i in 0..real_k
-    {
-        result = result.checked_mul(n - i)?.checked_div(i + 1)?;
-    }
+    for i in 0..real_k { result = result.checked_mul(n - i)?.checked_div(i + 1)?; }
 
     result.try_into().ok()
 }
@@ -829,20 +710,17 @@ fn binom_impl(n: u64, k: u64) -> Option<i64>
 /// #calc.gcd(7, 42)
 /// ```
 #[func(title = "Greatest Common Divisor", since = "0.3.0")]
-pub fn gcd(
+pub fn gcd
+(
     /// The first integer.
     a: i64,
     /// The second integer.
     b: i64,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
     let (mut a, mut b) = (a, b);
-    while b != 0
-    {
-        let temp = b;
-        b = a.checked_rem(b).ok_or_else(too_large)?;
-        a = temp;
-    }
+    while b != 0 { let temp = b; b = a.checked_rem(b).ok_or_else(too_large)?; a = temp; }
 
     Ok(a.checked_abs().ok_or_else(too_large)?)
 }
@@ -853,22 +731,18 @@ pub fn gcd(
 /// #calc.lcm(96, 13)
 /// ```
 #[func(title = "Least Common Multiple", since = "0.3.0")]
-pub fn lcm(
+pub fn lcm
+(
     /// The first integer.
     a: i64,
     /// The second integer.
     b: i64,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
-    if a == b
-    {
-        return Ok(a.checked_abs().ok_or_else(too_large)?);
-    }
+    if a == b { return Ok(a.checked_abs().ok_or_else(too_large)?); }
 
-    Ok(a.checked_div(gcd(a, b)?)
-        .and_then(|gcd| gcd.checked_mul(b))
-        .and_then(|v| v.checked_abs())
-        .ok_or_else(too_large)?)
+    Ok(a.checked_div(gcd(a, b)?).and_then( | gcd | gcd.checked_mul(b)).and_then( | v | v.checked_abs()).ok_or_else(too_large)?)
 }
 
 /// Rounds a number down to the nearest integer.
@@ -886,17 +760,18 @@ pub fn lcm(
 /// #assert(calc.floor(decimal("-3.14")) == -4)
 /// ```
 #[func(since = "forever")]
-pub fn floor(
+pub fn floor
+(
     /// The number to round down.
     value: DecNum,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
     match value
     {
         DecNum::Int(n) => Ok(n),
-        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.floor())
-            .map_err(|_| too_large())?),
-        DecNum::Decimal(n) => Ok(i64::try_from(n.floor()).map_err(|_| too_large())?),
+        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.floor()).map_err( | _ | too_large())?),
+        DecNum::Decimal(n) => Ok(i64::try_from(n.floor()).map_err( | _ | too_large())?),
     }
 }
 
@@ -915,17 +790,18 @@ pub fn floor(
 /// #assert(calc.ceil(decimal("-3.14")) == -3)
 /// ```
 #[func(since = "forever")]
-pub fn ceil(
+pub fn ceil
+(
     /// The number to round up.
     value: DecNum,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
     match value
     {
         DecNum::Int(n) => Ok(n),
-        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.ceil())
-            .map_err(|_| too_large())?),
-        DecNum::Decimal(n) => Ok(i64::try_from(n.ceil()).map_err(|_| too_large())?),
+        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.ceil()).map_err( | _ | too_large())?),
+        DecNum::Decimal(n) => Ok(i64::try_from(n.ceil()).map_err( | _ | too_large())?),
     }
 }
 
@@ -944,17 +820,18 @@ pub fn ceil(
 /// #assert(calc.trunc(decimal("8493.12949582390")) == 8493)
 /// ```
 #[func(title = "Truncate", since = "0.3.0")]
-pub fn trunc(
+pub fn trunc
+(
     /// The number to truncate.
     value: DecNum,
-) -> StrResult<i64>
+)
+->StrResult<i64>
 {
     match value
     {
         DecNum::Int(n) => Ok(n),
-        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.trunc())
-            .map_err(|_| too_large())?),
-        DecNum::Decimal(n) => Ok(i64::try_from(n.trunc()).map_err(|_| too_large())?),
+        DecNum::Float(n) => Ok(crate::foundations::convert_float_to_int(n.trunc()).map_err( | _ | too_large())?),
+        DecNum::Decimal(n) => Ok(i64::try_from(n.trunc()).map_err( | _ | too_large())?),
     }
 }
 
@@ -968,10 +845,12 @@ pub fn trunc(
 /// #assert(calc.fract(decimal("234.23949211")) == decimal("0.23949211"))
 /// ```
 #[func(title = "Fractional", since = "0.3.0")]
-pub fn fract(
+pub fn fract
+(
     /// The number to truncate.
     value: DecNum,
-) -> DecNum
+)
+->DecNum
 {
     match value
     {
@@ -1016,31 +895,25 @@ pub fn fract(
 /// #assert(calc.round(decimal("-48953.45"), digits: -3) == decimal("-49000"))
 /// ```
 #[func(since = "forever")]
-pub fn round(
+pub fn round
+(
     /// The number to round.
     value: DecNum,
     /// If positive, the number of decimal places.
     ///
     /// If negative, the number of significant integer digits that should be
     /// removed before the decimal point.
-    #[named]
-    #[default(0)]
+    # [named]
+    # [default (0)]
     digits: i64,
-) -> StrResult<DecNum>
+)
+->StrResult<DecNum>
 {
     match value
     {
-        DecNum::Int(n) => Ok(DecNum::Int(
-            round_int_with_precision(n, digits.saturating_as::<i16>())
-                .ok_or_else(too_large)?,
-        )),
-        DecNum::Float(n) =>
-        {
-            Ok(DecNum::Float(round_with_precision(n, digits.saturating_as::<i16>())))
-        }
-        DecNum::Decimal(n) => Ok(DecNum::Decimal(
-            n.round(digits.saturating_as::<i32>()).ok_or_else(too_large)?,
-        )),
+        DecNum::Int(n) => Ok(DecNum::Int(round_int_with_precision(n, digits.saturating_as::<i16>()).ok_or_else(too_large)?,)),
+        DecNum::Float(n) => { Ok(DecNum::Float(round_with_precision(n, digits.saturating_as::<i16>()))) }
+        DecNum::Decimal(n) => Ok(DecNum::Decimal(n.round(digits.saturating_as::<i32>()).ok_or_else(too_large)?,)),
     }
 }
 
@@ -1054,7 +927,8 @@ pub fn round(
 /// #assert(calc.clamp(decimal("5.45"), decimal("6.75"), 12) == decimal("6.75"))
 /// ```
 #[func(since = "forever")]
-pub fn clamp(
+pub fn clamp
+(
     span: Span,
     /// The number to clamp.
     value: DecNum,
@@ -1062,22 +936,20 @@ pub fn clamp(
     min: DecNum,
     /// The inclusive maximum value.
     max: Spanned<DecNum>,
-) -> SourceResult<DecNum>
+)
+->SourceResult<DecNum>
 {
     // Ignore if there are incompatible types (decimal and float) since that
     // will cause `apply3` below to error before calling clamp, avoiding a
     // panic.
     if min
-        .apply2(max.v, |min, max| max < min, |min, max| max < min, |min, max| max < min)
-        .unwrap_or(false)
-    {
-        bail!(max.span, "max must be greater than or equal to min")
-    }
+    .apply2(max.v, | min, max | max < min, | min, max | max < min, | min, max | max < min)
+    .unwrap_or(false) { bail ! (max.span, "max must be greater than or equal to min") }
 
     value
-        .apply3(min, max.v, i64::clamp, f64::clamp, Decimal::clamp)
-        .ok_or_else(cant_apply_to_decimal_and_float)
-        .at(span)
+    .apply3(min, max.v, i64::clamp, f64::clamp, Decimal::clamp)
+    .ok_or_else(cant_apply_to_decimal_and_float)
+    .at(span)
 }
 
 /// Determines the minimum of a sequence of values.
@@ -1087,16 +959,15 @@ pub fn clamp(
 /// #calc.min("typst", "is", "cool")
 /// ```
 #[func(title = "Minimum", since = "forever")]
-pub fn min(
+pub fn min
+(
     span: Span,
     /// The sequence of values from which to extract the minimum. Must not be
     /// empty.
-    #[variadic]
+    # [variadic]
     values: Vec<Spanned<Value>>,
-) -> SourceResult<Value>
-{
-    minmax(span, values, Ordering::Less)
-}
+)
+->SourceResult<Value> { minmax(span, values, Ordering::Less) }
 
 /// Determines the maximum of a sequence of values.
 ///
@@ -1105,36 +976,26 @@ pub fn min(
 /// #calc.max("typst", "is", "cool")
 /// ```
 #[func(title = "Maximum", since = "forever")]
-pub fn max(
+pub fn max
+(
     span: Span,
     /// The sequence of values from which to extract the maximum. Must not be
     /// empty.
-    #[variadic]
+    # [variadic]
     values: Vec<Spanned<Value>>,
-) -> SourceResult<Value>
-{
-    minmax(span, values, Ordering::Greater)
-}
+)
+->SourceResult<Value> { minmax(span, values, Ordering::Greater) }
 
 /// Find the minimum or maximum of a sequence of values.
 fn minmax(span: Span, values: Vec<Spanned<Value>>, goal: Ordering)
--> SourceResult<Value>
+->SourceResult<Value>
 {
     let mut iter = values.into_iter();
-    let Some(Spanned { v: mut extremum, .. }) = iter.next()
-    else
-    {
-        bail!(span, "expected at least one value");
-    };
+    let Some(Spanned { v: mut extremum,.. }) = iter.next()
+    else { bail ! (span, "expected at least one value"); };
 
-    for Spanned { v, span } in iter
-    {
-        let ordering = ops::compare(&v, &extremum).at(span)?;
-        if ordering == goal
-        {
-            extremum = v;
-        }
-    }
+    for Spanned { v, span }
+    in iter { let ordering = ops::compare( & v, & extremum).at(span)?; if ordering == goal { extremum = v; } }
 
     Ok(extremum)
 }
@@ -1147,13 +1008,12 @@ fn minmax(span: Span, values: Vec<Spanned<Value>>, goal: Ordering)
 /// #range(10).filter(calc.even)
 /// ```
 #[func(since = "forever")]
-pub fn even(
+pub fn even
+(
     /// The number to check for evenness.
     value: i64,
-) -> bool
-{
-    value % 2 == 0
-}
+)
+-> bool { value % 2 == 0 }
 
 /// Determines whether an integer is odd.
 ///
@@ -1163,13 +1023,12 @@ pub fn even(
 /// #range(10).filter(calc.odd)
 /// ```
 #[func(since = "forever")]
-pub fn odd(
+pub fn odd
+(
     /// The number to check for oddness.
     value: i64,
-) -> bool
-{
-    value % 2 != 0
-}
+)
+-> bool { value % 2 != 0 }
 
 /// Calculates the remainder of two numbers (signed modulo).
 ///
@@ -1187,32 +1046,32 @@ pub fn odd(
 /// #calc.rem(1.75, 0.5)
 /// ```
 #[func(title = "Remainder", since = "0.3.0", keywords = ["modulo", "modulus"])]
-pub fn rem(
+pub fn rem
+(
     span: Span,
     /// The dividend of the remainder.
     dividend: DecNum,
     /// The divisor of the remainder.
     divisor: Spanned<DecNum>,
-) -> SourceResult<DecNum>
+)
+->SourceResult<DecNum>
 {
-    if divisor.v.is_zero()
-    {
-        bail!(divisor.span, "divisor must not be zero");
-    }
+    if divisor.v.is_zero() { bail ! (divisor.span, "divisor must not be zero"); }
 
     dividend
-        .apply2(
-            divisor.v,
-            // `checked_rem` can only overflow on `i64::MIN % -1` which is
-            // mathematically zero.
-            |a, b| Some(DecNum::Int(a.checked_rem(b).unwrap_or(0))),
-            |a, b| Some(DecNum::Float(a % b)),
-            |a, b| a.checked_rem(b).map(DecNum::Decimal),
-        )
-        .ok_or_else(cant_apply_to_decimal_and_float)
-        .at(span)?
-        .ok_or("dividend too small compared to divisor")
-        .at(span)
+    .apply2
+    (
+        divisor.v,
+        // `checked_rem` can only overflow on `i64::MIN % -1` which is
+        // mathematically zero.
+        | a, b | Some(DecNum::Int(a.checked_rem(b).unwrap_or(0))),
+        | a, b | Some(DecNum::Float(a % b)),
+        | a, b | a.checked_rem(b).map(DecNum::Decimal),
+    )
+    .ok_or_else(cant_apply_to_decimal_and_float)
+    .at(span)?
+    .ok_or("dividend too small compared to divisor")
+    .at(span)
 }
 
 /// Performs euclidean division of two numbers.
@@ -1233,30 +1092,30 @@ pub fn rem(
 /// #calc.div-euclid(decimal("1.75"), decimal("0.5"))
 /// ```
 #[func(title = "Euclidean Division", since = "0.10.0")]
-pub fn div_euclid(
+pub fn div_euclid
+(
     span: Span,
     /// The dividend of the division.
     dividend: DecNum,
     /// The divisor of the division.
     divisor: Spanned<DecNum>,
-) -> SourceResult<DecNum>
+)
+->SourceResult<DecNum>
 {
-    if divisor.v.is_zero()
-    {
-        bail!(divisor.span, "divisor must not be zero");
-    }
+    if divisor.v.is_zero() { bail ! (divisor.span, "divisor must not be zero"); }
 
     dividend
-        .apply2(
-            divisor.v,
-            |a, b| a.checked_div_euclid(b).map(DecNum::Int),
-            |a, b| Some(DecNum::Float(a.div_euclid(b))),
-            |a, b| a.checked_div_euclid(b).map(DecNum::Decimal),
-        )
-        .ok_or_else(cant_apply_to_decimal_and_float)
-        .at(span)?
-        .ok_or_else(too_large)
-        .at(span)
+    .apply2
+    (
+        divisor.v,
+        | a, b | a.checked_div_euclid(b).map(DecNum::Int),
+        | a, b | Some(DecNum::Float(a.div_euclid(b))),
+        | a, b | a.checked_div_euclid(b).map(DecNum::Decimal),
+    )
+    .ok_or_else(cant_apply_to_decimal_and_float)
+    .at(span)?
+    .ok_or_else(too_large)
+    .at(span)
 }
 
 /// This calculates the least nonnegative remainder of a division (nonnegative
@@ -1279,32 +1138,32 @@ pub fn div_euclid(
 /// #calc.rem-euclid(decimal("1.75"), decimal("0.5"))
 /// ```
 #[func(title = "Euclidean Remainder", since = "0.10.0", keywords = ["modulo", "modulus"])]
-pub fn rem_euclid(
+pub fn rem_euclid
+(
     span: Span,
     /// The dividend of the remainder.
     dividend: DecNum,
     /// The divisor of the remainder.
     divisor: Spanned<DecNum>,
-) -> SourceResult<DecNum>
+)
+->SourceResult<DecNum>
 {
-    if divisor.v.is_zero()
-    {
-        bail!(divisor.span, "divisor must not be zero");
-    }
+    if divisor.v.is_zero() { bail ! (divisor.span, "divisor must not be zero"); }
 
     dividend
-        .apply2(
-            divisor.v,
-            // `checked_rem_euclid` can only overflow on `i64::MIN % -1` which
-            // is mathematically zero.
-            |a, b| Some(DecNum::Int(a.checked_rem_euclid(b).unwrap_or(0))),
-            |a, b| Some(DecNum::Float(a.rem_euclid(b))),
-            |a, b| a.checked_rem_euclid(b).map(DecNum::Decimal),
-        )
-        .ok_or_else(cant_apply_to_decimal_and_float)
-        .at(span)?
-        .ok_or("dividend too small compared to divisor")
-        .at(span)
+    .apply2
+    (
+        divisor.v,
+        // `checked_rem_euclid` can only overflow on `i64::MIN % -1` which
+        // is mathematically zero.
+        | a, b | Some(DecNum::Int(a.checked_rem_euclid(b).unwrap_or(0))),
+        | a, b | Some(DecNum::Float(a.rem_euclid(b))),
+        | a, b | a.checked_rem_euclid(b).map(DecNum::Decimal),
+    )
+    .ok_or_else(cant_apply_to_decimal_and_float)
+    .at(span)?
+    .ok_or("dividend too small compared to divisor")
+    .at(span)
 }
 
 /// Calculates the quotient (floored division) of two numbers.
@@ -1319,36 +1178,35 @@ pub fn rem_euclid(
 ///   "quo"(3.46, 0.5) &= #calc.quo(3.46, 0.5) $
 /// ```
 #[func(title = "Quotient", since = "0.3.0")]
-pub fn quo(
+pub fn quo
+(
     span: Span,
     /// The dividend of the quotient.
     dividend: DecNum,
     /// The divisor of the quotient.
     divisor: Spanned<DecNum>,
-) -> SourceResult<i64>
+)
+->SourceResult<i64>
 {
-    if divisor.v.is_zero()
-    {
-        bail!(divisor.span, "divisor must not be zero");
-    }
+    if divisor.v.is_zero() { bail ! (divisor.span, "divisor must not be zero"); }
 
     let divided = dividend
-        .apply2(
-            divisor.v,
-            |a, b| {
-                let q = a.checked_div(b)?;
-                // Round towards negative infinity if the fraction is negative.
-                Some(DecNum::Int(
-                    if (a < 0) != (b < 0) && a % b != 0 { q - 1 } else { q },
-                ))
-            },
-            |a, b| Some(DecNum::Float(a / b)),
-            |a, b| a.checked_div(b).map(DecNum::Decimal),
-        )
-        .ok_or_else(cant_apply_to_decimal_and_float)
-        .at(span)?
-        .ok_or_else(too_large)
-        .at(span)?;
+    .apply2
+    (
+        divisor.v,
+        | a, b |
+        {
+            let q = a.checked_div(b)?;
+            // Round towards negative infinity if the fraction is negative.
+            Some(DecNum::Int(if (a < 0) != (b < 0) && a % b != 0 { q - 1 } else { q },))
+        },
+        | a, b | Some(DecNum::Float(a / b)),
+        | a, b | a.checked_div(b).map(DecNum::Decimal),
+    )
+    .ok_or_else(cant_apply_to_decimal_and_float)
+    .at(span)?
+    .ok_or_else(too_large)
+    .at(span)?;
 
     floor(divided).at(span)
 }
@@ -1369,29 +1227,29 @@ pub fn quo(
 /// #calc.norm(p: 3, 1, 2)
 /// ```
 #[func(title = "𝑝-Norm", since = "0.13.0")]
-pub fn norm(
+pub fn norm
+(
     /// The value of $p$. Must be greater than zero.
     ///
     /// The default value of `{2.0}` corresponds to the Euclidean norm:
     /// $ sqrt(sum_(i=1)^n x_i^2) $
-    #[named]
-    #[default(Spanned::detached(2.0))]
+    # [named]
+    # [default (Spanned::detached(2.0))]
     p: Spanned<f64>,
     /// The sequence of values to calculate the $p$-norm of. Returns `{0.0}`
     /// if empty.
-    #[variadic]
+    # [variadic]
     values: Vec<f64>,
-) -> SourceResult<f64>
+)
+->SourceResult<f64>
 {
-    if p.v <= 0.0
-    {
-        bail!(p.span, "p must be greater than zero");
-    }
+    if p.v <= 0.0 { bail ! (p.span, "p must be greater than zero"); }
 
-    let abs = values.iter().map(|v| f64::abs(*v));
-    let max = abs.clone().max_by(|a, b| a.total_cmp(b)).unwrap_or(0.0);
+    let abs = values.iter().map( | v | f64::abs( * v));
+    let max = abs.clone().max_by( | a, b | a.total_cmp(b)).unwrap_or(0.0);
 
-    Ok(
+    Ok
+    (
         if p.v.is_infinite()
         {
             // When p is infinity, the p-norm is the maximum of the absolute values.
@@ -1408,37 +1266,24 @@ pub fn norm(
             // Compute `max * (sum_i (x_i / max)^p)^(1 / p)` instead of raising
             // `x_i^p` directly, to avoid overflowing. This is described further in
             // <https://timvieira.github.io/blog/numerically-stable-p-norms/>.
-            max * libm::pow(abs.map(|v| libm::pow(v / max, p.v)).sum::<f64>(), 1.0 / p.v)
+            max * libm::pow(abs.map( | v | libm::pow(v / max, p.v)).sum::<f64>(), 1.0 / p.v)
         },
     )
 }
 
 /// A value which can be passed to functions that work with integers and floats.
 #[derive(Debug, Copy, Clone)]
-pub enum Num
-{
-    Int(i64),
-    Float(f64),
-}
+pub enum Num { Int(i64), Float(f64), }
 
 impl Num
 {
-    fn float(self) -> f64
-    {
-        match self
-        {
-            Self::Int(v) => v as f64,
-            Self::Float(v) => v,
-        }
-    }
+    fn float(self)->f64 { match self { Self::Int(v) => v as f64, Self::Float(v) => v, } }
 }
 
-cast! {
+cast!
+{
     Num,
-    self => match self {
-        Self::Int(v) => v.into_value(),
-        Self::Float(v) => v.into_value(),
-    },
+    self => match self { Self::Int(v) => v.into_value(), Self::Float(v) => v.into_value(), },
     v: i64 => Self::Int(v),
     v: f64 => Self::Float(v),
 }
@@ -1446,145 +1291,83 @@ cast! {
 /// A value which can be passed to functions that work with integers, floats,
 /// and decimals.
 #[derive(Debug, Copy, Clone)]
-pub enum DecNum
-{
-    Int(i64),
-    Float(f64),
-    Decimal(Decimal),
-}
+pub enum DecNum { Int(i64), Float(f64), Decimal(Decimal), }
 
 impl DecNum
 {
     /// Checks if this number is equivalent to zero.
-    fn is_zero(self) -> bool
-    {
-        match self
-        {
-            Self::Int(i) => i == 0,
-            Self::Float(f) => f == 0.0,
-            Self::Decimal(d) => d.is_zero(),
-        }
-    }
+    fn is_zero(self)-> bool { match self { Self::Int(i) => i == 0, Self::Float(f) => f == 0.0, Self::Decimal(d) => d.is_zero(), } }
 
     /// If this `DecNum` holds an integer or float, returns a float.
     /// Otherwise, returns `None`.
-    fn float(self) -> Option<f64>
-    {
-        match self
-        {
-            Self::Int(i) => Some(i as f64),
-            Self::Float(f) => Some(f),
-            Self::Decimal(_) => None,
-        }
-    }
+    fn float(self)->Option<f64> { match self { Self::Int(i) => Some(i as f64), Self::Float(f) => Some(f), Self::Decimal(_) => None, } }
 
     /// If this `DecNum` holds an integer or decimal, returns a decimal.
     /// Otherwise, returns `None`.
-    fn decimal(self) -> Option<Decimal>
-    {
-        match self
-        {
-            Self::Int(i) => Some(Decimal::from(i)),
-            Self::Float(_) => None,
-            Self::Decimal(d) => Some(d),
-        }
-    }
+    fn decimal(self)->Option<Decimal> { match self { Self::Int(i) => Some(Decimal::from(i)), Self::Float(_) => None, Self::Decimal(d) => Some(d), } }
 
     /// Tries to apply a function to two decimal or numeric arguments.
     ///
     /// Fails with `None` if one is a float and the other is a decimal.
-    fn apply2<T>(
-        self,
-        other: Self,
-        int: impl FnOnce(i64, i64) -> T,
-        float: impl FnOnce(f64, f64) -> T,
-        decimal: impl FnOnce(Decimal, Decimal) -> T,
-    ) -> Option<T>
+    fn apply2<T>(self, other: Self, int : impl FnOnce(i64, i64)->T, float : impl FnOnce(f64, f64)->T, decimal: impl FnOnce(Decimal, Decimal)->T,)->Option<T>
     {
         match (self, other)
         {
-            (Self::Int(a), Self::Int(b)) => Some(int(a, b)),
-            (Self::Decimal(a), Self::Decimal(b)) => Some(decimal(a, b)),
-            (Self::Decimal(a), Self::Int(b)) => Some(decimal(a, Decimal::from(b))),
-            (Self::Int(a), Self::Decimal(b)) => Some(decimal(Decimal::from(a), b)),
-            (a, b) => Some(float(a.float()?, b.float()?)),
+            (Self::Int(a), Self::Int(b)) => Some(int (a, b)),(Self::Decimal(a), Self::Decimal(b)) => Some(decimal(a, b)),(Self::Decimal(a), Self::Int(b)) => Some(decimal(a, Decimal::from(b))),(Self::Int(a), Self::Decimal(b)) => Some(decimal(Decimal::from(a), b)),(a, b) => Some(float (a.float ()?, b.float ()?)),
         }
     }
 
     /// Tries to apply a function to three decimal or numeric arguments.
     ///
     /// Fails with `None` if one is a float and the other is a decimal.
-    fn apply3(
+    fn apply3
+    (
         self,
         other: Self,
         third: Self,
-        int: impl FnOnce(i64, i64, i64) -> i64,
-        float: impl FnOnce(f64, f64, f64) -> f64,
-        decimal: impl FnOnce(Decimal, Decimal, Decimal) -> Decimal,
-    ) -> Option<Self>
+        int: impl FnOnce(i64, i64, i64)->i64,
+        float: impl FnOnce(f64, f64, f64)->f64,
+        decimal: impl FnOnce(Decimal, Decimal, Decimal)->Decimal,
+    )
+   ->Option<Self>
     {
         match (self, other, third)
         {
-            (Self::Int(a), Self::Int(b), Self::Int(c)) => Some(Self::Int(int(a, b, c))),
-            (Self::Decimal(a), b, c) =>
-            {
-                Some(Self::Decimal(decimal(a, b.decimal()?, c.decimal()?)))
-            }
-            (a, Self::Decimal(b), c) =>
-            {
-                Some(Self::Decimal(decimal(a.decimal()?, b, c.decimal()?)))
-            }
-            (a, b, Self::Decimal(c)) =>
-            {
-                Some(Self::Decimal(decimal(a.decimal()?, b.decimal()?, c)))
-            }
-            (a, b, c) => Some(Self::Float(float(a.float()?, b.float()?, c.float()?))),
+            (Self::Int(a), Self::Int(b), Self::Int(c)) => Some(Self::Int(int (a, b, c))),(Self::Decimal(a), b, c) => { Some(Self::Decimal(decimal(a, b.decimal()?, c.decimal()?))) }
+            (a, Self::Decimal(b), c) => { Some(Self::Decimal(decimal(a.decimal()?, b, c.decimal()?))) }
+            (a, b, Self::Decimal(c)) => { Some(Self::Decimal(decimal(a.decimal()?, b.decimal()?, c))) }
+            (a, b, c) => Some(Self::Float(float (a.float ()?, b.float ()?, c.float ()?))),
         }
     }
 }
 
-cast! {
+cast!
+{
     DecNum,
-    self => match self {
-        Self::Int(v) => v.into_value(),
-        Self::Float(v) => v.into_value(),
-        Self::Decimal(v) => v.into_value(),
-    },
+    self => match self { Self::Int(v) => v.into_value(), Self::Float(v) => v.into_value(), Self::Decimal(v) => v.into_value(), },
     v: i64 => Self::Int(v),
     v: f64 => Self::Float(v),
     v: Decimal => Self::Decimal(v),
 }
 
 /// A value that can be passed to a trigonometric function.
-pub enum AngleLike
-{
-    Int(i64),
-    Float(f64),
-    Angle(Angle),
-}
+pub enum AngleLike { Int(i64), Float(f64), Angle(Angle), }
 
-cast! {
-    AngleLike,
-    v: i64 => Self::Int(v),
-    v: f64 => Self::Float(v),
-    v: Angle => Self::Angle(v),
-}
+cast! { AngleLike, v: i64 => Self::Int(v), v: f64 => Self::Float(v), v: Angle => Self::Angle(v), }
 
 /// The error message when the result is too large to be represented.
 #[cold]
-fn too_large() -> &'static str
-{
-    "the result is too large"
-}
+fn too_large()-> & 'static str { "the result is too large" }
 
 /// The hinted error message when trying to apply an operation to decimal and
 /// float operands.
 #[cold]
-fn cant_apply_to_decimal_and_float() -> HintedString
+fn cant_apply_to_decimal_and_float()->HintedString
 {
-    HintedString::new("cannot apply this operation to a decimal and a float".into())
-        .with_hint(
-            "if loss of precision is acceptable, explicitly cast the \
+    HintedString:: new ("cannot apply this operation to a decimal and a float".into())
+    .with_hint
+    (
+        "if loss of precision is acceptable, explicitly cast the \
              decimal to a float with `float(value)`",
-        )
+    )
 }

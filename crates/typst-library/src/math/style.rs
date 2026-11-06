@@ -2,9 +2,9 @@ use codex::styling::MathVariant;
 use smallvec::smallvec;
 use typst_utils::LazyHash;
 
-use crate::foundations::{Cast, Content, Style, StyleChain, func};
+use crate::foundations:: { Cast, Content, Style, StyleChain, func };
 use crate::math::EquationElem;
-use crate::text::{FontFeatures, Tag, TextElem};
+use crate::text:: { FontFeatures, Tag, TextElem };
 
 /// Bold font style in math.
 ///
@@ -12,13 +12,12 @@ use crate::text::{FontFeatures, Tag, TextElem};
 /// $ bold(A) := B^+ $
 /// ```
 #[func(since = "forever", keywords = ["mathbf"])]
-pub fn bold(
+pub fn bold
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::bold, true)
-}
+)
+->Content { body.set (EquationElem::bold, true) }
 
 /// Upright (non-italic) font style in math.
 ///
@@ -26,37 +25,34 @@ pub fn bold(
 /// $ upright(A) != A $
 /// ```
 #[func(since = "forever", keywords = ["mathup"])]
-pub fn upright(
+pub fn upright
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::italic, Some(false))
-}
+)
+->Content { body.set (EquationElem::italic, Some(false)) }
 
 /// Italic font style in math.
 ///
 /// For roman letters and greek lowercase letters, this is already the default.
 #[func(since = "forever", keywords = ["mathit"])]
-pub fn italic(
+pub fn italic
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::italic, Some(true))
-}
+)
+->Content { body.set (EquationElem::italic, Some(true)) }
 
 /// Serif (roman) font style in math.
 ///
 /// This is already the default.
 #[func(since = "forever", keywords = ["mathrm"])]
-pub fn serif(
+pub fn serif
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::Plain))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::Plain)) }
 
 /// Sans-serif font style in math.
 ///
@@ -64,13 +60,12 @@ pub fn serif(
 /// $ sans(A B C) $
 /// ```
 #[func(title = "Sans Serif", since = "forever", keywords = ["mathsf"])]
-pub fn sans(
+pub fn sans
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::SansSerif))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::SansSerif)) }
 
 /// Calligraphic (chancery) font style in math.
 ///
@@ -81,13 +76,12 @@ pub fn sans(
 /// This is the default calligraphic/script style for most math fonts. See
 /// @math.scr[`scr`] for more on how to get the other style (roundhand).
 #[func(title = "Calligraphic", since = "forever", keywords = ["mathcal", "chancery"])]
-pub fn cal(
+pub fn cal
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::Chancery))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::Chancery)) }
 
 /// Script (roundhand) font style in math.
 ///
@@ -117,13 +111,12 @@ pub fn cal(
 ///   ```
 /// )
 #[func(title = "Script Style", since = "0.14.0", keywords = ["mathscr", "roundhand"])]
-pub fn scr(
+pub fn scr
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::Roundhand))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::Roundhand)) }
 
 /// Fraktur font style in math.
 ///
@@ -131,17 +124,16 @@ pub fn scr(
 /// $ frak(P) $
 /// ```
 #[func(
-    title = "Fraktur",
-    since = "forever",
-    keywords = ["mathfrak", "blackletter", "gothic"],
+title = "Fraktur",
+since = "forever",
+keywords = ["mathfrak", "blackletter", "gothic"],
 )]
-pub fn frak(
+pub fn frak
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::Fraktur))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::Fraktur)) }
 
 /// Monospace font style in math.
 ///
@@ -149,13 +141,12 @@ pub fn frak(
 /// $ mono(x + y = z) $
 /// ```
 #[func(title = "Monospace", since = "forever", keywords = ["mathtt"])]
-pub fn mono(
+pub fn mono
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::Monospace))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::Monospace)) }
 
 /// Blackboard bold (double-struck) font style in math.
 ///
@@ -168,13 +159,12 @@ pub fn mono(
 /// $ f: NN -> RR $
 /// ```
 #[func(title = "Blackboard Bold", since = "forever", keywords = ["mathbb"])]
-pub fn bb(
+pub fn bb
+(
     /// The content to style.
     body: Content,
-) -> Content
-{
-    body.set(EquationElem::variant, Some(MathVariant::DoubleStruck))
-}
+)
+->Content { body.set (EquationElem::variant, Some(MathVariant::DoubleStruck)) }
 
 /// Forced display style in math.
 ///
@@ -184,19 +174,17 @@ pub fn bb(
 /// $sum_i x_i/2 = display(sum_i x_i/2)$
 /// ```
 #[func(title = "Display Size", since = "0.5.0", keywords = ["displaystyle"])]
-pub fn display(
+pub fn display
+(
     /// The content to size.
     body: Content,
     /// Whether to impose a height restriction for exponents, like regular sub-
     /// and superscripts do.
-    #[named]
-    #[default(false)]
+    # [named]
+    # [default (false)]
     cramped: bool,
-) -> Content
-{
-    body.set(EquationElem::size, MathSize::Display)
-        .set(EquationElem::cramped, cramped)
-}
+)
+->Content { body.set (EquationElem::size, MathSize::Display).set (EquationElem::cramped, cramped) }
 
 /// Forced inline (text) style in math.
 ///
@@ -207,19 +195,17 @@ pub fn display(
 ///     = inline(sum_i x_i/2) $
 /// ```
 #[func(title = "Inline Size", since = "0.5.0", keywords = ["textstyle"])]
-pub fn inline(
+pub fn inline
+(
     /// The content to size.
     body: Content,
     /// Whether to impose a height restriction for exponents, like regular sub-
     /// and superscripts do.
-    #[named]
-    #[default(false)]
+    # [named]
+    # [default (false)]
     cramped: bool,
-) -> Content
-{
-    body.set(EquationElem::size, MathSize::Text)
-        .set(EquationElem::cramped, cramped)
-}
+)
+->Content { body.set (EquationElem::size, MathSize::Text).set (EquationElem::cramped, cramped) }
 
 /// Forced script style in math.
 ///
@@ -229,19 +215,17 @@ pub fn inline(
 /// $sum_i x_i/2 = script(sum_i x_i/2)$
 /// ```
 #[func(title = "Script Size", since = "0.5.0", keywords = ["scriptstyle"])]
-pub fn script(
+pub fn script
+(
     /// The content to size.
     body: Content,
     /// Whether to impose a height restriction for exponents, like regular sub-
     /// and superscripts do.
-    #[named]
-    #[default(true)]
+    # [named]
+    # [default (true)]
     cramped: bool,
-) -> Content
-{
-    body.set(EquationElem::size, MathSize::Script)
-        .set(EquationElem::cramped, cramped)
-}
+)
+->Content { body.set (EquationElem::size, MathSize::Script).set (EquationElem::cramped, cramped) }
 
 /// Forced second script style in math.
 ///
@@ -252,19 +236,17 @@ pub fn script(
 /// $sum_i x_i/2 = sscript(sum_i x_i/2)$
 /// ```
 #[func(title = "Script-Script Size", since = "0.5.0", keywords = ["scriptscriptstyle"])]
-pub fn sscript(
+pub fn sscript
+(
     /// The content to size.
     body: Content,
     /// Whether to impose a height restriction for exponents, like regular sub-
     /// and superscripts do.
-    #[named]
-    #[default(true)]
+    # [named]
+    # [default (true)]
     cramped: bool,
-) -> Content
-{
-    body.set(EquationElem::size, MathSize::ScriptScript)
-        .set(EquationElem::cramped, cramped)
-}
+)
+->Content { body.set (EquationElem::size, MathSize::ScriptScript).set (EquationElem::cramped, cramped) }
 
 /// The size of elements in an equation.
 ///
@@ -301,20 +283,10 @@ pub enum MathSize
 }
 
 /// Sets flac OpenType feature.
-pub fn style_flac() -> LazyHash<Style>
-{
-    TextElem::features
-        .set(FontFeatures(smallvec![(Tag::from_bytes(b"flac"), 1)]))
-        .wrap()
-}
+pub fn style_flac()->LazyHash<Style> { TextElem::features.set (FontFeatures(smallvec ! [(Tag::from_bytes(b"flac"), 1)])).wrap() }
 
 /// Sets dtls OpenType feature.
-pub fn style_dtls() -> LazyHash<Style>
-{
-    TextElem::features
-        .set(FontFeatures(smallvec![(Tag::from_bytes(b"dtls"), 1)]))
-        .wrap()
-}
+pub fn style_dtls()->LazyHash<Style> { TextElem::features.set (FontFeatures(smallvec ! [(Tag::from_bytes(b"dtls"), 1)])).wrap() }
 
 /// Styles something as cramped.
 ///
@@ -322,10 +294,7 @@ pub fn style_dtls() -> LazyHash<Style>
 /// ```css
 /// math-shift: compact;
 /// ```
-pub fn style_cramped() -> LazyHash<Style>
-{
-    EquationElem::cramped.set(true).wrap()
-}
+pub fn style_cramped()->LazyHash<Style> { EquationElem::cramped.set (true).wrap() }
 
 /// The style for superscripts in the current style.
 ///
@@ -334,15 +303,14 @@ pub fn style_cramped() -> LazyHash<Style>
 /// math-style: compact;
 /// math-depth: add(1);
 /// ```
-pub fn style_for_superscript(styles: StyleChain) -> LazyHash<Style>
+pub fn style_for_superscript(styles: StyleChain)->LazyHash<Style>
 {
     EquationElem::size
-        .set(match styles.get(EquationElem::size)
-        {
-            MathSize::Display | MathSize::Text => MathSize::Script,
-            MathSize::Script | MathSize::ScriptScript => MathSize::ScriptScript,
-        })
-        .wrap()
+    . set
+    (
+        match styles. get(EquationElem::size) { MathSize::Display | MathSize::Text => MathSize::Script, MathSize::Script | MathSize::ScriptScript => MathSize::ScriptScript, }
+    )
+    .wrap()
 }
 
 /// The style for subscripts in the current style.
@@ -353,10 +321,7 @@ pub fn style_for_superscript(styles: StyleChain) -> LazyHash<Style>
 /// math-depth: add(1);
 /// math-shift: compact;
 /// ```
-pub fn style_for_subscript(styles: StyleChain) -> [LazyHash<Style>; 2]
-{
-    [style_for_superscript(styles), style_cramped()]
-}
+pub fn style_for_subscript(styles: StyleChain)->[LazyHash<Style>; 2] { [style_for_superscript(styles), style_cramped()] }
 
 /// The style for numerators in the current style.
 ///
@@ -365,16 +330,19 @@ pub fn style_for_subscript(styles: StyleChain) -> [LazyHash<Style>; 2]
 /// math-style: compact;
 /// math-depth: auto-add;
 /// ```
-pub fn style_for_numerator(styles: StyleChain) -> LazyHash<Style>
+pub fn style_for_numerator(styles: StyleChain)->LazyHash<Style>
 {
     EquationElem::size
-        .set(match styles.get(EquationElem::size)
+    . set
+    (
+        match styles. get(EquationElem::size)
         {
             MathSize::Display => MathSize::Text,
             MathSize::Text => MathSize::Script,
             MathSize::Script | MathSize::ScriptScript => MathSize::ScriptScript,
-        })
-        .wrap()
+        }
+    )
+    .wrap()
 }
 
 /// The style for denominators in the current style.
@@ -385,7 +353,4 @@ pub fn style_for_numerator(styles: StyleChain) -> LazyHash<Style>
 /// math-depth: auto-add;
 /// math-shift: compact;
 /// ```
-pub fn style_for_denominator(styles: StyleChain) -> [LazyHash<Style>; 2]
-{
-    [style_for_numerator(styles), style_cramped()]
-}
+pub fn style_for_denominator(styles: StyleChain)->[LazyHash<Style>; 2] { [style_for_numerator(styles), style_cramped()] }

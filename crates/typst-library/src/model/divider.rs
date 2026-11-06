@@ -1,6 +1,6 @@
-use crate::foundations::{Packed, ShowSet, Smart, StyleChain, Styles, elem};
-use crate::layout::{BlockElem, Em, Ratio};
-use crate::visualize::{LineElem, Stroke};
+use crate::foundations:: { Packed, ShowSet, Smart, StyleChain, Styles, elem };
+use crate::layout:: { BlockElem, Em, Ratio };
+use crate::visualize:: { LineElem, Stroke };
 
 /// A thematic break that separates sections of content.
 ///
@@ -42,19 +42,13 @@ pub struct DividerElem {}
 
 impl ShowSet for Packed<DividerElem>
 {
-    fn show_set(&self, _: StyleChain) -> Styles
+    fn show_set( & self, _: StyleChain)->Styles
     {
-        let mut out = Styles::new();
-        out.set(BlockElem::above, Smart::Custom(Em::new(2.0).into()));
-        out.set(BlockElem::below, Smart::Custom(Em::new(2.0).into()));
-        out.set(LineElem::length, Ratio::one().into());
-        out.set(
-            LineElem::stroke,
-            Stroke {
-                thickness: Smart::Custom(Em::new(0.05).into()),
-                ..Default::default()
-            },
-        );
+        let mut out = Styles:: new ();
+        out. set(BlockElem::above, Smart::Custom(Em::new (2.0).into()));
+        out. set(BlockElem::below, Smart::Custom(Em::new (2.0).into()));
+        out. set(LineElem::length, Ratio::one().into());
+        out. set(LineElem::stroke, Stroke { thickness: Smart::Custom(Em::new (0.05).into()),..Default::default () },);
         out
     }
 }

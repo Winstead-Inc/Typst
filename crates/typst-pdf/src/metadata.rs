@@ -1,59 +1,38 @@
-use krilla::metadata::{Metadata, TextDirection};
-use typst_library::foundations::{Datetime, Smart};
+use krilla::metadata:: { Metadata, TextDirection };
+use typst_library::foundations:: { Datetime, Smart };
 use typst_library::layout::Dir;
 use typst_library::model::Document;
 use typst_library::text::Locale;
 
 use crate::convert::GlobalContext;
 
-pub(crate) fn build_metadata(gc: &GlobalContext, doc_lang: Option<Locale>) -> Metadata
+pub (crate) fn build_metadata(gc: & GlobalContext, doc_lang: Option<Locale>)->Metadata
 {
     // Always write a language, PDF/UA-1 implicitly requires a document language
     // so the metadata and outline entries have an applicable language.
     let lang = doc_lang.unwrap_or(Locale::DEFAULT);
 
-    let dir = if lang.lang.dir() == Dir::RTL
-    {
-        TextDirection::RightToLeft
-    }
-    else
-    {
-        TextDirection::LeftToRight
-    };
+    let dir = if lang.lang.dir() == Dir::RTL { TextDirection::RightToLeft }
+    else { TextDirection::LeftToRight };
 
-    let mut metadata = Metadata::new()
-        .keywords(gc.document.info().keywords.iter().map(Into::into).collect())
-        .authors(gc.document.info().author.iter().map(Into::into).collect())
-        .language(lang.rfc_3066().to_string());
+    let mut metadata = Metadata:: new ()
+    .keywords(gc.document.info().keywords.iter().map(Into::into).collect())
+    .authors(gc.document.info().author.iter().map(Into::into).collect())
+    .language(lang.rfc_3066().to_string());
 
     if let Some(creator) = gc
-        .options
-        .creator
-        .clone()
-        .unwrap_or_else(|| Some(format!("Typst {}", typst_utils::version().raw())))
-    {
-        metadata = metadata.creator(creator);
-    }
+    .options
+    .creator
+    .clone()
+    .unwrap_or_else( || Some(format ! ("Typst {}", typst_utils::version().raw()))) { metadata = metadata.creator(creator); }
 
-    if let Some(title) = &gc.document.info().title
-    {
-        metadata = metadata.title(title.to_string());
-    }
+    if let Some(title) = & gc.document.info().title { metadata = metadata.title(title.to_string()); }
 
-    if let Some(description) = &gc.document.info().description
-    {
-        metadata = metadata.description(description.to_string());
-    }
+    if let Some(description) = & gc.document.info().description { metadata = metadata.description(description.to_string()); }
 
-    if let Smart::Custom(ident) = gc.options.ident.clone()
-    {
-        metadata = metadata.document_id(ident);
-    }
+    if let Smart::Custom(ident) = gc.options.ident.clone() { metadata = metadata.document_id(ident); }
 
-    if let Some(date) = creation_date(gc)
-    {
-        metadata = metadata.creation_date(date);
-    }
+    if let Some(date) = creation_date(gc) { metadata = metadata.creation_date(date); }
 
     metadata = metadata.text_direction(dir);
 
@@ -64,53 +43,33 @@ pub(crate) fn build_metadata(gc: &GlobalContext, doc_lang: Option<Locale>) -> Me
 /// (2) If the `document.date` is set to `auto` or not set, try to use the
 ///     date from the options.
 /// (3) Otherwise, we don't write date metadata.
-pub fn creation_date(gc: &GlobalContext) -> Option<krilla::metadata::DateTime>
+pub fn creation_date(gc: & GlobalContext)->Option<krilla::metadata::DateTime>
 {
     let (datetime, tz) = match (gc.document.info().date, gc.options.timestamp)
     {
-        (Smart::Custom(Some(date)), _) => (date, None),
-        (Smart::Auto, Some(timestamp)) => (timestamp.datetime, Some(timestamp.timezone)),
+        (Smart::Custom(Some(date)), _) => (date, None),(Smart::Auto, Some(timestamp)) => (timestamp.datetime, Some(timestamp.timezone)),
         _ => return None,
     };
 
-    let year = datetime.year().filter(|&y| y >= 0)? as u16;
+    let year = datetime.year().filter( |& y | y >= 0)? as u16;
 
-    let mut kd = krilla::metadata::DateTime::new(year);
+    let mut kd = krilla::metadata::DateTime:: new (year);
 
-    if let Some(month) = datetime.month()
-    {
-        kd = kd.month(month);
-    }
+    if let Some(month) = datetime.month() { kd = kd.month(month); }
 
-    if let Some(day) = datetime.day()
-    {
-        kd = kd.day(day);
-    }
+    if let Some(day) = datetime.day() { kd = kd.day(day); }
 
-    if let Some(h) = datetime.hour()
-    {
-        kd = kd.hour(h);
-    }
+    if let Some(h) = datetime.hour() { kd = kd.hour(h); }
 
-    if let Some(m) = datetime.minute()
-    {
-        kd = kd.minute(m);
-    }
+    if let Some(m) = datetime.minute() { kd = kd.minute(m); }
 
-    if let Some(s) = datetime.second()
-    {
-        kd = kd.second(s);
-    }
+    if let Some(s) = datetime.second() { kd = kd.second(s); }
 
     match tz
     {
         Some(Timezone::UTC) => kd = kd.utc_offset_hour(0).utc_offset_minute(0),
-        Some(Timezone::Local { hour_offset, minute_offset }) =>
-        {
-            kd = kd.utc_offset_hour(hour_offset).utc_offset_minute(minute_offset);
-        }
-        None =>
-        {}
+        Some(Timezone::Local { hour_offset, minute_offset }) => { kd = kd.utc_offset_hour(hour_offset).utc_offset_minute(minute_offset); }
+        None => {}
     }
 
     Some(kd)
@@ -121,21 +80,18 @@ pub fn creation_date(gc: &GlobalContext) -> Option<krilla::metadata::DateTime>
 pub struct Timestamp
 {
     /// The datetime of the timestamp.
-    pub(crate) datetime: Datetime,
+    pub (crate) datetime: Datetime,
     /// The timezone of the timestamp.
-    pub(crate) timezone: Timezone,
+    pub (crate) timezone: Timezone,
 }
 
 impl Timestamp
 {
     /// Create a new timestamp with a given datetime and UTC suffix.
-    pub fn new_utc(datetime: Datetime) -> Self
-    {
-        Self { datetime, timezone: Timezone::UTC }
-    }
+    pub fn new_utc(datetime: Datetime)->Self { Self { datetime, timezone: Timezone::UTC } }
 
     /// Create a new timestamp with a given datetime, and a local timezone offset.
-    pub fn new_local(datetime: Datetime, whole_minute_offset: i32) -> Option<Self>
+    pub fn new_local(datetime: Datetime, whole_minute_offset: i32)->Option<Self>
     {
         let hour_offset = (whole_minute_offset / 60).try_into().ok()?;
         // Note: the `%` operator in Rust is the remainder operator, not the
@@ -147,10 +103,7 @@ impl Timestamp
         {
             // Only accept valid timezone offsets with `-23 <= hours <= 23`,
             // and `0 <= minutes <= 59`.
-            (-23..=23, 0..=59) => Some(Self {
-                datetime,
-                timezone: Timezone::Local { hour_offset, minute_offset },
-            }),
+            ( - 23.. = 23, 0.. = 59) => Some(Self { datetime, timezone: Timezone::Local { hour_offset, minute_offset }, }),
             _ => None,
         }
     }
@@ -164,47 +117,41 @@ pub enum Timezone
     UTC,
     /// The local timezone offset from UTC. And the `minute_offset` will have
     /// same sign as `hour_offset`.
-    Local
-    {
-        hour_offset: i8, minute_offset: u8
-    },
+    Local { hour_offset: i8, minute_offset: u8 },
 }
 
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
+    # [test]
     fn test_timestamp_new_local()
     {
         let dummy_datetime = Datetime::from_ymd_hms(2024, 12, 17, 10, 10, 10).unwrap();
-        let test = |whole_minute_offset, expect_timezone| {
-            assert_eq!(
-                Timestamp::new_local(dummy_datetime, whole_minute_offset)
-                    .unwrap()
-                    .timezone,
-                expect_timezone
-            );
+        let test = | whole_minute_offset, expect_timezone |
+        {
+            assert_eq!(Timestamp::new_local(dummy_datetime, whole_minute_offset).unwrap().timezone, expect_timezone);
         };
 
         // Valid timezone offsets
         test(0, Timezone::Local { hour_offset: 0, minute_offset: 0 });
         test(480, Timezone::Local { hour_offset: 8, minute_offset: 0 });
-        test(-480, Timezone::Local { hour_offset: -8, minute_offset: 0 });
+        test( - 480, Timezone::Local { hour_offset: - 8, minute_offset: 0 });
         test(330, Timezone::Local { hour_offset: 5, minute_offset: 30 });
-        test(-210, Timezone::Local { hour_offset: -3, minute_offset: 30 });
-        test(-720, Timezone::Local { hour_offset: -12, minute_offset: 0 }); // AoE
+        test( - 210, Timezone::Local { hour_offset: - 3, minute_offset: 30 });
+        test( - 720, Timezone::Local { hour_offset: - 12, minute_offset: 0 });
+        // AoE
 
         // Corner cases
         test(315, Timezone::Local { hour_offset: 5, minute_offset: 15 });
-        test(-225, Timezone::Local { hour_offset: -3, minute_offset: 45 });
+        test( - 225, Timezone::Local { hour_offset: - 3, minute_offset: 45 });
         test(1439, Timezone::Local { hour_offset: 23, minute_offset: 59 });
-        test(-1439, Timezone::Local { hour_offset: -23, minute_offset: 59 });
+        test( - 1439, Timezone::Local { hour_offset: - 23, minute_offset: 59 });
 
         // Invalid timezone offsets
         assert!(Timestamp::new_local(dummy_datetime, 1440).is_none());
-        assert!(Timestamp::new_local(dummy_datetime, -1440).is_none());
+        assert!(Timestamp::new_local(dummy_datetime, - 1440).is_none());
         assert!(Timestamp::new_local(dummy_datetime, i32::MAX).is_none());
         assert!(Timestamp::new_local(dummy_datetime, i32::MIN).is_none());
     }

@@ -1,19 +1,14 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 use std::ops::Add;
 use std::slice;
 
 use comemo::Tracked;
-use ecow::{EcoString, EcoVec, eco_format, eco_vec};
-use typst_syntax::{Span, Spanned};
+use ecow:: { EcoString, EcoVec, eco_format, eco_vec };
+use typst_syntax:: { Span, Spanned };
 
-use crate::diag::{
-    At, CallSpanned, SourceDiagnostic, SourceResult, StrResult, bail, error,
-};
+use crate::diag:: { At, CallSpanned, SourceDiagnostic, SourceResult, StrResult, bail, error, };
 use crate::engine::Engine;
-use crate::foundations::{
-    Array, Context, Dict, FromValue, Func, IntoValue, Repr, Str, Value, cast, func, repr,
-    scope, ty,
-};
+use crate::foundations:: { Array, Context, Dict, FromValue, Func, IntoValue, Repr, Str, Value, cast, func, repr, scope, ty, };
 
 /// Captured arguments to a function.
 ///
@@ -67,62 +62,37 @@ pub struct Args
 impl Args
 {
     /// Create positional arguments from a span and values.
-    pub fn new<T: IntoValue>(span: Span, values: impl IntoIterator<Item = T>) -> Self
+    pub fn new <T: IntoValue>(span: Span, values: impl IntoIterator<Item = T>)->Self
     {
         let items = values
-            .into_iter()
-            .map(|value| Arg {
-                span,
-                name: None,
-                value: Spanned::new(value.into_value(), span),
-            })
-            .collect();
+        .into_iter()
+        .map( | value | Arg { span, name: None, value: Spanned::new (value.into_value(), span), })
+        .collect();
         Self { span, items }
     }
 
     /// Attach a span to these arguments if they don't already have one.
-    pub fn spanned(mut self, span: Span) -> Self
-    {
-        if self.span.is_detached()
-        {
-            self.span = span;
-        }
-        self
-    }
+    pub fn spanned(mut self, span: Span)->Self { if self.span.is_detached() { self.span = span; } self }
 
     /// Returns the number of remaining positional arguments.
-    pub fn remaining(&self) -> usize
-    {
-        self.items.iter().filter(|slot| slot.name.is_none()).count()
-    }
+    pub fn remaining( & self)->usize { self.items.iter().filter( | slot | slot.name.is_none()).count() }
 
     /// Insert a positional argument at a specific index.
-    pub fn insert(&mut self, index: usize, span: Span, value: Value)
+    pub fn insert( & mut self, index: usize, span: Span, value: Value)
     {
-        self.items.insert(
-            index,
-            Arg {
-                span: self.span,
-                name: None,
-                value: Spanned::new(value, span),
-            },
-        );
+        self.items.insert(index, Arg { span: self.span, name: None, value: Spanned::new (value, span), },);
     }
 
     /// Push a positional argument.
-    pub fn push(&mut self, span: Span, value: Value)
+    pub fn push( & mut self, span: Span, value: Value)
     {
-        self.items.push(Arg {
-            span: self.span,
-            name: None,
-            value: Spanned::new(value, span),
-        });
+        self.items.push(Arg { span: self.span, name: None, value: Spanned::new (value, span), });
     }
 
     /// Consume and cast the first positional argument if there is one.
-    pub fn eat<T>(&mut self) -> SourceResult<Option<T>>
+    pub fn eat<T>( & mut self)->SourceResult<Option<T>>
     where
-        T: FromValue<Spanned<Value>>,
+    T: FromValue<Spanned<Value>>,
     {
         for (i, slot) in self.items.iter().enumerate()
         {
@@ -137,27 +107,14 @@ impl Args
     }
 
     /// Consume n positional arguments if possible.
-    pub fn consume(&mut self, n: usize) -> SourceResult<Vec<Arg>>
+    pub fn consume( & mut self, n: usize)->SourceResult<Vec<Arg>>
     {
         let mut list = vec![];
 
         let mut i = 0;
-        while i < self.items.len() && list.len() < n
-        {
-            if self.items[i].name.is_none()
-            {
-                list.push(self.items.remove(i));
-            }
-            else
-            {
-                i += 1;
-            }
-        }
+        while i < self.items.len() && list.len() < n { if self.items[i].name.is_none() { list.push(self.items.remove(i)); } else { i += 1; } }
 
-        if list.len() < n
-        {
-            bail!(self.span, "not enough arguments");
-        }
+        if list.len() < n { bail ! (self.span, "not enough arguments"); }
 
         Ok(list)
     }
@@ -166,44 +123,30 @@ impl Args
     ///
     /// Returns a `missing argument: {what}` error if no positional argument is
     /// left.
-    pub fn expect<T>(&mut self, what: &str) -> SourceResult<T>
+    pub fn expect<T>( & mut self, what: & str)->SourceResult<T>
     where
-        T: FromValue<Spanned<Value>>,
-    {
-        match self.eat()?
-        {
-            Some(v) => Ok(v),
-            None => bail!(self.missing_argument(what)),
-        }
-    }
+    T: FromValue<Spanned<Value>>, { match self.eat()? { Some(v) => Ok(v), None => bail ! (self.missing_argument(what)), } }
 
     /// The error message for missing arguments.
-    fn missing_argument(&self, what: &str) -> SourceDiagnostic
+    fn missing_argument( & self, what: & str)->SourceDiagnostic
     {
-        for item in &self.items
+        for item in & self.items
         {
             if let Some(name) = item.name.as_deref()
-                && name == what
-            {
-                return error!(
-                    item.span,
-                    "the argument `{what}` is positional";
-                    hint: "try removing `{name}:`";
-                );
-            }
+            && name == what { return error ! (item.span, "the argument `{what}` is positional"; hint: "try removing `{name}:`";); }
         }
 
         error!(self.span, "missing argument: {what}")
     }
 
     /// Find and consume the first castable positional argument.
-    pub fn find<T>(&mut self) -> SourceResult<Option<T>>
+    pub fn find<T>( & mut self)->SourceResult<Option<T>>
     where
-        T: FromValue<Spanned<Value>>,
+    T: FromValue<Spanned<Value>>,
     {
         for (i, slot) in self.items.iter().enumerate()
         {
-            if slot.name.is_none() && T::castable(&slot.value.v)
+            if slot.name.is_none() && T::castable( & slot.value.v)
             {
                 let value = self.items.remove(i).value;
                 let span = value.span;
@@ -214,38 +157,32 @@ impl Args
     }
 
     /// Find and consume all castable positional arguments.
-    pub fn all<T>(&mut self) -> SourceResult<Vec<T>>
+    pub fn all<T>( & mut self)->SourceResult<Vec<T>>
     where
-        T: FromValue<Spanned<Value>>,
+    T: FromValue<Spanned<Value>>,
     {
         let mut list = vec![];
         let mut errors = eco_vec![];
-        self.items.retain(|item| {
-            if item.name.is_some()
+        self.items.retain
+        (
+            | item |
             {
-                return true;
+                if item.name.is_some() { return true; }
+                let span = item.value.span;
+                let spanned = Spanned:: new (std::mem::take( & mut item.value.v), span);
+                match T::from_value(spanned).at(span) { Ok(val) => list.push(val), Err(diags) => errors.extend(diags), }
+                false
             }
-            let span = item.value.span;
-            let spanned = Spanned::new(std::mem::take(&mut item.value.v), span);
-            match T::from_value(spanned).at(span)
-            {
-                Ok(val) => list.push(val),
-                Err(diags) => errors.extend(diags),
-            }
-            false
-        });
-        if !errors.is_empty()
-        {
-            return Err(errors);
-        }
+        );
+        if ! errors.is_empty() { return Err(errors); }
         Ok(list)
     }
 
     /// Cast and remove the value for the given named argument, returning an
     /// error if the conversion fails.
-    pub fn named<T>(&mut self, name: &str) -> SourceResult<Option<T>>
+    pub fn named<T>( & mut self, name: & str)->SourceResult<Option<T>>
     where
-        T: FromValue<Spanned<Value>>,
+    T: FromValue<Spanned<Value>>,
     {
         // We don't quit once we have a match because when multiple matches
         // exist, we want to remove all of them and use the last one.
@@ -259,47 +196,24 @@ impl Args
                 let span = value.span;
                 found = Some(T::from_value(value).at(span)?);
             }
-            else
-            {
-                i += 1;
-            }
+            else { i += 1; }
         }
         Ok(found)
     }
 
     /// Same as named, but with fallback to find.
-    pub fn named_or_find<T>(&mut self, name: &str) -> SourceResult<Option<T>>
+    pub fn named_or_find<T>( & mut self, name: & str)->SourceResult<Option<T>>
     where
-        T: FromValue<Spanned<Value>>,
-    {
-        match self.named(name)?
-        {
-            Some(value) => Ok(Some(value)),
-            None => self.find(),
-        }
-    }
+    T: FromValue<Spanned<Value>>, { match self.named(name)? { Some(value) => Ok(Some(value)), None => self.find(), } }
 
     /// Take out all arguments into a new instance.
-    pub fn take(&mut self) -> Self
-    {
-        Self {
-            span: self.span,
-            items: std::mem::take(&mut self.items),
-        }
-    }
+    pub fn take( & mut self)->Self { Self { span: self.span, items: std::mem::take( & mut self.items), } }
 
     /// Return an "unexpected argument" error if there is any remaining
     /// argument.
-    pub fn finish(self) -> SourceResult<()>
+    pub fn finish(self)->SourceResult<()>
     {
-        if let Some(arg) = self.items.first()
-        {
-            match &arg.name
-            {
-                Some(name) => bail!(arg.span, "unexpected argument: {name}"),
-                _ => bail!(arg.span, "unexpected argument"),
-            }
-        }
+        if let Some(arg) = self.items.first() { match & arg.name { Some(name) => bail ! (arg.span, "unexpected argument: {name}"), _ => bail ! (arg.span, "unexpected argument"), } }
         Ok(())
     }
 }
@@ -307,61 +221,39 @@ impl Args
 /// A key that can be used to get an argument: either the index of a positional
 /// argument, or the name of a named argument.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ArgumentKey
-{
-    Index(i64),
-    Name(Str),
-}
+pub enum ArgumentKey { Index(i64), Name(Str), }
 
-cast! {
-    ArgumentKey,
-    v: i64 => Self::Index(v),
-    v: Str => Self::Name(v),
-}
+cast! { ArgumentKey, v: i64 => Self::Index(v), v: Str => Self::Name(v), }
 
 impl Args
 {
     /// Tests whether there is no positional nor named argument.
-    pub fn is_empty(&self) -> bool
-    {
-        self.items.is_empty()
-    }
+    pub fn is_empty( & self)-> bool { self.items.is_empty() }
 
-    fn get(&self, key: &ArgumentKey) -> Option<&Value>
+    fn get( & self, key: & ArgumentKey)->Option <& Value >
     {
         let item = match key
         {
-            &ArgumentKey::Index(index) =>
+            & ArgumentKey::Index(index) =>
             {
-                let mut iter = self.items.iter().filter(|item| item.name.is_none());
-                if index < 0
-                {
-                    let index = (-(index + 1)).try_into().ok()?;
-                    iter.nth_back(index)
-                }
-                else
-                {
-                    let index = index.try_into().ok()?;
-                    iter.nth(index)
-                }
+                let mut iter = self.items.iter().filter( | item | item.name.is_none());
+                if index < 0 { let index = ( - (index + 1)).try_into().ok()?; iter.nth_back(index) }
+                else { let index = index.try_into().ok()?; iter.nth(index) }
             }
             // Accept the last argument with the right name.
-            ArgumentKey::Name(name) =>
-            {
-                self.items.iter().rfind(|item| item.name.as_ref() == Some(name))
-            }
+            ArgumentKey::Name(name) => { self.items.iter().rfind( | item | item.name.as_ref() == Some(name)) }
         };
-        item.map(|item| &item.value.v)
+        item.map( | item | & item.value.v)
     }
 
     /// Access a named argument as a field.
-    pub fn field(&self, field: &str) -> StrResult<&Value>
+    pub fn field( & self, field: & str)->StrResult <& Value >
     {
         self.items
-            .iter()
-            .rfind(|item| item.name.as_ref().map(|name| name.as_str()) == Some(field))
-            .ok_or_else(|| eco_format!("no named argument {}", field.repr()))
-            .map(|item| &item.value.v)
+        .iter()
+        .rfind( | item | item.name.as_ref().map( | name | name.as_str()) == Some(field))
+        .ok_or_else( || eco_format ! ("no named argument {}", field.repr()))
+        .map( | item | & item.value.v)
     }
 }
 
@@ -380,28 +272,24 @@ impl Args
     /// )
     /// #box(..args)
     /// ```
-    #[func(constructor, since = "0.10.0")]
-    pub fn construct(
-        args: &mut Args,
+    # [func(constructor, since = "0.10.0")]
+    pub fn construct
+    (
+        args: & mut Args,
         /// The arguments to construct.
-        #[external]
-        #[variadic]
+        # [external]
+        # [variadic]
         args_: Vec<Value>,
-    ) -> Args
-    {
-        args.take()
-    }
+    )
+   ->Args { args.take() }
 
     /// Returns the number of arguments, positional or named.
     ///
     /// ```example
     /// #arguments(a: "b", none, 1).len()
     /// ```
-    #[func(title = "Length", since = "0.15.0")]
-    pub fn len(&self) -> usize
-    {
-        self.items.len()
-    }
+    # [func(title = "Length", since = "0.15.0")]
+    pub fn len( & self)->usize { self.items.len() }
 
     /// Returns the positional argument at the specified index, or the named
     /// argument with the specified name.
@@ -421,9 +309,10 @@ impl Args
     /// #args.at("x") \
     /// #args.x
     /// ```
-    #[func(since = "0.12.0")]
-    pub fn at(
-        &self,
+    # [func(since = "0.12.0")]
+    pub fn at
+    (
+        & self,
         /// The index or name of the argument to get.
         key: ArgumentKey,
         /// A default value to return if the key is invalid.
@@ -434,44 +323,26 @@ impl Args
         /// #args.at(1, default: "missing") \
         /// #args.at("a", default: "missing")
         /// ```
-        #[named]
+        # [named]
         default: Option<Value>,
-    ) -> StrResult<Value>
-    {
-        self.get(&key)
-            .cloned()
-            .or(default)
-            .ok_or_else(|| missing_key_no_default(key))
-    }
+    )
+   ->StrResult<Value> { self.get ( & key).cloned().or(default).ok_or_else( || missing_key_no_default(key)) }
 
     /// Returns the positional arguments as an array.
     ///
     /// ```example
     /// #arguments(1, a: 2, "foo").pos()
     /// ```
-    #[func(name = "pos", title = "Positional", since = "forever")]
-    pub fn to_pos(&self) -> Array
-    {
-        self.items
-            .iter()
-            .filter(|item| item.name.is_none())
-            .map(|item| item.value.v.clone())
-            .collect()
-    }
+    # [func(name = "pos", title = "Positional", since = "forever")]
+    pub fn to_pos( & self)->Array { self.items.iter().filter( | item | item.name.is_none()).map( | item | item.value.v.clone()).collect() }
 
     /// Returns the named arguments as a dictionary.
     ///
     /// ```example
     /// #arguments(1, a: 2, "foo").named()
     /// ```
-    #[func(name = "named", since = "forever")]
-    pub fn to_named(&self) -> Dict
-    {
-        self.items
-            .iter()
-            .filter_map(|item| item.name.clone().map(|name| (name, item.value.v.clone())))
-            .collect()
-    }
+    # [func(name = "named", since = "forever")]
+    pub fn to_named( & self)->Dict { self.items.iter().filter_map( | item | item.name.clone().map( | name | (name, item.value.v.clone()))).collect() }
 
     /// Produces a new `arguments` with only the arguments for which the value
     /// passes the test.
@@ -482,21 +353,21 @@ impl Args
     ///     .filter(v => v > 0)
     /// }
     /// ```
-    #[func(since = "0.15.0")]
-    pub fn filter(
+    # [func(since = "0.15.0")]
+    pub fn filter
+    (
         self,
-        engine: &mut Engine,
+        engine: & mut Engine,
         context: Tracked<Context>,
         /// The function to apply to each value. Must return a boolean.
         test: Spanned<Func>,
-    ) -> SourceResult<Args>
+    )
+   ->SourceResult<Args>
     {
-        let mut run_test = |v: &Value| test.call::<bool>(engine, context, [v.clone()]);
+        let mut run_test = | v: & Value | test.call::<bool>(engine, context, [v.clone()]);
         self.into_iter()
-            .filter_map(|arg| {
-                run_test(&arg.value.v).map(|b| b.then_some(arg)).transpose()
-            })
-            .collect()
+        .filter_map( | arg | { run_test( & arg.value.v).map( | b | b.then_some(arg)).transpose() })
+        .collect()
     }
 
     /// Produces a new `arguments` by transforming each argument value with the
@@ -508,64 +379,50 @@ impl Args
     ///     .map(v => v + 1)
     /// }
     /// ```
-    #[func(since = "0.15.0")]
-    pub fn map(
+    # [func(since = "0.15.0")]
+    pub fn map
+    (
         self,
-        engine: &mut Engine,
+        engine: & mut Engine,
         context: Tracked<Context>,
         /// The function to apply to each value.
         mapper: Spanned<Func>,
-    ) -> SourceResult<Args>
+    )
+   ->SourceResult<Args>
     {
         self.into_iter()
-            .map(|arg| {
+        .map
+        (
+            | arg |
+            {
                 let mapped_value = mapper.call(engine, context, [arg.value.v])?;
-                Ok(Arg {
-                    span: arg.span,
-                    name: arg.name,
-                    value: Spanned::detached(mapped_value),
-                })
-            })
-            .collect()
+                Ok(Arg { span: arg.span, name: arg.name, value: Spanned::detached(mapped_value), })
+            }
+        )
+        .collect()
     }
 }
 
-impl Debug for Args
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        f.debug_list().entries(&self.items).finish()
-    }
-}
+impl Debug for Args { fn fmt( & self, f: & mut Formatter)->fmt::Result { f.debug_list().entries( & self.items).finish() } }
 
 impl Repr for Args
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
         let pieces = self.items.iter().map(Arg::repr).collect::<Vec<_>>();
-        eco_format!("arguments{}", repr::pretty_array_like(&pieces, false))
+        eco_format!("arguments{}", repr::pretty_array_like( & pieces, false))
     }
 }
 
-impl PartialEq for Args
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.to_pos() == other.to_pos() && self.to_named() == other.to_named()
-    }
-}
+impl PartialEq for Args { fn eq( & self, other: & Self)->bool { self.to_pos() == other.to_pos() && self.to_named() == other.to_named() } }
 
 impl Add for Args
 {
     type Output = Self;
 
-    fn add(mut self, rhs: Self) -> Self::Output
+    fn add(mut self, rhs: Self)->Self::Output
     {
-        self.items.retain(|item| {
-            !item.name.as_ref().is_some_and(|name| {
-                rhs.items.iter().any(|a| a.name.as_ref() == Some(name))
-            })
-        });
+        self.items.retain( | item | { ! item.name.as_ref().is_some_and( | name | { rhs.items.iter().any( | a | a.name.as_ref() == Some(name)) }) });
         self.items.extend(rhs.items);
         self.span = Span::detached();
         self
@@ -574,35 +431,23 @@ impl Add for Args
 
 impl FromIterator<Arg> for Args
 {
-    fn from_iter<T: IntoIterator<Item = Arg>>(iter: T) -> Self
-    {
-        Self {
-            span: Span::detached(),
-            items: iter.into_iter().collect(),
-        }
-    }
+    fn from_iter<T: IntoIterator<Item = Arg>>(iter: T)->Self { Self { span: Span::detached(), items: iter.into_iter().collect(), } }
 }
 
 impl IntoIterator for Args
 {
     type Item = Arg;
-    type IntoIter = <EcoVec<Arg> as IntoIterator>::IntoIter;
+    type IntoIter = < EcoVec<Arg> as IntoIterator >:: IntoIter;
 
-    fn into_iter(self) -> Self::IntoIter
-    {
-        self.items.into_iter()
-    }
+    fn into_iter(self)->Self::IntoIter { self.items.into_iter() }
 }
 
-impl<'a> IntoIterator for &'a Args
+impl <'a> IntoIterator for & 'a Args
 {
-    type Item = &'a Arg;
+    type Item = & 'a Arg;
     type IntoIter = slice::Iter<'a, Arg>;
 
-    fn into_iter(self) -> Self::IntoIter
-    {
-        self.items.iter()
-    }
+    fn into_iter(self)->Self::IntoIter { self.items.iter() }
 }
 
 /// An argument to a function call: `12` or `draw: false`.
@@ -619,83 +464,38 @@ pub struct Arg
 
 impl Debug for Arg
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        if let Some(name) = &self.name
-        {
-            name.fmt(f)?;
-            f.write_str(": ")?;
-            self.value.v.fmt(f)
-        }
-        else
-        {
-            self.value.v.fmt(f)
-        }
-    }
+    fn fmt( & self, f: & mut Formatter)->fmt::Result { if let Some(name) = & self.name { name.fmt(f)?; f.write_str(": ")?; self.value.v.fmt(f) } else { self.value.v.fmt(f) } }
 }
 
 impl Repr for Arg
 {
-    fn repr(&self) -> EcoString
-    {
-        if let Some(name) = &self.name
-        {
-            eco_format!("{}: {}", name, self.value.v.repr())
-        }
-        else
-        {
-            self.value.v.repr()
-        }
-    }
+    fn repr( & self)->EcoString { if let Some(name) = & self.name { eco_format ! ("{}: {}", name, self.value.v.repr()) } else { self.value.v.repr() } }
 }
 
-impl PartialEq for Arg
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.name == other.name && self.value.v == other.value.v
-    }
-}
+impl PartialEq for Arg { fn eq( & self, other: & Self)->bool { self.name == other.name && self.value.v == other.value.v } }
 
 /// Things that can be used as arguments.
 pub trait IntoArgs
 {
     /// Convert into arguments, attaching the `fallback` span in case `Self`
     /// doesn't have a span.
-    fn into_args(self, fallback: Span) -> Args;
+    fn into_args(self, fallback: Span)->Args;
 }
 
-impl IntoArgs for Args
-{
-    fn into_args(self, fallback: Span) -> Args
-    {
-        self.spanned(fallback)
-    }
-}
+impl IntoArgs for Args { fn into_args(self, fallback: Span)->Args { self.spanned(fallback) } }
 
-impl<I, T> IntoArgs for I
+impl <I, T> IntoArgs for I
 where
-    I: IntoIterator<Item = T>,
-    T: IntoValue,
-{
-    fn into_args(self, fallback: Span) -> Args
-    {
-        Args::new(fallback, self)
-    }
-}
+I: IntoIterator<Item = T>,
+T: IntoValue, { fn into_args(self, fallback: Span)->Args { Args::new (fallback, self) } }
 
 /// The missing key access error message when no default was given.
 #[cold]
-fn missing_key_no_default(key: ArgumentKey) -> EcoString
+fn missing_key_no_default(key: ArgumentKey)->EcoString
 {
     match key
     {
-        ArgumentKey::Index(i) => eco_format!(
-            "no positional argument at index {i} and no default value was specified",
-        ),
-        ArgumentKey::Name(name) => eco_format!(
-            "no named argument {} and no default value was specified",
-            name.repr()
-        ),
+        ArgumentKey::Index(i) => eco_format!("no positional argument at index {i} and no default value was specified",),
+        ArgumentKey::Name(name) => eco_format!("no named argument {} and no default value was specified", name.repr()),
     }
 }

@@ -1,16 +1,16 @@
 use std::iter;
-use std::ops::{Deref, DerefMut};
+use std::ops:: { Deref, DerefMut };
 
 use smallvec::SmallVec;
 use unicode_math_class::MathClass;
 
-use super::item::{MathItem, RawMathItem};
-use super::multiline::{AlignedRow, split_at_align};
+use super::item:: { MathItem, RawMathItem };
+use super::multiline:: { AlignedRow, split_at_align };
 use crate::foundations::StyleChain;
-use crate::math::{MEDIUM, MathSize, THICK, THIN};
+use crate::math:: { MEDIUM, MathSize, THICK, THIN };
 
 /// The result of processing items for grouping.
-pub(crate) enum GroupResult<'a>
+pub (crate) enum GroupResult<'a>
 {
     /// Linebreaks weren't present and alignment points were pruned giving plain
     /// items.
@@ -27,63 +27,47 @@ pub(crate) enum GroupResult<'a>
 /// the resulting rows should be padded to have the same length. The `split`
 /// parameter indicates whether alignment points should split the items into
 /// columns, even when no linebreaks are present.
-pub(crate) fn process_group<'a, I>(
-    items: I,
-    styles: StyleChain<'a>,
-    closing: bool,
-    pad: bool,
-    split: bool,
-) -> GroupResult<'a>
+pub (crate) fn process_group<'a, I>(items: I, styles: StyleChain<'a>, closing: bool , pad: bool , split: bool ,)->GroupResult<'a>
 where
-    I: IntoIterator<Item = RawMathItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
+I: IntoIterator<Item = RawMathItem<'a>>,
+I::IntoIter: ExactSizeIterator,
 {
     let preprocessed = preprocess(items, closing, false);
     if preprocessed.linebreaks > 0 || (split && preprocessed.has_align)
     {
-        let mut row = Vec::new();
-        let mut rows: Vec<_> = preprocessed
-            .items
-            .into_iter()
-            .chain(iter::once(RawMathItem::Linebreak))
-            .filter_map(|item| match item
-            {
-                RawMathItem::Linebreak => Some(split_at_align(row.drain(..), styles)),
-                other =>
-                {
-                    row.push(other);
-                    None
-                }
-            })
-            .collect();
+        let mut row = Vec:: new ();
+        let mut rows: Vec < _ > = preprocessed
+        .items
+        .into_iter()
+        .chain(iter::once(RawMathItem::Linebreak))
+        .filter_map( | item | match item { RawMathItem::Linebreak => Some(split_at_align(row.drain(..), styles)), other => { row.push(other); None } })
+        .collect();
 
         if pad
         {
             let ncols = rows.iter().map(AlignedRow::len).max().unwrap_or_default();
-            for row in &mut rows
-            {
-                row.pad_to(ncols, styles);
-            }
+            for row in & mut rows { row.pad_to(ncols, styles); }
         }
 
         GroupResult::Multiline(rows)
     }
     else
     {
-        GroupResult::Flat(
+        GroupResult::Flat
+        (
             preprocessed
-                .items
-                .into_iter()
-                .filter(|item| !matches!(item, RawMathItem::Align))
-                .map(RawMathItem::into_item)
-                .collect::<Option<_>>()
-                .unwrap(),
+            .items
+            .into_iter()
+            .filter( | item | ! matches ! (item, RawMathItem::Align))
+            .map(RawMathItem::into_item)
+            .collect::<Option<_>>()
+            .unwrap(),
         )
     }
 }
 
 /// The result of processing items for a table cell.
-pub(crate) struct TableCellResult<'a>
+pub (crate) struct TableCellResult<'a>
 {
     /// Linebreaks stripped, and items split at alignment points.
     pub sub_columns: AlignedRow<'a>,
@@ -92,45 +76,22 @@ pub(crate) struct TableCellResult<'a>
 }
 
 /// Processes raw items for a table cell.
-pub(crate) fn process_table_cell<'a, I>(
-    items: I,
-    styles: StyleChain<'a>,
-) -> TableCellResult<'a>
+pub (crate) fn process_table_cell<'a, I>(items: I, styles: StyleChain<'a>,)->TableCellResult<'a>
 where
-    I: IntoIterator<Item = RawMathItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
+I: IntoIterator<Item = RawMathItem<'a>>,
+I::IntoIter: ExactSizeIterator,
 {
     let preprocessed = preprocess(items, false, true);
-    let sub_columns = if preprocessed.has_align
-    {
-        split_at_align(preprocessed.items, styles)
-    }
+    let sub_columns = if preprocessed.has_align { split_at_align(preprocessed.items, styles) }
     else
     {
-        AlignedRow::new(vec![MathItem::wrap(
-            preprocessed
-                .items
-                .into_iter()
-                .map(RawMathItem::into_item)
-                .collect::<Option<_>>()
-                .unwrap(),
-            styles,
-        )])
+        AlignedRow:: new (vec ! [MathItem::wrap(preprocessed.items.into_iter().map(RawMathItem::into_item).collect::<Option<_>>().unwrap(), styles,)])
     };
-    TableCellResult {
-        sub_columns,
-        had_linebreaks: preprocessed.had_linebreaks,
-    }
+    TableCellResult { sub_columns, had_linebreaks: preprocessed.had_linebreaks, }
 }
 
 /// Internal result of the preprocessing logic.
-struct Preprocessed<'a>
-{
-    items: SmallVec<[RawMathItem<'a>; 8]>,
-    had_linebreaks: bool,
-    has_align: bool,
-    linebreaks: u32,
-}
+struct Preprocessed<'a> { items: SmallVec < [RawMathItem<'a>; 8] > , had_linebreaks: bool , has_align: bool , linebreaks: u32, }
 
 /// Takes the given [`RawMathItem`]s and processes the spacing between them.
 ///
@@ -145,16 +106,16 @@ struct Preprocessed<'a>
 /// > (right-aligned, left-aligned) pair to the right-aligned column
 ///
 /// This is handled in the [`split_at_align`] function.
-fn preprocess<'a, I>(items: I, closing: bool, strip_linebreaks: bool) -> Preprocessed<'a>
+fn preprocess<'a, I>(items: I, closing: bool , strip_linebreaks: bool)->Preprocessed<'a>
 where
-    I: IntoIterator<Item = RawMathItem<'a>>,
-    I::IntoIter: ExactSizeIterator,
+I: IntoIterator<Item = RawMathItem<'a>>,
+I::IntoIter: ExactSizeIterator,
 {
     let iter = items.into_iter();
     let mut resolved = MathBuffer::with_capacity(iter.len());
 
-    let mut last: Option<usize> = None;
-    let mut space: Option<MathItem> = None;
+    let mut last: Option < usize > = None;
+    let mut space: Option < MathItem > = None;
     let mut had_linebreaks = false;
     let mut has_align = false;
     let mut linebreaks: u32 = 0;
@@ -164,20 +125,9 @@ where
         match item
         {
             // Tags don't affect layout.
-            RawMathItem::Item(MathItem::Tag(_)) =>
-            {
-                resolved.push(item);
-                continue;
-            }
+            RawMathItem::Item(MathItem::Tag(_)) => { resolved.push(item); continue ; }
             // Keep space only if supported by spaced items.
-            RawMathItem::Item(MathItem::Space) =>
-            {
-                if last.is_some()
-                {
-                    space = item.into_item();
-                }
-                continue;
-            }
+            RawMathItem::Item(MathItem::Space) => { if last.is_some() { space = item.into_item(); } continue ; }
 
             // Explicit spacing disables automatic spacing.
             RawMathItem::Item(MathItem::Spacing(width, font_size, weak)) =>
@@ -188,21 +138,10 @@ where
                 if weak
                 {
                     let Some(resolved_last) = resolved.last_mut()
-                    else
+                    else { continue ; };
+                    if let RawMathItem::Item(MathItem::Spacing(prev_width, prev_font_size, true,)) = resolved_last
                     {
-                        continue;
-                    };
-                    if let RawMathItem::Item(MathItem::Spacing(
-                        prev_width,
-                        prev_font_size,
-                        true,
-                    )) = resolved_last
-                    {
-                        if prev_width.at(*prev_font_size) < width.at(font_size)
-                        {
-                            *prev_width = width;
-                            *prev_font_size = font_size;
-                        }
+                        if prev_width.at( * prev_font_size) < width.at(font_size) { * prev_width = width; * prev_font_size = font_size; }
                         continue;
                     }
                 }
@@ -212,21 +151,13 @@ where
             }
 
             // Alignment points are resolved later.
-            RawMathItem::Align =>
-            {
-                has_align = true;
-                resolved.push(item);
-                continue;
-            }
+            RawMathItem::Align => { has_align = true; resolved.push(item); continue ; }
 
             // New line, new things.
             RawMathItem::Linebreak =>
             {
                 had_linebreaks = true;
-                if strip_linebreaks
-                {
-                    continue;
-                }
+                if strip_linebreaks { continue ; }
                 linebreaks += 1;
                 resolved.push(item);
                 space = None;
@@ -234,36 +165,26 @@ where
                 continue;
             }
 
-            RawMathItem::Item(_) =>
-            {}
+            RawMathItem::Item(_) => {}
         }
 
         let mut item = item.into_item().unwrap();
 
         // Convert variable operators into binary operators if something
         // precedes them and they are not preceded by a operator or comparator.
-        if item.class() == MathClass::Vary
-            && let Some(RawMathItem::Item(prev)) = last.map(|i| &resolved[i])
-            && matches!(
-                prev.class(),
-                MathClass::Normal
-                    | MathClass::Alphabetic
-                    | MathClass::Closing
-                    | MathClass::Fence
-            )
+        if item. class () == MathClass::Vary
+        && let Some(RawMathItem::Item(prev)) = last.map( | i | & resolved[i])
+        && matches!(prev.class (), MathClass::Normal | MathClass::Alphabetic | MathClass::Closing | MathClass::Fence)
         {
             item.set_class(MathClass::Binary);
         }
 
         // Insert spacing between the last and this non-ignorant item.
-        if !item.is_ignorant()
+        if ! item.is_ignorant()
         {
             if let Some(i) = last
-                && let RawMathItem::Item(ref mut prev) = resolved[i]
-                && let Some(s) = spacing(prev, space.take(), &mut item)
-            {
-                resolved.insert(i + 1, RawMathItem::Item(s));
-            }
+            && let RawMathItem::Item(ref mut prev) = resolved[i]
+            && let Some(s) = spacing(prev, space.take(), & mut item) { resolved.insert(i + 1, RawMathItem::Item(s)); }
 
             last = Some(resolved.len());
         }
@@ -273,82 +194,54 @@ where
 
     // Apply closing punctuation spacing if applicable.
     if closing
-        && let Some(RawMathItem::Item(item)) = resolved.last_mut()
-        && item.rclass() == MathClass::Punctuation
-        && item.size().is_none_or(|s| s > MathSize::Script)
-    {
-        item.set_rspace(Some(THIN));
-    }
+    && let Some(RawMathItem::Item(item)) = resolved.last_mut()
+    && item.rclass() == MathClass::Punctuation
+    && item.size().is_none_or( | s | s > MathSize::Script) { item.set_rspace(Some(THIN)); }
     else if let Some(idx) = resolved.last_index()
-        && let RawMathItem::Item(MathItem::Spacing(_, _, true)) = resolved.0[idx]
-    {
-        resolved.0.remove(idx);
-    }
+    && let RawMathItem::Item(MathItem::Spacing(_, _, true)) = resolved .0[idx] { resolved .0.remove(idx); }
 
     // Strip final trailing linebreak.
-    if !closing
-        && let Some(idx) = resolved.last_index()
-        && matches!(resolved.0[idx], RawMathItem::Linebreak)
-    {
-        resolved.0.remove(idx);
-        linebreaks -= 1;
-    }
+    if ! closing
+    && let Some(idx) = resolved.last_index()
+    && matches!(resolved .0[idx], RawMathItem::Linebreak) { resolved .0.remove(idx); linebreaks -= 1; }
 
-    Preprocessed {
-        items: resolved.0,
-        had_linebreaks,
-        has_align,
-        linebreaks,
-    }
+    Preprocessed { items: resolved .0, had_linebreaks, has_align, linebreaks, }
 }
 
 /// Computes the spacing between two adjacent math items.
-fn spacing<'a>(
-    l: &mut MathItem,
-    space: Option<MathItem<'a>>,
-    r: &mut MathItem,
-) -> Option<MathItem<'a>>
+fn spacing<'a>(l: & mut MathItem, space: Option<MathItem<'a>>, r: & mut MathItem,)->Option<MathItem<'a>>
 {
-    use MathClass::*;
+    use MathClass:: * ;
 
-    let script = |f: &MathItem| f.size().is_some_and(|s| s <= MathSize::Script);
+    let script = | f: & MathItem | f.size().is_some_and( | s | s <= MathSize::Script);
 
     match (l.rclass(), r.lclass())
     {
         // No spacing before punctuation; thin spacing after punctuation, unless
         // in script size.
-        (_, Punctuation) =>
-        {}
-        (Punctuation, _) if !script(l) => l.set_rspace(Some(THIN)),
+        (_, Punctuation) => {}
+        (Punctuation, _) if ! script(l) => l.set_rspace(Some(THIN)),
 
         // No spacing after opening delimiters and before closing delimiters.
-        (Opening, _) | (_, Closing) =>
-        {}
+        (Opening, _) | (_, Closing) => {}
 
         // Thick spacing around relations, unless followed by a another relation
         // or in script size.
-        (Relation, Relation) =>
-        {}
-        (Relation, _) if !script(l) => l.set_rspace(Some(THICK)),
-        (_, Relation) if !script(r) => r.set_lspace(Some(THICK)),
+        (Relation, Relation) => {}
+        (Relation, _) if ! script(l) => l.set_rspace(Some(THICK)),(_, Relation) if ! script(r) => r.set_lspace(Some(THICK)),
 
         // Medium spacing around binary operators, unless in script size.
-        (Binary, _) if !script(l) => l.set_rspace(Some(MEDIUM)),
-        (_, Binary) if !script(r) => r.set_lspace(Some(MEDIUM)),
+        (Binary, _) if ! script(l) => l.set_rspace(Some(MEDIUM)),(_, Binary) if ! script(r) => r.set_lspace(Some(MEDIUM)),
 
         // Thin spacing around large operators, unless to the left of
         // an opening delimiter. TeXBook, p170
-        (Large, Opening | Fence) =>
-        {}
-        (Large, _) => l.set_rspace(Some(THIN)),
-
-        (_, Large) => r.set_lspace(Some(THIN)),
+        (Large, Opening | Fence) => {}
+        (Large, _) => l.set_rspace(Some(THIN)),(_, Large) => r.set_lspace(Some(THIN)),
 
         // Spacing around spaced frames.
         _ if (l.is_spaced() || r.is_spaced()) => return space,
 
-        _ =>
-        {}
+        _ => {}
     }
 
     None
@@ -356,43 +249,20 @@ fn spacing<'a>(
 
 /// A wrapper around `SmallVec<[RawMathItem; 8]>` that ignores ignorant items in
 /// some access methods.
-struct MathBuffer<'a>(SmallVec<[RawMathItem<'a>; 8]>);
+struct MathBuffer<'a>(SmallVec < [RawMathItem<'a>; 8] >);
 
-impl<'a> MathBuffer<'a>
+impl <'a> MathBuffer<'a>
 {
     /// Creates a new buffer with the given capacity.
-    fn with_capacity(size: usize) -> Self
-    {
-        Self(SmallVec::with_capacity(size))
-    }
+    fn with_capacity(size: usize)->Self { Self(SmallVec::with_capacity(size)) }
 
     /// Returns a mutable reference to the last non-ignorant item.
-    fn last_mut(&mut self) -> Option<&mut RawMathItem<'a>>
-    {
-        self.0.iter_mut().rev().find(|i| !i.is_ignorant())
-    }
+    fn last_mut( & mut self)->Option <& mut RawMathItem<'a> > { self .0.iter_mut().rev().find( | i | ! i.is_ignorant()) }
 
     /// Returns the physical index of the last non-ignorant item.
-    fn last_index(&self) -> Option<usize>
-    {
-        self.0.iter().rposition(|i| !i.is_ignorant())
-    }
+    fn last_index( & self)->Option<usize> { self .0.iter().rposition( | i | ! i.is_ignorant()) }
 }
 
-impl<'a> Deref for MathBuffer<'a>
-{
-    type Target = SmallVec<[RawMathItem<'a>; 8]>;
+impl <'a> Deref for MathBuffer<'a> { type Target = SmallVec < [RawMathItem<'a>; 8] > ; fn deref( & self)-> & Self::Target { & self .0 } }
 
-    fn deref(&self) -> &Self::Target
-    {
-        &self.0
-    }
-}
-
-impl DerefMut for MathBuffer<'_>
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        &mut self.0
-    }
-}
+impl DerefMut for MathBuffer<'_> { fn deref_mut( & mut self)-> & mut Self::Target { & mut self .0 } }

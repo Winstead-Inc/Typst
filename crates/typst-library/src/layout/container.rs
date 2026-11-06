@@ -1,15 +1,9 @@
-use crate::diag::{HintedStrResult, SourceResult, bail};
+use crate::diag:: { HintedStrResult, SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Args, AutoValue, Construct, Content, Dict, Fold, FromValue, IntoValue, NativeElement,
-    Packed, Smart, StyleChain, Value, cast, elem,
-};
+use crate::foundations:: { Args, AutoValue, Construct, Content, Dict, Fold, FromValue, IntoValue, NativeElement, Packed, Smart, StyleChain, Value, cast, elem, };
 use crate::introspection::Locator;
-use crate::layout::{
-    Abs, Corners, Em, Fr, Fragment, Frame, Length, Region, Regions, Rel, Sides, Size,
-    Spacing, VAlignment,
-};
-use crate::visualize::{Paint, Stroke};
+use crate::layout:: { Abs, Corners, Em, Fr, Fragment, Frame, Length, Region, Regions, Rel, Sides, Size, Spacing, VAlignment, };
+use crate::visualize:: { Paint, Stroke };
 
 /// An inline-level container that sizes content.
 ///
@@ -86,13 +80,13 @@ pub struct BoxElem
 
     /// The box's border color. See the @rect.stroke[rectangle's documentation]
     /// for more details.
-    #[fold]
-    pub stroke: Sides<Option<Option<Stroke>>>,
+    # [fold]
+    pub stroke: Sides < Option < Option < Stroke >>> ,
 
     /// How much to round the box's corners. See the
     /// @rect.radius[rectangle's documentation] for more details.
-    #[fold]
-    pub radius: Corners<Option<Rel<Length>>>,
+    # [fold]
+    pub radius: Corners < Option < Rel < Length >>> ,
 
     /// How much to pad the box's content.
     ///
@@ -115,8 +109,8 @@ pub struct BoxElem
     /// ```example
     /// #rect(inset: 0pt)[Tight]
     /// ```
-    #[fold]
-    pub inset: Sides<Option<Rel<Length>>>,
+    # [fold]
+    pub inset: Sides < Option < Rel < Length >>> ,
 
     /// How much to expand the box's size without affecting the layout.
     ///
@@ -138,8 +132,8 @@ pub struct BoxElem
     ///   radius: 2pt,
     /// )[rectangle].
     /// ```
-    #[fold]
-    pub outset: Sides<Option<Rel<Length>>>,
+    # [fold]
+    pub outset: Sides < Option < Rel < Length >>> ,
 
     /// Whether to clip the content inside the box.
     ///
@@ -154,11 +148,11 @@ pub struct BoxElem
     ///   image("tiger.jpg", width: 100pt, height: 100pt)
     /// )
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub clip: bool,
 
     /// The contents of the box.
-    #[positional]
+    # [positional]
     pub body: Option<Content>,
 }
 
@@ -169,51 +163,29 @@ pub struct InlineElem
 {
     /// A callback that is invoked with the regions to produce arbitrary inline
     /// items.
-    #[required]
-    #[internal]
+    # [required]
+    # [internal]
     body: callbacks::InlineCallback,
 }
 
-impl Construct for InlineElem
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+impl Construct for InlineElem { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
 
 impl InlineElem
 {
     /// Create an inline-level item with a custom layouter.
-    #[expect(clippy::type_complexity)]
-    pub fn layouter<T: NativeElement>(
+    # [expect(clippy::type_complexity)]
+    pub fn layouter<T: NativeElement>
+    (
         captured: Packed<T>,
-        callback: fn(
-            content: &Packed<T>,
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            region: Size,
-        ) -> SourceResult<Vec<InlineItem>>,
-    ) -> Self
-    {
-        Self::new(callbacks::InlineCallback::new(captured, callback))
-    }
+        callback: fn (content: & Packed<T>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Size,)->SourceResult<Vec<InlineItem>>,
+    )
+   ->Self { Self::new (callbacks::InlineCallback::new (captured, callback)) }
 }
 
 impl Packed<InlineElem>
 {
     /// Layout the element.
-    pub fn layout(
-        &self,
-        engine: &mut Engine,
-        locator: Locator,
-        styles: StyleChain,
-        region: Size,
-    ) -> SourceResult<Vec<InlineItem>>
-    {
-        self.body.call(engine, locator, styles, region)
-    }
+    pub fn layout( & self, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Size,)->SourceResult<Vec<InlineItem>> { self.body.call(engine, locator, styles, region) }
 }
 
 /// Layouted items suitable for placing in a paragraph.
@@ -304,7 +276,7 @@ pub struct BlockElem
     ///   lorem(15),
     /// )
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub breakable: bool,
 
     /// The block's background color. See the
@@ -313,23 +285,23 @@ pub struct BlockElem
 
     /// The block's border color. See the
     /// @rect.stroke[rectangle's documentation] for more details.
-    #[fold]
-    pub stroke: Sides<Option<Option<Stroke>>>,
+    # [fold]
+    pub stroke: Sides < Option < Option < Stroke >>> ,
 
     /// How much to round the block's corners. See the
     /// @rect.radius[rectangle's documentation] for more details.
-    #[fold]
-    pub radius: Corners<Option<Rel<Length>>>,
+    # [fold]
+    pub radius: Corners < Option < Rel < Length >>> ,
 
     /// How much to pad the block's content. See the
     /// @box.inset[box's documentation] for more details.
-    #[fold]
-    pub inset: Sides<Option<Rel<Length>>>,
+    # [fold]
+    pub inset: Sides < Option < Rel < Length >>> ,
 
     /// How much to expand the block's size without affecting the layout. See
     /// the @box.outset[box's documentation] for more details.
-    #[fold]
-    pub outset: Sides<Option<Rel<Length>>>,
+    # [fold]
+    pub outset: Sides < Option < Rel < Length >>> ,
 
     /// The spacing around the block. When `{auto}`, inherits the paragraph
     /// @par.spacing[`spacing`].
@@ -354,19 +326,16 @@ pub struct BlockElem
     /// $ x + y = z $
     /// A second paragraph.
     /// ```
-    #[external]
-    #[default(Smart::Custom(Em::new(1.2).into()))]
+    # [external]
+    # [default (Smart::Custom(Em::new (1.2).into()))]
     pub spacing: Smart<Spacing>,
 
     /// The spacing between this block and its predecessor.
-    #[parse(
-        let spacing = args.named("spacing")?;
-        args.named("above")?.or(spacing)
-    )]
+    # [parse(let spacing = args.named("spacing")?; args.named("above")?.or(spacing))]
     pub above: Smart<Spacing>,
 
     /// The spacing between this block and its successor.
-    #[parse(args.named("below")?.or(spacing))]
+    # [parse(args.named("below")?.or(spacing))]
     pub below: Smart<Spacing>,
 
     /// Whether to clip the content inside the block.
@@ -382,7 +351,7 @@ pub struct BlockElem
     ///   image("tiger.jpg", width: 100pt, height: 100pt)
     /// )
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub clip: bool,
 
     /// Whether this block must stick to the following one, with no break in
@@ -400,11 +369,11 @@ pub struct BlockElem
     /// = Chapter
     /// #lorem(10)
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub sticky: bool,
 
     /// The contents of the block.
-    #[positional]
+    # [positional]
     pub body: Option<BlockBody>,
 }
 
@@ -412,49 +381,26 @@ impl BlockElem
 {
     /// Creates a new block element with a normal content body and directly
     /// packs it into type-erased content.
-    pub fn packed(body: Content) -> Content
-    {
-        Self::new().with_body(Some(BlockBody::Content(body))).pack()
-    }
+    pub fn packed(body: Content)->Content { Self::new ().with_body(Some(BlockBody::Content(body))).pack() }
 
     /// Create a block with a custom single-region layouter.
     ///
     /// Such a block must have `breakable: false` (which is set by this
     /// constructor).
-    pub fn single_layouter<T: NativeElement>(
+    pub fn single_layouter<T: NativeElement>
+    (
         captured: Packed<T>,
-        f: fn(
-            content: &Packed<T>,
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            region: Region,
-        ) -> SourceResult<Frame>,
-    ) -> Self
-    {
-        Self::new()
-            .with_breakable(false)
-            .with_body(Some(BlockBody::SingleLayouter(
-                callbacks::BlockSingleCallback::new(captured, f),
-            )))
-    }
+        f: fn (content: & Packed<T>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>,
+    )
+   ->Self { Self::new ().with_breakable(false).with_body(Some(BlockBody::SingleLayouter(callbacks::BlockSingleCallback::new (captured, f),))) }
 
     /// Create a block with a custom multi-region layouter.
-    pub fn multi_layouter<T: NativeElement>(
+    pub fn multi_layouter<T: NativeElement>
+    (
         captured: Packed<T>,
-        f: fn(
-            content: &Packed<T>,
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            regions: Regions,
-        ) -> SourceResult<Fragment>,
-    ) -> Self
-    {
-        Self::new().with_body(Some(BlockBody::MultiLayouter(
-            callbacks::BlockMultiCallback::new(captured, f),
-        )))
-    }
+        f: fn (content: & Packed<T>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>,
+    )
+   ->Self { Self::new ().with_body(Some(BlockBody::MultiLayouter(callbacks::BlockMultiCallback::new (captured, f),))) }
 }
 
 /// The contents of a block.
@@ -471,29 +417,16 @@ pub enum BlockBody
     MultiLayouter(callbacks::BlockMultiCallback),
 }
 
-impl Default for BlockBody
-{
-    fn default() -> Self
-    {
-        Self::Content(Content::default())
-    }
-}
+impl Default for BlockBody { fn default ()->Self { Self::Content(Content::default ()) } }
 
-cast! {
-    BlockBody,
-    self => match self {
-        Self::Content(content) => content.into_value(),
-        _ => Value::Auto,
-    },
-    v: Content => Self::Content(v),
-}
+cast! { BlockBody, self => match self { Self::Content(content) => content.into_value(), _ => Value::Auto, }, v: Content => Self::Content(v), }
 
 /// Defines how to size something along an axis.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Sizing
 {
     /// A track that fits its item's contents.
-    #[default]
+    # [default]
     Auto,
     /// A size specified in absolute terms and relative to the parent's size.
     Rel(Rel),
@@ -505,51 +438,28 @@ pub enum Sizing
 impl Sizing
 {
     /// Whether this is an automatic sizing.
-    pub fn is_auto(self) -> bool
-    {
-        matches!(self, Self::Auto)
-    }
+    pub fn is_auto(self)-> bool { matches ! (self, Self::Auto) }
 
     /// Whether this is fractional sizing.
-    pub fn is_fractional(self) -> bool
-    {
-        matches!(self, Self::Fr(_))
-    }
+    pub fn is_fractional(self)-> bool { matches ! (self, Self::Fr(_)) }
 }
 
 impl From<Smart<Rel>> for Sizing
 {
-    fn from(smart: Smart<Rel>) -> Self
-    {
-        match smart
-        {
-            Smart::Auto => Self::Auto,
-            Smart::Custom(rel) => Self::Rel(rel),
-        }
-    }
+    fn from(smart: Smart<Rel>)->Self { match smart { Smart::Auto => Self::Auto, Smart::Custom(rel) => Self::Rel(rel), } }
 }
 
-impl<T: Into<Spacing>> From<T> for Sizing
+impl <T: Into<Spacing>> From<T> for Sizing
 {
-    fn from(spacing: T) -> Self
-    {
-        match spacing.into()
-        {
-            Spacing::Rel(rel) => Self::Rel(rel),
-            Spacing::Fr(fr) => Self::Fr(fr),
-        }
-    }
+    fn from(spacing: T)->Self { match spacing.into() { Spacing::Rel(rel) => Self::Rel(rel), Spacing::Fr(fr) => Self::Fr(fr), } }
 }
 
-cast! {
+cast!
+{
     Sizing,
-    self => match self {
-        Self::Auto => Value::Auto,
-        Self::Rel(rel) => rel.into_value(),
-        Self::Fr(fr) => fr.into_value(),
-    },
+    self => match self { Self::Auto => Value::Auto, Self::Rel(rel) => rel.into_value(), Self::Fr(fr) => fr.into_value(), },
     _: AutoValue => Self::Auto,
-    v: Rel<Length> => Self::Rel(v),
+    v: Rel < Length > => Self::Rel(v),
     v: Fr => Self::Fr(v),
 }
 
@@ -566,38 +476,33 @@ pub struct BaselinePos
     shift: Option<Rel<Length>>,
 }
 
-cast! {
+cast!
+{
     BaselinePos,
     self => Value::Dict(self.into()),
-    at: Smart<VAlignment> => Self { at: Some(at), shift: None, },
-    shift: Rel<Length> => Self { at: None, shift: Some(shift) },
-    mut dict: Dict => {
+    at: Smart < VAlignment > => Self { at: Some(at), shift: None, },
+
+    shift: Rel < Length > => Self { at: None, shift: Some(shift) },
+    mut dict: Dict =>
+    {
         // Get a value by key, accepting either non-existence or something
         // convertible to type T.
-        fn take<T: FromValue>(dict: &mut Dict, key: &str) -> HintedStrResult<Option<T>> {
-            dict.take(key).ok().map(|v| v.cast()).transpose()
-        }
+        fn take<T: FromValue>(dict: & mut Dict, key: & str)->HintedStrResult<Option<T>> { dict.take(key).ok().map( | v | v.cast()).transpose() }
 
-        let at = take(&mut dict, "at")?;
-        let shift = take(&mut dict, "shift")?;
-        dict.finish(&["at", "shift"])?;
+        let at = take( & mut dict, "at")?;
+        let shift = take( & mut dict, "shift")?;
+        dict.finish( & ["at", "shift"])?;
         Self { at, shift }
     },
 }
 
 impl From<BaselinePos> for Dict
 {
-    fn from(baseline: BaselinePos) -> Self
+    fn from(baseline: BaselinePos)->Self
     {
-        let mut dict = Dict::new();
-        if let Some(at) = baseline.at
-        {
-            dict.insert("at".into(), at.into_value());
-        }
-        if let Some(shift) = baseline.shift
-        {
-            dict.insert("shift".into(), shift.into_value());
-        }
+        let mut dict = Dict:: new ();
+        if let Some(at) = baseline.at { dict.insert("at".into(), at.into_value()); }
+        if let Some(shift) = baseline.shift { dict.insert("shift".into(), shift.into_value()); }
         dict
     }
 }
@@ -606,35 +511,20 @@ impl BaselinePos
 {
     /// Baseline position relative to frame height, or `auto` to align with the
     /// inner baseline.
-    pub fn at(&self) -> Smart<VAlignment>
-    {
-        self.at.unwrap_or_default()
-    }
+    pub fn at( & self)->Smart<VAlignment> { self.at.unwrap_or_default() }
 
     /// Amount to shift by, with default resolved.
-    pub fn shift(&self) -> Rel<Length>
-    {
-        self.shift.unwrap_or_default()
-    }
+    pub fn shift( & self)->Rel<Length> { self.shift.unwrap_or_default() }
 }
 
 impl Default for BaselinePos
 {
-    fn default() -> Self
-    {
-        Self { at: Some(Smart::Auto), shift: Some(Rel::default()) }
-    }
+    fn default()->Self { Self { at: Some(Smart::Auto), shift: Some(Rel::default ()) } }
 }
 
 impl Fold for BaselinePos
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        Self {
-            at: self.at.or(outer.at),
-            shift: self.shift.or(outer.shift),
-        }
-    }
+    fn fold(self, outer: Self)->Self { Self { at: self.at.or(outer.at), shift: self.shift.or(outer.shift), } }
 }
 
 /// Manual closure implementations for layout callbacks.
@@ -642,22 +532,21 @@ impl Fold for BaselinePos
 /// Normal closures are not `Hash`, so we can't use them.
 mod callbacks
 {
-    use super::*;
+    use super:: * ;
 
-    macro_rules! callback {
-        ($name:ident = ($($param:ident: $param_ty:ty),* $(,)?) -> $ret:ty) => {
-            #[derive(Debug, Clone, Hash)]
-            pub struct $name {
-                captured: Content,
-                f: fn(&Content, $($param_ty),*) -> $ret,
-            }
+    macro_rules! callback
+    {
+        ($name: ident = ($($param: ident: $param_ty: ty), * $(,)?)->$ret: ty) =>
+        {
+            # [derive(Debug, Clone, Hash)]
+            pub struct $name { captured: Content, f: fn ( & Content, $($param_ty), *)->$ret, }
 
-            impl $name {
-                pub fn new<T: NativeElement>(
-                    captured: Packed<T>,
-                    f: fn(&Packed<T>, $($param_ty),*) -> $ret,
-                ) -> Self {
-                    Self {
+            impl $name
+            {
+                pub fn new <T: NativeElement>(captured: Packed<T>, f: fn ( & Packed<T>, $($param_ty), *)->$ret,)->Self
+                {
+                    Self
+                    {
                         // Type-erased the content.
                         captured: captured.pack(),
                         // Safety: The only difference between the two function
@@ -675,18 +564,18 @@ mod callbacks
                         //   private field and `Content`'s `Clone` impl is
                         //   guaranteed to retain the type (if it didn't,
                         //   literally everything would break).
-                        #[expect(clippy::missing_transmute_annotations)]
+                        # [expect(clippy::missing_transmute_annotations)]
                         f: unsafe { std::mem::transmute(f) },
                     }
                 }
 
-                pub fn call(&self, $($param: $param_ty),*) -> $ret {
-                    (self.f)(&self.captured, $($param),*)
-                }
+                pub fn call( & self, $($param: $param_ty), *)->$ret { (self.f)( & self.captured, $($param), *) }
             }
 
-            impl PartialEq for $name {
-                fn eq(&self, other: &Self) -> bool {
+            impl PartialEq for $name
+            {
+                fn eq( & self, other: & Self)-> bool
+                {
                     // Comparing function pointers is problematic. Since for
                     // each type of content, there is typically just one
                     // callback, we skip it. It barely matters anyway since
@@ -694,36 +583,15 @@ mod callbacks
                     // elements containing callback bodies is close to
                     // impossible (as these are generally generated in show
                     // rules).
-                    self.captured.eq(&other.captured)
+                    self.captured.eq( & other.captured)
                 }
             }
         };
     }
 
-    callback! {
-        InlineCallback = (
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            region: Size,
-        ) -> SourceResult<Vec<InlineItem>>
-    }
+    callback! { InlineCallback = (engine: & mut Engine, locator: Locator, styles: StyleChain, region: Size,)->SourceResult<Vec<InlineItem>> }
 
-    callback! {
-        BlockSingleCallback = (
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            region: Region,
-        ) -> SourceResult<Frame>
-    }
+    callback! { BlockSingleCallback = (engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame> }
 
-    callback! {
-        BlockMultiCallback = (
-            engine: &mut Engine,
-            locator: Locator,
-            styles: StyleChain,
-            regions: Regions,
-        ) -> SourceResult<Fragment>
-    }
+    callback! { BlockMultiCallback = (engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment> }
 }

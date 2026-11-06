@@ -9,17 +9,17 @@ mod matchers;
 mod tooltip;
 mod utils;
 
-pub use self::analyze::{analyze_expr, analyze_import, analyze_labels};
-pub use self::complete::{Completion, CompletionKind, autocomplete};
-pub use self::definition::{Definition, definition};
-pub use self::jump::{Jump, jump_from_click, jump_from_click_in_frame, jump_from_cursor};
-pub use self::matchers::{DerefTarget, NamedItem, deref_target, named_items};
-pub use self::tooltip::{Tooltip, tooltip};
+pub use self::analyze:: { analyze_expr, analyze_import, analyze_labels };
+pub use self::complete:: { Completion, CompletionKind, autocomplete };
+pub use self::definition:: { Definition, definition };
+pub use self::jump:: { Jump, jump_from_click, jump_from_click_in_frame, jump_from_cursor };
+pub use self::matchers:: { DerefTarget, NamedItem, deref_target, named_items };
+pub use self::tooltip:: { Tooltip, tooltip };
 
 use ecow::EcoString;
 use typst::World;
 use typst::syntax::package::PackageSpec;
-use typst::syntax::{FileId, VirtualPath};
+use typst::syntax:: { FileId, VirtualPath };
 
 /// Extends the `World` for IDE functionality.
 pub trait IdeWorld: World
@@ -30,7 +30,7 @@ pub trait IdeWorld: World
     /// See <https://github.com/rust-lang/rust/issues/65991>.
     ///
     /// Implementors can simply return `self`.
-    fn upcast(&self) -> &dyn World;
+    fn upcast( & self)-> & dyn World;
 
     /// A list of all available packages and optionally descriptions for them.
     ///
@@ -38,10 +38,7 @@ pub trait IdeWorld: World
     /// experience by enabling autocompletion for packages. Details about
     /// packages from the `@preview` namespace are available from
     /// `https://packages.typst.org/preview/index.json`.
-    fn packages(&self) -> &[(PackageSpec, Option<EcoString>)]
-    {
-        &[]
-    }
+    fn packages( & self)-> & [(PackageSpec, Option<EcoString>)] { & [] }
 
     /// Returns a list of relevant path completion candidates.
     ///
@@ -53,11 +50,8 @@ pub trait IdeWorld: World
     ///
     /// This function is **optional** to implement. It enhances the user
     /// experience by enabling autocompletion for file paths.
-    #[allow(unused_variables)]
-    fn files(&self, base: FileId, prefix: Option<&str>) -> Vec<VirtualPath>
-    {
-        vec![]
-    }
+    # [allow(unused_variables)]
+    fn files( & self, base: FileId, prefix: Option <& str >)->Vec<VirtualPath> { vec ! [] }
 }
 
 #[cfg(test)]

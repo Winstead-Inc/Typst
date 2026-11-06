@@ -1,12 +1,10 @@
 use std::num::ParseFloatError;
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use typst_utils::Scalar;
 
-use crate::diag::{StrResult, bail};
-use crate::foundations::{
-    Bytes, Decimal, Endianness, Repr, Str, cast, func, repr, scope, ty,
-};
+use crate::diag:: { StrResult, bail };
+use crate::foundations:: { Bytes, Decimal, Endianness, Repr, Str, cast, func, repr, scope, ty, };
 use crate::layout::Ratio;
 
 /// A floating-point number.
@@ -40,12 +38,12 @@ impl f64
     /// #(9999999 < float.inf) \
     /// #(-float.inf < -9999999)
     /// ```
-    #[constant(title = "Infinity", since = "0.12.0")]
+    # [constant(title = "Infinity", since = "0.12.0")]
     const INF: f64 = f64::INFINITY;
 
     /// A NaN value, as defined by the
     /// #link("https://en.wikipedia.org/wiki/IEEE_754")[IEEE 754 standard].
-    #[constant(title = "NaN", since = "0.12.0")]
+    # [constant(title = "NaN", since = "0.12.0")]
     const NAN: f64 = f64::NAN;
 
     /// Converts a value to a float.
@@ -66,14 +64,13 @@ impl f64
     /// #float("2.7") \
     /// #float("1e5")
     /// ```
-    #[func(constructor, since = "forever")]
-    pub fn construct(
+    # [func(constructor, since = "forever")]
+    pub fn construct
+    (
         /// The value that should be converted to a float.
         value: ToFloat,
-    ) -> f64
-    {
-        value.0
-    }
+    )
+   ->f64 { value .0 }
 
     /// Checks if a float is not a number.
     ///
@@ -85,11 +82,8 @@ impl f64
     /// #float.is-nan(1) \
     /// #float.is-nan(float.nan)
     /// ```
-    #[func(title = "Is NaN", since = "0.11.0")]
-    pub fn is_nan(self) -> bool
-    {
-        f64::is_nan(self)
-    }
+    # [func(title = "Is NaN", since = "0.11.0")]
+    pub fn is_nan(self)-> bool { f64::is_nan(self) }
 
     /// Checks if a float is infinite.
     ///
@@ -101,11 +95,8 @@ impl f64
     /// #float.is-infinite(1) \
     /// #float.is-infinite(float.inf)
     /// ```
-    #[func(since = "0.11.0")]
-    pub fn is_infinite(self) -> bool
-    {
-        f64::is_infinite(self)
-    }
+    # [func(since = "0.11.0")]
+    pub fn is_infinite(self)-> bool { f64::is_infinite(self) }
 
     /// Calculates the sign of a floating point number.
     ///
@@ -119,11 +110,8 @@ impl f64
     /// #(0.0).signum() \
     /// #float.nan.signum()
     /// ```
-    #[func(since = "0.11.0")]
-    pub fn signum(self) -> f64
-    {
-        f64::signum(self)
-    }
+    # [func(since = "0.11.0")]
+    pub fn signum(self)->f64 { f64::signum(self) }
 
     /// Interprets bytes as a float.
     ///
@@ -131,8 +119,9 @@ impl f64
     /// #float.from-bytes(bytes((0, 0, 0, 0, 0, 0, 240, 63))) \
     /// #float.from-bytes(bytes((63, 240, 0, 0, 0, 0, 0, 0)), endian: "big")
     /// ```
-    #[func(since = "0.12.0")]
-    pub fn from_bytes(
+    # [func(since = "0.12.0")]
+    pub fn from_bytes
+    (
         /// The bytes that should be converted to a float.
         ///
         /// Must have a length of either 4 or 8. The bytes are then interpreted
@@ -141,27 +130,20 @@ impl f64
         /// depending on the length of the bytes.
         bytes: Bytes,
         /// The endianness of the conversion.
-        #[named]
-        #[default(Endianness::Little)]
+        # [named]
+        # [default (Endianness::Little)]
         endian: Endianness,
-    ) -> StrResult<f64>
+    )
+   ->StrResult<f64>
     {
         // Convert slice to an array of length 4 or 8.
-        if let Ok(buffer) = <[u8; 8]>::try_from(bytes.as_ref())
+        if let Ok(buffer) = < [u8; 8] >:: try_from(bytes.as_ref())
         {
-            return Ok(match endian
-            {
-                Endianness::Little => f64::from_le_bytes(buffer),
-                Endianness::Big => f64::from_be_bytes(buffer),
-            });
+            return Ok(match endian { Endianness::Little => f64::from_le_bytes(buffer), Endianness::Big => f64::from_be_bytes(buffer), });
         }
-        if let Ok(buffer) = <[u8; 4]>::try_from(bytes.as_ref())
+        if let Ok(buffer) = < [u8; 4] >:: try_from(bytes.as_ref())
         {
-            return Ok(match endian
-            {
-                Endianness::Little => f32::from_le_bytes(buffer),
-                Endianness::Big => f32::from_be_bytes(buffer),
-            } as f64);
+            return Ok(match endian { Endianness::Little => f32::from_le_bytes(buffer), Endianness::Big => f32::from_be_bytes(buffer), } as f64);
         }
 
         bail!("bytes must have a length of 4 or 8");
@@ -173,12 +155,13 @@ impl f64
     /// #array(1.0.to-bytes(endian: "big")) \
     /// #array(1.0.to-bytes())
     /// ```
-    #[func(since = "0.12.0")]
-    pub fn to_bytes(
+    # [func(since = "0.12.0")]
+    pub fn to_bytes
+    (
         self,
         /// The endianness of the conversion.
-        #[named]
-        #[default(Endianness::Little)]
+        # [named]
+        # [default (Endianness::Little)]
         endian: Endianness,
         /// The size of the resulting bytes.
         ///
@@ -187,56 +170,41 @@ impl f64
         /// #link("https://en.wikipedia.org/wiki/IEEE_754")[IEEE 754]'s binary32
         /// (single-precision) or binary64 (double-precision) format depending
         /// on the provided size.
-        #[named]
-        #[default(8)]
+        # [named]
+        # [default (8)]
         size: u32,
-    ) -> StrResult<Bytes>
+    )
+   ->StrResult<Bytes>
     {
-        Ok(match size
-        {
-            8 => Bytes::new(match endian
+        Ok
+        (
+            match size
             {
-                Endianness::Little => self.to_le_bytes(),
-                Endianness::Big => self.to_be_bytes(),
-            }),
-            4 => Bytes::new(match endian
-            {
-                Endianness::Little => (self as f32).to_le_bytes(),
-                Endianness::Big => (self as f32).to_be_bytes(),
-            }),
-            _ => bail!("size must be either 4 or 8"),
-        })
+                8 => Bytes:: new (match endian { Endianness::Little => self.to_le_bytes(), Endianness::Big => self.to_be_bytes(), }),
+                4 => Bytes:: new (match endian { Endianness::Little => (self as f32).to_le_bytes(), Endianness::Big => (self as f32).to_be_bytes(), }),
+                _ => bail!("size must be either 4 or 8"),
+            }
+        )
     }
 }
 
-impl Repr for f64
-{
-    fn repr(&self) -> EcoString
-    {
-        repr::format_float(*self, None, true, "")
-    }
-}
+impl Repr for f64 { fn repr( & self)->EcoString { repr::format_float( * self, None, true, "") } }
 
 /// A value that can be cast to a float.
 pub struct ToFloat(f64);
 
-cast! {
+cast!
+{
     ToFloat,
     v: f64 => Self(v),
     v: bool => Self(v as i64 as f64),
     v: i64 => Self(v as f64),
-    v: Decimal => Self(f64::try_from(v).map_err(|_| eco_format!("invalid float: {v}"))?),
-    v: Ratio => Self(v.get()),
-    v: Str => Self(
-        parse_float(v.clone().into())
-            .map_err(|_| eco_format!("invalid float: {v}"))?
-    ),
+    v: Decimal => Self(f64::try_from(v).map_err( | _ | eco_format ! ("invalid float: {v}"))?),
+    v: Ratio => Self(v.get ()),
+    v: Str => Self(parse_float(v.clone().into()).map_err( | _ | eco_format ! ("invalid float: {v}"))?),
 }
 
-fn parse_float(s: EcoString) -> Result<f64, ParseFloatError>
-{
-    s.replace(repr::MINUS_SIGN, "-").parse()
-}
+fn parse_float(s: EcoString)->Result<f64, ParseFloatError> { s.replace(repr::MINUS_SIGN, "-").parse() }
 
 /// A floating-point number that must be positive (strictly larger than zero).
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
@@ -245,31 +213,14 @@ pub struct PositiveF64(f64);
 impl PositiveF64
 {
     /// Wrap a float if it is positive.
-    pub fn new(value: f64) -> Option<Self>
-    {
-        (value > 0.0).then_some(Self(value))
-    }
+    pub fn new (value: f64)->Option<Self> { (value > 0.0).then_some(Self(value)) }
 
     /// Get the underlying value.
-    pub fn get(self) -> f64
-    {
-        self.0
-    }
+    pub fn get(self)->f64 { self .0 }
 }
 
-cast! {
-    PositiveF64,
-    self => self.get().into_value(),
-    v: f64 => Self::new(v).ok_or("number must be positive")?,
-}
+cast! { PositiveF64, self => self.get ().into_value(), v: f64 => Self::new (v).ok_or("number must be positive")?, }
 
-cast! {
-    Scalar,
-    self => self.get().into_value(),
-    v: f64 => Self::new(v),
-}
+cast! { Scalar, self => self.get ().into_value(), v: f64 => Self::new (v), }
 
-cast! {
-    f32,
-    self => (self as f64).into_value(),
-}
+cast! { f32, self => (self as f64).into_value(), }

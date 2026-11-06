@@ -1,13 +1,10 @@
 use ecow::EcoString;
 use typst_syntax::VirtualPath;
 
-use crate::diag::{HintedStrResult, bail, error};
+use crate::diag:: { HintedStrResult, bail, error };
 use crate::format::DocumentFormatOptions;
-use crate::foundations::{
-    Array, BundlePath, Cast, Content, Datetime, OneOrMultiple, Packed, ShowFn, ShowSet,
-    Smart, StyleChain, Styles, Target, Value, cast, elem,
-};
-use crate::text::{Locale, TextElem};
+use crate::foundations:: { Array, BundlePath, Cast, Content, Datetime, OneOrMultiple, Packed, ShowFn, ShowSet, Smart, StyleChain, Styles, Target, Value, cast, elem, };
+use crate::text:: { Locale, TextElem };
 
 /// Manages metadata and is used to add a document file to a bundle.
 ///
@@ -152,7 +149,7 @@ pub struct DocumentElem
     /// will be automatically created.
     ///
     /// This property is only supported in the @format.bundle[bundle] target.
-    #[required]
+    # [required]
     pub path: BundlePath,
 
     /// Which format to export in.
@@ -203,7 +200,7 @@ pub struct DocumentElem
     /// The content that makes up the document.
     ///
     /// This property is only supported in the @format.bundle[bundle] target.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -211,24 +208,19 @@ impl Packed<DocumentElem>
 {
     /// Tries to determine the document's format based on the format that was
     /// explicitly defined, or else the extension of the document's path.
-    pub fn determine_format(&self, styles: StyleChain)
-    -> HintedStrResult<DocumentFormat>
+    pub fn determine_format( & self, styles: StyleChain)
+   ->HintedStrResult<DocumentFormat>
     {
         self.format
-            .get(styles)
-            .custom()
-            .or_else(|| determine_format_from_path(self.path.as_ref()))
-            .ok_or_else(|| {
-                error!(
-                    "unknown document format";
-                    hint: "try specifying the `format` explicitly";
-                )
-            })
+        . get(styles)
+        .custom()
+        .or_else( || determine_format_from_path(self.path.as_ref()))
+        .ok_or_else( || { error ! ("unknown document format"; hint: "try specifying the `format` explicitly";) })
     }
 }
 
 /// Derive the document format from the file extension of a path.
-fn determine_format_from_path(path: &VirtualPath) -> Option<DocumentFormat>
+fn determine_format_from_path(path: & VirtualPath)->Option<DocumentFormat>
 {
     match path.extension()?
     {
@@ -240,17 +232,11 @@ fn determine_format_from_path(path: &VirtualPath) -> Option<DocumentFormat>
     }
 }
 
-pub const DOCUMENT_UNSUPPORTED_RULE: ShowFn<DocumentElem> = |elem, _, _| {
-    bail!(
-        elem.span(),
-        "cannot construct a document";
-        hint: "use a `set document(..)` rule to configure metadata";
-    )
-};
+pub const DOCUMENT_UNSUPPORTED_RULE: ShowFn < DocumentElem > = | elem, _, _ | { bail ! (elem.span(),"cannot construct a document"; hint: "use a `set document(..)` rule to configure metadata";) };
 
 impl ShowSet for Packed<DocumentElem>
 {
-    fn show_set(&self, _: StyleChain) -> Styles
+    fn show_set( & self, _: StyleChain)->Styles
     {
         // Here, we make explicit document properties contextually available.
         // This is mostly relevant for bundle export as document elements are
@@ -263,13 +249,13 @@ impl ShowSet for Packed<DocumentElem>
         // Nonetheless, it's fairly hacky and the whole thing should probably be
         // revisited at some point. Also see
         // <https://github.com/typst/typst/issues/6721>.
-        let mut styles = Styles::new();
-        self.format.copy_into(&mut styles);
-        self.title.copy_into(&mut styles);
-        self.author.copy_into(&mut styles);
-        self.description.copy_into(&mut styles);
-        self.keywords.copy_into(&mut styles);
-        self.date.copy_into(&mut styles);
+        let mut styles = Styles:: new ();
+        self.format.copy_into( & mut styles);
+        self.title.copy_into( & mut styles);
+        self.author.copy_into( & mut styles);
+        self.description.copy_into( & mut styles);
+        self.keywords.copy_into( & mut styles);
+        self.date.copy_into( & mut styles);
         styles
     }
 }
@@ -286,30 +272,15 @@ pub enum DocumentFormat
 
 impl DocumentFormat
 {
-    pub fn target(self) -> Target
-    {
-        match self
-        {
-            Self::Paged(_) => Target::Paged,
-            Self::Html => Target::Html,
-        }
-    }
+    pub fn target(self)->Target { match self { Self::Paged(_) => Target::Paged, Self::Html => Target::Html, } }
 }
 
-impl From<PagedFormat> for DocumentFormat
+impl From<PagedFormat> for DocumentFormat { fn from(format: PagedFormat)->Self { Self::Paged(format) } }
+
+cast!
 {
-    fn from(format: PagedFormat) -> Self
-    {
-        Self::Paged(format)
-    }
-}
-
-cast! {
     DocumentFormat,
-    self => match self {
-        Self::Paged(v) => v.into_value(),
-        Self::Html => "html".into_value(),
-    },
+    self => match self { Self::Paged(v) => v.into_value(), Self::Html => "html".into_value(), },
     v: PagedFormat => Self::Paged(v),
     /// The document format of the web.
     "html" => Self::Html,
@@ -332,10 +303,11 @@ pub enum PagedFormat
 #[derive(Debug, Default, Clone, PartialEq, Hash)]
 pub struct Author(Vec<EcoString>);
 
-cast! {
+cast!
+{
     Author,
-    self => self.0.into_value(),
-    v: EcoString => Self(vec![v]),
+    self => self .0.into_value(),
+    v: EcoString => Self(vec ! [v]),
     v: Array => Self(v.into_iter().map(Value::cast).collect::<HintedStrResult<_>>()?),
 }
 
@@ -343,10 +315,11 @@ cast! {
 #[derive(Debug, Default, Clone, PartialEq, Hash)]
 pub struct Keywords(Vec<EcoString>);
 
-cast! {
+cast!
+{
     Keywords,
-    self => self.0.into_value(),
-    v: EcoString => Self(vec![v]),
+    self => self .0.into_value(),
+    v: EcoString => Self(vec ! [v]),
     v: Array => Self(v.into_iter().map(Value::cast).collect::<HintedStrResult<_>>()?),
 }
 
@@ -354,10 +327,10 @@ cast! {
 pub trait Document
 {
     /// Get the document's metadata.
-    fn info(&self) -> &DocumentInfo;
+    fn info( & self)-> & DocumentInfo;
 
     /// Get the format options set by the document.
-    fn options(&self) -> &DocumentFormatOptions;
+    fn options( & self)-> & DocumentFormatOptions;
 }
 
 /// Details about the document.
@@ -387,53 +360,35 @@ impl DocumentInfo
     /// Populate this document info with details from the given styles.
     ///
     /// Document set rules are a bit special, so we need to do this manually.
-    pub fn populate(&mut self, styles: StyleChain)
+    pub fn populate( & mut self, styles: StyleChain)
     {
         if styles.has(DocumentElem::title)
         {
             self.title = styles
-                .get_ref(DocumentElem::title)
-                .as_ref()
-                .map(|content| content.plain_text());
+            .get_ref(DocumentElem::title)
+            .as_ref()
+            .map( | content | content.plain_text());
         }
-        if styles.has(DocumentElem::author)
-        {
-            self.author = styles.get_cloned(DocumentElem::author).0;
-        }
+        if styles.has(DocumentElem::author) { self.author = styles.get_cloned(DocumentElem::author) .0; }
         if styles.has(DocumentElem::description)
         {
             self.description = styles
-                .get_ref(DocumentElem::description)
-                .as_ref()
-                .map(|content| content.plain_text());
+            .get_ref(DocumentElem::description)
+            .as_ref()
+            .map( | content | content.plain_text());
         }
-        if styles.has(DocumentElem::keywords)
-        {
-            self.keywords = styles.get_cloned(DocumentElem::keywords).0;
-        }
-        if styles.has(DocumentElem::date)
-        {
-            self.date = styles.get(DocumentElem::date);
-        }
+        if styles.has(DocumentElem::keywords) { self.keywords = styles.get_cloned(DocumentElem::keywords) .0; }
+        if styles.has(DocumentElem::date) { self.date = styles.get (DocumentElem::date); }
     }
 
     /// Populate this document info with locale details from the given styles.
-    pub fn populate_locale(&mut self, styles: StyleChain)
+    pub fn populate_locale( & mut self, styles: StyleChain)
     {
-        if self.locale.is_custom()
-        {
-            return;
-        }
+        if self.locale.is_custom() { return ; }
 
-        let mut locale: Option<Locale> = None;
-        if styles.has(TextElem::lang)
-        {
-            locale.get_or_insert_default().lang = styles.get(TextElem::lang);
-        }
-        if styles.has(TextElem::region)
-        {
-            locale.get_or_insert_default().region = styles.get(TextElem::region);
-        }
+        let mut locale: Option < Locale > = None;
+        if styles.has(TextElem::lang) { locale.get_or_insert_default().lang = styles.get (TextElem::lang); }
+        if styles.has(TextElem::region) { locale.get_or_insert_default().region = styles.get (TextElem::region); }
         self.locale = Smart::from(locale);
     }
 }

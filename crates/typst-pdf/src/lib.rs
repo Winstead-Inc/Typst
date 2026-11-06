@@ -14,21 +14,18 @@ mod tags;
 mod text;
 mod util;
 
-pub use self::format::{
-    AttachElem, AttachedFileRelationship, FORMAT, PdfFormat, PdfFormatOptions,
-    PdfStandard, PdfStandards,
-};
-pub use self::metadata::{Timestamp, Timezone};
+pub use self::format:: { AttachElem, AttachedFileRelationship, FORMAT, PdfFormat, PdfFormatOptions, PdfStandard, PdfStandards, };
+pub use self::metadata:: { Timestamp, Timezone };
 
 use std::fmt::Debug;
 use std::hash::Hash;
 
 use comemo::Tracked;
-use ecow::{EcoString, EcoVec};
-use krilla::configure::{PdfVersion, Validators};
+use ecow:: { EcoString, EcoVec };
+use krilla::configure:: { PdfVersion, Validators };
 use typst_layout::PagedDocument;
-use typst_library::diag::{SourceDiagnostic, SourceResult, Warned, bail};
-use typst_library::format::{Complete, Fields, Partial};
+use typst_library::diag:: { SourceDiagnostic, SourceResult, Warned, bail };
+use typst_library::format:: { Complete, Fields, Partial };
 use typst_library::foundations::Smart;
 use typst_library::introspection::Location;
 use typst_library::model::LateLinkResolver;
@@ -37,13 +34,10 @@ use typst_library::model::LateLinkResolver;
 ///
 /// Returns the raw bytes making up the PDF file.
 #[typst_macros::time(name = "pdf")]
-pub fn pdf(
-    document: &PagedDocument,
-    options: &PdfOptions,
-) -> Warned<SourceResult<Vec<u8>>>
+pub fn pdf(document: & PagedDocument, options: & PdfOptions,)->Warned < SourceResult < Vec < u8 >>>
 {
-    let mut warnings = EcoVec::new();
-    let output = convert::convert(document, options, &[], None, &mut warnings);
+    let mut warnings = EcoVec:: new ();
+    let output = convert::convert(document, options, & [], None, & mut warnings);
     Warned { output, warnings }
 }
 
@@ -54,16 +48,11 @@ pub fn pdf(
 /// resulting PDF. Also takes a `link_resolver` for resolving cross-document
 /// links.
 #[typst_macros::time(name = "pdf in bundle")]
-pub fn pdf_in_bundle(
-    document: &PagedDocument,
-    options: &PdfOptions,
-    anchors: &[(Location, EcoString)],
-    link_resolver: Tracked<LateLinkResolver>,
-) -> Warned<SourceResult<Vec<u8>>>
+pub fn pdf_in_bundle(document: & PagedDocument, options: & PdfOptions, anchors: & [(Location, EcoString)], link_resolver: Tracked<LateLinkResolver>,)->Warned < SourceResult < Vec < u8 >>>
 {
-    let mut warnings = EcoVec::new();
+    let mut warnings = EcoVec:: new ();
     let output =
-        convert::convert(document, options, anchors, Some(link_resolver), &mut warnings);
+    convert::convert(document, options, anchors, Some(link_resolver), & mut warnings);
     Warned { output, warnings }
 }
 
@@ -96,11 +85,7 @@ pub struct PdfOptions<F: Fields = Partial>
 impl PdfOptions
 {
     /// Resolves the final options given those set by the document.
-    pub fn resolve(
-        &self,
-        doc: &PdfFormatOptions,
-        warnings: &mut EcoVec<SourceDiagnostic>,
-    ) -> SourceResult<PdfOptions<Complete>>
+    pub fn resolve( & self, doc: & PdfFormatOptions, warnings: & mut EcoVec<SourceDiagnostic>,)->SourceResult<PdfOptions<Complete>>
     {
         let format = self.format.resolve(doc);
 
@@ -113,41 +98,29 @@ impl PdfOptions
             }
             else if format.tagged.v.is_auto()
             {
-                warnings.push(
-                    SourceDiagnostic::warning(
-                        format.tagged.span,
-                        "exporting a page range disables PDF tagging",
-                    )
-                    .with_hints([
-                        "the resulting PDF will be inaccessible".into(),
-                        "set `pdf(tagged: false)` to silence this warning".into(),
-                    ]),
+                warnings.push
+                (
+                    SourceDiagnostic::warning(format.tagged.span, "exporting a page range disables PDF tagging",)
+                    .with_hints(["the resulting PDF will be inaccessible".into(),"set `pdf(tagged: false)` to silence this warning".into(),]),
                 );
             }
         }
 
-        const ACCESSIBLE: [(PdfStandard, &str); 4] = [
-            (PdfStandard::A_1a, "PDF/A-1a"),
-            (PdfStandard::A_2a, "PDF/A-2a"),
-            (PdfStandard::A_3a, "PDF/A-3a"),
-            (PdfStandard::UA_1, "PDF/UA-1"),
-        ];
+        const ACCESSIBLE: [(PdfStandard, & str); 4] = [(PdfStandard::A_1a, "PDF/A-1a"),(PdfStandard::A_2a, "PDF/A-2a"),(PdfStandard::A_3a, "PDF/A-3a"),(PdfStandard::UA_1, "PDF/UA-1"),];
         for (standard, name) in ACCESSIBLE
         {
-            if format.standard.v.standards().any(|s| s == standard)
+            if format.standard.v.standards().any( | s | s == standard)
             {
                 if format.tagged.v == Smart::Custom(false)
                 {
                     let span = format.standard.span.or(format.tagged.span);
-                    bail!(
-                        span,
-                        "cannot set `pdf(tagged: false)` when exporting a {name} document"
-                    );
+                    bail!(span, "cannot set `pdf(tagged: false)` when exporting a {name} document");
                 }
                 else if format.pages.v.is_some()
                 {
                     let span = format.standard.span.or(format.pages.span);
-                    bail!(
+                    bail!
+                    (
                         span,
                         "cannot set `pdf(tagged: false)` when exporting a {name} document";
                         hint: "using `pdf(pages: ...)` implies `pdf(tagged: false)`";
@@ -156,34 +129,20 @@ impl PdfOptions
             }
         }
 
-        Ok(PdfOptions {
-            ident: self.ident.clone(),
-            creator: self.creator.clone(),
-            timestamp: self.timestamp,
-            format,
-        })
+        Ok(PdfOptions { ident: self.ident.clone(), creator: self.creator.clone(), timestamp: self.timestamp, format, })
     }
 }
 
 impl PdfOptions<Complete>
 {
-    pub(crate) fn version(&self) -> PdfVersion
-    {
-        self.format.standard.v.config.version()
-    }
+    pub (crate) fn version( & self)->PdfVersion { self.format.standard.v.config.version() }
 
     /// Returns whether to produce a tagged PDF document.
     /// By default unless explicitly disabled or when only exporting a page
     /// range, tagging is enabled.
-    pub(crate) fn tagged(&self) -> bool
-    {
-        self.format.pages.v.is_none() && self.format.tagged.v.unwrap_or(true)
-    }
+    pub (crate) fn tagged( & self)-> bool { self.format.pages.v.is_none() && self.format.tagged.v.unwrap_or(true) }
 
     /// Returns the accessibility validator. Returns `Some` for PDF/UA-1, and in
     /// the future maybe PDF/UA-2.
-    pub(crate) fn validators(&self) -> Validators
-    {
-        self.format.standard.v.config.validators()
-    }
+    pub (crate) fn validators( & self)->Validators { self.format.standard.v.config.validators() }
 }

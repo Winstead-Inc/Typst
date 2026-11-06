@@ -10,6 +10,7 @@ mod info;
 mod init;
 mod packages;
 mod query;
+mod synctex;
 mod terminal;
 #[cfg(feature = "self-update")]
 mod update;
@@ -17,7 +18,7 @@ mod watch;
 mod world;
 
 use std::cell::Cell;
-use std::io::{self, Write};
+use std::io:: { self, Write };
 use std::process::ExitCode;
 use std::sync::LazyLock;
 
@@ -27,28 +28,27 @@ use codespan_reporting::term;
 use codespan_reporting::term::termcolor::WriteColor;
 use ecow::eco_format;
 use serde::Serialize;
-use typst::diag::{HintedStrResult, StrResult};
+use typst::diag:: { HintedStrResult, StrResult };
 
-use crate::args::{CliArguments, Command, SerializationFormat};
+use crate::args:: { CliArguments, Command, SerializationFormat };
 
-thread_local! {
+thread_local!
+{
     /// The CLI's exit code.
-    static EXIT: Cell<ExitCode> = const { Cell::new(ExitCode::SUCCESS) };
+    static EXIT: Cell < ExitCode > = const { Cell::new (ExitCode::SUCCESS) };
 }
 
 /// The parsed command line arguments.
-static ARGS: LazyLock<CliArguments> = LazyLock::new(|| {
-    CliArguments::try_parse().unwrap_or_else(|error| {
-        if error.kind() == ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
-        {
-            crate::greet::greet();
-        }
-        error.exit();
-    })
-});
+static ARGS: LazyLock < CliArguments > = LazyLock:: new
+(
+    ||
+    {
+        CliArguments::try_parse().unwrap_or_else( | error | { if error.kind() == ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand { crate::greet::greet(); } error.exit(); })
+    }
+);
 
 /// Entry point.
-fn main() -> ExitCode
+fn main()->ExitCode
 {
     // Handle SIGPIPE
     // https://stackoverflow.com/questions/65755853/simple-word-count-rust-program-outputs-valid-stdout-but-panicks-when-piped-to-he/65760807
@@ -60,23 +60,20 @@ fn main() -> ExitCode
     {
         set_failed();
         print_error(msg.message()).expect("failed to print error");
-        for hint in msg.hints()
-        {
-            print_hint(hint).expect("failed to print hint");
-        }
+        for hint in msg.hints() { print_hint(hint).expect("failed to print hint"); }
     }
 
-    EXIT.with(|cell| cell.get())
+    EXIT.with( | cell | cell.get ())
 }
 
 /// Execute the requested command.
-fn dispatch() -> HintedStrResult<()>
+fn dispatch()->HintedStrResult<()>
 {
-    match &ARGS.command
+    match & ARGS.command
     {
         Command::Compile(command) => crate::compile::compile(command)?,
         Command::Watch(command) => crate::watch::watch(command)?,
-        Command::Init(command) => crate::init::init(command)?,
+        Command::Init(command) => crate:: init:: init(command)?,
         Command::Query(command) => crate::query::query(command)?,
         Command::Eval(command) => crate::eval::eval(command)?,
         Command::Fonts(command) => crate::fonts::fonts(command),
@@ -88,18 +85,15 @@ fn dispatch() -> HintedStrResult<()>
 }
 
 /// Ensure a failure exit code.
-fn set_failed()
-{
-    EXIT.with(|cell| cell.set(ExitCode::FAILURE));
-}
+fn set_failed() { EXIT.with( | cell | cell.set (ExitCode::FAILURE)); }
 
 /// Print an application-level error (independent from a source file).
-fn print_error(msg: &str) -> io::Result<()>
+fn print_error(msg: & str)->io::Result<()>
 {
-    let styles = term::Styles::default();
+    let styles = term::Styles:: default();
 
     let mut output = terminal::out();
-    output.set_color(&styles.header_error)?;
+    output.set_color( & styles.header_error)?;
     write!(output, "error")?;
 
     output.reset()?;
@@ -107,12 +101,12 @@ fn print_error(msg: &str) -> io::Result<()>
 }
 
 /// Print an application-level hint (independent from a source file).
-fn print_hint(msg: &str) -> io::Result<()>
+fn print_hint(msg: & str)->io::Result<()>
 {
-    let styles = term::Styles::default();
+    let styles = term::Styles:: default();
 
     let mut output = terminal::out();
-    output.set_color(&styles.header_help)?;
+    output.set_color( & styles.header_help)?;
     write!(output, "hint")?;
 
     output.reset()?;
@@ -121,42 +115,30 @@ fn print_hint(msg: &str) -> io::Result<()>
 
 /// Serialize data to the output format and convert the error to an
 /// [`EcoString`].
-fn serialize(
-    data: &impl Serialize,
-    format: SerializationFormat,
-    pretty: bool,
-) -> StrResult<String>
+fn serialize(data: & impl Serialize, format: SerializationFormat, pretty: bool ,)->StrResult<String>
 {
     match format
     {
         SerializationFormat::Json =>
         {
-            if pretty
-            {
-                serde_json::to_string_pretty(data).map_err(|e| eco_format!("{e}"))
-            }
-            else
-            {
-                serde_json::to_string(data).map_err(|e| eco_format!("{e}"))
-            }
+            if pretty { serde_json::to_string_pretty(data).map_err( | e | eco_format ! ("{e}")) }
+            else { serde_json::to_string(data).map_err( | e | eco_format ! ("{e}")) }
         }
-        SerializationFormat::Yaml =>
-        {
-            serde_yaml::to_string(data).map_err(|e| eco_format!("{e}"))
-        }
+        SerializationFormat::Yaml => { serde_yaml::to_string(data).map_err( | e | eco_format ! ("{e}")) }
     }
 }
 
 #[cfg(not(feature = "self-update"))]
 mod update
 {
-    use typst::diag::{StrResult, bail};
+    use typst::diag:: { StrResult, bail };
 
     use crate::args::UpdateCommand;
 
-    pub fn update(_: &UpdateCommand) -> StrResult<()>
+    pub fn update(_: & UpdateCommand)->StrResult<()>
     {
-        bail!(
+        bail!
+        (
             "self-updating is not enabled for this executable, \
              please update with the package manager or mechanism \
              used for initial installation",

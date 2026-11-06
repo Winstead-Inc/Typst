@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 
 /// Hides content without affecting layout.
 ///
@@ -25,11 +25,11 @@ use crate::foundations::{Content, elem};
 pub struct HideElem
 {
     /// The content to hide.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// This style is set on the content contained in the `hide` element.
-    #[internal]
-    #[ghost]
+    # [internal]
+    # [ghost]
     pub hidden: bool,
 }

@@ -2,9 +2,9 @@ use std::any::Any;
 
 use comemo::Tracked;
 
-use crate::diag::{HintedStrResult, SourceResult};
+use crate::diag:: { HintedStrResult, SourceResult };
 use crate::engine::Engine;
-use crate::foundations::{Cast, Content, Context, StyleChain, elem, func};
+use crate::foundations:: { Cast, Content, Context, StyleChain, elem, func };
 use crate::introspection::Introspector;
 
 /// A compilation output for a particular target.
@@ -13,21 +13,17 @@ use crate::introspection::Introspector;
 pub trait Output: Any
 {
     /// The target associated with the output.
-    fn target() -> Target
+    fn target()->Target
     where
-        Self: Sized;
+    Self: Sized;
 
     /// Creates the output.
-    fn create(
-        engine: &mut Engine,
-        content: &Content,
-        styles: StyleChain,
-    ) -> SourceResult<Self>
+    fn create(engine: & mut Engine, content: & Content, styles: StyleChain,)->SourceResult<Self>
     where
-        Self: Sized;
+    Self: Sized;
 
     /// Get the output's introspector.
-    fn introspector(&self) -> &dyn Introspector;
+    fn introspector( & self)-> & dyn Introspector;
 }
 
 /// A trait for accepting an arbitrary kind of output as an argument.
@@ -49,31 +45,19 @@ pub trait Output: Any
 pub trait AsOutput
 {
     /// Turns the reference into the trait object.
-    fn as_output(&self) -> &dyn Output;
+    fn as_output( & self)-> & dyn Output;
 }
 
-impl AsOutput for &dyn Output
-{
-    fn as_output(&self) -> &dyn Output
-    {
-        *self
-    }
-}
+impl AsOutput for & dyn Output { fn as_output( & self)-> & dyn Output { * self } }
 
-impl<T: Output> AsOutput for &T
-{
-    fn as_output(&self) -> &dyn Output
-    {
-        *self
-    }
-}
+impl <T: Output> AsOutput for & T { fn as_output( & self)-> & dyn Output { * self } }
 
 /// The compilation target.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, Cast)]
 pub enum Target
 {
     /// The target that is used for paged, fully laid-out content.
-    #[default]
+    # [default]
     Paged,
     /// The target that is used for HTML export.
     Html,
@@ -85,10 +69,7 @@ pub enum Target
 impl Target
 {
     /// Whether this is the HTML target.
-    pub fn is_html(self) -> bool
-    {
-        self == Self::Html
-    }
+    pub fn is_html(self)-> bool { self == Self::Html }
 }
 
 /// This element exists solely to host the `target` style chain field. It is
@@ -142,7 +123,4 @@ pub struct TargetElem
 /// Press #kbd("F1") for help.
 /// ```
 #[func(contextual, since = "0.13.0")]
-pub fn target(context: Tracked<Context>) -> HintedStrResult<Target>
-{
-    Ok(context.styles()?.get(TargetElem::target))
-}
+pub fn target(context: Tracked<Context>)->HintedStrResult<Target> { Ok(context.styles()?.get (TargetElem::target)) }

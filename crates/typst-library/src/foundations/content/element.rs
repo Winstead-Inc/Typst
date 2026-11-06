@@ -1,20 +1,17 @@
 use std::any::TypeId;
 use std::cmp::Ordering;
-use std::fmt::{self, Debug};
+use std::fmt:: { self, Debug };
 use std::hash::Hash;
 use std::sync::OnceLock;
 
 use ecow::EcoString;
 use smallvec::SmallVec;
-use typst_utils::{DefSite, Static};
+use typst_utils:: { DefSite, Static };
 
 use crate::diag::SourceResult;
 use crate::engine::Engine;
-use crate::foundations::{
-    Args, Content, ContentVtable, Func, NativeParamInfo, Repr, Scope, Selector, Since,
-    StyleChain, Styles, Value, cast,
-};
-use crate::text::{Lang, Region};
+use crate::foundations:: { Args, Content, ContentVtable, Func, NativeParamInfo, Repr, Scope, Selector, Since, StyleChain, Styles, Value, cast, };
+use crate::text:: { Lang, Region };
 
 /// A document element.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
@@ -23,242 +20,144 @@ pub struct Element(Static<ContentVtable>);
 impl Element
 {
     /// Get the element for `T`.
-    pub const fn of<T: NativeElement>() -> Self
-    {
-        T::ELEM
-    }
+    pub const fn of<T: NativeElement>()->Self { T::ELEM }
 
     /// Get the element for `T`.
-    pub const fn from_vtable(vtable: &'static ContentVtable) -> Self
-    {
-        Self(Static(vtable))
-    }
+    pub const fn from_vtable(vtable: & 'static ContentVtable)->Self { Self(Static(vtable)) }
 
     /// The element's normal name (e.g. `enum`).
-    pub fn name(self) -> &'static str
-    {
-        self.vtable().name
-    }
+    pub fn name(self)-> & 'static str { self.vtable().name }
 
     /// The element's title case name, for use in documentation
     /// (e.g. `Numbered List`).
-    pub fn title(self) -> &'static str
-    {
-        self.vtable().title
-    }
+    pub fn title(self)-> & 'static str { self.vtable().title }
 
     /// The version of Typst the element was introduced in.
-    pub fn since(&self) -> Option<Since>
-    {
-        self.vtable().since
-    }
+    pub fn since( & self)->Option<Since> { self.vtable().since }
 
     /// Documentation for the element (as Markdown).
-    pub fn docs(self) -> &'static str
-    {
-        self.vtable().docs
-    }
+    pub fn docs(self)-> & 'static str { self.vtable().docs }
 
     /// Where the element is defined in the Rust source code.
-    pub fn def_site(self) -> DefSite
-    {
-        self.vtable().def_site
-    }
+    pub fn def_site(self)->DefSite { self.vtable().def_site }
 
     /// Search keywords for the element.
-    pub fn keywords(self) -> &'static [&'static str]
-    {
-        self.vtable().keywords
-    }
+    pub fn keywords(self)-> & 'static[ & 'static str] { self.vtable().keywords }
 
     /// Construct an instance of this element.
-    pub fn construct(self, engine: &mut Engine, args: &mut Args)
-    -> SourceResult<Content>
-    {
-        (self.vtable().construct)(engine, args)
-    }
+    pub fn construct(self, engine: & mut Engine, args: & mut Args)
+   ->SourceResult<Content> { (self.vtable().construct)(engine, args) }
 
     /// Execute the set rule for the element and return the resulting style map.
-    pub fn set(self, engine: &mut Engine, mut args: Args) -> SourceResult<Styles>
+    pub fn set(self, engine: & mut Engine, mut args: Args)->SourceResult<Styles>
     {
-        let styles = (self.vtable().set)(engine, &mut args)?;
+        let styles = (self.vtable().set)(engine, & mut args)?;
         args.finish()?;
         Ok(styles)
     }
 
     /// Whether the element has the given capability.
-    pub fn can<C>(self) -> bool
+    pub fn can<C>(self)-> bool
     where
-        C: ?Sized + 'static,
-    {
-        self.can_type_id(TypeId::of::<C>())
-    }
+    C: ? Sized + 'static, { self.can_type_id(TypeId::of::<C>()) }
 
     /// Whether the element is locatable.
-    pub fn is_locatable(self) -> bool
-    {
-        self.vtable().introspection.locatable
-    }
+    pub fn is_locatable(self)-> bool { self.vtable().introspection.locatable }
 
     /// Whether the element is unqueriable.
-    pub fn is_unqueriable(self) -> bool
-    {
-        self.vtable().introspection.unqueriable
-    }
+    pub fn is_unqueriable(self)-> bool { self.vtable().introspection.unqueriable }
 
     /// Whether the element is tagged in PDF files.
-    pub fn is_tagged(self) -> bool
-    {
-        self.vtable().introspection.tagged
-    }
+    pub fn is_tagged(self)-> bool { self.vtable().introspection.tagged }
 
     /// Whether the element has the given capability where the capability is
     /// given by a `TypeId`.
-    pub fn can_type_id(self, type_id: TypeId) -> bool
-    {
-        (self.vtable().capability)(type_id).is_some()
-    }
+    pub fn can_type_id(self, type_id: TypeId)-> bool { (self.vtable().capability)(type_id).is_some() }
 
     /// Create a selector for this element.
-    pub fn select(self) -> Selector
-    {
-        Selector::Elem(self, None)
-    }
+    pub fn select(self)->Selector { Selector::Elem(self, None) }
 
     /// Create a selector for this element, filtering for those that
     /// [fields](crate::foundations::Content::field) match the given argument.
-    pub fn where_(self, fields: SmallVec<[(u8, Value); 1]>) -> Selector
-    {
-        Selector::Elem(self, Some(fields))
-    }
+    pub fn where_(self, fields: SmallVec < [(u8, Value); 1] >)->Selector { Selector::Elem(self, Some(fields)) }
 
     /// The element's associated scope of sub-definition.
-    pub fn scope(self) -> &'static Scope
-    {
-        (self.vtable().store)().scope.get_or_init(|| (self.vtable().scope)())
-    }
+    pub fn scope(self)-> & 'static Scope { (self.vtable().store)().scope.get_or_init( || (self.vtable().scope)()) }
 
     /// Details about the element's fields.
-    pub fn params(self) -> &'static [NativeParamInfo]
+    pub fn params(self)-> & 'static[NativeParamInfo]
     {
-        (self.vtable().store)().params.get_or_init(|| {
-            self.vtable()
+        (self.vtable().store)().params.get_or_init
+        (
+            ||
+            {
+                self.vtable()
                 .fields
                 .iter()
-                .filter(|field| !field.synthesized)
-                .map(|field| NativeParamInfo {
-                    name: field.name,
-                    docs: field.docs,
-                    def_site: Some(field.def_site),
-                    input: (field.input)(),
-                    default: field.default,
-                    positional: field.positional,
-                    named: !field.positional,
-                    variadic: field.variadic,
-                    required: field.required,
-                    settable: field.settable,
-                })
+                .filter( | field | ! field.synthesized)
+                .map
+                (
+                    | field | NativeParamInfo
+                    {
+                        name: field.name,
+                        docs: field.docs,
+                        def_site: Some(field.def_site),
+                        input: (field.input)(),
+                        default: field. default,
+                        positional: field.positional,
+                        named: ! field.positional,
+                        variadic: field.variadic,
+                        required: field.required,
+                        settable: field.settable,
+                    }
+                )
                 .collect()
-        })
+            }
+        )
     }
 
     /// Extract the field ID for the given field name.
-    pub fn field_id(self, name: &str) -> Option<u8>
-    {
-        if name == "label"
-        {
-            return Some(255);
-        }
-        (self.vtable().field_id)(name)
-    }
+    pub fn field_id(self, name: & str)->Option<u8> { if name == "label" { return Some(255); }(self.vtable().field_id)(name) }
 
     /// Extract the field name for the given field ID.
-    pub fn field_name(self, id: u8) -> Option<&'static str>
-    {
-        if id == 255
-        {
-            return Some("label");
-        }
-        self.vtable().field(id).map(|data| data.name)
-    }
+    pub fn field_name(self, id: u8)->Option <& 'static str > { if id == 255 { return Some("label"); } self.vtable().field(id).map( | data | data.name) }
 
     /// The style chain accessor for a settable field of the element. Returns
     /// `None` if the field is unknown or is not settable.
     ///
     /// Note that this will return `None` for `#[ghost]` fields since `field_id`
     /// returns `None`.
-    pub fn settable_field_accessor(self, name: &str) -> Option<fn(StyleChain) -> Value>
+    pub fn settable_field_accessor(self, name: & str)->Option<fn (StyleChain)->Value>
     {
         let id = (self.vtable().field_id)(name)?;
         self.vtable().fields[usize::from(id)].get_from_styles
     }
 
     /// The element's local name, if any.
-    pub fn local_name(self, lang: Lang, region: Option<Region>) -> Option<&'static str>
-    {
-        self.vtable().local_name.map(|f| f(lang, region))
-    }
+    pub fn local_name(self, lang: Lang, region: Option<Region>)->Option <& 'static str > { self.vtable().local_name.map( | f | f(lang, region)) }
 
     /// Retrieves the element's vtable for dynamic dispatch.
-    pub(super) fn vtable(self) -> &'static ContentVtable
-    {
-        (self.0).0
-    }
+    pub (super) fn vtable(self)-> & 'static ContentVtable { (self .0) .0 }
 }
 
-impl Debug for Element
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
-    {
-        write!(f, "Element({})", self.name())
-    }
-}
+impl Debug for Element { fn fmt( & self, f: & mut fmt::Formatter)->fmt::Result { write ! (f, "Element({})", self.name()) } }
 
-impl Repr for Element
-{
-    fn repr(&self) -> EcoString
-    {
-        self.name().into()
-    }
-}
+impl Repr for Element { fn repr( & self)->EcoString { self.name().into() } }
 
-impl Ord for Element
-{
-    fn cmp(&self, other: &Self) -> Ordering
-    {
-        self.name().cmp(other.name())
-    }
-}
+impl Ord for Element { fn cmp( & self, other: & Self)->Ordering { self.name().cmp(other.name()) } }
 
-impl PartialOrd for Element
-{
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering>
-    {
-        Some(self.cmp(other))
-    }
-}
+impl PartialOrd for Element { fn partial_cmp( & self, other: & Self)->Option<Ordering> { Some(self.cmp(other)) } }
 
-cast! {
-    Element,
-    self => Value::Func(self.into()),
-    v: Func => v.to_element().ok_or("expected element")?,
-}
+cast! { Element, self => Value::Func(self.into()), v: Func => v.to_element().ok_or("expected element")?, }
 
 /// Lazily initialized data for an element.
 #[derive(Default)]
-pub struct LazyElementStore
-{
-    pub scope: OnceLock<Scope>,
-    pub params: OnceLock<Vec<NativeParamInfo>>,
-}
+pub struct LazyElementStore { pub scope: OnceLock<Scope>, pub params: OnceLock<Vec<NativeParamInfo>>, }
 
 impl LazyElementStore
 {
     /// Create an empty store.
-    pub const fn new() -> Self
-    {
-        Self { scope: OnceLock::new(), params: OnceLock::new() }
-    }
+    pub const fn new ()->Self { Self { scope: OnceLock::new (), params: OnceLock::new () } }
 }
 
 /// A Typst element that is defined by a native Rust type.
@@ -266,16 +165,13 @@ impl LazyElementStore
 /// # Safety
 /// `ELEM` must hold the correct `Element` for `Self`.
 pub unsafe trait NativeElement:
-    Debug + Clone + Hash + Construct + Set + Send + Sync + 'static
+Debug + Clone + Hash + Construct + Set + Send + Sync + 'static
 {
     /// The associated element.
     const ELEM: Element;
 
     /// Pack the element into type-erased content.
-    fn pack(self) -> Content
-    {
-        Content::new(self)
-    }
+    fn pack(self)->Content { Content::new (self) }
 }
 
 /// An element's constructor function.
@@ -285,18 +181,18 @@ pub trait Construct
     ///
     /// This is passed only the arguments that remain after execution of the
     /// element's set rule.
-    fn construct(engine: &mut Engine, args: &mut Args) -> SourceResult<Content>
+    fn construct(engine: & mut Engine, args: & mut Args)->SourceResult<Content>
     where
-        Self: Sized;
+    Self: Sized;
 }
 
 /// An element's set rule.
 pub trait Set
 {
     /// Parse relevant arguments into style properties for this element.
-    fn set(engine: &mut Engine, args: &mut Args) -> SourceResult<Styles>
+    fn set(engine: & mut Engine, args: & mut Args)->SourceResult<Styles>
     where
-        Self: Sized;
+    Self: Sized;
 }
 
 /// Synthesize fields on an element. This happens before execution of any show
@@ -304,8 +200,8 @@ pub trait Set
 pub trait Synthesize
 {
     /// Prepare the element for show rule application.
-    fn synthesize(&mut self, engine: &mut Engine, styles: StyleChain)
-    -> SourceResult<()>;
+    fn synthesize( & mut self, engine: & mut Engine, styles: StyleChain)
+   ->SourceResult<()>;
 }
 
 /// Defines built-in show set rules for an element.
@@ -316,12 +212,12 @@ pub trait ShowSet
 {
     /// Finalize the fully realized form of the element. Use this for effects
     /// that should work even in the face of a user-defined show rule.
-    fn show_set(&self, styles: StyleChain) -> Styles;
+    fn show_set( & self, styles: StyleChain)->Styles;
 }
 
 /// Tries to extract the plain-text representation of the element.
 pub trait PlainText
 {
     /// Write this element's plain text into the given buffer.
-    fn plain_text(&self, text: &mut EcoString);
+    fn plain_text( & self, text: & mut EcoString);
 }

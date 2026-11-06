@@ -15,29 +15,18 @@ mod set;
 mod source;
 mod span;
 
-pub use self::highlight::{Tag, highlight, highlight_html};
+pub use self::highlight:: { Tag, highlight, highlight_html };
 pub use self::kind::SyntaxKind;
-pub use self::lexer::{
-    is_id_continue, is_id_start, is_ident, is_newline, is_valid_label_literal_id,
-    link_prefix, split_newlines,
-};
+pub use self::lexer:: { is_id_continue, is_id_start, is_ident, is_newline, is_valid_label_literal_id, link_prefix, split_newlines, };
 pub use self::lines::Lines;
-pub use self::node::{
-    Diagnosis, LinkedChildren, LinkedNode, Side, SyntaxDiagnostic, SyntaxNode,
-};
-pub use self::parser::{parse, parse_code, parse_math};
-pub use self::path::{
-    FileId, PathError, RealizeError, RootedPath, VirtualPath, VirtualRoot,
-    VirtualizeError,
-};
+pub use self::node:: { Diagnosis, LinkedChildren, LinkedNode, Side, SyntaxDiagnostic, SyntaxNode, };
+pub use self::parser:: { parse, parse_code, parse_math };
+pub use self::path:: { FileId, PathError, RealizeError, RootedPath, VirtualPath, VirtualRoot, VirtualizeError, };
 pub use self::source::Source;
-pub use self::span::{
-    DiagSpan, DiagSpanKind, LooselySpanned, RangeMapper, Span, SpanKind, SpanNumber,
-    Spanned, SubRange,
-};
+pub use self::span:: { DiagSpan, DiagSpanKind, LooselySpanned, RangeMapper, Span, SpanKind, SpanNumber, Spanned, SubRange, };
 
 use self::lexer::Lexer;
-use self::parser::{reparse_block, reparse_markup};
+use self::parser:: { reparse_block, reparse_markup };
 
 /// The syntax mode of a portion of Typst code.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -54,9 +43,9 @@ pub enum SyntaxMode
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
+    # [test]
     fn test_allman_snippet()
     {
         let text = r#"#set page
@@ -122,13 +111,14 @@ mod tests
 "#;
         let node = parse(text);
         let (errors, _) = node.errors_and_warnings();
-        assert!(errors.is_empty(), "Expected 0 errors, got: {:#?}", errors);
+        assert!(errors.is_empty(),"Expected 0 errors, got: {:#?}", errors);
     }
 
-    #[test]
+    # [test]
     fn test_allman_comprehensive()
     {
-        let tests = [
+        let tests =
+        [
             // If-else in markup
             r#"#if true
 {
@@ -221,13 +211,7 @@ else
         {
             let node = parse(t);
             let (errors, _warnings) = node.errors_and_warnings();
-            assert!(
-                errors.is_empty(),
-                "Test {} failed with errors: {:#?}\nCode:\n{}",
-                i,
-                errors,
-                t
-            );
+            assert!(errors.is_empty(),"Test {} failed with errors: {:#?}\nCode:\n{}", i, errors, t);
         }
     }
 }

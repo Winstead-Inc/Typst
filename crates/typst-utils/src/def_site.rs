@@ -12,8 +12,8 @@ pub struct DefSite
     /// The path to the file as returned by the `file!()` macro.
     ///
     /// Note that the path separator may vary across platforms.
-    pub path: &'static str,
+    pub path: & 'static str,
     /// An identifying key associated with the definition. Can be used to find
     /// the definition in the file.
-    pub key: &'static str,
+    pub key: & 'static str,
 }

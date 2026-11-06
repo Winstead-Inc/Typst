@@ -1,7 +1,7 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 
-use crate::foundations::{Content, cast, elem};
-use crate::layout::{Dir, Spacing};
+use crate::foundations:: { Content, cast, elem };
+use crate::layout:: { Dir, Spacing };
 
 /// Arranges content and spacing horizontally or vertically.
 ///
@@ -32,7 +32,7 @@ pub struct StackElem
     ///
     /// #stack(dir: btt, "A", "B", "C")
     /// ```
-    #[default(Dir::TTB)]
+    # [default (Dir::TTB)]
     pub dir: Dir,
 
     /// Spacing to insert between items where no explicit spacing was provided.
@@ -61,7 +61,7 @@ pub struct StackElem
     ///   [A], [B], 0pt, [C],
     /// )
     /// ```
-    #[variadic]
+    # [variadic]
     pub children: Vec<StackChild>,
 }
 
@@ -77,22 +77,13 @@ pub enum StackChild
 
 impl Debug for StackChild
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        match self
-        {
-            Self::Spacing(kind) => kind.fmt(f),
-            Self::Block(block) => block.fmt(f),
-        }
-    }
+    fn fmt( & self, f: & mut Formatter)->fmt::Result { match self { Self::Spacing(kind) => kind.fmt(f), Self::Block(block) => block.fmt(f), } }
 }
 
-cast! {
+cast!
+{
     StackChild,
-    self => match self {
-        Self::Spacing(spacing) => spacing.into_value(),
-        Self::Block(content) => content.into_value(),
-    },
+    self => match self { Self::Spacing(spacing) => spacing.into_value(), Self::Block(content) => content.into_value(), },
     v: Spacing => Self::Spacing(v),
     v: Content => Self::Block(v),
 }

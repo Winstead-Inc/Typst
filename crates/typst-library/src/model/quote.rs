@@ -1,12 +1,9 @@
 use typst_syntax::Span;
 
-use crate::foundations::{
-    Content, Depth, Label, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles,
-    cast, elem,
-};
-use crate::layout::{BlockElem, Em, PadElem};
-use crate::model::{CitationForm, CiteElem};
-use crate::text::{SmartQuotes, SpaceElem, TextElem};
+use crate::foundations:: { Content, Depth, Label, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles, cast, elem, };
+use crate::layout:: { BlockElem, Em, PadElem };
+use crate::model:: { CitationForm, CiteElem };
+use crate::text:: { SmartQuotes, SpaceElem, TextElem };
 
 /// Displays a quote alongside an optional attribution.
 ///
@@ -172,13 +169,13 @@ pub struct QuoteElem
     pub attribution: Option<Attribution>,
 
     /// The quote.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The nesting depth.
-    #[internal]
-    #[fold]
-    #[ghost]
+    # [internal]
+    # [fold]
+    # [ghost]
     pub depth: Depth,
 }
 
@@ -186,72 +183,63 @@ impl QuoteElem
 {
     /// Quotes the body content with the appropriate quotes based on the current
     /// styles and surroundings.
-    pub fn quoted(body: Content, styles: StyleChain<'_>) -> Content
+    pub fn quoted(body: Content, styles: StyleChain<'_>)->Content
     {
         let quotes = SmartQuotes::get_in(styles);
 
         // Alternate between single and double quotes.
-        let Depth(depth) = styles.get(QuoteElem::depth);
+        let Depth(depth) = styles. get(QuoteElem::depth);
         let double = depth % 2 == 0;
 
-        Content::sequence([
-            TextElem::packed(quotes.open(double)),
-            body,
-            TextElem::packed(quotes.close(double)),
-        ])
-        .set(QuoteElem::depth, Depth(1))
+        Content::sequence([TextElem::packed(quotes.open(double)), body, TextElem::packed(quotes.close(double)),])
+        . set(QuoteElem::depth, Depth(1))
     }
 }
 
 /// Attribution for a [quote](QuoteElem).
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum Attribution
-{
-    Content(Content),
-    Label(Label),
-}
+pub enum Attribution { Content(Content), Label(Label), }
 
 impl Attribution
 {
     /// Realize as an em dash followed by text or a citation.
-    pub fn realize(&self, span: Span) -> Content
+    pub fn realize( & self, span: Span)->Content
     {
-        Content::sequence([
+        Content::sequence
+        ([
             TextElem::packed('—'),
             SpaceElem::shared().clone(),
             match self
             {
                 Attribution::Content(content) => content.clone(),
-                Attribution::Label(label) => CiteElem::new(*label)
-                    .with_form(Some(CitationForm::Prose))
-                    .pack()
-                    .spanned(span),
+                Attribution::Label(label) => CiteElem:: new ( * label)
+                .with_form(Some(CitationForm::Prose))
+                .pack()
+                .spanned(span),
             },
         ])
     }
 }
 
-cast! {
+cast!
+{
     Attribution,
-    self => match self {
-        Self::Content(content) => content.into_value(),
-        Self::Label(label) => label.into_value(),
-    },
+    self => match self { Self::Content(content) => content.into_value(), Self::Label(label) => label.into_value(), },
     content: Content => Self::Content(content),
     label: Label => Self::Label(label),
 }
 
 impl ShowSet for Packed<QuoteElem>
 {
-    fn show_set(&self, styles: StyleChain) -> Styles
+    fn show_set( & self, styles: StyleChain)->Styles
     {
-        let mut out = Styles::new();
-        if self.block.get(styles)
+        let mut out = Styles:: new ();
+        if self.block. get(styles)
         {
-            out.set(PadElem::left, Em::new(1.0).into());
-            out.set(PadElem::right, Em::new(1.0).into());
-            out.set(BlockElem::above, Smart::Custom(Em::new(2.4).into()));
-            out.set(BlockElem::below, Smart::Custom(Em::new(1.8).into()));
+            out. set(PadElem::left, Em::new (1.0).into());
+            out. set(PadElem::right, Em::new (1.0).into());
+            out. set(BlockElem::above, Smart::Custom(Em::new (2.4).into()));
+            out. set(BlockElem::below, Smart::Custom(Em::new (1.8).into()));
         }
         out
     }

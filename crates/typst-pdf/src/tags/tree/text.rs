@@ -1,18 +1,15 @@
-use krilla::tagging::{LineHeight, NaiveRgbColor, TextDecorationType};
-use typst_library::diag::{SourceDiagnostic, error};
+use krilla::tagging:: { LineHeight, NaiveRgbColor, TextDecorationType };
+use typst_library::diag:: { SourceDiagnostic, error };
 use typst_library::format::Complete;
-use typst_library::foundations::{Content, Packed, Smart};
+use typst_library::foundations:: { Content, Packed, Smart };
 use typst_library::layout::Length;
-use typst_library::text::{
-    HighlightElem, OverlineElem, ScriptKind, StrikeElem, SubElem, SuperElem, TextItem,
-    TextSize, UnderlineElem,
-};
+use typst_library::text:: { HighlightElem, OverlineElem, ScriptKind, StrikeElem, SubElem, SuperElem, TextItem, TextSize, UnderlineElem, };
 use typst_library::visualize::Stroke;
 
 use crate::PdfOptions;
 use crate::tags::tree::Tree;
-use crate::tags::util::{PropertyOptRef, PropertyValCloned, PropertyValCopied};
-use crate::tags::{GroupId, util};
+use crate::tags::util:: { PropertyOptRef, PropertyValCloned, PropertyValCopied };
+use crate::tags:: { GroupId, util };
 use crate::util::AbsExt;
 
 #[derive(Debug, Clone)]
@@ -26,34 +23,16 @@ pub struct TextAttrs
 
 impl TextAttrs
 {
-    pub const fn new() -> Self
-    {
-        Self { last_resolved: None, items: Vec::new() }
-    }
+    pub const fn new ()->Self { Self { last_resolved: None, items: Vec::new () } }
 
-    pub fn len(&self) -> usize
-    {
-        self.items.len()
-    }
+    pub fn len( & self)->usize { self.items.len() }
 
-    pub fn push(&mut self, id: GroupId, attr: TextAttr)
-    {
-        self.last_resolved = None;
-        self.items.push((id, attr));
-    }
+    pub fn push( & mut self, id: GroupId, attr: TextAttr) { self.last_resolved = None; self.items.push((id, attr)); }
 
-    pub fn insert(&mut self, idx: usize, id: GroupId, attr: TextAttr)
-    {
-        self.last_resolved = None;
-        self.items.insert(idx, (id, attr));
-    }
+    pub fn insert( & mut self, idx: usize, id: GroupId, attr: TextAttr) { self.last_resolved = None; self.items.insert(idx, (id, attr)); }
 
     /// Returns true if a decoration was removed.
-    pub fn pop(&mut self, id: GroupId) -> bool
-    {
-        self.last_resolved = None;
-        self.items.pop_if(|(i, _)| *i == id).is_some()
-    }
+    pub fn pop( & mut self, id: GroupId)-> bool { self.last_resolved = None; self.items.pop_if( | (i, _) | * i == id).is_some() }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -81,46 +60,23 @@ pub struct ResolvedTextAttrs
 
 impl ResolvedTextAttrs
 {
-    pub const EMPTY: Self = Self {
-        strong: None,
-        emph: None,
-        script: None,
-        background: None,
-        deco: None,
-    };
+    pub const EMPTY: Self = Self { strong: None, emph: None, script: None, background: None, deco: None, };
 
-    pub fn is_empty(&self) -> bool
-    {
-        self == &Self::EMPTY
-    }
+    pub fn is_empty( & self)-> bool { self == & Self::EMPTY }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct ResolvedScript
-{
-    pub baseline_shift: f32,
-    pub lineheight: LineHeight,
-}
+pub struct ResolvedScript { pub baseline_shift: f32, pub lineheight: LineHeight, }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct ResolvedTextDeco
-{
-    pub kind: TextDecoKind,
-    pub color: Option<NaiveRgbColor>,
-    pub thickness: Option<f32>,
-}
+pub struct ResolvedTextDeco { pub kind: TextDecoKind, pub color: Option<NaiveRgbColor>, pub thickness: Option<f32>, }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum TextDecoKind
-{
-    Underline,
-    Overline,
-    Strike,
-}
+pub enum TextDecoKind { Underline, Overline, Strike, }
 
 impl TextDecoKind
 {
-    pub fn to_krilla(self) -> TextDecorationType
+    pub fn to_krilla(self)->TextDecorationType
     {
         match self
         {
@@ -135,28 +91,15 @@ impl TextDecoKind
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 struct TextParams(u128);
 
-impl TextParams
-{
-    fn new(text: &TextItem) -> TextParams
-    {
-        TextParams(typst_utils::hash128(&(&text.font, text.size)))
-    }
-}
+impl TextParams { fn new (text: & TextItem)->TextParams { TextParams(typst_utils::hash128( & ( & text.font, text.size))) } }
 
-pub fn resolve_text_attrs(
-    tree: &mut Tree,
-    options: &PdfOptions<Complete>,
-    text: &TextItem,
-) -> ResolvedTextAttrs
+pub fn resolve_text_attrs(tree: & mut Tree, options: & PdfOptions<Complete>, text: & TextItem,)->ResolvedTextAttrs
 {
-    let params = TextParams::new(text);
+    let params = TextParams:: new (text);
     if let Some((prev_params, attrs)) = tree.state.text_attrs.last_resolved
-        && prev_params == params
-    {
-        return attrs;
-    }
+    && prev_params == params { return attrs; }
 
-    let (attrs, error) = compute_attrs(options, &tree.state.text_attrs.items, text);
+    let (attrs, error) = compute_attrs(options, & tree.state.text_attrs.items, text);
 
     tree.errors.extend(error);
 
@@ -164,40 +107,24 @@ pub fn resolve_text_attrs(
     attrs
 }
 
-fn compute_attrs(
-    options: &PdfOptions<Complete>,
-    items: &[(GroupId, TextAttr)],
-    text: &TextItem,
-) -> (ResolvedTextAttrs, Option<SourceDiagnostic>)
+fn compute_attrs(options: & PdfOptions<Complete>, items: & [(GroupId, TextAttr)], text: & TextItem,)->(ResolvedTextAttrs, Option<SourceDiagnostic>)
 {
     let mut attrs = ResolvedTextAttrs::EMPTY;
-    let mut resolved_deco: Option<(&Content, ResolvedTextDeco)> = None;
+    let mut resolved_deco: Option < ( & Content, ResolvedTextDeco) > = None;
     let mut err = None;
     for (_, attr) in items.iter().rev()
     {
         match attr
         {
-            TextAttr::Strong =>
-            {
-                attrs.strong.get_or_insert(true);
-            }
-            TextAttr::Emph =>
-            {
-                attrs.emph.get_or_insert(true);
-            }
+            TextAttr::Strong => { attrs.strong.get_or_insert(true); }
+            TextAttr::Emph => { attrs.emph.get_or_insert(true); }
             TextAttr::SubScript(sub) =>
             {
-                attrs.script.get_or_insert_with(|| {
-                    let kind = ScriptKind::Sub;
-                    compute_script(text, kind, sub.baseline.val(), sub.size.val())
-                });
+                attrs.script.get_or_insert_with( || { let kind = ScriptKind::Sub; compute_script(text, kind, sub.baseline.val(), sub.size.val()) });
             }
             TextAttr::SuperScript(sub) =>
             {
-                attrs.script.get_or_insert_with(|| {
-                    let kind = ScriptKind::Super;
-                    compute_script(text, kind, sub.baseline.val(), sub.size.val())
-                });
+                attrs.script.get_or_insert_with( || { let kind = ScriptKind::Super; compute_script(text, kind, sub.baseline.val(), sub.size.val()) });
             }
             TextAttr::Highlight(highlight) =>
             {
@@ -207,54 +134,24 @@ fn compute_attrs(
             }
             TextAttr::Underline(underline) =>
             {
-                compute_deco(
-                    &mut resolved_deco,
-                    &mut err,
-                    options,
-                    text,
-                    underline.pack_ref(),
-                    TextDecoKind::Underline,
-                    underline.stroke.val_cloned(),
-                );
+                compute_deco( & mut resolved_deco, & mut err, options, text, underline.pack_ref(), TextDecoKind::Underline, underline.stroke.val_cloned(),);
             }
             TextAttr::Overline(overline) =>
             {
-                compute_deco(
-                    &mut resolved_deco,
-                    &mut err,
-                    options,
-                    text,
-                    overline.pack_ref(),
-                    TextDecoKind::Overline,
-                    overline.stroke.val_cloned(),
-                );
+                compute_deco( & mut resolved_deco, & mut err, options, text, overline.pack_ref(), TextDecoKind::Overline, overline.stroke.val_cloned(),);
             }
             TextAttr::Strike(strike) =>
             {
-                compute_deco(
-                    &mut resolved_deco,
-                    &mut err,
-                    options,
-                    text,
-                    strike.pack_ref(),
-                    TextDecoKind::Strike,
-                    strike.stroke.val_cloned(),
-                );
+                compute_deco( & mut resolved_deco, & mut err, options, text, strike.pack_ref(), TextDecoKind::Strike, strike.stroke.val_cloned(),);
             }
         }
     }
 
-    attrs.deco = resolved_deco.map(|(_, d)| d);
-
+    attrs.deco = resolved_deco.map( | (_, d) | d);
     (attrs, err)
 }
 
-fn compute_script(
-    text: &TextItem,
-    kind: ScriptKind,
-    baseline_shift: Smart<Length>,
-    lineheight: Smart<TextSize>,
-) -> ResolvedScript
+fn compute_script(text: & TextItem, kind: ScriptKind, baseline_shift: Smart<Length>, lineheight: Smart<TextSize>,)->ResolvedScript
 {
     // TODO: The `typographic` setting is ignored for now.
     // Is it better to be accurate regarding the layouting, and
@@ -264,23 +161,21 @@ fn compute_script(
     // picked up by AT?
     let script_metrics = kind.read_metrics(text.font.metrics());
     // NOTE: The user provided baseline_shift needs to be inverted.
-    let baseline_shift = (baseline_shift.map(|s| -s.at(text.size)))
-        .unwrap_or_else(|| script_metrics.vertical_offset.at(text.size));
-    let lineheight = (lineheight.map(|s| s.0.at(text.size)))
-        .unwrap_or_else(|| script_metrics.height.at(text.size));
+    let baseline_shift = (baseline_shift.map( | s | - s.at(text.size)))
+    .unwrap_or_else( || script_metrics.vertical_offset.at(text.size));
+    let lineheight = (lineheight.map( | s | s .0.at(text.size)))
+    .unwrap_or_else( || script_metrics.height.at(text.size));
 
-    ResolvedScript {
-        baseline_shift: baseline_shift.to_f32(),
-        lineheight: LineHeight::Custom(lineheight.to_f32()),
-    }
+    ResolvedScript { baseline_shift: baseline_shift.to_f32(), lineheight: LineHeight::Custom(lineheight.to_f32()), }
 }
 
-fn compute_deco<'a>(
-    resolved: &mut Option<(&'a Content, ResolvedTextDeco)>,
-    err: &mut Option<SourceDiagnostic>,
-    options: &PdfOptions<Complete>,
-    text: &TextItem,
-    elem: &'a Content,
+fn compute_deco<'a>
+(
+    resolved: & mut Option<( & 'a Content, ResolvedTextDeco)>,
+    err: & mut Option<SourceDiagnostic>,
+    options: & PdfOptions<Complete>,
+    text: & TextItem,
+    elem: & 'a Content,
     kind: TextDecoKind,
     stroke: Smart<Stroke>,
 )
@@ -292,27 +187,24 @@ fn compute_deco<'a>(
             // PDF can only represent one text decoration style at a time.
             // If PDF/UA-1 is enforced, throw an error.
             if err.is_none()
-                && deco.kind != kind
-                && let Some(accessibility) = options.validators().accessibility()
+            && deco.kind != kind
+            && let Some(accessibility) = options.validators().accessibility()
             {
                 let validator = accessibility.as_str();
                 let span = elem.span();
-                *err = Some(error!(
-                    span,
-                    "{validator} error: cannot combine underline, overline, or strike",
-                ));
+                * err = Some(error ! (span, "{validator} error: cannot combine underline, overline, or strike",));
             }
         }
         None =>
         {
             let color = (stroke.as_ref().custom())
-                .and_then(|s| s.paint.as_ref().custom())
-                .and_then(util::paint_to_color);
+            .and_then( | s | s.paint.as_ref().custom())
+            .and_then(util::paint_to_color);
             let thickness = (stroke.as_ref().custom())
-                .and_then(|s| s.thickness.custom())
-                .map(|t| t.at(text.size).to_f32());
+            .and_then( | s | s.thickness.custom())
+            .map( | t | t.at(text.size).to_f32());
             let deco = ResolvedTextDeco { kind, color, thickness };
-            *resolved = Some((elem, deco));
+            * resolved = Some((elem, deco));
         }
     }
 }

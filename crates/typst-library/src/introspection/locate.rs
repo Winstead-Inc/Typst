@@ -3,7 +3,7 @@ use typst_syntax::Span;
 
 use crate::diag::SourceResult;
 use crate::engine::Engine;
-use crate::foundations::{Context, LocatableSelector, func};
+use crate::foundations:: { Context, LocatableSelector, func };
 use crate::introspection::Location;
 
 /// Determines the location of an element in the document.
@@ -25,8 +25,9 @@ use crate::introspection::Location;
 /// = Introduction <intro>
 /// ```
 #[func(contextual, since = "forever")]
-pub fn locate(
-    engine: &mut Engine,
+pub fn locate
+(
+    engine: & mut Engine,
     context: Tracked<Context>,
     span: Span,
     /// A selector that should match exactly one element. This element will be
@@ -37,7 +38,5 @@ pub fn locate(
     /// - a @location retrieved from some queried element via the
     ///   @content.location[`location()`] method on content.
     selector: LocatableSelector,
-) -> SourceResult<Location>
-{
-    selector.resolve_unique(engine, context, span)
-}
+)
+->SourceResult<Location> { selector.resolve_unique(engine, context, span) }

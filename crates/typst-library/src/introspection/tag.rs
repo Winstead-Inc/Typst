@@ -1,10 +1,8 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 
-use crate::diag::{SourceResult, bail};
+use crate::diag:: { SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Args, Construct, Content, NativeElement, Packed, Unlabellable, elem,
-};
+use crate::foundations:: { Args, Construct, Content, NativeElement, Packed, Unlabellable, elem, };
 use crate::introspection::Location;
 
 /// Marks the start or end of a locatable element.
@@ -27,26 +25,15 @@ pub enum Tag
 impl Tag
 {
     /// Access the location of the tag.
-    pub fn location(&self) -> Location
-    {
-        match self
-        {
-            Tag::Start(elem, ..) => elem.location().unwrap(),
-            Tag::End(loc, ..) => *loc,
-        }
-    }
+    pub fn location( & self)->Location { match self { Tag::Start(elem,..) => elem.location().unwrap(), Tag::End(loc,..) => * loc, } }
 }
 
 impl Debug for Tag
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         let loc = self.location();
-        match self
-        {
-            Tag::Start(elem, ..) => write!(f, "Start({:?}, {loc:?})", elem.elem().name()),
-            Tag::End(..) => write!(f, "End({loc:?})"),
-        }
+        match self { Tag::Start(elem,..) => write ! (f, "Start({:?}, {loc:?})", elem.elem().name()), Tag::End(..) => write ! (f, "End({loc:?})"), }
     }
 }
 
@@ -62,13 +49,7 @@ pub struct TagFlags
     pub tagged: bool,
 }
 
-impl TagFlags
-{
-    pub fn any(&self) -> bool
-    {
-        self.introspectable || self.tagged
-    }
-}
+impl TagFlags { pub fn any( & self)->bool { self.introspectable || self.tagged } }
 
 /// Holds a tag for a locatable element that was realized.
 ///
@@ -78,29 +59,23 @@ impl TagFlags
 pub struct TagElem
 {
     /// The introspectable element.
-    #[required]
-    #[internal]
+    # [required]
+    # [internal]
     pub tag: Tag,
 }
 
 impl TagElem
 {
     /// Creates a tag element and directly packs it into type-erased content.
-    pub fn packed(tag: Tag) -> Content
+    pub fn packed(tag: Tag)->Content
     {
-        let mut content = Self::new(tag).pack();
+        let mut content = Self:: new (tag).pack();
         // We can skip preparation for the `TagElem`.
         content.mark_prepared();
         content
     }
 }
 
-impl Construct for TagElem
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually")
-    }
-}
+impl Construct for TagElem { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
 
 impl Unlabellable for Packed<TagElem> {}

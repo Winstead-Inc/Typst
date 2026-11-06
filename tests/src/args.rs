@@ -1,7 +1,7 @@
 use std::cell::OnceCell;
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap:: { Parser, Subcommand, ValueEnum };
 use regex::Regex;
 
 use crate::collect::TestStages;
@@ -13,62 +13,62 @@ use crate::collect::TestStages;
 pub struct CliArguments
 {
     /// The command to run.
-    #[command(subcommand)]
+    # [command(subcommand)]
     pub command: Option<Command>,
     /// All the tests whose names match the test name pattern will be run.
-    #[arg(value_parser = Regex::new)]
+    # [arg(value_parser = Regex::new)]
     pub pattern: Vec<Regex>,
     /// Restricts test selection within the given path.
-    #[arg(short, long, value_parser = |s: &str| PathBuf::from(s).canonicalize())]
+    # [arg(short , long , value_parser = | s: & str | PathBuf::from(s).canonicalize())]
     pub path: Vec<PathBuf>,
     /// Only selects the test that matches with the test name verbatim.
-    #[arg(short, long)]
+    # [arg(short , long)]
     pub exact: bool,
     /// Lists what tests will be run, without actually running them.
-    #[arg(long, group = "action")]
+    # [arg(long , group = "action")]
     pub list: bool,
     /// Updates the reference output of non-passing tests.
-    #[arg(short, long, group = "action")]
+    # [arg(short , long , group = "action")]
     pub update: bool,
     /// Specify which test targets/outputs to run.
     ///
     /// This is useful to only update specific reference outputs of a test.
-    #[arg(long, value_delimiter = ',')]
+    # [arg(long , value_delimiter = ',')]
     pub stages: Vec<TestStage>,
     /// The scaling factor to render the output image with.
     ///
     /// Does not affect the comparison or the reference image.
-    #[arg(short, long, default_value_t = 1.0)]
+    # [arg(short , long , default_value_t = 1.0)]
     pub scale: f64,
     /// Displays the syntax tree before running tests.
     ///
     /// Note: This is ignored if using '--syntax-compare'.
-    #[arg(long)]
+    # [arg(long)]
     pub syntax: bool,
     /// Displays only one line per test, hiding details about failures.
-    #[arg(short, long)]
+    # [arg(short , long)]
     pub compact: bool,
     /// Prevents the terminal from being cleared of test names.
-    #[arg(short, long)]
+    # [arg(short , long)]
     pub verbose: bool,
     /// How many threads to spawn when running the tests.
-    #[arg(short = 'j', long)]
+    # [arg(short = 'j', long)]
     pub num_threads: Option<usize>,
     /// Open the generated HTML test report in a browser when finished.
-    #[arg(long)]
+    # [arg(long)]
     pub open_report: bool,
     /// Don't generate a HTML test report.
-    #[arg(long)]
+    # [arg(long)]
     no_report: bool,
     /// The git base revision against which the tests will be run.
     ///
     /// If none is specified, it's compared against the current working tree.
-    #[arg(long, conflicts_with = "update")]
+    # [arg(long , conflicts_with = "update")]
     pub base_revision: Option<String>,
     /// Print errors in a format that github actions can pick up to generate
     /// annotations that will be displayed on PR files:
     /// <https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-error-message>
-    #[arg(long, env = "USE_GITHUB_ANNOTATIONS")]
+    # [arg(long , env = "USE_GITHUB_ANNOTATIONS")]
     pub use_github_annotations: bool,
     /// Changes testing behavior for debugging the parser: With no argument,
     /// outputs the concrete syntax trees of tests as files in
@@ -89,7 +89,7 @@ pub struct CliArguments
     ///
     /// You can view diffs in VS Code with: `code --diff <ref_dir>/<test>.syntax
     /// tests/store/syntax/<test>.syntax`
-    #[arg(long)]
+    # [arg(long)]
     pub parser_compare: Option<Option<PathBuf>>,
     // ^ I'm not using a subcommand here because then test patterns don't parse
     // how you would expect and I'm too lazy to try to fix it.
@@ -98,39 +98,31 @@ pub struct CliArguments
 impl CliArguments
 {
     /// The stages which should be run depending on the `--stages` flag.
-    fn stages(&self) -> TestStages
+    fn stages( & self)->TestStages
     {
-        thread_local! { static CACHED: OnceCell<TestStages> = const { OnceCell::new() }; }
+        thread_local! { static CACHED: OnceCell < TestStages > = const { OnceCell::new () }; }
 
-        CACHED.with(|cell|
-        {
-            *cell.get_or_init(||
+        CACHED.with
+        (
+            | cell |
             {
-                if self.stages.is_empty()
-                {
-                    TestStages::all()
-                }
-                else
-                {
-                    let mut stages = TestStages::empty();
-                    for &s in &self.stages
+                * cell.get_or_init
+                (
+                    ||
                     {
-                        stages |= s.into();
+                        if self.stages.is_empty() { TestStages::all() }
+                        else { let mut stages = TestStages::empty(); for & s in & self.stages { stages |= s.into(); } stages }
                     }
-                    stages
-                }
-            })
-        })
+                )
+            }
+        )
     }
 
     /// The stages that were parsed and the ones that are implied.
-    pub fn implied_stages(&self) -> TestStages
-    {
-        self.stages().with_implied()
-    }
+    pub fn implied_stages( & self)->TestStages { self.stages().with_implied() }
 
     /// [`Self::implied_stages`] and the ones that are required.
-    pub fn required_stages(&self) -> TestStages
+    pub fn required_stages( & self)->TestStages
     {
         // Must be in this order, otherwise any paged output target
         // would enable all others.
@@ -138,10 +130,7 @@ impl CliArguments
     }
 
     /// Whether a HTML test report should be generated.
-    pub fn gen_report(&self) -> bool
-    {
-        !self.no_report && !self.update
-    }
+    pub fn gen_report( & self)-> bool { ! self.no_report && ! self.update }
 }
 
 /// What to do.
@@ -167,21 +156,11 @@ pub struct PdftagsCommand
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
-pub enum TestStage
-{
-    Eval,
-    Paged,
-    Render,
-    Pdf,
-    Pdftags,
-    Svg,
-    Html,
-    Bundle,
-}
+pub enum TestStage { Eval, Paged, Render, Pdf, Pdftags, Svg, Html, Bundle, }
 
 impl From<TestStage> for TestStages
 {
-    fn from(value: TestStage) -> Self
+    fn from(value: TestStage)->Self
     {
         match value
         {

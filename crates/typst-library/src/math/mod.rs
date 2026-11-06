@@ -13,36 +13,34 @@ mod root;
 mod style;
 mod underover;
 
-pub use self::accent::{ACCENT_SHORT_FALL, Accent, AccentElem};
-pub use self::attach::*;
-pub use self::cancel::*;
-pub use self::equation::*;
-pub use self::frac::*;
-pub use self::lr::*;
-pub use self::matrix::*;
-pub use self::op::*;
-pub use self::root::*;
-pub use self::style::*;
-pub use self::underover::*;
+pub use self::accent:: { ACCENT_SHORT_FALL, Accent, AccentElem };
+pub use self::attach:: * ;
+pub use self::cancel:: * ;
+pub use self::equation:: * ;
+pub use self::frac:: * ;
+pub use self::lr:: * ;
+pub use self::matrix:: * ;
+pub use self::op:: * ;
+pub use self::root:: * ;
+pub use self::style:: * ;
+pub use self::underover:: * ;
 
 use typst_utils::singleton;
 use unicode_math_class::MathClass;
 
-use crate::foundations::{
-    BindingDocumentation, Content, Module, NativeElement, Scope, Since, StyleChain, elem,
-};
-use crate::layout::{Em, HElem};
-use crate::text::{FontFamily, TextElem};
+use crate::foundations:: { BindingDocumentation, Content, Module, NativeElement, Scope, Since, StyleChain, elem, };
+use crate::layout:: { Em, HElem };
+use crate::text:: { FontFamily, TextElem };
 
 // Spacings.
-pub const THIN: Em = Em::new(1.0 / 6.0);
-pub const MEDIUM: Em = Em::new(2.0 / 9.0);
-pub const THICK: Em = Em::new(5.0 / 18.0);
-pub const QUAD: Em = Em::new(1.0);
-pub const WIDE: Em = Em::new(2.0);
+pub const THIN: Em = Em:: new (1.0 / 6.0);
+pub const MEDIUM: Em = Em:: new (2.0 / 9.0);
+pub const THICK: Em = Em:: new (5.0 / 18.0);
+pub const QUAD: Em = Em:: new (1.0);
+pub const WIDE: Em = Em:: new (2.0);
 
 /// Create a module with all math definitions.
-pub fn module() -> Module
+pub fn module()->Module
 {
     let mut math = Scope::deduplicating();
     math.start_category(crate::Category::Math);
@@ -95,11 +93,14 @@ pub fn module() -> Module
     math.define_func::<sscript>();
 
     // Text operators.
-    op::define(&mut math);
+    op::define( & mut math);
 
     // Spacings.
-    math.define("thin", HElem::new(THIN.into()).pack())
-        .with_documentation(BindingDocumentation {
+    math.define("thin", HElem::new (THIN.into()).pack())
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "thin",
             title: "Thin space",
             docs: r"
@@ -113,11 +114,15 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
-    math.define("med", HElem::new(MEDIUM.into()).pack())
-        .with_documentation(BindingDocumentation {
+        }
+    );
+    math.define("med", HElem::new (MEDIUM.into()).pack())
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "med",
             title: "Medium space",
             docs: "
@@ -128,11 +133,15 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
-    math.define("thick", HElem::new(THICK.into()).pack())
-        .with_documentation(BindingDocumentation {
+        }
+    );
+    math.define("thick", HElem::new (THICK.into()).pack())
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "thick",
             title: "Thick space",
             docs: "
@@ -143,11 +152,15 @@ pub fn module() -> Module
             ```
             ",
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
-    math.define("quad", HElem::new(QUAD.into()).pack())
-        .with_documentation(BindingDocumentation {
+        }
+    );
+    math.define("quad", HElem::new (QUAD.into()).pack())
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "quad",
             title: "Quad space",
             docs: r#"
@@ -163,11 +176,15 @@ pub fn module() -> Module
             ```
             "#,
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
-    math.define("wide", HElem::new(WIDE.into()).pack())
-        .with_documentation(BindingDocumentation {
+        }
+    );
+    math.define("wide", HElem::new (WIDE.into()).pack())
+    .with_documentation
+    (
+        BindingDocumentation
+        {
             name: "wide",
             title: "Wide space",
             docs: r#"
@@ -183,14 +200,15 @@ pub fn module() -> Module
             ```
             "#,
             since: Some(Since::Forever),
-            keywords: &[],
+            keywords: & [],
             def_site: None,
-        });
+        }
+    );
 
     // Symbols.
-    crate::symbols::define_math(&mut math);
+    crate::symbols::define_math( & mut math);
 
-    Module::new("math", math)
+    Module:: new ("math", math)
 }
 
 /// Trait for recognizing math elements and auto-wrapping them in equations.
@@ -203,10 +221,7 @@ pub struct AlignPointElem {}
 impl AlignPointElem
 {
     /// Get the globally shared alignment point element.
-    pub fn shared() -> &'static Content
-    {
-        singleton!(Content, AlignPointElem::new().pack())
-    }
+    pub fn shared()-> & 'static Content { singleton ! (Content, AlignPointElem::new ().pack()) }
 }
 
 /// Forced use of a certain math class.
@@ -230,59 +245,45 @@ impl AlignPointElem
 pub struct ClassElem
 {
     /// The class to apply to the content.
-    #[required]
-    pub class: MathClass,
+    # [required]
+    pub class : MathClass,
 
     /// The content to which the class is applied.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 /// An iterator that alternates between the `Left` and `Right` values, if the
 /// initial value is not `None`.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum LeftRightAlternator
-{
-    None,
-    Left,
-    Right,
-}
+pub enum LeftRightAlternator { None, Left, Right, }
 
 impl Iterator for LeftRightAlternator
 {
     type Item = LeftRightAlternator;
 
-    fn next(&mut self) -> Option<Self::Item>
+    fn next( & mut self)->Option<Self::Item>
     {
-        let r = Some(*self);
-        match self
-        {
-            Self::None =>
-            {}
-            Self::Left => *self = Self::Right,
-            Self::Right => *self = Self::Left,
-        }
+        let r = Some( * self);
+        match self { Self::None => {} Self::Left => * self = Self::Right, Self::Right => * self = Self::Left, }
         r
     }
 }
 
 /// Resolve a prioritized iterator over the font families for math.
-pub fn families(styles: StyleChain<'_>) -> impl Iterator<Item = &'_ FontFamily> + Clone
+pub fn families(styles: StyleChain<'_>)-> impl Iterator < Item = & '_ FontFamily > + Clone
 {
-    let fallbacks = singleton!(Vec<FontFamily>, {
-        [
-            "new computer modern math",
-            "libertinus serif",
-            "twitter color emoji",
-            "noto color emoji",
-            "apple color emoji",
-            "segoe ui emoji",
-        ]
-        .into_iter()
-        .map(FontFamily::new)
-        .collect()
-    });
+    let fallbacks = singleton!
+    (
+        Vec<FontFamily>,
+        {
+            ["new computer modern math", "libertinus serif", "twitter color emoji", "noto color emoji", "apple color emoji", "segoe ui emoji",]
+            .into_iter()
+            .map(FontFamily::new)
+            .collect()
+        }
+    );
 
-    let tail = if styles.get(TextElem::fallback) { fallbacks.as_slice() } else { &[] };
+    let tail = if styles. get(TextElem::fallback) { fallbacks.as_slice() } else { & [] };
     styles.get_ref(TextElem::font).into_iter().chain(tail.iter())
 }

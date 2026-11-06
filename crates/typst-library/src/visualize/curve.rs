@@ -1,11 +1,11 @@
 use kurbo::Shape as _;
-use typst_macros::{Cast, scope};
+use typst_macros:: { Cast, scope };
 use typst_utils::Numeric;
 
-use crate::diag::{HintedStrResult, HintedString, bail};
-use crate::foundations::{Content, Packed, Smart, cast, elem};
-use crate::layout::{Abs, Axes, Length, Point, Rect, Rel, Size};
-use crate::visualize::{FillRule, Paint, Stroke};
+use crate::diag:: { HintedStrResult, HintedString, bail };
+use crate::foundations:: { Content, Packed, Smart, cast, elem };
+use crate::layout:: { Abs, Axes, Length, Point, Rect, Rel, Size };
+use crate::visualize:: { FillRule, Paint, Stroke };
 
 use super::FixedStroke;
 
@@ -67,7 +67,7 @@ pub struct CurveElem
     /// #star(fill-rule: "non-zero")
     /// #star(fill-rule: "even-odd")
     /// ```
-    #[default]
+    # [default]
     pub fill_rule: FillRule,
 
     /// How to @stroke[stroke] the curve.
@@ -84,73 +84,66 @@ pub struct CurveElem
     ///   down, up, down, up, down,
     /// )
     /// ```
-    #[fold]
+    # [fold]
     pub stroke: Smart<Option<Stroke>>,
 
     /// The components of the curve, in the form of moves, line and Bézier
     /// segment, and closes.
-    #[variadic]
+    # [variadic]
     pub components: Vec<CurveComponent>,
 }
 
 #[scope]
 impl CurveElem
 {
-    #[elem]
+    # [elem]
     type CurveMove;
 
-    #[elem]
+    # [elem]
     type CurveLine;
 
-    #[elem]
+    # [elem]
     type CurveQuad;
 
-    #[elem]
+    # [elem]
     type CurveCubic;
 
-    #[elem]
+    # [elem]
     type CurveClose;
 }
 
 /// A component used for curve creation.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum CurveComponent
-{
-    Move(Packed<CurveMove>),
-    Line(Packed<CurveLine>),
-    Quad(Packed<CurveQuad>),
-    Cubic(Packed<CurveCubic>),
-    Close(Packed<CurveClose>),
-}
+pub enum CurveComponent { Move(Packed<CurveMove>), Line(Packed<CurveLine>), Quad(Packed<CurveQuad>), Cubic(Packed<CurveCubic>), Close(Packed<CurveClose>), }
 
-cast! {
+cast!
+{
     CurveComponent,
-    self => match self {
+    self => match self
+    {
         Self::Move(element) => element.into_value(),
         Self::Line(element) => element.into_value(),
         Self::Quad(element) => element.into_value(),
         Self::Cubic(element) => element.into_value(),
         Self::Close(element) => element.into_value(),
     },
-    v: Content => {
-        v.try_into()?
-    }
+    v: Content => { v.try_into()? }
 }
 
 impl TryFrom<Content> for CurveComponent
 {
     type Error = HintedString;
 
-    fn try_from(value: Content) -> HintedStrResult<Self>
+    fn try_from(value: Content)->HintedStrResult<Self>
     {
         value
-            .into_packed::<CurveMove>()
-            .map(Self::Move)
-            .or_else(|value| value.into_packed::<CurveLine>().map(Self::Line))
-            .or_else(|value| value.into_packed::<CurveQuad>().map(Self::Quad))
-            .or_else(|value| value.into_packed::<CurveCubic>().map(Self::Cubic))
-            .or_else(|value| value.into_packed::<CurveClose>().map(Self::Close))
-            .or_else(|_| bail!("expecting a curve element"))
+        .into_packed::<CurveMove>()
+        .map(Self::Move)
+        .or_else( | value | value.into_packed::<CurveLine>().map(Self::Line))
+        .or_else( | value | value.into_packed::<CurveQuad>().map(Self::Quad))
+        .or_else( | value | value.into_packed::<CurveCubic>().map(Self::Cubic))
+        .or_else( | value | value.into_packed::<CurveClose>().map(Self::Close))
+        .or_else( | _ | bail ! ("expecting a curve element"))
     }
 }
 
@@ -179,11 +172,11 @@ impl TryFrom<Content> for CurveComponent
 pub struct CurveMove
 {
     /// The starting point for the new component.
-    #[required]
+    # [required]
     pub start: Axes<Rel<Length>>,
 
     /// Whether the coordinates are relative to the previous point.
-    #[default(false)]
+    # [default (false)]
     pub relative: bool,
 }
 
@@ -203,7 +196,7 @@ pub struct CurveMove
 pub struct CurveLine
 {
     /// The point at which the line shall end.
-    #[required]
+    # [required]
     pub end: Axes<Rel<Length>>,
 
     /// Whether the coordinates are relative to the previous point.
@@ -218,7 +211,7 @@ pub struct CurveLine
     ///   curve.line((50pt, 0pt), relative: true),
     /// )
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub relative: bool,
 }
 
@@ -257,16 +250,16 @@ pub struct CurveQuad
     ///   curve.quad(auto, (40pt, -40pt), relative: true),
     /// )
     /// ```
-    #[required]
-    pub control: Smart<Option<Axes<Rel<Length>>>>,
+    # [required]
+    pub control: Smart < Option < Axes < Rel < Length >>>> ,
 
     /// The point at which the segment shall end.
-    #[required]
+    # [required]
     pub end: Axes<Rel<Length>>,
 
     /// Whether the `control` and `end` coordinates are relative to the previous
     /// point.
-    #[default(false)]
+    # [default (false)]
     pub relative: bool,
 }
 
@@ -333,23 +326,23 @@ pub struct CurveCubic
     ///   curve.cubic((80pt, 0pt), none, (100pt, 50pt)),
     /// )
     /// ```
-    #[required]
-    pub control_start: Option<Smart<Axes<Rel<Length>>>>,
+    # [required]
+    pub control_start: Option < Smart < Axes < Rel < Length >>>> ,
 
     /// The control point going into the end point of the curve segment.
     ///
     /// If set to `{none}`, the curve has no end control point, or equivalently,
     /// the control point defaults to the curve's end point.
-    #[required]
-    pub control_end: Option<Axes<Rel<Length>>>,
+    # [required]
+    pub control_end: Option < Axes < Rel < Length >>> ,
 
     /// The point at which the curve segment shall end.
-    #[required]
+    # [required]
     pub end: Axes<Rel<Length>>,
 
     /// Whether the `control-start`, `control-end`, and `end` coordinates are
     /// relative to the previous point.
-    #[default(false)]
+    # [default (false)]
     pub relative: bool,
 }
 
@@ -384,7 +377,7 @@ pub enum CloseMode
 {
     /// Closes the curve with a smooth segment that takes into account the
     /// control point opposite the start point.
-    #[default]
+    # [default]
     Smooth,
     /// Closes the curve with a straight line.
     Straight,
@@ -396,28 +389,19 @@ pub struct Curve(pub Vec<CurveItem>);
 
 /// An item in a curve.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum CurveItem
-{
-    Move(Point),
-    Line(Point),
-    Cubic(Point, Point, Point),
-    Close,
-}
+pub enum CurveItem { Move(Point), Line(Point), Cubic(Point, Point, Point), Close, }
 
 impl Curve
 {
     /// Creates an empty curve.
-    pub const fn new() -> Self
-    {
-        Self(vec![])
-    }
+    pub const fn new ()->Self { Self(vec ! []) }
 
     /// Creates a curve that describes a rectangle.
-    pub fn rect(size: Size) -> Self
+    pub fn rect(size: Size)->Self
     {
         let z = Abs::zero();
-        let point = Point::new;
-        let mut curve = Self::new();
+        let point = Point:: new ;
+        let mut curve = Self:: new ();
         curve.move_(point(z, z));
         curve.line(point(size.x, z));
         curve.line(point(size.x, size.y));
@@ -427,7 +411,7 @@ impl Curve
     }
 
     /// Creates a curve that describes an axis-aligned ellipse.
-    pub fn ellipse(size: Size) -> Self
+    pub fn ellipse(size: Size)->Self
     {
         // https://stackoverflow.com/a/2007782
         let z = Abs::zero();
@@ -436,129 +420,89 @@ impl Curve
         let m = 0.551784;
         let mx = m * rx;
         let my = m * ry;
-        let point = |x, y| Point::new(x + rx, y + ry);
+        let point = | x, y | Point:: new (x + rx, y + ry);
 
-        let mut curve = Curve::new();
-        curve.move_(point(-rx, z));
-        curve.cubic(point(-rx, -my), point(-mx, -ry), point(z, -ry));
-        curve.cubic(point(mx, -ry), point(rx, -my), point(rx, z));
+        let mut curve = Curve:: new ();
+        curve.move_(point( - rx, z));
+        curve.cubic(point( - rx, - my), point( - mx, - ry), point(z, - ry));
+        curve.cubic(point(mx, - ry), point(rx, - my), point(rx, z));
         curve.cubic(point(rx, my), point(mx, ry), point(z, ry));
-        curve.cubic(point(-mx, ry), point(-rx, my), point(-rx, z));
+        curve.cubic(point( - mx, ry), point( - rx, my), point( - rx, z));
         curve
     }
 
     /// Push a [`Move`](CurveItem::Move) item.
-    pub fn move_(&mut self, p: Point)
-    {
-        self.0.push(CurveItem::Move(p));
-    }
+    pub fn move_( & mut self, p: Point) { self .0.push(CurveItem::Move(p)); }
 
     /// Push a [`Line`](CurveItem::Line) item.
-    pub fn line(&mut self, p: Point)
-    {
-        self.0.push(CurveItem::Line(p));
-    }
+    pub fn line( & mut self, p: Point) { self .0.push(CurveItem::Line(p)); }
 
     /// Push a [`Cubic`](CurveItem::Cubic) item.
-    pub fn cubic(&mut self, p1: Point, p2: Point, p3: Point)
-    {
-        self.0.push(CurveItem::Cubic(p1, p2, p3));
-    }
+    pub fn cubic( & mut self, p1: Point, p2: Point, p3: Point) { self .0.push(CurveItem::Cubic(p1, p2, p3)); }
 
     /// Push a [`Close`](CurveItem::Close) item.
-    pub fn close(&mut self)
-    {
-        self.0.push(CurveItem::Close);
-    }
+    pub fn close( & mut self) { self .0.push(CurveItem::Close); }
 
     /// Check if the curve is empty.
-    pub fn is_empty(&self) -> bool
-    {
-        self.0.is_empty()
-    }
+    pub fn is_empty( & self)-> bool { self .0.is_empty() }
 
     /// Translate all points in this curve by the given offset.
-    pub fn translate(&mut self, offset: Point)
+    pub fn translate( & mut self, offset: Point)
     {
-        if offset.is_zero()
-        {
-            return;
-        }
-        for item in &mut self.0
+        if offset.is_zero() { return ; }
+        for item in & mut self .0
         {
             match item
             {
-                CurveItem::Move(p) => *p += offset,
-                CurveItem::Line(p) => *p += offset,
-                CurveItem::Cubic(p1, p2, p3) =>
-                {
-                    *p1 += offset;
-                    *p2 += offset;
-                    *p3 += offset;
-                }
+                CurveItem::Move(p) => * p += offset,
+                CurveItem::Line(p) => * p += offset,
+                CurveItem::Cubic(p1, p2, p3) => { * p1 += offset; * p2 += offset; * p3 += offset; }
                 CurveItem::Close => (),
             }
         }
     }
 
     /// Computes the bounding box of this curve.
-    pub fn bbox(&self, stroke: Option<&FixedStroke>) -> Rect
+    pub fn bbox( & self, stroke: Option <& FixedStroke >)->Rect
     {
-        let bbox = if let Some(stroke) = stroke
-        {
-            self.to_kurbo_stroke(stroke).bounding_box()
-        }
-        else
-        {
-            kurbo::BezPath::from_vec(self.to_kurbo().collect()).bounding_box()
-        };
+        let bbox = if let Some(stroke) = stroke { self.to_kurbo_stroke(stroke).bounding_box() }
+        else { kurbo::BezPath::from_vec(self.to_kurbo().collect()).bounding_box() };
 
-        Rect::new(
-            Point::new(Abs::raw(bbox.x0), Abs::raw(bbox.y0)),
-            Point::new(Abs::raw(bbox.x1), Abs::raw(bbox.y1)),
-        )
+        Rect:: new (Point::new (Abs::raw(bbox.x0), Abs::raw(bbox.y0)), Point::new (Abs::raw(bbox.x1), Abs::raw(bbox.y1)),)
     }
 }
 
 impl Curve
 {
-    fn to_kurbo(&self) -> impl Iterator<Item = kurbo::PathEl> + '_
+    fn to_kurbo( & self)-> impl Iterator < Item = kurbo::PathEl > + '_
     {
         use kurbo::PathEl;
 
-        self.0.iter().map(|item| match *item
-        {
-            CurveItem::Move(point) => PathEl::MoveTo(point_to_kurbo(point)),
-            CurveItem::Line(point) => PathEl::LineTo(point_to_kurbo(point)),
-            CurveItem::Cubic(point, point1, point2) => PathEl::CurveTo(
-                point_to_kurbo(point),
-                point_to_kurbo(point1),
-                point_to_kurbo(point2),
-            ),
-            CurveItem::Close => PathEl::ClosePath,
-        })
+        self .0.iter().map
+        (
+            | item | match * item
+            {
+                CurveItem::Move(point) => PathEl::MoveTo(point_to_kurbo(point)),
+                CurveItem::Line(point) => PathEl::LineTo(point_to_kurbo(point)),
+                CurveItem::Cubic(point, point1, point2) => PathEl::CurveTo(point_to_kurbo(point), point_to_kurbo(point1), point_to_kurbo(point2),),
+                CurveItem::Close => PathEl::ClosePath,
+            }
+        )
     }
 
     /// When this curve is interpreted as a clip mask, would it contain `point`?
-    pub fn contains(&self, fill_rule: FillRule, needle: Point) -> bool
+    pub fn contains( & self, fill_rule: FillRule, needle: Point)-> bool
     {
         let kurbo = kurbo::BezPath::from_vec(self.to_kurbo().collect());
-        let windings = kurbo::Shape::winding(&kurbo, point_to_kurbo(needle));
-        match fill_rule
-        {
-            FillRule::NonZero => windings != 0,
-            FillRule::EvenOdd => windings % 2 != 0,
-        }
+        let windings = kurbo::Shape::winding( & kurbo, point_to_kurbo(needle));
+        match fill_rule { FillRule::NonZero => windings != 0, FillRule::EvenOdd => windings % 2 != 0, }
     }
 
     /// When this curve is stroked with `stroke`, would the stroke contain
     /// `point`?
-    pub fn stroke_contains(&self, stroke: &FixedStroke, needle: Point) -> bool
-    {
-        kurbo::Shape::contains(&self.to_kurbo_stroke(stroke), point_to_kurbo(needle))
-    }
+    pub fn stroke_contains( & self, stroke: & FixedStroke, needle: Point)-> bool { kurbo::Shape::contains( & self.to_kurbo_stroke(stroke), point_to_kurbo(needle)) }
 
-    fn to_kurbo_stroke(&self, stroke: &FixedStroke) -> kurbo::BezPath
+    fn to_kurbo_stroke( & self, stroke: & FixedStroke)->kurbo::BezPath
     {
         let width = stroke.thickness.to_raw();
         let cap = match stroke.cap
@@ -573,25 +517,19 @@ impl Curve
             super::LineJoin::Round => kurbo::Join::Round,
             super::LineJoin::Bevel => kurbo::Join::Bevel,
         };
-        let miter_limit = stroke.miter_limit.get();
-        let mut style = kurbo::Stroke::new(width)
-            .with_caps(cap)
-            .with_join(join)
-            .with_miter_limit(miter_limit);
-        if let Some(dash) = &stroke.dash
+        let miter_limit = stroke.miter_limit. get();
+        let mut style = kurbo::Stroke:: new (width)
+        .with_caps(cap)
+        .with_join(join)
+        .with_miter_limit(miter_limit);
+        if let Some(dash) = & stroke.dash
         {
-            style = style.with_dashes(
-                dash.phase.to_raw(),
-                dash.array.iter().copied().map(Abs::to_raw),
-            );
+            style = style.with_dashes(dash.phase.to_raw(), dash.array.iter().copied().map(Abs::to_raw),);
         }
-        let opts = kurbo::StrokeOpts::default();
+        let opts = kurbo::StrokeOpts:: default();
         let tolerance = 0.01;
-        kurbo::stroke(self.to_kurbo(), &style, &opts, tolerance)
+        kurbo::stroke(self.to_kurbo(), & style, & opts, tolerance)
     }
 }
 
-fn point_to_kurbo(point: Point) -> kurbo::Point
-{
-    kurbo::Point::new(point.x.to_raw(), point.y.to_raw())
-}
+fn point_to_kurbo(point: Point)->kurbo::Point { kurbo::Point::new (point.x.to_raw(), point.y.to_raw()) }

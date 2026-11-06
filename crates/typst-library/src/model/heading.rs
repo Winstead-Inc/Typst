@@ -1,18 +1,16 @@
 use std::num::NonZeroUsize;
 
 use ecow::EcoString;
-use typst_syntax::{LooselySpanned, Spanned};
+use typst_syntax:: { LooselySpanned, Spanned };
 use typst_utils::NonZeroExt;
 
-use crate::diag::{SourceResult, Trace, Tracepoint};
+use crate::diag:: { SourceResult, Trace, Tracepoint };
 use crate::engine::Engine;
-use crate::foundations::{
-    Content, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles, Synthesize, elem,
-};
-use crate::introspection::{Count, Counter, CounterUpdate};
-use crate::layout::{BlockElem, Em, Length};
-use crate::model::{Numbering, Outlinable, Refable, Supplement};
-use crate::text::{FontWeight, LocalName, TextElem, TextSize};
+use crate::foundations:: { Content, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles, Synthesize, elem, };
+use crate::introspection:: { Count, Counter, CounterUpdate };
+use crate::layout:: { BlockElem, Em, Length };
+use crate::model:: { Numbering, Outlinable, Refable, Supplement };
+use crate::text:: { FontWeight, LocalName, TextElem, TextSize };
 
 /// A section heading.
 ///
@@ -75,15 +73,15 @@ use crate::text::{FontWeight, LocalName, TextElem, TextSize};
 /// and headings turn into `<h2>` and lower (a level 1 heading thus turns into
 /// `<h2>`, a level 2 heading into `<h3>`, etc).
 #[elem(
-    since = "forever",
-    Locatable,
-    Tagged,
-    Synthesize,
-    Count,
-    ShowSet,
-    LocalName,
-    Refable,
-    Outlinable
+since = "forever",
+Locatable,
+Tagged,
+Synthesize,
+Count,
+ShowSet,
+LocalName,
+Refable,
+Outlinable
 )]
 pub struct HeadingElem
 {
@@ -114,7 +112,7 @@ pub struct HeadingElem
     /// heading with logical depth of 2, but actual level `{offset + 2}`. If you
     /// construct a heading manually, you should typically prefer this over
     /// setting the absolute level.
-    #[default(NonZeroUsize::ONE)]
+    # [default (NonZeroUsize::ONE)]
     pub depth: NonZeroUsize,
 
     /// The starting offset of each heading's `{level}`, used to turn its
@@ -130,7 +128,7 @@ pub struct HeadingElem
     ///   I'm level 4
     /// ]
     /// ```
-    #[default(0)]
+    # [default (0)]
     pub offset: usize,
 
     /// How to number the heading. Accepts a
@@ -153,8 +151,8 @@ pub struct HeadingElem
     /// concrete string.
     ///
     /// This remains unset if `numbering` is `None`.
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub numbers: EcoString,
 
     /// A supplement for the heading.
@@ -173,7 +171,7 @@ pub struct HeadingElem
     /// in @intro[Part], it is done
     /// manually.
     /// ```
-    pub supplement: LooselySpanned<Smart<Option<Supplement>>>,
+    pub supplement: LooselySpanned < Smart < Option < Supplement >>> ,
 
     /// Whether the heading should appear in the @outline[outline].
     ///
@@ -191,7 +189,7 @@ pub struct HeadingElem
     /// This heading does not appear
     /// in the outline.
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub outlined: bool,
 
     /// Whether the heading should appear as a bookmark in the exported PDF's
@@ -213,7 +211,7 @@ pub struct HeadingElem
     /// bookmarked in the resulting
     /// PDF.
     /// ```
-    #[default(Smart::Auto)]
+    # [default (Smart::Auto)]
     pub bookmarked: Smart<bool>,
 
     /// The indent all but the first line of a heading should have.
@@ -230,32 +228,29 @@ pub struct HeadingElem
     /// #show heading: set align(center)
     /// == A very long heading\ with center alignment
     /// ```
-    #[default(Smart::Auto)]
+    # [default (Smart::Auto)]
     pub hanging_indent: Smart<Length>,
 
     /// The heading's title.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 impl HeadingElem
 {
-    pub fn resolve_level(&self, styles: StyleChain) -> NonZeroUsize
+    pub fn resolve_level( & self, styles: StyleChain)->NonZeroUsize
     {
-        self.level.get(styles).unwrap_or_else(|| {
-            NonZeroUsize::new(self.offset.get(styles) + self.depth.get(styles).get())
-                .expect("overflow to 0 on NoneZeroUsize + usize")
-        })
+        self.level. get(styles).unwrap_or_else( || { NonZeroUsize::new (self.offset.get (styles) + self.depth.get (styles).get ()).expect("overflow to 0 on NoneZeroUsize + usize") })
     }
 }
 
 impl Synthesize for Packed<HeadingElem>
 {
-    fn synthesize(&mut self, engine: &mut Engine, styles: StyleChain)
-    -> SourceResult<()>
+    fn synthesize( & mut self, engine: & mut Engine, styles: StyleChain)
+   ->SourceResult<()>
     {
         let sup = self.supplement.get_ref(styles);
-        let supplement = match &sup.v
+        let supplement = match & sup.v
         {
             Smart::Auto => TextElem::packed(Self::local_name_in(styles)),
             Smart::Custom(None) => Content::empty(),
@@ -263,125 +258,78 @@ impl Synthesize for Packed<HeadingElem>
             {
                 let point = Tracepoint::process::<HeadingElem>;
                 supplement
-                    .resolve(engine, styles, [self.clone().pack()], sup.span)
-                    .trace(engine.world, point, self.span())?
+                .resolve(engine, styles, [self.clone().pack()], sup.span)
+                .trace(engine.world, point, self.span())?
             }
         };
 
         if let Some((numbering, location)) =
-            self.numbering.get_ref(styles).as_ref().zip(self.location())
-            // We are not early returning on error here because of
-            // https://github.com/typst/typst/issues/7428
-            //
-            // A more comprehensive fix might introduce the error catching logic
-            // of show rules for synthesis, too.
-            && let Ok(numbers) = self.counter().display_at(
-                engine,
-                location,
-                styles,
-                numbering,
-                self.span(),
-            )
-        {
-            self.numbers = Some(numbers.plain_text());
-        }
+        self.numbering.get_ref(styles).as_ref().zip(self.location())
+        // We are not early returning on error here because of
+        // https://github.com/typst/typst/issues/7428
+        //
+        // A more comprehensive fix might introduce the error catching logic
+        // of show rules for synthesis, too.
+        && let Ok(numbers) = self.counter().display_at(engine, location, styles, numbering, self.span(),) { self.numbers = Some(numbers.plain_text()); }
 
         let elem = self.as_mut();
-        elem.level.set(Smart::Custom(elem.resolve_level(styles)));
-        elem.supplement.set(Spanned {
-            span: supplement.span(),
-            v: Smart::Custom(Some(Supplement::Content(supplement))),
-        });
+        elem.level. set(Smart::Custom(elem.resolve_level(styles)));
+        elem.supplement. set(Spanned { span: supplement.span(), v: Smart::Custom(Some(Supplement::Content(supplement))), });
         Ok(())
     }
 }
 
 impl ShowSet for Packed<HeadingElem>
 {
-    fn show_set(&self, styles: StyleChain) -> Styles
+    fn show_set( & self, styles: StyleChain)->Styles
     {
-        let level = self.resolve_level(styles).get();
-        let scale = match level
-        {
-            1 => 1.4,
-            2 => 1.2,
-            _ => 1.0,
-        };
+        let level = self.resolve_level(styles). get();
+        let scale = match level { 1 => 1.4, 2 => 1.2, _ => 1.0, };
 
-        let size = Em::new(scale);
-        let above = Em::new(if level == 1 { 1.8 } else { 1.44 }) / scale;
-        let below = Em::new(0.75) / scale;
+        let size = Em:: new (scale);
+        let above = Em:: new (if level == 1 { 1.8 } else { 1.44 }) / scale;
+        let below = Em:: new (0.75) / scale;
 
-        let mut out = Styles::new();
-        out.set(TextElem::size, TextSize(size.into()));
-        out.set(TextElem::weight, FontWeight::BOLD);
-        out.set(BlockElem::above, Smart::Custom(above.into()));
-        out.set(BlockElem::below, Smart::Custom(below.into()));
-        out.set(BlockElem::sticky, true);
+        let mut out = Styles:: new ();
+        out. set(TextElem::size, TextSize(size.into()));
+        out. set(TextElem::weight, FontWeight::BOLD);
+        out. set(BlockElem::above, Smart::Custom(above.into()));
+        out. set(BlockElem::below, Smart::Custom(below.into()));
+        out. set(BlockElem::sticky, true);
         out
     }
 }
 
 impl Count for Packed<HeadingElem>
 {
-    fn update(&self) -> Option<Spanned<CounterUpdate>>
+    fn update( & self)->Option<Spanned<CounterUpdate>>
     {
-        self.numbering.get_ref(StyleChain::default()).is_some().then(|| {
-            Spanned::new(
-                CounterUpdate::Step(self.resolve_level(StyleChain::default())),
-                self.span(),
-            )
-        })
+        self.numbering.get_ref(StyleChain::default ()).is_some().then( || { Spanned::new (CounterUpdate::Step(self.resolve_level(StyleChain::default ())), self.span(),) })
     }
 }
 
 impl Refable for Packed<HeadingElem>
 {
-    fn supplement(&self) -> Content
+    fn supplement( & self)->Content
     {
         // After synthesis, this should always be custom content.
-        match self.supplement.get_cloned(StyleChain::default()).v
-        {
-            Smart::Custom(Some(Supplement::Content(content))) => content,
-            _ => Content::empty(),
-        }
+        match self.supplement.get_cloned(StyleChain::default ()).v { Smart::Custom(Some(Supplement::Content(content))) => content, _ => Content::empty(), }
     }
 
-    fn counter(&self) -> Counter
-    {
-        Counter::of(HeadingElem::ELEM)
-    }
+    fn counter( & self)->Counter { Counter::of(HeadingElem::ELEM) }
 
-    fn numbering(&self) -> Option<&Numbering>
-    {
-        self.numbering.get_ref(StyleChain::default()).as_ref()
-    }
+    fn numbering( & self)->Option <& Numbering > { self.numbering.get_ref(StyleChain::default ()).as_ref() }
 }
 
 impl Outlinable for Packed<HeadingElem>
 {
-    fn outlined(&self) -> bool
-    {
-        self.outlined.get(StyleChain::default())
-    }
+    fn outlined( & self)-> bool { self.outlined.get (StyleChain::default ()) }
 
-    fn level(&self) -> NonZeroUsize
-    {
-        self.resolve_level(StyleChain::default())
-    }
+    fn level( & self)->NonZeroUsize { self.resolve_level(StyleChain::default ()) }
 
-    fn prefix(&self, numbers: Content) -> Content
-    {
-        numbers
-    }
+    fn prefix( & self, numbers: Content)->Content { numbers }
 
-    fn body(&self) -> Content
-    {
-        self.body.clone()
-    }
+    fn body( & self)->Content { self.body.clone() }
 }
 
-impl LocalName for Packed<HeadingElem>
-{
-    const KEY: &'static str = "heading";
-}
+impl LocalName for Packed<HeadingElem> { const KEY: & 'static str = "heading"; }

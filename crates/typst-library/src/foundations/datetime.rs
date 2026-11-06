@@ -1,19 +1,17 @@
 use std::cmp::Ordering;
 use std::hash::Hash;
-use std::ops::{Add, Sub};
+use std::ops:: { Add, Sub };
 
 use arrayvec::ArrayVec;
-use ecow::{EcoString, EcoVec, eco_format};
-use time::error::{Format, InvalidFormatDescription};
+use ecow:: { EcoString, EcoVec, eco_format };
+use time::error:: { Format, InvalidFormatDescription };
 use time::macros::format_description;
-use time::{Month, PrimitiveDateTime, format_description};
+use time:: { Month, PrimitiveDateTime, format_description };
 
 use crate::World;
-use crate::diag::{HintedStrResult, StrResult, bail};
+use crate::diag:: { HintedStrResult, StrResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Dict, Duration, Repr, Smart, Str, Value, cast, func, repr, scope, ty,
-};
+use crate::foundations:: { Dict, Duration, Repr, Smart, Str, Value, cast, func, repr, scope, ty, };
 
 /// Represents a date, a time, or a combination of both.
 ///
@@ -155,105 +153,40 @@ pub enum Datetime
 impl Datetime
 {
     /// Create a datetime from year, month, and day.
-    pub fn from_ymd(year: i32, month: u8, day: u8) -> Option<Self>
-    {
-        Some(Datetime::Date(
-            time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day)
-                .ok()?,
-        ))
-    }
+    pub fn from_ymd(year: i32, month: u8, day: u8)->Option<Self> { Some(Datetime::Date(time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day).ok()?,)) }
 
     /// Create a datetime from hour, minute, and second.
-    pub fn from_hms(hour: u8, minute: u8, second: u8) -> Option<Self>
-    {
-        Some(Datetime::Time(time::Time::from_hms(hour, minute, second).ok()?))
-    }
+    pub fn from_hms(hour: u8, minute: u8, second: u8)->Option<Self> { Some(Datetime::Time(time::Time::from_hms(hour, minute, second).ok()?)) }
 
     /// Create a datetime from day and time.
-    pub fn from_ymd_hms(
-        year: i32,
-        month: u8,
-        day: u8,
-        hour: u8,
-        minute: u8,
-        second: u8,
-    ) -> Option<Self>
+    pub fn from_ymd_hms(year: i32, month: u8, day: u8, hour: u8, minute: u8, second: u8,)->Option<Self>
     {
         let date =
-            time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day)
-                .ok()?;
+        time::Date::from_calendar_date(year, time::Month::try_from(month).ok()?, day)
+        .ok()?;
         let time = time::Time::from_hms(hour, minute, second).ok()?;
-        Some(Datetime::Datetime(PrimitiveDateTime::new(date, time)))
+        Some(Datetime::Datetime(PrimitiveDateTime::new (date, time)))
     }
 
     /// Try to parse a dictionary as a TOML date.
-    pub fn from_toml_dict(dict: &Dict) -> Option<Self>
+    pub fn from_toml_dict(dict: & Dict)->Option<Self>
     {
-        if dict.len() != 1
-        {
-            return None;
-        }
+        if dict.len() != 1 { return None; }
 
-        let Ok(Value::Str(string)) = dict.get("$__toml_private_datetime")
-        else
-        {
-            return None;
-        };
+        let Ok(Value::Str(string)) = dict. get("$__toml_private_datetime")
+        else { return None; };
 
-        if let Ok(d) = time::PrimitiveDateTime::parse(
-            string,
-            &format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]Z"),
-        )
-        {
-            Self::from_ymd_hms(
-                d.year(),
-                d.month() as u8,
-                d.day(),
-                d.hour(),
-                d.minute(),
-                d.second(),
-            )
-        }
-        else if let Ok(d) = time::PrimitiveDateTime::parse(
-            string,
-            &format_description!("[year]-[month]-[day]T[hour]:[minute]:[second]"),
-        )
-        {
-            Self::from_ymd_hms(
-                d.year(),
-                d.month() as u8,
-                d.day(),
-                d.hour(),
-                d.minute(),
-                d.second(),
-            )
-        }
+        if let Ok(d) = time::PrimitiveDateTime::parse(string, & format_description ! ("[year]-[month]-[day]T[hour]:[minute]:[second]Z"),) { Self::from_ymd_hms(d.year(), d.month() as u8, d.day(), d.hour(), d.minute(), d.second(),) }
+        else if let Ok(d) = time::PrimitiveDateTime::parse(string, & format_description ! ("[year]-[month]-[day]T[hour]:[minute]:[second]"),) { Self::from_ymd_hms(d.year(), d.month() as u8, d.day(), d.hour(), d.minute(), d.second(),) }
         else if let Ok(d) =
-            time::Date::parse(string, &format_description!("[year]-[month]-[day]"))
-        {
-            Self::from_ymd(d.year(), d.month() as u8, d.day())
-        }
+        time::Date::parse(string, & format_description ! ("[year]-[month]-[day]")) { Self::from_ymd(d.year(), d.month() as u8, d.day()) }
         else if let Ok(d) =
-            time::Time::parse(string, &format_description!("[hour]:[minute]:[second]"))
-        {
-            Self::from_hms(d.hour(), d.minute(), d.second())
-        }
-        else
-        {
-            None
-        }
+        time::Time::parse(string, & format_description ! ("[hour]:[minute]:[second]")) { Self::from_hms(d.hour(), d.minute(), d.second()) }
+        else { None }
     }
 
     /// Which kind of variant this datetime stores.
-    pub fn kind(&self) -> &'static str
-    {
-        match self
-        {
-            Datetime::Datetime(_) => "datetime",
-            Datetime::Date(_) => "date",
-            Datetime::Time(_) => "time",
-        }
-    }
+    pub fn kind( & self)-> & 'static str { match self { Datetime::Datetime(_) => "datetime", Datetime::Date(_) => "date", Datetime::Time(_) => "time", } }
 }
 
 #[scope]
@@ -281,111 +214,84 @@ impl Datetime
     ///   day: 3,
     /// ).display()
     /// ```
-    #[func(constructor, since = "0.5.0")]
-    pub fn construct(
+    # [func(constructor, since = "0.5.0")]
+    pub fn construct
+    (
         /// The year of the datetime.
-        #[named]
+        # [named]
         year: Option<i32>,
         /// The month of the datetime.
-        #[named]
+        # [named]
         month: Option<Month>,
         /// The day of the datetime.
-        #[named]
+        # [named]
         day: Option<u8>,
         /// The hour of the datetime.
-        #[named]
+        # [named]
         hour: Option<u8>,
         /// The minute of the datetime.
-        #[named]
+        # [named]
         minute: Option<u8>,
         /// The second of the datetime.
-        #[named]
+        # [named]
         second: Option<u8>,
-    ) -> HintedStrResult<Datetime>
+    )
+   ->HintedStrResult<Datetime>
     {
-        fn format_missing_args(args: ArrayVec<&str, 3>) -> EcoString
+        fn format_missing_args(args: ArrayVec <& str, 3 >)->EcoString
         {
             match args.as_slice()
             {
-                [] => unreachable!(),
-                [arg] => eco_format!("the {arg} argument"),
-                [arg1, arg2] => eco_format!("the {arg1} and {arg2} arguments"),
-                [args @ .., tail] =>
-                {
-                    eco_format!("the {}, and {tail} arguments", args.join(", "))
-                }
+                [] => unreachable!(),[arg] => eco_format!("the {arg} argument"),[arg1, arg2] => eco_format!("the {arg1} and {arg2} arguments"),[args @.., tail] => { eco_format ! ("the {}, and {tail} arguments", args.join(", ")) }
             }
         }
 
         let time = match (hour, minute, second)
         {
-            (Some(hour), Some(minute), Some(second)) =>
+            (Some(hour), Some(minute), Some(second)) => { match time::Time::from_hms(hour, minute, second) { Ok(time) => Some(time), Err(_) => bail ! ("time is invalid"), } }
+            (None, None, None) => None, (hour, minute, second) =>
             {
-                match time::Time::from_hms(hour, minute, second)
-                {
-                    Ok(time) => Some(time),
-                    Err(_) => bail!("time is invalid"),
-                }
-            }
-            (None, None, None) => None,
-            (hour, minute, second) =>
-            {
-                let args = [
+                let args =
+                [
                     if hour.is_none() { Some("`hour`") } else { None },
                     if minute.is_none() { Some("`minute`") } else { None },
                     if second.is_none() { Some("`second`") } else { None },
                 ];
-                bail!(
-                    "time is incomplete";
-                    hint: "add {} to get a valid time",
-                    format_missing_args(args.into_iter().flatten().collect());
-                )
+                bail!("time is incomplete"; hint: "add {} to get a valid time", format_missing_args(args.into_iter().flatten().collect());)
             }
         };
 
         let date = match (year, month, day)
         {
-            (Some(year), Some(month), Some(day)) =>
+            (Some(year), Some(month), Some(day)) => { match time::Date::from_calendar_date(year, month, day) { Ok(date) => Some(date), Err(_) => bail ! ("date is invalid"), } }
+            (None, None, None) => None, (year, month, day) =>
             {
-                match time::Date::from_calendar_date(year, month, day)
-                {
-                    Ok(date) => Some(date),
-                    Err(_) => bail!("date is invalid"),
-                }
-            }
-            (None, None, None) => None,
-            (year, month, day) =>
-            {
-                let args = [
+                let args =
+                [
                     if year.is_none() { Some("`year`") } else { None },
                     if month.is_none() { Some("`month`") } else { None },
                     if day.is_none() { Some("`day`") } else { None },
                 ];
-                bail!(
-                    "date is incomplete";
-                    hint: "add {} to get a valid date",
-                    format_missing_args(args.into_iter().flatten().collect());
-                )
+                bail!("date is incomplete"; hint: "add {} to get a valid date", format_missing_args(args.into_iter().flatten().collect());)
             }
         };
 
-        Ok(match (date, time)
-        {
-            (Some(date), Some(time)) =>
+        Ok
+        (
+            match (date, time)
             {
-                Datetime::Datetime(PrimitiveDateTime::new(date, time))
+                (Some(date), Some(time)) => { Datetime::Datetime(PrimitiveDateTime::new (date, time)) }
+                (Some(date), None) => Datetime::Date(date),(None, Some(time)) => Datetime::Time(time),(None, None) =>
+                {
+                    bail!
+                    (
+                        "at least one of date or time must be fully specified";
+                        hint: "add the `hour`, `minute`, and `second` arguments to get a valid time";
+                        hint: "add the `year`, `month`, and `day` arguments to get a valid date";
+                    )
+                }
             }
-            (Some(date), None) => Datetime::Date(date),
-            (None, Some(time)) => Datetime::Time(time),
-            (None, None) =>
-            {
-                bail!(
-                    "at least one of date or time must be fully specified";
-                    hint: "add the `hour`, `minute`, and `second` arguments to get a valid time";
-                    hint: "add the `year`, `month`, and `day` arguments to get a valid date";
-                )
-            }
-        })
+        )
     }
 
     /// Returns the current date.
@@ -400,20 +306,22 @@ impl Datetime
     /// Today's date is
     /// #datetime.today().display().
     /// ```
-    #[func(since = "0.5.0")]
-    pub fn today(
-        engine: &mut Engine,
+    # [func(since = "0.5.0")]
+    pub fn today
+    (
+        engine: & mut Engine,
         /// An offset to apply to the current UTC date. If set to `{auto}`, the
         /// offset will be the local offset.
         ///
         /// When an integer offset is given, it will be treated as a duration in
         /// hours.
-        #[named]
-        #[default]
+        # [named]
+        # [default]
         offset: Smart<TodayOffset>,
-    ) -> StrResult<Datetime>
+    )
+   ->StrResult<Datetime>
     {
-        let offset = offset.custom().map(|v| v.0);
+        let offset = offset.custom().map( | v | v .0);
         Ok(engine.world.today(offset).ok_or("unable to get the current date")?)
     }
 
@@ -426,51 +334,45 @@ impl Datetime
     /// `[[year]-[month]-[day] [hour]:[minute]:[second]]`.
     ///
     /// See the @datetime:format[format syntax] for more information.
-    #[func(since = "0.5.0")]
-    pub fn display(
-        &self,
+    # [func(since = "0.5.0")]
+    pub fn display
+    (
+        & self,
         /// The format used to display the datetime.
-        #[default]
+        # [default]
         pattern: Smart<DisplayPattern>,
-    ) -> StrResult<EcoString>
+    )
+   ->StrResult<EcoString>
     {
-        let pat = |s| format_description::parse_borrowed::<2>(s).unwrap();
+        let pat = | s | format_description::parse_borrowed::<2>(s).unwrap();
         let result =
-            match pattern
+        match pattern
+        {
+            Smart::Auto => match self
             {
-                Smart::Auto => match self
-                {
-                    Self::Date(date) => date.format(&pat("[year]-[month]-[day]")),
-                    Self::Time(time) => time.format(&pat("[hour]:[minute]:[second]")),
-                    Self::Datetime(datetime) => datetime
-                        .format(&pat("[year]-[month]-[day] [hour]:[minute]:[second]")),
-                },
+                Self::Date(date) => date.format( & pat("[year]-[month]-[day]")),
+                Self::Time(time) => time.format( & pat("[hour]:[minute]:[second]")),
+                Self::Datetime(datetime) => datetime
+                .format( & pat("[year]-[month]-[day] [hour]:[minute]:[second]")),
+            },
 
-                Smart::Custom(DisplayPattern(_, format)) => match self
-                {
-                    Self::Date(date) => date.format(&format),
-                    Self::Time(time) => time.format(&format),
-                    Self::Datetime(datetime) => datetime.format(&format),
-                },
-            };
+            Smart::Custom(DisplayPattern(_, format)) => match self
+            {
+                Self::Date(date) => date.format( & format),
+                Self::Time(time) => time.format( & format),
+                Self::Datetime(datetime) => datetime.format( & format),
+            },
+        };
         result.map(EcoString::from).map_err(format_time_format_error)
     }
 
     /// The year if it was specified, or `{none}` for times without a date.
-    #[func(since = "0.5.0")]
-    pub fn year(&self) -> Option<i32>
-    {
-        match self
-        {
-            Self::Date(date) => Some(date.year()),
-            Self::Time(_) => None,
-            Self::Datetime(datetime) => Some(datetime.year()),
-        }
-    }
+    # [func(since = "0.5.0")]
+    pub fn year( & self)->Option<i32> { match self { Self::Date(date) => Some(date.year()), Self::Time(_) => None, Self::Datetime(datetime) => Some(datetime.year()), } }
 
     /// The month if it was specified, or `{none}` for times without a date.
-    #[func(since = "0.5.0")]
-    pub fn month(&self) -> Option<u8>
+    # [func(since = "0.5.0")]
+    pub fn month( & self)->Option<u8>
     {
         match self
         {
@@ -481,8 +383,8 @@ impl Datetime
     }
 
     /// The weekday (counting Monday as 1) or `{none}` for times without a date.
-    #[func(since = "0.5.0")]
-    pub fn weekday(&self) -> Option<u8>
+    # [func(since = "0.5.0")]
+    pub fn weekday( & self)->Option<u8>
     {
         match self
         {
@@ -493,94 +395,55 @@ impl Datetime
     }
 
     /// The day if it was specified, or `{none}` for times without a date.
-    #[func(since = "0.5.0")]
-    pub fn day(&self) -> Option<u8>
-    {
-        match self
-        {
-            Self::Date(date) => Some(date.day()),
-            Self::Time(_) => None,
-            Self::Datetime(datetime) => Some(datetime.day()),
-        }
-    }
+    # [func(since = "0.5.0")]
+    pub fn day( & self)->Option<u8> { match self { Self::Date(date) => Some(date.day()), Self::Time(_) => None, Self::Datetime(datetime) => Some(datetime.day()), } }
 
     /// The hour if it was specified, or `{none}` for dates without a time.
-    #[func(since = "0.5.0")]
-    pub fn hour(&self) -> Option<u8>
-    {
-        match self
-        {
-            Self::Date(_) => None,
-            Self::Time(time) => Some(time.hour()),
-            Self::Datetime(datetime) => Some(datetime.hour()),
-        }
-    }
+    # [func(since = "0.5.0")]
+    pub fn hour( & self)->Option<u8> { match self { Self::Date(_) => None, Self::Time(time) => Some(time.hour()), Self::Datetime(datetime) => Some(datetime.hour()), } }
 
     /// The minute if it was specified, or `{none}` for dates without a time.
-    #[func(since = "0.5.0")]
-    pub fn minute(&self) -> Option<u8>
-    {
-        match self
-        {
-            Self::Date(_) => None,
-            Self::Time(time) => Some(time.minute()),
-            Self::Datetime(datetime) => Some(datetime.minute()),
-        }
-    }
+    # [func(since = "0.5.0")]
+    pub fn minute( & self)->Option<u8> { match self { Self::Date(_) => None, Self::Time(time) => Some(time.minute()), Self::Datetime(datetime) => Some(datetime.minute()), } }
 
     /// The second if it was specified, or `{none}` for dates without a time.
-    #[func(since = "0.5.0")]
-    pub fn second(&self) -> Option<u8>
-    {
-        match self
-        {
-            Self::Date(_) => None,
-            Self::Time(time) => Some(time.second()),
-            Self::Datetime(datetime) => Some(datetime.second()),
-        }
-    }
+    # [func(since = "0.5.0")]
+    pub fn second( & self)->Option<u8> { match self { Self::Date(_) => None, Self::Time(time) => Some(time.second()), Self::Datetime(datetime) => Some(datetime.second()), } }
 
     /// The ordinal (day of the year), or `{none}` for times without a date.
-    #[func(since = "0.5.0")]
-    pub fn ordinal(&self) -> Option<u16>
+    # [func(since = "0.5.0")]
+    pub fn ordinal( & self)->Option<u16>
     {
-        match self
-        {
-            Self::Datetime(datetime) => Some(datetime.ordinal()),
-            Self::Date(date) => Some(date.ordinal()),
-            Self::Time(_) => None,
-        }
+        match self { Self::Datetime(datetime) => Some(datetime.ordinal()), Self::Date(date) => Some(date.ordinal()), Self::Time(_) => None, }
     }
 }
 
 impl Repr for Datetime
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
-        let year = self.year().map(|y| eco_format!("year: {}", (y as i64).repr()));
-        let month = self.month().map(|m| eco_format!("month: {}", (m as i64).repr()));
-        let day = self.day().map(|d| eco_format!("day: {}", (d as i64).repr()));
-        let hour = self.hour().map(|h| eco_format!("hour: {}", (h as i64).repr()));
-        let minute = self.minute().map(|m| eco_format!("minute: {}", (m as i64).repr()));
-        let second = self.second().map(|s| eco_format!("second: {}", (s as i64).repr()));
+        let year = self.year().map( | y | eco_format ! ("year: {}", (y as i64).repr()));
+        let month = self.month().map( | m | eco_format ! ("month: {}", (m as i64).repr()));
+        let day = self.day().map( | d | eco_format ! ("day: {}", (d as i64).repr()));
+        let hour = self.hour().map( | h | eco_format ! ("hour: {}", (h as i64).repr()));
+        let minute = self.minute().map( | m | eco_format ! ("minute: {}", (m as i64).repr()));
+        let second = self.second().map( | s | eco_format ! ("second: {}", (s as i64).repr()));
         let filtered = [year, month, day, hour, minute, second]
-            .into_iter()
-            .flatten()
-            .collect::<EcoVec<_>>();
+        .into_iter()
+        .flatten()
+        .collect::<EcoVec<_>>();
 
-        eco_format!("datetime{}", &repr::pretty_array_like(&filtered, false))
+        eco_format!("datetime{}", & repr::pretty_array_like( & filtered, false))
     }
 }
 
 impl PartialOrd for Datetime
 {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering>
+    fn partial_cmp( & self, other: & Self)->Option<Ordering>
     {
         match (self, other)
         {
-            (Self::Datetime(a), Self::Datetime(b)) => a.partial_cmp(b),
-            (Self::Date(a), Self::Date(b)) => a.partial_cmp(b),
-            (Self::Time(a), Self::Time(b)) => a.partial_cmp(b),
+            (Self::Datetime(a), Self::Datetime(b)) => a.partial_cmp(b),(Self::Date(a), Self::Date(b)) => a.partial_cmp(b),(Self::Time(a), Self::Time(b)) => a.partial_cmp(b),
             _ => None,
         }
     }
@@ -590,7 +453,7 @@ impl Add<Duration> for Datetime
 {
     type Output = Self;
 
-    fn add(self, rhs: Duration) -> Self::Output
+    fn add(self, rhs: Duration)->Self::Output
     {
         let rhs: time::Duration = rhs.into();
         match self
@@ -599,11 +462,7 @@ impl Add<Duration> for Datetime
             Self::Date(date) =>
             {
                 use time::Time;
-                match PrimitiveDateTime::new(date, Time::MIDNIGHT) + rhs
-                {
-                    dt if dt.time() == Time::MIDNIGHT => Self::Date(dt.date()),
-                    dt => Self::Datetime(dt),
-                }
+                match PrimitiveDateTime:: new (date, Time::MIDNIGHT) + rhs { dt if dt.time() == Time::MIDNIGHT => Self::Date(dt.date()), dt => Self::Datetime(dt), }
             }
             Self::Time(time) => Self::Time(time + rhs),
         }
@@ -614,7 +473,7 @@ impl Sub<Duration> for Datetime
 {
     type Output = Self;
 
-    fn sub(self, rhs: Duration) -> Self::Output
+    fn sub(self, rhs: Duration)->Self::Output
     {
         let rhs: time::Duration = rhs.into();
         match self
@@ -623,11 +482,7 @@ impl Sub<Duration> for Datetime
             Self::Date(date) =>
             {
                 use time::Time;
-                match PrimitiveDateTime::new(date, Time::MIDNIGHT) - rhs
-                {
-                    dt if dt.time() == Time::MIDNIGHT => Self::Date(dt.date()),
-                    dt => Self::Datetime(dt),
-                }
+                match PrimitiveDateTime:: new (date, Time::MIDNIGHT) - rhs { dt if dt.time() == Time::MIDNIGHT => Self::Date(dt.date()), dt => Self::Datetime(dt), }
             }
             Self::Time(time) => Self::Time(time - rhs),
         }
@@ -638,14 +493,11 @@ impl Sub for Datetime
 {
     type Output = StrResult<Duration>;
 
-    fn sub(self, rhs: Self) -> Self::Output
+    fn sub(self, rhs: Self)->Self::Output
     {
         match (self, rhs)
         {
-            (Self::Datetime(a), Self::Datetime(b)) => Ok((a - b).into()),
-            (Self::Date(a), Self::Date(b)) => Ok((a - b).into()),
-            (Self::Time(a), Self::Time(b)) => Ok((a - b).into()),
-            (a, b) => bail!("cannot subtract {} from {}", b.kind(), a.kind()),
+            (Self::Datetime(a), Self::Datetime(b)) => Ok((a - b).into()),(Self::Date(a), Self::Date(b)) => Ok((a - b).into()),(Self::Time(a), Self::Time(b)) => Ok((a - b).into()),(a, b) => bail!("cannot subtract {} from {}", b.kind(), a.kind()),
         }
     }
 }
@@ -653,71 +505,47 @@ impl Sub for Datetime
 /// A format in which a datetime can be displayed.
 pub struct DisplayPattern(Str, format_description::OwnedFormatItem);
 
-cast! {
+cast!
+{
     DisplayPattern,
-    self => self.0.into_value(),
-    v: Str => {
-        let item = format_description::parse_owned::<2>(&v)
-            .map_err(format_time_invalid_format_description_error)?;
-        Self(v, item)
-    }
+    self => self .0.into_value(),
+    v: Str => { let item = format_description::parse_owned::<2>( & v).map_err(format_time_invalid_format_description_error)?; Self(v, item) }
 }
 
-cast! {
-    Month,
-    v: u8 => Self::try_from(v).map_err(|_| "month is invalid")?
-}
+cast! { Month, v: u8 => Self::try_from(v).map_err( | _ | "month is invalid")? }
 
 /// Format the `Format` error of the time crate in an appropriate way.
-fn format_time_format_error(error: Format) -> EcoString
+fn format_time_format_error(error: Format)->EcoString
 {
     match error
     {
         Format::InvalidComponent(name) => eco_format!("invalid component '{name}'"),
-        Format::InsufficientTypeInformation { .. } =>
-        {
-            "failed to format datetime (insufficient information)".into()
-        }
+        Format::InsufficientTypeInformation {.. }
+        => { "failed to format datetime (insufficient information)".into() }
         err => eco_format!("failed to format datetime in the requested format ({err})"),
     }
 }
 
 /// Format the `InvalidFormatDescription` error of the time crate in an
 /// appropriate way.
-fn format_time_invalid_format_description_error(
-    error: InvalidFormatDescription,
-) -> EcoString
+fn format_time_invalid_format_description_error(error: InvalidFormatDescription,)->EcoString
 {
     match error
     {
-        InvalidFormatDescription::UnclosedOpeningBracket { index, .. } =>
-        {
-            eco_format!("missing closing bracket for bracket at index {index}")
-        }
-        InvalidFormatDescription::InvalidComponentName { name, index, .. } =>
-        {
-            eco_format!("invalid component name '{name}' at index {index}")
-        }
-        InvalidFormatDescription::InvalidModifier { value, index, .. } =>
-        {
-            eco_format!("invalid modifier '{value}' at index {index}")
-        }
-        InvalidFormatDescription::Expected { what, index, .. } =>
-        {
-            eco_format!("expected {what} at index {index}")
-        }
-        InvalidFormatDescription::MissingComponentName { index, .. } =>
-        {
-            eco_format!("expected component name at index {index}")
-        }
-        InvalidFormatDescription::MissingRequiredModifier { name, index, .. } =>
-        {
-            eco_format!("missing required modifier {name} for component at index {index}")
-        }
-        InvalidFormatDescription::NotSupported { context, what, index, .. } =>
-        {
-            eco_format!("{what} is not supported in {context} at index {index}")
-        }
+        InvalidFormatDescription::UnclosedOpeningBracket { index,.. }
+        => { eco_format ! ("missing closing bracket for bracket at index {index}") }
+        InvalidFormatDescription::InvalidComponentName { name, index,.. }
+        => { eco_format ! ("invalid component name '{name}' at index {index}") }
+        InvalidFormatDescription::InvalidModifier { value, index,.. }
+        => { eco_format ! ("invalid modifier '{value}' at index {index}") }
+        InvalidFormatDescription::Expected { what, index,.. }
+        => { eco_format ! ("expected {what} at index {index}") }
+        InvalidFormatDescription::MissingComponentName { index,.. }
+        => { eco_format ! ("expected component name at index {index}") }
+        InvalidFormatDescription::MissingRequiredModifier { name, index,.. }
+        => { eco_format ! ("missing required modifier {name} for component at index {index}") }
+        InvalidFormatDescription::NotSupported { context, what, index,.. }
+        => { eco_format ! ("{what} is not supported in {context} at index {index}") }
         err => eco_format!("failed to parse datetime format ({err})"),
     }
 }
@@ -725,9 +553,4 @@ fn format_time_invalid_format_description_error(
 /// A duration which automatically converts integer values into hours.
 pub struct TodayOffset(Duration);
 
-cast! {
-    TodayOffset,
-    self => self.0.into_value(),
-    v: Duration => Self(v),
-    hours: i64 => Self(time::Duration::hours(hours).into()),
-}
+cast! { TodayOffset, self => self .0.into_value(), v: Duration => Self(v), hours: i64 => Self(time::Duration::hours(hours).into()), }

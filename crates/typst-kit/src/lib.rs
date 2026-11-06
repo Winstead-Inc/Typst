@@ -32,7 +32,10 @@
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(
-    not(all(
+not
+(
+    all
+    (
         feature = "bundle",
         feature = "embedded-fonts",
         feature = "scan-fonts",
@@ -45,8 +48,9 @@
         feature = "watcher",
         feature = "timer",
         feature = "http-server",
-    )),
-    allow(rustdoc::broken_intra_doc_links)
+    )
+),
+allow(rustdoc::broken_intra_doc_links)
 )]
 
 pub mod datetime;

@@ -2,15 +2,16 @@ use ecow::eco_format;
 use typst_syntax::Spanned;
 use typst_utils::singleton;
 
-use crate::diag::{HintedStrResult, SourceResult, StrResult, bail};
+use crate::diag:: { HintedStrResult, SourceResult, StrResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     AlternativeFold, Args, Cast, CastInfo, Construct, Content, Dict, Fold, FromValue,
     IntoValue, NativeElement, Packed, Reflect, Smart, Unlabellable, Value, cast, dict,
     elem, scope,
 };
-use crate::introspection::{Count, CounterUpdate};
-use crate::layout::{Abs, Em, HAlignment, Length, OuterHAlignment, Ratio, Rel};
+use crate::introspection:: { Count, CounterUpdate };
+use crate::layout:: { Abs, Em, HAlignment, Length, OuterHAlignment, Ratio, Rel };
 use crate::model::Numbering;
 
 /// A logical subdivison of textual content.
@@ -209,7 +210,7 @@ pub struct ParElem
     /// #show ". ": it => it + parbreak()
     /// #lorem(55)
     /// ```
-    #[default(Em::new(0.65).into())]
+    # [default (Em::new (0.65).into())]
     pub leading: Length,
 
     /// The spacing between paragraphs.
@@ -223,7 +224,7 @@ pub struct ParElem
     /// @block.above[`above`] or @block.below[`below`] property takes precedence
     /// over the paragraph spacing. Headings, for instance, reduce the spacing
     /// below them by default for a better look.
-    #[default(Em::new(1.2).into())]
+    # [default (Em::new (1.2).into())]
     pub spacing: Length,
 
     /// Whether to justify text in its line.
@@ -240,7 +241,7 @@ pub struct ParElem
     /// justification. However, you can also allow it to adjust the spacing
     /// between individual characters using the
     /// @par.justification-limits[`justification-limits` property].
-    #[default(false)]
+    # [default (false)]
     pub justify: bool,
 
     /// How much the spacing between words and characters may be adjusted during
@@ -350,7 +351,7 @@ pub struct ParElem
     ///   )
     ///   ```
     /// )
-    #[fold]
+    # [fold]
     pub justification_limits: JustificationLimits,
 
     /// How to determine line breaks.
@@ -419,7 +420,7 @@ pub struct ParElem
     ///
     /// Even the first one.
     /// ```
-    #[fold]
+    # [fold]
     pub first_line_indent: FirstLineIndent,
 
     /// The indent that all but the first line of a paragraph should have.
@@ -432,16 +433,12 @@ pub struct ParElem
     pub hanging_indent: Length,
 
     /// The contents of the paragraph.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 #[scope]
-impl ParElem
-{
-    #[elem]
-    type ParLine;
-}
+impl ParElem { # [elem] type ParLine; }
 
 /// Configures how justification may distribute spacing.
 #[derive(Debug, Copy, Clone, PartialEq, Hash)]
@@ -456,66 +453,47 @@ pub struct JustificationLimits
 impl JustificationLimits
 {
     /// Access the spacing limits.
-    pub fn spacing(&self) -> &Limits<Rel>
-    {
-        self.spacing.as_ref().unwrap_or(&Limits::SPACING_DEFAULT)
-    }
+    pub fn spacing( & self)-> & Limits<Rel> { self.spacing.as_ref().unwrap_or( & Limits::SPACING_DEFAULT) }
 
     /// Access the tracking limits.
-    pub fn tracking(&self) -> &Limits<Length>
-    {
-        self.tracking.as_ref().unwrap_or(&Limits::TRACKING_DEFAULT)
-    }
+    pub fn tracking( & self)-> & Limits<Length> { self.tracking.as_ref().unwrap_or( & Limits::TRACKING_DEFAULT) }
 }
 
-cast! {
+cast!
+{
     JustificationLimits,
-    self => {
-        let mut dict = Dict::new();
-        if let Some(spacing) = &self.spacing {
-            dict.insert("spacing".into(), spacing.into_value());
-        }
-        if let Some(tracking) = &self.tracking {
-            dict.insert("tracking".into(), tracking.into_value());
-        }
+    self =>
+    {
+        let mut dict = Dict:: new ();
+        if let Some(spacing) = & self.spacing { dict.insert("spacing".into(), spacing.into_value()); }
+        if let Some(tracking) = & self.tracking { dict.insert("tracking".into(), tracking.into_value()); }
         Value::Dict(dict)
     },
-    mut dict: Dict => {
+    mut dict: Dict =>
+    {
         let spacing = dict
-            .take("spacing")
-            .ok()
-            .map(|v| Limits::cast(v, "spacing"))
-            .transpose()?;
+        .take("spacing")
+        .ok()
+        .map( | v | Limits::cast(v, "spacing"))
+        .transpose()?;
         let tracking = dict
-            .take("tracking")
-            .ok()
-            .map(|v| Limits::cast(v, "tracking"))
-            .transpose()?;
-        dict.finish(&["spacing", "tracking"])?;
+        .take("tracking")
+        .ok()
+        .map( | v | Limits::cast(v, "tracking"))
+        .transpose()?;
+        dict.finish( & ["spacing", "tracking"])?;
         Self { spacing, tracking }
     },
 }
 
 impl Fold for JustificationLimits
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        Self {
-            spacing: self.spacing.fold_or(outer.spacing),
-            tracking: self.tracking.fold_or(outer.tracking),
-        }
-    }
+    fn fold(self, outer: Self)->Self { Self { spacing: self.spacing.fold_or(outer.spacing), tracking: self.tracking.fold_or(outer.tracking), } }
 }
 
 impl Default for JustificationLimits
 {
-    fn default() -> Self
-    {
-        Self {
-            spacing: Some(Limits::SPACING_DEFAULT),
-            tracking: Some(Limits::TRACKING_DEFAULT),
-        }
-    }
+    fn default()->Self { Self { spacing: Some(Limits::SPACING_DEFAULT), tracking: Some(Limits::TRACKING_DEFAULT), } }
 }
 
 /// Determines the minimum and maximum size by or to which spacing may be shrunk
@@ -531,126 +509,74 @@ pub struct Limits<T>
 
 impl Limits<Rel>
 {
-    const SPACING_DEFAULT: Self = Self {
-        min: Rel::new(Ratio::new(2.0 / 3.0), Length::zero()),
-        max: Rel::new(Ratio::new(1.5), Length::zero()),
-    };
+    const SPACING_DEFAULT: Self = Self { min: Rel::new (Ratio::new (2.0 / 3.0), Length::zero()), max: Rel::new (Ratio::new (1.5), Length::zero()), };
 }
 
-impl Limits<Length>
+impl Limits<Length> { const TRACKING_DEFAULT: Self = Self { min: Length::zero(), max: Length::zero() }; }
+
+impl <T: Reflect> Reflect for Limits<T>
 {
-    const TRACKING_DEFAULT: Self = Self { min: Length::zero(), max: Length::zero() };
+    fn input()->CastInfo { Dict::input() }
+
+    fn output()->CastInfo { Dict::output() }
+
+    fn castable(value: & Value)-> bool { Dict::castable(value) }
 }
 
-impl<T: Reflect> Reflect for Limits<T>
+impl <T: IntoValue> IntoValue for Limits<T>
 {
-    fn input() -> CastInfo
-    {
-        Dict::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        Dict::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        Dict::castable(value)
-    }
+    fn into_value(self)->Value { Value::Dict(dict ! { "min" => self.min, "max" => self.max, }) }
 }
 
-impl<T: IntoValue> IntoValue for Limits<T>
-{
-    fn into_value(self) -> Value
-    {
-        Value::Dict(dict! {
-            "min" => self.min,
-            "max" => self.max,
-        })
-    }
-}
-
-impl<T> Limits<T>
+impl <T> Limits<T>
 {
     /// Not implementing `FromValue` here because we want to pass the `field`
     /// for the error message. Ideally, the casting infrastructure would be
     /// bit more flexible here.
-    fn cast(value: Value, field: &str) -> HintedStrResult<Self>
+    fn cast(value: Value, field: & str)->HintedStrResult<Self>
     where
-        T: FromValue + Limit,
+    T: FromValue + Limit,
     {
         let mut dict: Dict = value.cast()?;
-        let mut take = |key, check: fn(T) -> StrResult<T>| {
+        let mut take = | key, check: fn (T)->StrResult < T >|
+        {
             dict.take(key)?
-                .cast::<T>()
-                .map_err(|hinted| hinted.message().clone())
-                .and_then(check)
-                .map_err(|err| {
-                    eco_format!("`{key}` value of `{field}` is invalid ({err})")
-                })
+            .cast::<T>()
+            .map_err( | hinted | hinted.message().clone())
+            .and_then(check)
+            .map_err( | err | { eco_format ! ("`{key}` value of `{field}` is invalid ({err})") })
         };
         let min = take("min", Limit::checked_min)?;
         let max = take("max", Limit::checked_max)?;
-        dict.finish(&["min", "max"])?;
+        dict.finish( & ["min", "max"])?;
         Ok(Self { min, max })
     }
 }
 
-impl<T> Fold for Limits<T>
-{
-    fn fold(self, _: Self) -> Self
-    {
-        self
-    }
-}
+impl <T> Fold for Limits<T> { fn fold(self, _: Self)->Self { self } }
 
 /// Validation for limit components.
-trait Limit: Sized
-{
-    fn checked_min(self) -> StrResult<Self>;
-    fn checked_max(self) -> StrResult<Self>;
-}
+trait Limit: Sized { fn checked_min(self)->StrResult<Self>; fn checked_max(self)->StrResult<Self>; }
 
 impl Limit for Length
 {
-    fn checked_min(self) -> StrResult<Self>
-    {
-        if self.abs > Abs::zero() || self.em > Em::zero()
-        {
-            bail!("length must be negative or zero");
-        }
-        Ok(self)
-    }
+    fn checked_min(self)->StrResult<Self> { if self.abs > Abs::zero() || self.em > Em::zero() { bail ! ("length must be negative or zero"); } Ok(self) }
 
-    fn checked_max(self) -> StrResult<Self>
-    {
-        if self.abs < Abs::zero() || self.em < Em::zero()
-        {
-            bail!("length must be positive or zero");
-        }
-        Ok(self)
-    }
+    fn checked_max(self)->StrResult<Self> { if self.abs < Abs::zero() || self.em < Em::zero() { bail ! ("length must be positive or zero"); } Ok(self) }
 }
 
 impl Limit for Rel<Length>
 {
-    fn checked_min(self) -> StrResult<Self>
+    fn checked_min(self)->StrResult<Self>
     {
-        if self.rel <= Ratio::zero()
-        {
-            bail!("ratio must be positive");
-        }
+        if self.rel <= Ratio::zero() { bail ! ("ratio must be positive"); }
         self.abs.checked_min()?;
         Ok(self)
     }
 
-    fn checked_max(self) -> StrResult<Self>
+    fn checked_max(self)->StrResult<Self>
     {
-        if self.rel <= Ratio::zero()
-        {
-            bail!("ratio must be positive");
-        }
+        if self.rel <= Ratio::zero() { bail ! ("ratio must be positive"); }
         self.abs.checked_max()?;
         Ok(self)
     }
@@ -681,37 +607,32 @@ pub struct FirstLineIndent
     all: Option<bool>,
 }
 
-cast! {
+cast!
+{
     FirstLineIndent,
     self => Value::Dict(self.into()),
     amount: Length => Self { amount: Some(amount), all: None },
-    mut dict: Dict => {
+
+    mut dict: Dict =>
+    {
         // Get a value by key, accepting either non-existence or something
         // convertible to type T.
-        fn take<T: FromValue>(dict: &mut Dict, key: &str) -> HintedStrResult<Option<T>> {
-            dict.take(key).ok().map(|v| v.cast()).transpose()
-        }
+        fn take<T: FromValue>(dict: & mut Dict, key: & str)->HintedStrResult<Option<T>> { dict.take(key).ok().map( | v | v.cast()).transpose() }
 
-        let amount = take(&mut dict, "amount")?;
-        let all = take(&mut dict, "all")?;
-        dict.finish(&["amount", "all"])?;
+        let amount = take( & mut dict, "amount")?;
+        let all = take( & mut dict, "all")?;
+        dict.finish( & ["amount", "all"])?;
         Self { amount, all }
     },
 }
 
 impl From<FirstLineIndent> for Dict
 {
-    fn from(indent: FirstLineIndent) -> Self
+    fn from(indent: FirstLineIndent)->Self
     {
-        let mut dict = Dict::new();
-        if let Some(amount) = indent.amount
-        {
-            dict.insert("amount".into(), amount.into_value());
-        }
-        if let Some(all) = indent.all
-        {
-            dict.insert("all".into(), all.into_value());
-        }
+        let mut dict = Dict:: new ();
+        if let Some(amount) = indent.amount { dict.insert("amount".into(), amount.into_value()); }
+        if let Some(all) = indent.all { dict.insert("all".into(), all.into_value()); }
         dict
     }
 }
@@ -719,36 +640,21 @@ impl From<FirstLineIndent> for Dict
 impl FirstLineIndent
 {
     /// Amount of indent, with default resolved.
-    pub fn amount(&self) -> Length
-    {
-        self.amount.unwrap_or_default()
-    }
+    pub fn amount( & self)->Length { self.amount.unwrap_or_default() }
 
     /// Whether to indent all paragraphs, not just consecutive ones, with
     /// default resolved.
-    pub fn all(&self) -> bool
-    {
-        self.all.unwrap_or_default()
-    }
+    pub fn all( & self)-> bool { self.all.unwrap_or_default() }
 }
 
 impl Default for FirstLineIndent
 {
-    fn default() -> Self
-    {
-        Self { amount: Some(Length::default()), all: Some(false) }
-    }
+    fn default()->Self { Self { amount: Some(Length::default ()), all: Some(false) } }
 }
 
 impl Fold for FirstLineIndent
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        Self {
-            amount: self.amount.or(outer.amount),
-            all: self.all.or(outer.all),
-        }
-    }
+    fn fold(self, outer: Self)->Self { Self { amount: self.amount.or(outer.amount), all: self.all.or(outer.all), } }
 }
 
 /// A paragraph break.
@@ -775,10 +681,7 @@ pub struct ParbreakElem {}
 impl ParbreakElem
 {
     /// Get the globally shared paragraph element.
-    pub fn shared() -> &'static Content
-    {
-        singleton!(Content, ParbreakElem::new().pack())
-    }
+    pub fn shared()-> & 'static Content { singleton ! (Content, ParbreakElem::new ().pack()) }
 }
 
 impl Unlabellable for Packed<ParbreakElem> {}
@@ -859,7 +762,7 @@ pub struct ParLine
     ///
     /// #lorem(60)
     /// ```
-    #[ghost]
+    # [ghost]
     pub numbering: Option<Numbering>,
 
     /// The alignment of line numbers associated with each line.
@@ -879,7 +782,7 @@ pub struct ParLine
     /// Today is a beautiful day \
     /// For exploring the world.
     /// ```
-    #[ghost]
+    # [ghost]
     pub number_align: Smart<HAlignment>,
 
     /// The margin at which line numbers appear.
@@ -901,8 +804,8 @@ pub struct ParLine
     /// - Brightness: Dark, yet darker
     /// - Readings: Negative
     /// ```
-    #[ghost]
-    #[default(OuterHAlignment::Start)]
+    # [ghost]
+    # [default (OuterHAlignment::Start)]
     pub number_margin: OuterHAlignment,
 
     /// The distance between line numbers and text.
@@ -921,8 +824,8 @@ pub struct ParLine
     /// Styling \
     /// Layout
     /// ```
-    #[ghost]
-    #[default]
+    # [ghost]
+    # [default]
     pub number_clearance: Smart<Length>,
 
     /// Controls when to reset line numbering.
@@ -945,18 +848,12 @@ pub struct ParLine
     /// First line again \
     /// Second line again
     /// ```
-    #[ghost]
-    #[default(LineNumberingScope::Document)]
+    # [ghost]
+    # [default (LineNumberingScope::Document)]
     pub numbering_scope: LineNumberingScope,
 }
 
-impl Construct for ParLine
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+impl Construct for ParLine { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
 
 /// Possible line numbering scope options, indicating how often the line number
 /// counter should be reset.
@@ -981,34 +878,28 @@ pub enum LineNumberingScope
 #[elem(Construct, Unqueriable, Locatable, Count)]
 pub struct ParLineMarker
 {
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub numbering: Numbering,
 
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub number_align: Smart<HAlignment>,
 
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub number_margin: OuterHAlignment,
 
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub number_clearance: Smart<Length>,
 }
 
-impl Construct for ParLineMarker
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+impl Construct for ParLineMarker { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
 
 impl Count for Packed<ParLineMarker>
 {
-    fn update(&self) -> Option<Spanned<CounterUpdate>>
+    fn update( & self)->Option<Spanned<CounterUpdate>>
     {
         // The line counter must be updated manually by the root flow.
         None

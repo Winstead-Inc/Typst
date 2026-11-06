@@ -1,27 +1,20 @@
 use ecow::eco_format;
-use typst_library::diag::{At, HintedStrResult, SourceResult, bail, error};
-use typst_library::foundations::{IntoValue, NormalBindingGuard, Value, ops};
+use typst_library::diag:: { At, HintedStrResult, SourceResult, bail, error };
+use typst_library::foundations:: { IntoValue, NormalBindingGuard, Value, ops };
 use typst_syntax::Span;
-use typst_syntax::ast::{self, AstNode};
+use typst_syntax::ast:: { self, AstNode };
 
-use crate::{Access, Eval, Vm, access_dict};
+use crate:: { Access, Eval, Vm, access_dict };
 
 impl Eval for ast::Unary<'_>
 {
     type Output = Value;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         let expr = self.expr();
-        let value = expr.eval(vm).map_err(|err| {
-            overflowing_int_negation_error(self, expr).err().unwrap_or(err)
-        })?;
-        let result = match self.op()
-        {
-            ast::UnOp::Pos => ops::pos(value),
-            ast::UnOp::Neg => ops::neg(value),
-            ast::UnOp::Not => ops::not(value),
-        };
+        let value = expr.eval(vm).map_err( | err | { overflowing_int_negation_error(self, expr).err().unwrap_or(err) })?;
+        let result = match self.op() { ast::UnOp::Pos => ops::pos(value), ast::UnOp::Neg => ops::neg(value), ast::UnOp::Not => ops::not(value), };
         result.at(self.span())
     }
 }
@@ -30,7 +23,7 @@ impl Eval for ast::Binary<'_>
 {
     type Output = Value;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         match self.op()
         {
@@ -46,15 +39,9 @@ impl Eval for ast::Binary<'_>
             ast::BinOp::Leq => apply_binary(self, vm, ops::leq),
             ast::BinOp::Gt => apply_binary(self, vm, ops::gt),
             ast::BinOp::Geq => apply_binary(self, vm, ops::geq),
-            ast::BinOp::In =>
-            {
-                apply_binary_with(self, vm, |guard, a, b| ops::in_(guard, a, b))
-            }
-            ast::BinOp::NotIn =>
-            {
-                apply_binary_with(self, vm, |guard, a, b| ops::not_in(guard, a, b))
-            }
-            ast::BinOp::Assign => apply_assignment(self, vm, |_, b| Ok(b)),
+            ast::BinOp::In => { apply_binary_with(self, vm, | guard, a, b | ops::in_(guard, a, b)) }
+            ast::BinOp::NotIn => { apply_binary_with(self, vm, | guard, a, b | ops::not_in(guard, a, b)) }
+            ast::BinOp::Assign => apply_assignment(self, vm, | _, b | Ok(b)),
             ast::BinOp::AddAssign => apply_assignment(self, vm, ops::add),
             ast::BinOp::SubAssign => apply_assignment(self, vm, ops::sub),
             ast::BinOp::MulAssign => apply_assignment(self, vm, ops::mul),
@@ -64,20 +51,13 @@ impl Eval for ast::Binary<'_>
 }
 
 /// Apply a basic binary operation.
-fn apply_binary(
-    binary: ast::Binary,
-    vm: &mut Vm,
-    op: fn(Value, Value) -> HintedStrResult<Value>,
-) -> SourceResult<Value>
+fn apply_binary(binary: ast::Binary, vm: & mut Vm, op: fn (Value, Value)->HintedStrResult<Value>,)->SourceResult<Value>
 {
     let lhs = binary.lhs().eval(vm)?;
 
     // Short-circuit boolean operations.
     if (binary.op() == ast::BinOp::And && lhs == false.into_value())
-        || (binary.op() == ast::BinOp::Or && lhs == true.into_value())
-    {
-        return Ok(lhs);
-    }
+    || (binary.op() == ast::BinOp::Or && lhs == true.into_value()) { return Ok(lhs); }
 
     let rhs = binary.rhs().eval(vm)?;
     op(lhs, rhs).at(binary.span())
@@ -86,11 +66,7 @@ fn apply_binary(
 /// Apply a basic binary operation with a [`BindingGuard`].
 ///
 /// [`BindingGuard`]: typst_library::foundations::BindingGuard
-fn apply_binary_with(
-    binary: ast::Binary,
-    vm: &mut Vm,
-    op: fn(NormalBindingGuard, Value, Value) -> HintedStrResult<Value>,
-) -> SourceResult<Value>
+fn apply_binary_with(binary: ast::Binary, vm: & mut Vm, op: fn (NormalBindingGuard, Value, Value)->HintedStrResult<Value>,)->SourceResult<Value>
 {
     let lhs = binary.lhs().eval(vm)?;
     let rhs = binary.rhs().eval(vm)?;
@@ -98,11 +74,7 @@ fn apply_binary_with(
 }
 
 /// Apply an assignment operation.
-fn apply_assignment(
-    binary: ast::Binary,
-    vm: &mut Vm,
-    op: fn(Value, Value) -> HintedStrResult<Value>,
-) -> SourceResult<Value>
+fn apply_assignment(binary: ast::Binary, vm: & mut Vm, op: fn (Value, Value)->HintedStrResult<Value>,)->SourceResult<Value>
 {
     let rhs = binary.rhs().eval(vm)?;
     let lhs = binary.lhs();
@@ -110,31 +82,32 @@ fn apply_assignment(
     // An assignment to a dictionary field is different from a normal access
     // since it can create the field instead of just modifying it.
     if binary.op() == ast::BinOp::Assign
-        && let ast::Expr::FieldAccess(access) = lhs
+    && let ast::Expr::FieldAccess(access) = lhs
     {
         let dict = access_dict(vm, access)?;
-        dict.insert(access.field().get().clone().into(), rhs);
+        dict.insert(access.field().get ().clone().into(), rhs);
         return Ok(Value::None);
     }
 
     let location = binary.lhs().access(vm)?;
-    let lhs = std::mem::take(&mut *location);
-    *location = op(lhs, rhs).at(binary.span())?;
+    let lhs = std::mem::take( & mut * location);
+    * location = op(lhs, rhs).at(binary.span())?;
     Ok(Value::None)
 }
 
 /// Error for an overflowing positive integer that was negated.
 #[cold]
 fn overflowing_int_negation_error(unary: ast::Unary, expr: ast::Expr)
--> SourceResult<()>
+->SourceResult<()>
 {
     if let ast::Expr::Int(int) = expr
-        && unary.op() == ast::UnOp::Neg
-        && let Err(ast::IntLiteralError::PosOverflow { base, max_plus_one }) = int.get()
+    && unary.op() == ast::UnOp::Neg
+    && let Err(ast::IntLiteralError::PosOverflow { base, max_plus_one }) = int. get()
     {
         if max_plus_one
         {
-            bail!(
+            bail!
+            (
                 unary.span(),
                 "cannot write minimum integer manually";
                 hint: "Typst integers are always initially positive";
@@ -144,20 +117,11 @@ fn overflowing_int_negation_error(unary: ast::Unary, expr: ast::Expr)
         }
         else
         {
-            let mut error = error!(
-                unary.span(),
-                "integer value is too small";
-                hint: "value does not fit into a signed 64-bit integer";
-            );
+            let mut error = error!(unary.span(),"integer value is too small"; hint: "value does not fit into a signed 64-bit integer";);
             if base.is_none()
             {
-                error.hint(
-                    "a floating point number could approximately represent this value",
-                );
-                error.hint(eco_format!(
-                    "you can use a floating point number by appending a dot: `{}.`",
-                    expr.to_untyped().leaf_text()
-                ));
+                error.hint("a floating point number could approximately represent this value",);
+                error.hint(eco_format ! ("you can use a floating point number by appending a dot: `{}.`", expr.to_untyped().leaf_text()));
             }
             bail!(error);
         }

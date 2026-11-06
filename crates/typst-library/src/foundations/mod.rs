@@ -38,57 +38,53 @@ mod ty;
 mod value;
 mod version;
 
-pub use self::args::*;
-pub use self::array::*;
-pub use self::auto::*;
-pub use self::bytes::*;
-pub use self::cast::*;
-pub use self::content::*;
-pub use self::context::*;
-pub use self::datetime::*;
-pub use self::decimal::*;
-pub use self::dict::*;
-pub use self::duration::*;
-pub use self::fields::*;
-pub use self::float::*;
-pub use self::func::*;
-pub use self::int::*;
-pub use self::label::*;
-pub use self::module::*;
-pub use self::none::*;
-pub use self::path::*;
-pub use self::plugin_::*;
+pub use self::args:: * ;
+pub use self::array:: * ;
+pub use self:: auto:: * ;
+pub use self::bytes:: * ;
+pub use self::cast:: * ;
+pub use self::content:: * ;
+pub use self::context:: * ;
+pub use self::datetime:: * ;
+pub use self::decimal:: * ;
+pub use self::dict:: * ;
+pub use self::duration:: * ;
+pub use self::fields:: * ;
+pub use self:: float:: * ;
+pub use self::func:: * ;
+pub use self:: int:: * ;
+pub use self::label:: * ;
+pub use self::module:: * ;
+pub use self::none:: * ;
+pub use self::path:: * ;
+pub use self::plugin_:: * ;
 pub use self::repr::Repr;
-pub use self::scope::*;
-pub use self::selector::*;
-pub use self::str::*;
-pub use self::styles::*;
-pub use self::symbol::*;
-pub use self::target_::*;
-pub use self::ty::*;
-pub use self::value::*;
-pub use self::version::*;
-pub use typst_macros::{scope, ty};
+pub use self::scope:: * ;
+pub use self::selector:: * ;
+pub use self::str:: * ;
+pub use self::styles:: * ;
+pub use self::symbol:: * ;
+pub use self::target_:: * ;
+pub use self::ty:: * ;
+pub use self::value:: * ;
+pub use self::version:: * ;
+pub use typst_macros:: { scope, ty };
 
 #[rustfmt::skip]
 #[doc(hidden)]
-pub use {
-    ecow::{eco_format, eco_vec},
-    indexmap::IndexMap,
-    smallvec::SmallVec,
-};
+pub use { ecow:: { eco_format, eco_vec }, indexmap::IndexMap, smallvec::SmallVec, };
 
-use comemo::{Track, TrackedMut};
+use comemo:: { Track, TrackedMut };
 use ecow::EcoString;
-use typst_syntax::{RootedPath, Spanned, SyntaxMode};
+use typst_syntax:: { RootedPath, Spanned, SyntaxMode };
 
-use crate::diag::{SourceResult, StrResult, bail};
+use crate::diag:: { SourceResult, StrResult, bail };
 use crate::engine::Engine;
 use crate::introspection::EmptyIntrospector;
 use crate::routines::SpanMode;
 
 /// Hook up all `foundations` definitions.
-pub(super) fn define(global: &mut Scope, inputs: Dict)
+pub (super) fn define(global: & mut Scope, inputs: Dict)
 {
     global.start_category(crate::Category::Foundations);
     global.define_type::<bool>();
@@ -134,28 +130,19 @@ pub(super) fn define(global: &mut Scope, inputs: Dict)
 /// #panic("this is wrong")
 /// ```
 #[func(since = "forever", keywords = ["error"])]
-pub fn panic(
+pub fn panic
+(
     /// The values to panic with and display to the user.
-    #[variadic]
+    # [variadic]
     values: Vec<Value>,
-) -> StrResult<Never>
+)
+->StrResult<Never>
 {
     let mut msg = EcoString::from("panicked");
-    if !values.is_empty()
+    if ! values.is_empty()
     {
         msg.push_str(" with: ");
-        for (i, value) in values.iter().enumerate()
-        {
-            if i > 0
-            {
-                msg.push_str(", ");
-            }
-            match value
-            {
-                Value::Str(s) => msg.push_str(s),
-                _ => msg.push_str(&value.repr()),
-            }
-        }
+        for (i, value) in values.iter().enumerate() { if i > 0 { msg.push_str(", "); } match value { Value::Str(s) => msg.push_str(s), _ => msg.push_str( & value.repr()), } }
     }
     Err(msg)
 }
@@ -173,25 +160,17 @@ pub fn panic(
 /// #assert(1 < 2, message: "math broke")
 /// ```
 #[func(scope, since = "forever")]
-pub fn assert(
+pub fn assert
+(
     /// The condition that must be true for the assertion to pass.
     condition: bool,
     /// The error message when the assertion fails.
-    #[named]
+    # [named]
     message: Option<EcoString>,
-) -> StrResult<NoneValue>
+)
+->StrResult<NoneValue>
 {
-    if !condition
-    {
-        if let Some(message) = message
-        {
-            bail!("assertion failed: {message}");
-        }
-        else
-        {
-            bail!("assertion failed");
-        }
-    }
+    if ! condition { if let Some(message) = message { bail ! ("assertion failed: {message}"); } else { bail ! ("assertion failed"); } }
     Ok(NoneValue)
 }
 
@@ -206,32 +185,24 @@ impl assert
     /// ```typ
     /// #assert.eq(10, 10)
     /// ```
-    #[func(title = "Assert Equal", since = "0.4.0")]
-    pub fn eq(
+    # [func(title = "Assert Equal", since = "0.4.0")]
+    pub fn eq
+    (
         /// The first value to compare.
         left: Value,
         /// The second value to compare.
         right: Value,
         /// An optional message to display on error instead of the
         /// representations of the compared values.
-        #[named]
+        # [named]
         message: Option<EcoString>,
-    ) -> StrResult<NoneValue>
+    )
+   ->StrResult<NoneValue>
     {
         if left != right
         {
-            if let Some(message) = message
-            {
-                bail!("equality assertion failed: {message}");
-            }
-            else
-            {
-                bail!(
-                    "equality assertion failed: value {} was not equal to {}",
-                    left.repr(),
-                    right.repr(),
-                );
-            }
+            if let Some(message) = message { bail ! ("equality assertion failed: {message}"); }
+            else { bail ! ("equality assertion failed: value {} was not equal to {}", left.repr(), right.repr(),); }
         }
         Ok(NoneValue)
     }
@@ -244,32 +215,24 @@ impl assert
     /// ```typ
     /// #assert.ne(3, 4)
     /// ```
-    #[func(title = "Assert Not Equal", since = "0.4.0")]
-    pub fn ne(
+    # [func(title = "Assert Not Equal", since = "0.4.0")]
+    pub fn ne
+    (
         /// The first value to compare.
         left: Value,
         /// The second value to compare.
         right: Value,
         /// An optional message to display on error instead of the
         /// representations of the compared values.
-        #[named]
+        # [named]
         message: Option<EcoString>,
-    ) -> StrResult<NoneValue>
+    )
+   ->StrResult<NoneValue>
     {
         if left == right
         {
-            if let Some(message) = message
-            {
-                bail!("inequality assertion failed: {message}");
-            }
-            else
-            {
-                bail!(
-                    "inequality assertion failed: value {} was equal to {}",
-                    left.repr(),
-                    right.repr(),
-                );
-            }
+            if let Some(message) = message { bail ! ("inequality assertion failed: {message}"); }
+            else { bail ! ("inequality assertion failed: value {} was equal to {}", left.repr(), right.repr(),); }
         }
         Ok(NoneValue)
     }
@@ -286,8 +249,9 @@ impl assert
 /// #eval("*Markup!*", mode: "markup") \
 /// ```
 #[func(title = "Evaluate", since = "forever")]
-pub fn eval(
-    engine: &mut Engine,
+pub fn eval
+(
+    engine: & mut Engine,
     /// A string of Typst code to evaluate.
     source: Spanned<String>,
     /// The @reference:syntax:modes[syntactical mode] in which the string is
@@ -297,8 +261,8 @@ pub fn eval(
     /// #eval("= Heading", mode: "markup")
     /// #eval("1_2^3", mode: "math")
     /// ```
-    #[named]
-    #[default(SyntaxMode::Code)]
+    # [named]
+    # [default (SyntaxMode::Code)]
     mode: SyntaxMode,
     /// A scope of definitions that are made available.
     ///
@@ -313,23 +277,22 @@ pub fn eval(
     ///   ),
     /// )
     /// ```
-    #[named]
-    #[default]
+    # [named]
+    # [default]
     scope: Dict,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
-    let Spanned { v: text, span } = source;
+    let Spanned { v: text, span }
+    = source;
     let dict = scope;
-    let mut scope = Scope::new();
-    for (key, value) in dict
-    {
-        scope.bind(key.into(), Binding::new(value, span));
-    }
-
-    (engine.library.routines.eval_string)(
+    let mut scope = Scope:: new ();
+    for (key, value) in dict { scope.bind(key.into(), Binding::new (value, span)); }
+    (engine.library.routines.eval_string)
+    (
         engine.world,
         engine.library,
-        TrackedMut::reborrow_mut(&mut engine.sink),
+        TrackedMut::reborrow_mut( & mut engine.sink),
         // We create a new, detached introspector for string evaluation. Passing
         // the real introspector should not have any consequences with
         // `Context::none`, but also no benefits. We might want to pass through
@@ -338,7 +301,7 @@ pub fn eval(
         // be well-considered.
         EmptyIntrospector.track(),
         Context::none().track(),
-        &text,
+        & text,
         SpanMode::Uniform(span),
         mode,
         scope,

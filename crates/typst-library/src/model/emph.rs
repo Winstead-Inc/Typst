@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 
 /// Emphasizes content by toggling italics.
 ///
@@ -27,6 +27,6 @@ use crate::foundations::{Content, elem};
 pub struct EmphElem
 {
     /// The content to emphasize.
-    #[required]
+    # [required]
     pub body: Content,
 }

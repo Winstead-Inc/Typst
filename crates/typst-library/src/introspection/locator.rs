@@ -1,14 +1,14 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 use std::hash::Hash;
 use std::sync::OnceLock;
 
-use comemo::{Track, Tracked};
+use comemo:: { Track, Tracked };
 use rustc_hash::FxHashMap;
 use typst_syntax::Span;
 
-use crate::diag::{SourceDiagnostic, warning};
+use crate::diag:: { SourceDiagnostic, warning };
 use crate::engine::Engine;
-use crate::introspection::{History, Introspect, Introspector, Location};
+use crate::introspection:: { History, Introspect, Introspector, Location };
 
 /// Provides locations for elements in the document.
 ///
@@ -157,91 +157,63 @@ pub struct Locator<'a>
     local: u128,
     /// A pointer to an outer cached locator, which contributes the information
     /// for all the layers beyond the memoization boundary on-demand.
-    outer: Option<&'a LocatorLink<'a>>,
+    outer: Option <& 'a LocatorLink<'a> > ,
 }
 
-impl<'a> Locator<'a>
+impl <'a> Locator<'a>
 {
     /// Create a new root-level locator.
     ///
     /// Should typically only be created at the document level, though there
     /// are a few places where we use it as well that just don't support
     /// introspection (e.g. tilings).
-    pub fn root() -> Self
-    {
-        Self { local: 0, outer: None }
-    }
+    pub fn root()->Self { Self { local: 0, outer: None } }
 
     /// Creates a new synthetic locator.
     ///
     /// This can be used to create a new dependent layout based on an element.
     /// This is used for layouting footnote entries based on the location
     /// of the associated footnote.
-    pub fn synthesize(location: Location) -> Self
-    {
-        Self { local: location.hash(), outer: None }
-    }
+    pub fn synthesize(location: Location)->Self { Self { local: location.hash(), outer: None } }
 
     /// Creates a new locator that points to the given link.
-    pub fn link(link: &'a LocatorLink<'a>) -> Self
-    {
-        Self { local: 0, outer: Some(link) }
-    }
+    pub fn link(link: & 'a LocatorLink<'a>)->Self { Self { local: 0, outer: Some(link) } }
 }
 
-impl<'a> Locator<'a>
+impl <'a> Locator<'a>
 {
     /// Returns a type that can be used to generate `Locator`s for multiple
     /// child elements. See the type-level docs for more details.
-    pub fn split(self) -> SplitLocator<'a>
-    {
-        SplitLocator {
-            local: self.local,
-            outer: self.outer,
-            disambiguators: FxHashMap::default(),
-        }
-    }
+    pub fn split(self)->SplitLocator<'a> { SplitLocator { local: self.local, outer: self.outer, disambiguators: FxHashMap::default (), } }
 
     /// Creates a copy of this locator for measurement or relayout of the same
     /// content. See the type-level docs for more details.
     ///
     /// This is effectively just `Clone`, but the `Locator` doesn't implement
     /// `Clone` to make this operation explicit.
-    pub fn relayout(&self) -> Self
-    {
-        Self { local: self.local, outer: self.outer }
-    }
+    pub fn relayout( & self)->Self { Self { local: self.local, outer: self.outer } }
 }
 
 #[comemo::track]
 #[expect(clippy::elidable_lifetime_names, reason = "required for `comemo::track`")]
-impl<'a> Locator<'a>
+impl <'a> Locator<'a>
 {
     /// Resolves the locator based on its local and the outer information.
-    fn resolve(&self) -> Resolved
+    fn resolve( & self)->Resolved
     {
         match self.outer
         {
             None => Resolved::Hash(self.local),
             Some(outer) => match outer.resolve()
             {
-                Resolved::Hash(outer) =>
-                {
-                    Resolved::Hash(typst_utils::hash128(&(self.local, outer)))
-                }
+                Resolved::Hash(outer) => { Resolved::Hash(typst_utils::hash128( & (self.local, outer))) }
                 Resolved::Measure(base, span) => Resolved::Measure(base, span),
             },
         }
     }
 }
 
-impl Debug for Locator<'_>
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        write!(f, "Locator({:?})", self.resolve())
-    }
-}
+impl Debug for Locator<'_> { fn fmt( & self, f: & mut Formatter)->fmt::Result { write ! (f, "Locator({:?})", self.resolve()) } }
 
 /// The fully resolved value of a locator.
 #[derive(Debug, Copy, Clone, Hash)]
@@ -262,12 +234,12 @@ pub struct SplitLocator<'a>
     local: u128,
     /// A pointer to an outer cached locator, which contributes the information
     /// for all the layers beyond the memoization boundary on-demand.
-    outer: Option<&'a LocatorLink<'a>>,
+    outer: Option <& 'a LocatorLink<'a> > ,
     /// Simply counts up the number of times we've seen each local hash.
     disambiguators: FxHashMap<u128, usize>,
 }
 
-impl<'a> SplitLocator<'a>
+impl <'a> SplitLocator<'a>
 {
     /// Produces a sublocator for a subtree keyed by `key`. The keys do *not*
     /// need to be unique among the `next()` calls on this split locator. (They
@@ -278,44 +250,33 @@ impl<'a> SplitLocator<'a>
     ///
     /// A common choice for a key is the span of the content that will be
     /// layouted with this locator.
-    pub fn next<K: Hash>(&mut self, key: &K) -> Locator<'a>
-    {
-        self.next_inner(typst_utils::hash128(key))
-    }
+    pub fn next<K: Hash>( & mut self, key: & K)->Locator<'a> { self.next_inner(typst_utils::hash128(key)) }
 
     /// Produces a sublocator for a subtree.
-    pub fn next_inner(&mut self, key: u128) -> Locator<'a>
+    pub fn next_inner( & mut self, key: u128)->Locator<'a>
     {
         // Produce a locator disambiguator, for elements with the same key
         // within this `SplitLocator`.
-        let disambiguator = {
-            let slot = self.disambiguators.entry(key).or_default();
-            std::mem::replace(slot, *slot + 1)
-        };
+        let disambiguator = { let slot = self.disambiguators.entry(key).or_default(); std::mem::replace(slot, * slot + 1) };
 
         // Combine the key, disambiguator and local hash into a sub-local hash.
         // The outer information is not yet merged into this, it is added
         // on-demand in `Locator::resolve`.
-        let local = typst_utils::hash128(&(key, disambiguator, self.local));
+        let local = typst_utils::hash128( & (key, disambiguator, self.local));
 
         Locator { outer: self.outer, local }
     }
 
     /// Produces a unique location for an element.
-    pub fn next_location(
-        &mut self,
-        engine: &mut Engine,
-        key: u128,
-        elem_span: Span,
-    ) -> Location
+    pub fn next_location( & mut self, engine: & mut Engine, key: u128, elem_span: Span,)->Location
     {
         match self.next_inner(key).resolve()
         {
-            Resolved::Hash(hash) => Location::new(hash),
+            Resolved::Hash(hash) => Location:: new (hash),
             Resolved::Measure(base, measure_span) =>
             {
                 let introspection =
-                    MeasureIntrospection { key, base, measure_span, elem_span };
+                MeasureIntrospection { key, base, measure_span, elem_span };
 
                 // If we aren't able to find a matching element in the document,
                 // default to the base location, so that it's at least remotely
@@ -329,41 +290,23 @@ impl<'a> SplitLocator<'a>
 /// Tries to find the closest matching element in the document during
 /// measurement.
 #[derive(Debug, Clone, PartialEq, Hash)]
-struct MeasureIntrospection
-{
-    key: u128,
-    base: Location,
-    measure_span: Span,
-    elem_span: Span,
-}
+struct MeasureIntrospection { key: u128, base: Location, measure_span: Span, elem_span: Span, }
 
 impl Introspect for MeasureIntrospection
 {
     type Output = Option<Location>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.locator(self.key, self.base)
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.locator(self.key, self.base) }
 
-    fn diagnose(&self, _: &History<Self::Output>) -> SourceDiagnostic
+    fn diagnose( & self, _: & History<Self::Output>)->SourceDiagnostic
     {
-        let mut diag = warning!(
+        let mut diag = warning!
+        (
             self.measure_span, "a measured element did not stabilize";
             hint: "measurement tries to resolve introspections by finding the \
                    closest matching elements in the real document";
         );
-        if !self.elem_span.is_detached()
-        {
-            diag.spanned_hint(
-                "the closest match for this element did not stabilize",
-                self.elem_span,
-            );
-        }
+        if ! self.elem_span.is_detached() { diag.spanned_hint("the closest match for this element did not stabilize", self.elem_span,); }
         diag
     }
 }
@@ -386,45 +329,29 @@ enum LinkKind<'a>
     /// We need to override the constraint's lifetime here so that `Tracked` is
     /// covariant over the constraint. If it becomes invariant, we're in for a
     /// world of lifetime pain.
-    Outer(Tracked<'a, Locator<'a>, <Locator<'static> as Track>::Call>),
+    Outer(Tracked < 'a, Locator<'a>, < Locator<'static> as Track >:: Call >),
     /// A link which indicates that we are in measurement mode.
     Measure(Location, Span),
 }
 
-impl<'a> LocatorLink<'a>
+impl <'a> LocatorLink<'a>
 {
     /// Create a locator link.
-    pub fn new(outer: Tracked<'a, Locator<'a>>) -> Self
-    {
-        LocatorLink {
-            kind: LinkKind::Outer(outer),
-            resolved: OnceLock::new(),
-        }
-    }
+    pub fn new (outer: Tracked<'a, Locator<'a>>)->Self { LocatorLink { kind: LinkKind::Outer(outer), resolved: OnceLock::new (), } }
 
     /// Creates a link that puts any linked downstream locator into measurement
     /// mode.
     ///
     /// Read the "Dealing with measurement" section of the [`Locator`] docs for
     /// more details.
-    pub fn measure(base: Location, span: Span) -> Self
-    {
-        LocatorLink {
-            kind: LinkKind::Measure(base, span),
-            resolved: OnceLock::new(),
-        }
-    }
+    pub fn measure(base: Location, span: Span)->Self { LocatorLink { kind: LinkKind::Measure(base, span), resolved: OnceLock::new (), } }
 
     /// Resolve the link.
     ///
     /// The result is cached in this link, so that we don't traverse the link
     /// chain over and over again.
-    fn resolve(&self) -> Resolved
+    fn resolve( & self)->Resolved
     {
-        *self.resolved.get_or_init(|| match self.kind
-        {
-            LinkKind::Outer(outer) => outer.resolve(),
-            LinkKind::Measure(base, span) => Resolved::Measure(base, span),
-        })
+        * self.resolved.get_or_init( || match self.kind { LinkKind::Outer(outer) => outer.resolve(), LinkKind::Measure(base, span) => Resolved::Measure(base, span), })
     }
 }

@@ -1,13 +1,13 @@
-use typst_library::diag::{SourceResult, bail};
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::format::{Complete, Fields, Format, FormatElement, Partial, Populate};
-use typst_library::foundations::{Args, Construct, Content, StyleChain};
+use typst_library::format:: { Complete, Fields, Format, FormatElement, Partial, Populate };
+use typst_library::foundations:: { Args, Construct, Content, StyleChain };
 use typst_macros::elem;
 use typst_syntax::Spanned;
 use typst_utils::Scalar;
 
 /// The format element for registering the PNG format.
-pub const FORMAT: Format = Format::new::<PngFormat>();
+pub const FORMAT: Format = Format:: new::<PngFormat>();
 
 /// Typst's PNG export format.
 ///
@@ -81,34 +81,26 @@ pub const FORMAT: Format = Format::new::<PngFormat>();
 pub struct PngFormat
 {
     /// The PPI (pixels per inch) to use for PNG export.
-    #[default(Scalar::new(144.0))]
+    # [default (Scalar::new (144.0))]
     pub ppi: Scalar,
 }
 
-impl FormatElement for PngFormat
-{
-    type Options = PngFormatOptions;
-}
+impl FormatElement for PngFormat { type Options = PngFormatOptions; }
 
-impl Construct for PngFormat
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually")
-    }
-}
+impl Construct for PngFormat { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
 
 /// Document settings for PNG export.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 pub struct PngFormatOptions<F: Fields = Complete>
 {
     /// The PPI (pixels per inch) to render at when exporting a PNG.
-    pub ppi: F::Value<PngFormat, { PngFormat::ppi.index() }>,
+    pub ppi: F::Value < PngFormat, { PngFormat::ppi.index() }
+    > ,
 }
 
 impl Populate for PngFormatOptions
 {
-    fn populate(&mut self, styles: Spanned<StyleChain>)
+    fn populate( & mut self, styles: Spanned<StyleChain>)
     {
         // VOLATILE: This must be updated when adding more fields.
         self.ppi.populate(styles);
@@ -118,8 +110,5 @@ impl Populate for PngFormatOptions
 impl PngFormatOptions<Partial>
 {
     /// Resolves the [`Partial`] options to [`Complete`] ones, given defaults.
-    pub fn resolve(&self, default: &PngFormatOptions) -> PngFormatOptions
-    {
-        PngFormatOptions { ppi: Partial::resolve(self.ppi, default.ppi) }
-    }
+    pub fn resolve( & self, default: & PngFormatOptions)->PngFormatOptions { PngFormatOptions { ppi: Partial::resolve(self.ppi, default.ppi) } }
 }

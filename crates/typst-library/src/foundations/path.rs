@@ -1,10 +1,8 @@
-use ecow::{EcoString, eco_format};
-use typst_syntax::{FileId, PathError, RootedPath, Spanned, VirtualPath, VirtualRoot};
+use ecow:: { EcoString, eco_format };
+use typst_syntax:: { FileId, PathError, RootedPath, Spanned, VirtualPath, VirtualRoot };
 
-use crate::diag::{
-    At, HintedStrResult, HintedString, SourceResult, StrResult, bail, error,
-};
-use crate::foundations::{Repr, Str, cast, func, scope, ty};
+use crate::diag:: { At, HintedStrResult, HintedString, SourceResult, StrResult, bail, error, };
+use crate::foundations:: { Repr, Str, cast, func, scope, ty };
 
 /// A file system path.
 ///
@@ -149,8 +147,9 @@ impl RootedPath
     /// // An absolute path with a leading slash.
     /// #path("/absolute/path/to/file.typ")
     /// ```
-    #[func(constructor, since = "0.15.0")]
-    pub fn construct(
+    # [func(constructor, since = "0.15.0")]
+    pub fn construct
+    (
         /// Converts a string or path to a path.
         ///
         /// If this is a @path:path-strings[path string]:
@@ -161,15 +160,13 @@ impl RootedPath
         ///
         /// If this is already a `path`, it is returned unchanged.
         path: Spanned<PathOrStr>,
-    ) -> SourceResult<RootedPath>
-    {
-        path.v.resolve_if_some(path.span.id()).at(path.span)
-    }
+    )
+   ->SourceResult<RootedPath> { path.v.resolve_if_some(path.span.id()).at(path.span) }
 }
 
 impl Repr for RootedPath
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
         // The package spec is hard to reasonably express, but I'm also not sure
         // whether we want to expose it. For the path itself, we always use an
@@ -182,11 +179,7 @@ impl Repr for RootedPath
 ///
 /// This type is commonly accepted by functions that read from a path.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum PathOrStr
-{
-    Path(RootedPath),
-    Str(Str),
-}
+pub enum PathOrStr { Path(RootedPath), Str(Str), }
 
 impl PathOrStr
 {
@@ -196,67 +189,52 @@ impl PathOrStr
     /// The path string may be absolute or relative. If relative, it's resolved
     /// relative to the parent directory of `within` (which should point to a
     /// file rather than a directory).
-    pub fn resolve(&self, within: FileId) -> HintedStrResult<RootedPath>
+    pub fn resolve( & self, within: FileId)->HintedStrResult<RootedPath>
     {
-        Ok(match self
-        {
-            PathOrStr::Path(v) => v.clone(),
-            PathOrStr::Str(v) =>
+        Ok
+        (
+            match self
             {
-                let root = within.root();
-                let base = within.vpath();
-                let resolved = match base.parent()
+                PathOrStr::Path(v) => v.clone(),
+                PathOrStr::Str(v) =>
                 {
-                    Some(parent) => parent.join(v),
-                    None => base.join(v),
+                    let root = within.root();
+                    let base = within.vpath();
+                    let resolved = match base.parent() { Some(parent) => parent.join(v), None => base.join(v), }
+                    .map_err( | err | format_resolve_error(err, root, v))?;
+                    RootedPath:: new (root.clone(), resolved)
                 }
-                .map_err(|err| format_resolve_error(err, root, v))?;
-                RootedPath::new(root.clone(), resolved)
             }
-        })
+        )
     }
 
     /// [Resolves](Self::resolve) the path if `within` is `Some(_)` or returns
     /// an error that the file system could not be accessed, otherwise.
-    pub fn resolve_if_some(&self, within: Option<FileId>) -> HintedStrResult<RootedPath>
-    {
-        self.resolve(within.ok_or("cannot access file system from here")?)
-    }
+    pub fn resolve_if_some( & self, within: Option<FileId>)->HintedStrResult<RootedPath> { self.resolve(within.ok_or("cannot access file system from here")?) }
 }
 
-cast! {
+cast!
+{
     PathOrStr,
-    self => match self {
-        Self::Path(v) => v.into_value(),
-        Self::Str(v) => v.into_value(),
-    },
+    self => match self { Self::Path(v) => v.into_value(), Self::Str(v) => v.into_value(), },
     v: RootedPath => Self::Path(v),
     v: Str => Self::Str(v),
 }
 
 /// Format the user-facing error message for path resolving.
-fn format_resolve_error(err: PathError, root: &VirtualRoot, path: &str) -> HintedString
+fn format_resolve_error(err: PathError, root: & VirtualRoot, path: & str)->HintedString
 {
     match err
     {
         PathError::Escapes =>
         {
-            let kind = match root
-            {
-                VirtualRoot::Project => "project",
-                VirtualRoot::Package(_) => "package",
-            };
-            let mut diag = error!(
-                "path `{}` would escape the {kind} root", path.repr();
-                hint: "cannot access files outside of the {kind} sandbox";
-            );
-            if *root == VirtualRoot::Project
-            {
-                diag.hint("you can adjust the project root with the `--root` argument");
-            }
+            let kind = match root { VirtualRoot::Project => "project", VirtualRoot::Package(_) => "package", };
+            let mut diag = error!("path `{}` would escape the {kind} root", path.repr(); hint: "cannot access files outside of the {kind} sandbox";);
+            if * root == VirtualRoot::Project { diag.hint("you can adjust the project root with the `--root` argument"); }
             diag
         }
-        PathError::Backslash => error!(
+        PathError::Backslash => error!
+        (
             "path must not contain a backslash";
             hint: "use forward slashes instead: `{}`",
             path.replace("\\", "/").repr();
@@ -277,48 +255,29 @@ pub struct BundlePath(VirtualPath);
 impl BundlePath
 {
     /// Wraps a virtual path, ensuring it has at least one component.
-    pub fn new(path: VirtualPath) -> StrResult<Self>
-    {
-        if path.is_root()
-        {
-            bail!("path must have at least one component");
-        }
-        Ok(Self(path))
-    }
+    pub fn new (path: VirtualPath)->StrResult<Self> { if path.is_root() { bail ! ("path must have at least one component"); } Ok(Self(path)) }
 
     /// Extracts the contained virtual path.
-    pub fn into_inner(self) -> VirtualPath
-    {
-        self.0
-    }
+    pub fn into_inner(self)->VirtualPath { self .0 }
 }
 
-impl AsRef<VirtualPath> for BundlePath
+impl AsRef<VirtualPath> for BundlePath { fn as_ref( & self)-> & VirtualPath { & self .0 } }
+
+cast!
 {
-    fn as_ref(&self) -> &VirtualPath
-    {
-        &self.0
-    }
-}
-
-cast! {
     BundlePath,
-    self => self.0.into_with_slash().into_value(),
-    v: Str => Self::new(
-        VirtualPath::new(&v).map_err(|err| format_bundle_error(err, &v))?
-    )?
+    self => self .0.into_with_slash().into_value(),
+    v: Str => Self:: new (VirtualPath::new ( & v).map_err( | err | format_bundle_error(err, & v))?)?
 }
 
 /// Format the user-facing error message for virtual path casts.
-fn format_bundle_error(err: PathError, path: &str) -> HintedString
+fn format_bundle_error(err: PathError, path: & str)->HintedString
 {
     match err
     {
-        PathError::Escapes =>
-        {
-            error!("path `{}` would escape the bundle root", path.repr())
-        }
-        PathError::Backslash => error!(
+        PathError::Escapes => { error ! ("path `{}` would escape the bundle root", path.repr()) }
+        PathError::Backslash => error!
+        (
             "path must not contain a backslash";
             hint: "use forward slashes instead: `{}`",
             path.replace("\\", "/").repr();
@@ -329,30 +288,23 @@ fn format_bundle_error(err: PathError, path: &str) -> HintedString
 #[cfg(test)]
 mod tests
 {
-    use typst_syntax::{VirtualPath, VirtualRoot};
+    use typst_syntax:: { VirtualPath, VirtualRoot };
 
-    use super::*;
+    use super:: * ;
 
-    #[test]
+    # [test]
     fn test_resolve()
     {
         let path =
-            |p| RootedPath::new(VirtualRoot::Project, VirtualPath::new(p).unwrap());
-        let id = |p| path(p).intern();
+        | p | RootedPath:: new (VirtualRoot::Project, VirtualPath::new (p).unwrap());
+        let id = | p | path(p).intern();
         let id1 = id("src/main.typ");
-        let resolve = |s: &str| {
-            PathOrStr::Str(s.into())
-                .resolve(id1)
-                .map_err(|err| err.message().clone())
-        };
+        let resolve = | s: & str | { PathOrStr::Str(s.into()).resolve(id1).map_err( | err | err.message().clone()) };
         assert_eq!(resolve("works.bib"), Ok(path("src/works.bib")));
         assert_eq!(resolve(""), Ok(path("/src")));
         assert_eq!(resolve("."), Ok(path("/src")));
         assert_eq!(resolve(".."), Ok(path("/")));
-        assert_eq!(
-            resolve("../.."),
-            Err("path `\"../..\"` would escape the project root".into())
-        );
+        assert_eq!(resolve("../.."), Err("path `\"../..\"` would escape the project root".into()));
         assert_eq!(resolve("a\\b"), Err("path must not contain a backslash".into()));
     }
 }

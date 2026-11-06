@@ -1,26 +1,19 @@
 use typst_library::Feature;
-use typst_library::diag::{SourceResult, bail};
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::format::{Format, FormatElement};
-use typst_library::foundations::{
-    Args, BundlePath, Bytes, Construct, Content, NativeRuleMap, ShowFn, Str, Target,
-    cast, elem, scope,
-};
+use typst_library::format:: { Format, FormatElement };
+use typst_library::foundations:: { Args, BundlePath, Bytes, Construct, Content, NativeRuleMap, ShowFn, Str, Target, cast, elem, scope, };
 use typst_library::model::DocumentElem;
 
 /// The format element for registering the bundle format.
-pub const FORMAT: Format = Format::new::<BundleFormat>()
-    .with_feature(Feature::Bundle)
-    .with_rules(register);
+pub const FORMAT: Format = Format:: new::<BundleFormat>()
+.with_feature(Feature::Bundle)
+.with_rules(register);
 
 /// Registers show rules for bundle specific elements.
-pub fn register(rules: &mut NativeRuleMap)
+pub fn register(rules: & mut NativeRuleMap)
 {
-    for target in [Target::Paged, Target::Html]
-    {
-        rules.replace(target, DOCUMENT_UNSUPPORTED_RULE);
-        rules.register(target, ASSET_UNSUPPORTED_RULE);
-    }
+    for target in[Target::Paged, Target::Html] { rules.replace(target, DOCUMENT_UNSUPPORTED_RULE); rules.register(target, ASSET_UNSUPPORTED_RULE); }
 }
 
 /// Typst's bundle export format (experimental).
@@ -136,28 +129,17 @@ pub fn register(rules: &mut NativeRuleMap)
 #[elem(scope, name = "bundle", since = "unreleased", Construct)]
 pub struct BundleFormat {}
 
-impl Construct for BundleFormat
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually")
-    }
-}
+impl Construct for BundleFormat { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
 
-impl FormatElement for BundleFormat
-{
-    type Options = ();
-}
+impl FormatElement for BundleFormat { type Options = (); }
 
 #[scope(category = Bundle)]
-impl BundleFormat
-{
-    #[elem]
-    type AssetElem;
-}
+impl BundleFormat { # [elem] type AssetElem; }
 
-pub const DOCUMENT_UNSUPPORTED_RULE: ShowFn<DocumentElem> = |elem, _, _| {
-    bail!(
+pub const DOCUMENT_UNSUPPORTED_RULE: ShowFn < DocumentElem > = | elem, _, _ |
+{
+    bail!
+    (
         elem.span(),
         "constructing a document is only supported in the bundle target";
         // TODO: Support for CLI-specific hints would be nice.
@@ -221,18 +203,20 @@ pub struct AssetElem
     ///
     /// May contain interior slashes, in which case intermediate directories
     /// will be automatically created.
-    #[required]
+    # [required]
     pub path: BundlePath,
 
     /// The raw data that will be written into the file at the specified path.
     ///
     /// If a string is given, it will be encoded using UTF-8.
-    #[required]
+    # [required]
     pub data: AssetData,
 }
 
-pub const ASSET_UNSUPPORTED_RULE: ShowFn<AssetElem> = |elem, _, _| {
-    bail!(
+pub const ASSET_UNSUPPORTED_RULE: ShowFn < AssetElem > = | elem, _, _ |
+{
+    bail!
+    (
         elem.span(),
         "assets are only supported in the bundle target";
         // TODO: Support for CLI-specific hints would be nice.
@@ -244,9 +228,4 @@ pub const ASSET_UNSUPPORTED_RULE: ShowFn<AssetElem> = |elem, _, _| {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct AssetData(pub Bytes);
 
-cast! {
-    AssetData,
-    self => self.0.into_value(),
-    v: Str => Self(Bytes::from_string(v)),
-    v: Bytes => Self(v),
-}
+cast! { AssetData, self => self .0.into_value(), v: Str => Self(Bytes::from_string(v)), v: Bytes => Self(v), }

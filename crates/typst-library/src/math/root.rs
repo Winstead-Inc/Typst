@@ -1,6 +1,6 @@
 use typst_syntax::Span;
 
-use crate::foundations::{Content, NativeElement, elem, func};
+use crate::foundations:: { Content, NativeElement, elem, func };
 use crate::math::Mathy;
 
 /// A square root.
@@ -9,14 +9,13 @@ use crate::math::Mathy;
 /// $ sqrt(3 - 2 sqrt(2)) = sqrt(2) - 1 $
 /// ```
 #[func(title = "Square Root", since = "forever")]
-pub fn sqrt(
+pub fn sqrt
+(
     span: Span,
     /// The expression to take the square root of.
     radicand: Content,
-) -> Content
-{
-    RootElem::new(radicand).pack().spanned(span)
-}
+)
+->Content { RootElem::new (radicand).pack().spanned(span) }
 
 /// A general root.
 ///
@@ -27,10 +26,10 @@ pub fn sqrt(
 pub struct RootElem
 {
     /// Which root of the radicand to take.
-    #[positional]
+    # [positional]
     pub index: Option<Content>,
 
     /// The expression to take the root of.
-    #[required]
+    # [required]
     pub radicand: Content,
 }

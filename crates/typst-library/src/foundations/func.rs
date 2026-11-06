@@ -2,20 +2,19 @@
 pub use typst_macros::func;
 use typst_syntax::ast::AstNode;
 
-use std::fmt::{self, Debug, Formatter};
-use std::sync::{Arc, LazyLock};
+use std::fmt:: { self, Debug, Formatter };
+use std::sync:: { Arc, LazyLock };
 
-use comemo::{Tracked, TrackedMut};
-use ecow::{EcoString, eco_format};
+use comemo:: { Tracked, TrackedMut };
+use ecow:: { EcoString, eco_format };
 use either::Either;
-use typst_syntax::{Span, Spanned, SyntaxNode, ast};
-use typst_utils::{DefSite, LazyHash, Static, singleton};
+use typst_syntax:: { Span, Spanned, SyntaxNode, ast };
+use typst_utils:: { DefSite, LazyHash, Static, singleton };
 
-use crate::diag::{
-    At, HintedStrResult, SourceResult, StrResult, Trace, Tracepoint, bail,
-};
+use crate::diag:: { At, HintedStrResult, SourceResult, StrResult, Trace, Tracepoint, bail, };
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Args, BindingAccess, BindingGuard, Bytes, CastInfo, Content, Context, Element,
     FromValue, IntoArgs, PluginFunc, Repr, Scope, Selector, Since, Type, Value, cast,
     scope, ty,
@@ -167,7 +166,7 @@ enum FuncInner
 impl FuncInner
 {
     /// The span of the function parameters.
-    pub fn params_span(&self) -> Span
+    pub fn params_span( & self)->Span
     {
         match self
         {
@@ -201,9 +200,9 @@ impl Func
     /// The function's name (e.g. `min`).
     ///
     /// Returns `None` if this is an anonymous closure.
-    pub fn name(&self) -> Option<&str>
+    pub fn name( & self)->Option <& str >
     {
-        match &self.inner
+        match & self.inner
         {
             FuncInner::Native(native) => Some(native.name),
             FuncInner::Element(elem) => Some(elem.name()),
@@ -216,9 +215,9 @@ impl Func
     /// The function's title case name, for use in documentation (e.g. `Minimum`).
     ///
     /// Returns `None` if this is a closure.
-    pub fn title(&self) -> Option<&'static str>
+    pub fn title( & self)->Option <& 'static str >
     {
-        match &self.inner
+        match & self.inner
         {
             FuncInner::Native(native) => Some(native.title),
             FuncInner::Element(elem) => Some(elem.title()),
@@ -229,9 +228,9 @@ impl Func
     }
 
     /// The version of Typst the function was introduced in.
-    pub fn since(&self) -> Option<Since>
+    pub fn since( & self)->Option<Since>
     {
-        match &self.inner
+        match & self.inner
         {
             FuncInner::Native(native) => native.since,
             FuncInner::Element(elem) => elem.since(),
@@ -242,9 +241,9 @@ impl Func
     }
 
     /// Documentation for the function (as Markdown).
-    pub fn docs(&self) -> Option<&'static str>
+    pub fn docs( & self)->Option <& 'static str >
     {
-        match &self.inner
+        match & self.inner
         {
             FuncInner::Native(native) => Some(native.docs),
             FuncInner::Element(elem) => Some(elem.docs()),
@@ -255,57 +254,32 @@ impl Func
     }
 
     /// Whether the function is known to be contextual.
-    pub fn contextual(&self) -> Option<bool>
-    {
-        match &self.inner
-        {
-            FuncInner::Native(native) => Some(native.contextual),
-            _ => None,
-        }
-    }
+    pub fn contextual( & self)->Option<bool> { match & self.inner { FuncInner::Native(native) => Some(native.contextual), _ => None, } }
 
     /// Get details about this function's parameters if available.
-    pub fn params(&self) -> impl Iterator<Item = ParamInfo>
+    pub fn params( & self)-> impl Iterator<Item = ParamInfo>
     {
-        match &self.inner
+        match & self.inner
         {
-            FuncInner::Native(native) =>
-            {
-                Either::Left(native.0.params.iter().map(ParamInfo::Native))
-            }
-            FuncInner::Element(elem) =>
-            {
-                Either::Left(elem.params().iter().map(ParamInfo::Native))
-            }
-            FuncInner::Closure(closure) =>
-            {
-                Either::Right(Either::Left(closure.params().map(ParamInfo::Closure)))
-            }
-            FuncInner::Plugin(_) =>
-            {
-                Either::Right(Either::Right([ParamInfo::Plugin].into_iter()))
-            }
+            FuncInner::Native(native) => { Either::Left(native .0.params.iter().map(ParamInfo::Native)) }
+            FuncInner::Element(elem) => { Either::Left(elem.params().iter().map(ParamInfo::Native)) }
+            FuncInner::Closure(closure) => { Either::Right(Either::Left(closure.params().map(ParamInfo::Closure))) }
+            FuncInner::Plugin(_) => { Either::Right(Either::Right([ParamInfo::Plugin].into_iter())) }
             // TODO: We could take into account the known arguments.
             FuncInner::With(with) => with.func.params(),
         }
     }
 
     /// Get the parameter info for a parameter with the given name if it exist.
-    pub fn param(&self, name: &str) -> Option<ParamInfo>
-    {
-        self.params().find(|param| param.name() == Some(name))
-    }
+    pub fn param( & self, name: & str)->Option<ParamInfo> { self.params().find( | param | param.name() == Some(name)) }
 
     /// Get details about the function's return type.
-    pub fn returns(&self) -> Option<&'static CastInfo>
+    pub fn returns( & self)->Option <& 'static CastInfo >
     {
-        match &self.inner
+        match & self.inner
         {
-            FuncInner::Native(native) => Some(&native.0.returns),
-            FuncInner::Element(_) =>
-            {
-                Some(singleton!(CastInfo, CastInfo::Type(Type::of::<Content>())))
-            }
+            FuncInner::Native(native) => Some( & native .0.returns),
+            FuncInner::Element(_) => { Some(singleton ! (CastInfo, CastInfo::Type(Type::of::<Content>()))) }
             FuncInner::Closure(_) => None,
             FuncInner::Plugin(_) => None,
             FuncInner::With(with) => with.func.returns(),
@@ -313,14 +287,14 @@ impl Func
     }
 
     /// Search keywords for the function.
-    pub fn keywords(&self) -> &'static [&'static str]
+    pub fn keywords( & self)-> & 'static[ & 'static str]
     {
-        match &self.inner
+        match & self.inner
         {
             FuncInner::Native(native) => native.keywords,
             FuncInner::Element(elem) => elem.keywords(),
-            FuncInner::Closure(_) => &[],
-            FuncInner::Plugin(_) => &[],
+            FuncInner::Closure(_) => & [],
+            FuncInner::Plugin(_) => & [],
             FuncInner::With(with) => with.func.keywords(),
         }
     }
@@ -328,22 +302,14 @@ impl Func
     /// Where the function is defined in the Rust source code (only `Some(_)` if
     /// it is native, and even then it can be `None` if the function is
     /// generated, like the typed HTML API).
-    pub fn def_site(&self) -> Option<DefSite>
-    {
-        match &self.inner
-        {
-            FuncInner::Native(native) => native.def_site,
-            FuncInner::Element(elem) => Some(elem.def_site()),
-            _ => None,
-        }
-    }
+    pub fn def_site( & self)->Option<DefSite> { match & self.inner { FuncInner::Native(native) => native.def_site, FuncInner::Element(elem) => Some(elem.def_site()), _ => None, } }
 
     /// The function's associated scope of sub-definition.
-    pub fn scope(&self) -> Option<&'static Scope>
+    pub fn scope( & self)->Option <& 'static Scope >
     {
-        match &self.inner
+        match & self.inner
         {
-            FuncInner::Native(native) => Some(&native.0.scope),
+            FuncInner::Native(native) => Some( & native .0.scope),
             FuncInner::Element(elem) => Some(elem.scope()),
             FuncInner::Closure(_) => None,
             FuncInner::Plugin(_) => None,
@@ -352,67 +318,29 @@ impl Func
     }
 
     /// Get a field from this function's scope, if possible.
-    pub fn field(
-        &self,
-        field: &str,
-        guard: impl BindingGuard,
-    ) -> HintedStrResult<&'static Value>
+    pub fn field( & self, field: & str, guard: impl BindingGuard,)->HintedStrResult <& 'static Value >
     {
         let scope =
-            self.scope().ok_or("cannot access fields on user-defined functions")?;
-        match scope.get(field)
+        self.scope().ok_or("cannot access fields on user-defined functions")?;
+        match scope. get(field)
         {
-            Some(binding) =>
-            {
-                binding.read(guard).or_cannot(format_args!("access field `{field}`"))
-            }
-            None => match self.name()
-            {
-                Some(name) => bail!("function `{name}` does not contain field `{field}`"),
-                None => bail!("function does not contain field `{field}`"),
-            },
+            Some(binding) => { binding.read(guard).or_cannot(format_args ! ("access field `{field}`")) }
+            None => match self.name() { Some(name) => bail ! ("function `{name}` does not contain field `{field}`"), None => bail ! ("function does not contain field `{field}`"), },
         }
     }
 
     /// Extract the element function, if it is one.
-    pub fn to_element(&self) -> Option<Element>
-    {
-        match self.inner
-        {
-            FuncInner::Element(func) => Some(func),
-            _ => None,
-        }
-    }
+    pub fn to_element( & self)->Option<Element> { match self.inner { FuncInner::Element(func) => Some(func), _ => None, } }
 
     /// Extract the native function data, if this is a native function.
-    pub fn to_native(&self) -> Option<&'static NativeFuncData>
-    {
-        match self.inner
-        {
-            FuncInner::Native(func) => Some(func.0),
-            _ => None,
-        }
-    }
+    pub fn to_native( & self)->Option <& 'static NativeFuncData > { match self.inner { FuncInner::Native(func) => Some(func .0), _ => None, } }
 
     /// Extract the plugin function, if it is one.
-    pub fn to_plugin(&self) -> Option<&PluginFunc>
-    {
-        match &self.inner
-        {
-            FuncInner::Plugin(func) => Some(func),
-            _ => None,
-        }
-    }
+    pub fn to_plugin( & self)->Option <& PluginFunc > { match & self.inner { FuncInner::Plugin(func) => Some(func), _ => None, } }
 
     /// Call the function with the given context and arguments. Then cast the
     /// returned value.
-    pub fn call<T: FromValue>(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        args: impl IntoArgs,
-        span: Span,
-    ) -> SourceResult<T>
+    pub fn call<T: FromValue>( & self, engine: & mut Engine, context: Tracked<Context>, args: impl IntoArgs, span: Span,)->SourceResult<T>
     {
         let point = || Tracepoint::Call(self.name().map(Into::into));
         self.call_traced(engine, context, args, point, span)?.cast().at(span)
@@ -420,50 +348,25 @@ impl Func
 
     /// Call the function with the given context and arguments, adding a
     /// specific tracepoint.
-    pub fn call_traced(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        args: impl IntoArgs,
-        make_point: impl Fn() -> Tracepoint,
-        span: Span,
-    ) -> SourceResult<Value>
-    {
-        self.call_impl(engine, context, args.into_args(self.params_span()))
-            .trace(engine.world, make_point, span)
-    }
+    pub fn call_traced( & self, engine: & mut Engine, context: Tracked<Context>, args: impl IntoArgs, make_point: impl Fn()->Tracepoint, span: Span,)->SourceResult<Value> { self.call_impl(engine, context, args.into_args(self.params_span())).trace(engine.world, make_point, span) }
 
     /// Non-generic implementation of `call`.
-    #[typst_macros::time(name = "func call", span = self.span())]
-    fn call_impl(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        mut args: Args,
-    ) -> SourceResult<Value>
+    # [typst_macros::time(name = "func call", span = self.span())]
+    fn call_impl( & self, engine: & mut Engine, context: Tracked<Context>, mut args: Args,)->SourceResult<Value>
     {
-        match &self.inner
+        match & self.inner
         {
-            FuncInner::Native(native) =>
-            {
-                let value = (native.function.0)(engine, context, &mut args)?;
-                args.finish()?;
-                Ok(value)
-            }
-            FuncInner::Element(func) =>
-            {
-                let value = func.construct(engine, &mut args)?;
-                args.finish()?;
-                Ok(Value::Content(value))
-            }
-            FuncInner::Closure(closure) => (engine.library.routines.eval_closure)(
+            FuncInner::Native(native) => { let value = (native.function .0)(engine, context, & mut args)?; args.finish()?; Ok(value) }
+            FuncInner::Element(func) => { let value = func.construct(engine, & mut args)?; args.finish()?; Ok(Value::Content(value)) }
+            FuncInner::Closure(closure) => (engine.library.routines.eval_closure)
+            (
                 self,
                 closure,
                 engine.world,
                 engine.library,
                 engine.introspector.into_raw(),
                 engine.traced,
-                TrackedMut::reborrow_mut(&mut engine.sink),
+                TrackedMut::reborrow_mut( & mut engine.sink),
                 engine.route.track(),
                 context,
                 args,
@@ -484,53 +387,39 @@ impl Func
     }
 
     /// The span of the function.
-    pub fn span(&self) -> Span
-    {
-        self.span
-    }
+    pub fn span( & self)->Span { self.span }
 
     /// The span of the function parameters, falling back to the general report
     /// span, if not available.
-    pub fn params_span(&self) -> Span
-    {
-        self.inner.params_span().or(self.span)
-    }
+    pub fn params_span( & self)->Span { self.inner.params_span().or(self.span) }
 
     /// Attach a span to this function if it doesn't already have one.
     ///
     /// This is used to report errors of the return value of the closure, or
     /// when the closure is used as a value.
-    pub fn spanned(mut self, span: Span) -> Self
-    {
-        if self.span.is_detached()
-        {
-            self.span = span;
-        }
-        self
-    }
+    pub fn spanned(mut self, span: Span)->Self { if self.span.is_detached() { self.span = span; } self }
 }
 
 #[scope]
 impl Func
 {
     /// Returns a new function that has the given arguments pre-applied.
-    #[func(since = "forever")]
-    pub fn with(
+    # [func(since = "forever")]
+    pub fn with
+    (
         self,
-        args: &mut Args,
+        args: & mut Args,
         /// The arguments to apply to the function.
-        #[external]
-        #[variadic]
+        # [external]
+        # [variadic]
         arguments: Vec<Value>,
-    ) -> Func
+    )
+   ->Func
     {
-        Self {
+        Self
+        {
             span: self.span,
-            inner: FuncInner::With(Arc::new(With {
-                params_span: self.inner.params_span(),
-                func: self,
-                args: args.take(),
-            })),
+            inner: FuncInner::With(Arc::new (With { params_span: self.inner.params_span(), func: self, args: args.take(), })),
         }
     }
 
@@ -543,54 +432,48 @@ impl Func
     /// == Subsection
     /// === Sub-subsection
     /// ```
-    #[func(since = "forever")]
-    pub fn where_(
+    # [func(since = "forever")]
+    pub fn where_
+    (
         self,
-        args: &mut Args,
+        args: & mut Args,
         /// The fields to filter for.
-        #[variadic]
-        #[external]
+        # [variadic]
+        # [external]
         fields: Vec<Value>,
-    ) -> StrResult<Selector>
+    )
+   ->StrResult<Selector>
     {
         let fields = args.to_named();
-        args.items.retain(|arg| arg.name.is_none());
+        args.items.retain( | arg | arg.name.is_none());
 
         let element = self
-            .to_element()
-            .ok_or("`where()` can only be called on element functions")?;
+        .to_element()
+        .ok_or("`where()` can only be called on element functions")?;
 
         let fields = fields
-            .into_iter()
-            .map(|(key, value)| {
-                element.field_id(&key).map(|id| (id, value)).ok_or_else(|| {
-                    eco_format!(
-                        "element `{}` does not have field `{}`",
-                        element.name(),
-                        key
-                    )
-                })
-            })
-            .collect::<StrResult<smallvec::SmallVec<_>>>()?;
+        .into_iter()
+        .map
+        (
+            | (key, value) |
+            {
+                element.field_id( & key).map( | id | (id, value)).ok_or_else( || { eco_format ! ("element `{}` does not have field `{}`", element.name(), key) })
+            }
+        )
+        .collect:: < StrResult < smallvec::SmallVec < _ >>> ()?;
 
         Ok(element.where_(fields))
     }
 }
 
-impl Debug for Func
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        write!(f, "Func({})", self.name().unwrap_or(".."))
-    }
-}
+impl Debug for Func { fn fmt( & self, f: & mut Formatter)->fmt::Result { write ! (f, "Func({})", self.name().unwrap_or("..")) } }
 
 impl Repr for Func
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
-        const DEFAULT: &str = "(..) => ..";
-        match &self.inner
+        const DEFAULT: & str = "(..) => ..";
+        match & self.inner
         {
             FuncInner::Native(native) => native.name.into(),
             FuncInner::Element(elem) => elem.name().into(),
@@ -601,84 +484,37 @@ impl Repr for Func
     }
 }
 
-impl PartialEq for Func
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.inner == other.inner
-    }
-}
+impl PartialEq for Func { fn eq( & self, other: & Self)->bool { self.inner == other.inner } }
 
-impl PartialEq<&'static NativeFuncData> for Func
+impl PartialEq <& 'static NativeFuncData > for Func
 {
-    fn eq(&self, other: &&'static NativeFuncData) -> bool
-    {
-        match &self.inner
-        {
-            FuncInner::Native(native) => *native == Static(*other),
-            _ => false,
-        }
-    }
+    fn eq( & self, other: && 'static NativeFuncData)-> bool { match & self.inner { FuncInner::Native(native) => * native == Static( * other), _ => false, } }
 }
 
 impl PartialEq<Element> for Func
 {
-    fn eq(&self, other: &Element) -> bool
-    {
-        match &self.inner
-        {
-            FuncInner::Element(elem) => elem == other,
-            _ => false,
-        }
-    }
+    fn eq( & self, other: & Element)-> bool { match & self.inner { FuncInner::Element(elem) => elem == other, _ => false, } }
 }
 
 impl From<FuncInner> for Func
 {
-    fn from(inner: FuncInner) -> Self
-    {
-        Self { inner, span: Span::detached() }
-    }
+    fn from(inner: FuncInner)->Self { Self { inner, span: Span::detached() } }
 }
 
-impl From<&'static NativeFuncData> for Func
-{
-    fn from(data: &'static NativeFuncData) -> Self
-    {
-        FuncInner::Native(Static(data)).into()
-    }
-}
+impl From <& 'static NativeFuncData > for Func { fn from(data: & 'static NativeFuncData)->Self { FuncInner::Native(Static(data)).into() } }
 
-impl From<Element> for Func
-{
-    fn from(func: Element) -> Self
-    {
-        FuncInner::Element(func).into()
-    }
-}
+impl From<Element> for Func { fn from(func: Element)->Self { FuncInner::Element(func).into() } }
 
-impl From<Closure> for Func
-{
-    fn from(closure: Closure) -> Self
-    {
-        FuncInner::Closure(Arc::new(LazyHash::new(closure))).into()
-    }
-}
+impl From<Closure> for Func { fn from(closure: Closure)->Self { FuncInner::Closure(Arc::new (LazyHash::new (closure))).into() } }
 
-impl From<PluginFunc> for Func
-{
-    fn from(func: PluginFunc) -> Self
-    {
-        FuncInner::Plugin(Arc::new(func)).into()
-    }
-}
+impl From<PluginFunc> for Func { fn from(func: PluginFunc)->Self { FuncInner::Plugin(Arc::new (func)).into() } }
 
 /// Details about a function parameter.
 #[derive(Debug, Clone)]
 pub enum ParamInfo
 {
     /// Details about a parameter of a native, Rust-defined function.
-    Native(&'static NativeParamInfo),
+    Native( & 'static NativeParamInfo),
     /// Details about a user-defined function.
     Closure(Spanned<ClosureParamInfo>),
     /// A plugin's sole variadic bytes parameter.
@@ -688,103 +524,79 @@ pub enum ParamInfo
 impl ParamInfo
 {
     /// Attempts to cast to a native parameter info.
-    pub fn to_native(&self) -> Option<&'static NativeParamInfo>
-    {
-        match self
-        {
-            Self::Native(native) => Some(native),
-            _ => None,
-        }
-    }
+    pub fn to_native( & self)->Option <& 'static NativeParamInfo > { match self { Self::Native(native) => Some(native), _ => None, } }
 
     /// The parameter's name, if any.
-    pub fn name(&self) -> Option<&str>
+    pub fn name( & self)->Option <& str >
     {
         match self
         {
             Self::Native(info) => Some(info.name),
-            Self::Closure(info) => match &info.v
+            Self::Closure(info) => match & info.v
             {
-                ClosureParamInfo::Pos { name } => name.as_deref(),
-                ClosureParamInfo::Sink { name } => name.as_deref(),
-                ClosureParamInfo::Named { name, .. } => Some(name),
+                ClosureParamInfo::Pos { name }
+                => name.as_deref(),
+                ClosureParamInfo::Sink { name }
+                => name.as_deref(),
+                ClosureParamInfo::Named { name,.. }
+                => Some(name),
             },
             Self::Plugin => None,
         }
     }
 
     /// The parameter's default value, if any.
-    pub fn default(&self) -> Option<Value>
+    pub fn default( & self)->Option<Value>
     {
         match self
         {
-            Self::Native(info) => info.default.map(|f| f()),
-            Self::Closure(info) => match &info.v
-            {
-                ClosureParamInfo::Named { default, .. } => Some(default.clone()),
-                _ => None,
-            },
+            Self::Native(info) => info. default.map( | f | f()),
+            Self::Closure(info) => match & info.v { ClosureParamInfo::Named { default ,.. } => Some(default.clone()), _ => None, },
             Self::Plugin => None,
         }
     }
 
     /// Whether the parameter is positional (includes variadic).
-    pub fn positional(&self) -> bool
+    pub fn positional( & self)-> bool
     {
         match self
         {
             Self::Native(info) => info.positional,
-            Self::Closure(info) => matches!(
-                &info.v,
-                ClosureParamInfo::Pos { .. } | ClosureParamInfo::Sink { .. }
-            ),
+            Self::Closure(info) => matches!( & info.v, ClosureParamInfo::Pos {.. } | ClosureParamInfo::Sink {.. }),
             Self::Plugin => true,
         }
     }
 
     /// Whether the parameter is named.
-    pub fn named(&self) -> bool
+    pub fn named( & self)-> bool
     {
-        match self
-        {
-            Self::Native(info) => info.named,
-            Self::Closure(info) => matches!(&info.v, ClosureParamInfo::Named { .. }),
-            Self::Plugin => false,
-        }
+        match self { Self::Native(info) => info.named, Self::Closure(info) => matches ! ( & info.v, ClosureParamInfo::Named {.. }), Self::Plugin => false, }
     }
 
     /// Whether the parameter is variadic.
-    pub fn variadic(&self) -> bool
+    pub fn variadic( & self)-> bool
     {
         match self
         {
             Self::Native(info) => info.variadic,
-            Self::Closure(info) => matches!(&info.v, ClosureParamInfo::Sink { .. }),
+            Self::Closure(info) => matches!( & info.v, ClosureParamInfo::Sink {.. }),
             Self::Plugin => true,
         }
     }
 
     /// Whether the parameter is required.
-    pub fn required(&self) -> bool
+    pub fn required( & self)-> bool
     {
         match self
         {
             Self::Native(info) => info.required,
-            Self::Closure(info) => matches!(&info.v, ClosureParamInfo::Pos { .. }),
+            Self::Closure(info) => matches!( & info.v, ClosureParamInfo::Pos {.. }),
             Self::Plugin => false,
         }
     }
 
     /// Whether the parameter is settable.
-    pub fn settable(&self) -> bool
-    {
-        match self
-        {
-            Self::Native(info) => info.settable,
-            Self::Closure(_) => false,
-            Self::Plugin => false,
-        }
-    }
+    pub fn settable( & self)-> bool { match self { Self::Native(info) => info.settable, Self::Closure(_) => false, Self::Plugin => false, } }
 }
 
 /// A Typst function that is defined by a native Rust type that shadows a
@@ -792,13 +604,10 @@ impl ParamInfo
 pub trait NativeFunc
 {
     /// Get the function for the native Rust type.
-    fn func() -> Func
-    {
-        Func::from(Self::data())
-    }
+    fn func()->Func { Func::from(Self::data()) }
 
     /// Get the function data for the native Rust function.
-    fn data() -> &'static NativeFuncData;
+    fn data()-> & 'static NativeFuncData;
 }
 
 /// Defines a native function.
@@ -808,17 +617,17 @@ pub struct NativeFuncData
     /// The implementation of the function.
     pub function: NativeFuncPtr,
     /// The function's normal name (e.g. `align`), as exposed to Typst.
-    pub name: &'static str,
+    pub name: & 'static str,
     /// The function's title case name (e.g. `Align`).
-    pub title: &'static str,
+    pub title: & 'static str,
     /// The version of Typst the function was introduced in.
     pub since: Option<Since>,
     /// The documentation for this function as a string.
-    pub docs: &'static str,
+    pub docs: & 'static str,
     /// Where the function is defined in the source code.
     pub def_site: Option<DefSite>,
     /// A list of alternate search terms for this function.
-    pub keywords: &'static [&'static str],
+    pub keywords: & 'static[ & 'static str],
     /// Whether this function makes use of context.
     pub contextual: bool,
     /// Definitions in the scope of the function.
@@ -829,25 +638,16 @@ pub struct NativeFuncData
     pub returns: DynLazyLock<CastInfo>,
 }
 
-cast! {
-    &'static NativeFuncData,
-    self => Func::from(self).into_value(),
-}
+cast! { & 'static NativeFuncData, self => Func::from(self).into_value(), }
 
 /// A pointer to a native function's implementation.
-pub struct NativeFuncPtr(pub &'static NativeFuncSignature);
+pub struct NativeFuncPtr(pub & 'static NativeFuncSignature);
 
 /// The signature of a native function's implementation.
 type NativeFuncSignature =
-    dyn Fn(&mut Engine, Tracked<Context>, &mut Args) -> SourceResult<Value> + Send + Sync;
+dyn Fn( & mut Engine, Tracked<Context>, & mut Args)->SourceResult < Value > + Send + Sync;
 
-impl Debug for NativeFuncPtr
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        f.pad("NativeFuncPtr(..)")
-    }
-}
+impl Debug for NativeFuncPtr { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { f.pad("NativeFuncPtr(..)") } }
 
 /// A `LazyLock` that uses a static closure for initialization instead of only
 /// working with function pointers.
@@ -856,22 +656,22 @@ impl Debug for NativeFuncPtr
 /// e.g. `LazyLock::new(&|| "hello")`. Can be created from a dynamic closure
 /// by allocating and then leaking it. This is equivalent to having it
 /// statically allocated, but allows for it to be generated at runtime.
-type DynLazyLock<T> = LazyLock<T, &'static (dyn Fn() -> T + Send + Sync)>;
+type DynLazyLock < T > = LazyLock<T, & 'static(dyn Fn()->T + Send + Sync)>;
 
 /// Describes a function parameter.
 #[derive(Debug, Clone)]
 pub struct NativeParamInfo
 {
     /// The parameter's name.
-    pub name: &'static str,
+    pub name: & 'static str,
     /// Documentation for the parameter.
-    pub docs: &'static str,
+    pub docs: & 'static str,
     /// Where the parameter is defined in the source code.
     pub def_site: Option<DefSite>,
     /// Describe what values this parameter accepts.
     pub input: CastInfo,
     /// Creates an instance of the parameter's default value.
-    pub default: Option<fn() -> Value>,
+    pub default: Option<fn ()->Value>,
     /// Is the parameter positional?
     pub positional: bool,
     /// Is the parameter named?
@@ -917,63 +717,45 @@ pub struct Closure
 impl Closure
 {
     /// The name of the closure.
-    pub fn name(&self) -> Option<&str>
+    pub fn name( & self)->Option <& str >
     {
         match self.node
         {
-            ClosureNode::Closure(ref node) =>
-            {
-                node.cast::<ast::Closure>()?.name().map(|ident| ident.as_str())
-            }
+            ClosureNode::Closure(ref node) => { node.cast::<ast::Closure>()?.name().map( | ident | ident.as_str()) }
             ClosureNode::Context(_) => None,
         }
     }
 
     /// Returns details about this closure's parameters.
-    pub fn params(&self) -> impl Iterator<Item = Spanned<ClosureParamInfo>>
+    pub fn params( & self)-> impl Iterator<Item = Spanned<ClosureParamInfo>>
     {
         let params = match self.node
         {
-            ClosureNode::Closure(ref node) => Some(
-                node.cast::<ast::Closure>()
-                    .expect("node to be an `ast::Closure`")
-                    .params()
-                    .children(),
-            ),
+            ClosureNode::Closure(ref node) => Some(node.cast::<ast::Closure>().expect("node to be an `ast::Closure`").params().children(),),
             ClosureNode::Context(_) => None,
         };
 
         let mut defaults = self.defaults.iter();
-        params.into_iter().flatten().map(move |param| {
-            let info = match param
+        params.into_iter().flatten().map
+        (
+            move | param |
             {
-                ast::Param::Pos(pattern) => ClosureParamInfo::Pos {
-                    name: match pattern
+                let info = match param
+                {
+                    ast::Param::Pos(pattern) => ClosureParamInfo::Pos
                     {
-                        ast::Pattern::Normal(ast::Expr::Ident(ident)) =>
-                        {
-                            Some(ident.get().clone())
-                        }
-                        _ => None,
+                        name: match pattern { ast::Pattern::Normal(ast::Expr::Ident(ident)) => { Some(ident.get ().clone()) } _ => None, },
                     },
-                },
-                ast::Param::Spread(spread) => ClosureParamInfo::Sink {
-                    name: spread.sink_ident().map(|ident| ident.get().clone()),
-                },
-                ast::Param::Named(named) => ClosureParamInfo::Named {
-                    name: named.name().get().clone(),
-                    default: defaults.next().unwrap().clone(),
-                },
-            };
-            Spanned::new(info, param.span())
-        })
+                    ast::Param::Spread(spread) => ClosureParamInfo::Sink { name: spread.sink_ident().map( | ident | ident.get ().clone()), },
+                    ast::Param::Named(named) => ClosureParamInfo::Named { name: named.name().get ().clone(), default: defaults.next().unwrap().clone(), },
+                };
+                Spanned:: new (info, param.span())
+            }
+        )
     }
 }
 
-cast! {
-    Closure,
-    self => Value::Func(self.into()),
-}
+cast! { Closure, self => Value::Func(self.into()), }
 
 /// Details about a closure parameter.
 #[derive(Debug, Clone)]
@@ -981,19 +763,10 @@ pub enum ClosureParamInfo
 {
     /// A positional parameter. It might have a name, but it could also be a
     /// pattern.
-    Pos
-    {
-        name: Option<EcoString>
-    },
+    Pos { name: Option<EcoString> },
     /// A sink parameter. Might have a name, but could also just be a discarding
     /// sink.
-    Sink
-    {
-        name: Option<EcoString>
-    },
+    Sink { name: Option<EcoString> },
     /// A named parameter with its name and default value.
-    Named
-    {
-        name: EcoString, default: Value
-    },
+    Named { name: EcoString, default: Value },
 }

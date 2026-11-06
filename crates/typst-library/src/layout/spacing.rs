@@ -1,7 +1,7 @@
-use typst_utils::{Numeric, singleton};
+use typst_utils:: { Numeric, singleton };
 
-use crate::foundations::{Content, NativeElement, cast, elem};
-use crate::layout::{Abs, Em, Fr, Length, Ratio, Rel};
+use crate::foundations:: { Content, NativeElement, cast, elem };
+use crate::layout:: { Abs, Em, Fr, Length, Ratio, Rel };
 
 /// Inserts horizontal spacing into a paragraph.
 ///
@@ -34,7 +34,7 @@ use crate::layout::{Abs, Em, Fr, Length, Ratio, Rel};
 pub struct HElem
 {
     /// How much spacing to insert.
-    #[required]
+    # [required]
     pub amount: Spacing,
 
     /// If `{true}`, the spacing collapses at the start or end of a paragraph.
@@ -62,17 +62,14 @@ pub struct HElem
     /// even the smallest of them swallow
     /// adjacent markup spaces.
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub weak: bool,
 }
 
 impl HElem
 {
     /// Zero-width horizontal weak spacing that eats surrounding spaces.
-    pub fn hole() -> &'static Content
-    {
-        singleton!(Content, HElem::new(Abs::zero().into()).with_weak(true).pack())
-    }
+    pub fn hole()-> & 'static Content { singleton ! (Content, HElem::new (Abs::zero().into()).with_weak(true).pack()) }
 }
 
 /// Inserts vertical spacing into a flow of blocks.
@@ -99,7 +96,7 @@ impl HElem
 pub struct VElem
 {
     /// How much spacing to insert.
-    #[required]
+    # [required]
     pub amount: Spacing,
 
     /// If `{true}`, the spacing collapses at the start or end of a flow.
@@ -119,15 +116,12 @@ pub struct VElem
 
     /// Whether the spacing collapses if not immediately preceded by a
     /// paragraph.
-    #[internal]
-    #[parse(Some(false))]
+    # [internal]
+    # [parse(Some(false))]
     pub attach: bool,
 }
 
-cast! {
-    VElem,
-    v: Content => v.unpack::<Self>().map_err(|_| "expected `v` element")?,
-}
+cast! { VElem, v: Content => v.unpack::<Self>().map_err( | _ | "expected `v` element")?, }
 
 /// Kinds of spacing.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -143,68 +137,28 @@ pub enum Spacing
 impl Spacing
 {
     /// Whether this is fractional spacing.
-    pub fn is_fractional(self) -> bool
-    {
-        matches!(self, Self::Fr(_))
-    }
+    pub fn is_fractional(self)-> bool { matches ! (self, Self::Fr(_)) }
 
     /// Whether the spacing is actually no spacing.
-    pub fn is_zero(&self) -> bool
-    {
-        match self
-        {
-            Self::Rel(rel) => rel.is_zero(),
-            Self::Fr(fr) => fr.is_zero(),
-        }
-    }
+    pub fn is_zero( & self)-> bool { match self { Self::Rel(rel) => rel.is_zero(), Self::Fr(fr) => fr.is_zero(), } }
 }
 
-impl From<Abs> for Spacing
+impl From<Abs> for Spacing { fn from(abs: Abs)->Self { Self::Rel(abs.into()) } }
+
+impl From<Em> for Spacing { fn from(em: Em)->Self { Self::Rel(Rel::new (Ratio::zero(), em.into())) } }
+
+impl From<Length> for Spacing { fn from(length: Length)->Self { Self::Rel(length.into()) } }
+
+impl From<Fr> for Spacing { fn from(fr: Fr)->Self { Self::Fr(fr) } }
+
+cast!
 {
-    fn from(abs: Abs) -> Self
-    {
-        Self::Rel(abs.into())
-    }
-}
-
-impl From<Em> for Spacing
-{
-    fn from(em: Em) -> Self
-    {
-        Self::Rel(Rel::new(Ratio::zero(), em.into()))
-    }
-}
-
-impl From<Length> for Spacing
-{
-    fn from(length: Length) -> Self
-    {
-        Self::Rel(length.into())
-    }
-}
-
-impl From<Fr> for Spacing
-{
-    fn from(fr: Fr) -> Self
-    {
-        Self::Fr(fr)
-    }
-}
-
-cast! {
     Spacing,
-    self => match self {
-        Self::Rel(rel) => {
-            if rel.rel.is_zero() {
-                rel.abs.into_value()
-            } else if rel.abs.is_zero() {
-                rel.rel.into_value()
-            } else {
-                rel.into_value()
-            }
-        }
+    self => match self
+    {
+        Self::Rel(rel) => { if rel.rel.is_zero() { rel.abs.into_value() } else if rel.abs.is_zero() { rel.rel.into_value() } else { rel.into_value() } }
         Self::Fr(fr) => fr.into_value(),
     },
-    v: Rel<Length> => Self::Rel(v),
+    v: Rel < Length > => Self::Rel(v),
     v: Fr => Self::Fr(v),
 }

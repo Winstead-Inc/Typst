@@ -2,15 +2,15 @@
 
 use std::error;
 use std::ffi::OsStr;
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 use std::num::NonZeroU16;
 use std::ops::Deref;
-use std::path::{self, Path, PathBuf};
-use std::sync::{LazyLock, RwLock};
+use std::path:: { self, Path, PathBuf };
+use std::sync:: { LazyLock, RwLock };
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use rustc_hash::FxHashMap;
-use serde::{Deserialize, Serialize};
+use serde:: { Deserialize, Serialize };
 
 use crate::package::PackageSpec;
 
@@ -18,67 +18,37 @@ use crate::package::PackageSpec;
 ///
 /// This identifies a location in a project or package.
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct RootedPath
-{
-    root: VirtualRoot,
-    vpath: VirtualPath,
-}
+pub struct RootedPath { root: VirtualRoot, vpath: VirtualPath, }
 
 impl RootedPath
 {
     /// Create a rooted path from a root and a virtual path within the root.
-    pub fn new(root: VirtualRoot, vpath: VirtualPath) -> Self
-    {
-        Self { root, vpath }
-    }
+    pub fn new (root: VirtualRoot, vpath: VirtualPath)->Self { Self { root, vpath } }
 
     /// Turns this path into a `FileId`.
-    pub fn intern(self) -> FileId
-    {
-        FileId::new(self)
-    }
+    pub fn intern(self)->FileId { FileId::new (self) }
 
     /// The root this path resides in.
-    pub fn root(&self) -> &VirtualRoot
-    {
-        &self.root
-    }
+    pub fn root( & self)-> & VirtualRoot { & self.root }
 
     /// The package the path resides in, if any.
-    #[deprecated = "use `root` instead"]
-    pub fn package(&self) -> Option<&PackageSpec>
-    {
-        match self.root()
-        {
-            VirtualRoot::Project => None,
-            VirtualRoot::Package(package) => Some(package),
-        }
-    }
+    # [deprecated = "use `root` instead"]
+    pub fn package( & self)->Option <& PackageSpec > { match self.root() { VirtualRoot::Project => None, VirtualRoot::Package(package) => Some(package), } }
 
     /// The absolute and normalized path to the file _within_ the project or
     /// package.
-    pub fn vpath(&self) -> &VirtualPath
-    {
-        &self.vpath
-    }
+    pub fn vpath( & self)-> & VirtualPath { & self.vpath }
 
     /// Maps the virtual path while retaining the root.
-    pub fn map(&self, f: impl FnOnce(&VirtualPath) -> VirtualPath) -> Self
-    {
-        Self::new(self.root.clone(), f(&self.vpath))
-    }
+    pub fn map( & self, f: impl FnOnce( & VirtualPath)->VirtualPath)->Self { Self::new (self.root.clone(), f( & self.vpath)) }
 }
 
 impl Debug for RootedPath
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         let vpath = self.vpath();
-        match self.root()
-        {
-            VirtualRoot::Project => Debug::fmt(vpath, f),
-            VirtualRoot::Package(package) => write!(f, "{package:?}{vpath:?}"),
-        }
+        match self.root() { VirtualRoot::Project => Debug::fmt(vpath, f), VirtualRoot::Package(package) => write ! (f, "{package:?}{vpath:?}"), }
     }
 }
 
@@ -95,16 +65,10 @@ pub enum VirtualRoot
 }
 
 /// The global interner for rooted paths.
-static INTERNER: LazyLock<RwLock<Interner>> = LazyLock::new(|| {
-    RwLock::new(Interner { to_id: FxHashMap::default(), from_id: Vec::new() })
-});
+static INTERNER: LazyLock < RwLock<Interner> > = LazyLock:: new ( || { RwLock::new (Interner { to_id: FxHashMap::default (), from_id: Vec::new () }) });
 
 /// An interner for rooted paths.
-struct Interner
-{
-    to_id: FxHashMap<&'static RootedPath, FileId>,
-    from_id: Vec<&'static RootedPath>,
-}
+struct Interner { to_id: FxHashMap <& 'static RootedPath, FileId > , from_id: Vec <& 'static RootedPath > , }
 
 /// An interned version of [`RootedPath`].
 ///
@@ -117,8 +81,8 @@ impl FileId
     /// Create a new interned file specification.
     ///
     /// This is the same as [`RootedPath::intern`].
-    #[track_caller]
-    pub fn new(path: RootedPath) -> Self
+    # [track_caller]
+    pub fn new (path: RootedPath)->Self
     {
         // Try to find an existing entry that we can reuse.
         //
@@ -126,20 +90,17 @@ impl FileId
         // present, we would then need to recheck after acquiring a write lock,
         // which is probably not worth it.
         let mut interner = INTERNER.write().unwrap();
-        if let Some(&id) = interner.to_id.get(&path)
-        {
-            return id;
-        }
+        if let Some( & id) = interner.to_id. get( & path) { return id; }
 
         // Create a new entry forever by leaking the pair. We can't leak more
         // than 2^16 pair (and typically will leak a lot less), so its not a
         // big deal.
         let num = u16::try_from(interner.from_id.len() + 1)
-            .and_then(NonZeroU16::try_from)
-            .expect("out of file ids");
+        .and_then(NonZeroU16::try_from)
+        .expect("out of file ids");
 
         let id = FileId(num);
-        let leaked = Box::leak(Box::new(path));
+        let leaked = Box::leak(Box::new (path));
         interner.to_id.insert(leaked, id);
         interner.from_id.push(leaked);
         id
@@ -172,27 +133,27 @@ impl FileId
     ///     ))
     /// });
     /// ```
-    #[track_caller]
-    pub fn unique(path: RootedPath) -> Self
+    # [track_caller]
+    pub fn unique(path: RootedPath)->Self
     {
         let mut interner = INTERNER.write().unwrap();
         let num = u16::try_from(interner.from_id.len() + 1)
-            .and_then(NonZeroU16::try_from)
-            .expect("out of file ids");
+        .and_then(NonZeroU16::try_from)
+        .expect("out of file ids");
 
         let id = FileId(num);
-        let leaked = Box::leak(Box::new(path));
+        let leaked = Box::leak(Box::new (path));
         interner.from_id.push(leaked);
         id
     }
 
     /// Create a new interned file id for use in tests. This should not be used
     /// for normal code, instead consider [`Self::unique`].
-    #[track_caller]
-    pub fn new_for_test(test_name: &'static str) -> Self
+    # [track_caller]
+    pub fn new_for_test(test_name: & 'static str)->Self
     {
-        let vpath = VirtualPath::new(test_name).unwrap();
-        RootedPath::new(VirtualRoot::Project, vpath).intern()
+        let vpath = VirtualPath:: new (test_name).unwrap();
+        RootedPath:: new (VirtualRoot::Project, vpath).intern()
     }
 
     /// Construct from a raw number.
@@ -200,41 +161,18 @@ impl FileId
     /// Should only be used with numbers retrieved via
     /// [`into_raw`](Self::into_raw). Misuse may results in panics, but no
     /// unsafety.
-    pub const fn from_raw(v: NonZeroU16) -> Self
-    {
-        Self(v)
-    }
+    pub const fn from_raw(v: NonZeroU16)->Self { Self(v) }
 
     /// Extract the raw underlying number.
-    pub const fn into_raw(self) -> NonZeroU16
-    {
-        self.0
-    }
+    pub const fn into_raw(self)->NonZeroU16 { self .0 }
 
     /// Get the static, interned rooted path.
-    pub fn get(&self) -> &'static RootedPath
-    {
-        INTERNER.read().unwrap().from_id[usize::from(self.0.get() - 1)]
-    }
+    pub fn get( & self)-> & 'static RootedPath { INTERNER.read().unwrap().from_id[usize::from(self .0.get() - 1)] }
 }
 
-impl Deref for FileId
-{
-    type Target = RootedPath;
+impl Deref for FileId { type Target = RootedPath; fn deref( & self)-> & Self::Target { self.get () } }
 
-    fn deref(&self) -> &Self::Target
-    {
-        self.get()
-    }
-}
-
-impl Debug for FileId
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        self.get().fmt(f)
-    }
-}
+impl Debug for FileId { fn fmt( & self, f: & mut Formatter)->fmt::Result { self.get ().fmt(f) } }
 
 /// A path in a virtual file system.
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -243,7 +181,7 @@ pub struct VirtualPath(Segments);
 impl VirtualPath
 {
     /// Creates a new virtual path.
-    pub fn new(path: impl AsRef<str>) -> Result<Self, PathError>
+    pub fn new (path: impl AsRef<str>)->Result<Self, PathError>
     {
         let segments = Segments::normalize(components(path.as_ref()))?;
         Ok(Self(segments))
@@ -257,10 +195,10 @@ impl VirtualPath
     ///
     /// This is the single function that translates from a real path to a
     /// virtual path. Its counterpart is [`VirtualPath::realize`].
-    pub fn virtualize(root_path: &Path, path: &Path) -> Result<Self, VirtualizeError>
+    pub fn virtualize(root_path: & Path, path: & Path)->Result<Self, VirtualizeError>
     {
-        let path = path.strip_prefix(root_path).map_err(|_| PathError::Escapes)?;
-        let mut segments = Segments::new();
+        let path = path.strip_prefix(root_path).map_err( | _ | PathError::Escapes)?;
+        let mut segments = Segments:: new ();
         for c in path.components()
         {
             let comp = match c
@@ -271,8 +209,8 @@ impl VirtualPath
                 path::Component::Normal(s) =>
                 {
                     let string = s.to_str().ok_or(VirtualizeError::Utf8)?;
-                    let segment = Segment::new(string)
-                        .map_err(|s| VirtualizeError::Invalid(s.into()))?;
+                    let segment = Segment:: new (string)
+                    .map_err( | s | VirtualizeError::Invalid(s.into()))?;
                     Component::Normal(segment)
                 }
                 path::Component::Prefix(_) => return Err(PathError::Escapes.into()),
@@ -296,79 +234,48 @@ impl VirtualPath
     ///
     /// This can be used in the implementations of `World::source` and
     /// `World::file`.
-    pub fn realize(&self, root: &Path) -> Result<PathBuf, RealizeError>
+    pub fn realize( & self, root: & Path)->Result<PathBuf, RealizeError>
     {
         let mut out = root.to_path_buf();
-        for s in self.0.iter()
-        {
-            out.push(s.realize()?);
-        }
+        for s in self .0.iter() { out.push(s.realize()?); }
         Ok(out)
     }
 
     /// Extracts the path with a leading slash.
-    pub fn into_with_slash(self) -> EcoString
-    {
-        self.0.into_with_slash()
-    }
+    pub fn into_with_slash(self)->EcoString { self .0.into_with_slash() }
 
     /// Returns the path with a leading slash.
-    pub fn get_with_slash(&self) -> &str
-    {
-        self.0.get_with_slash()
-    }
+    pub fn get_with_slash( & self)-> & str { self .0.get_with_slash() }
 
     /// Returns the path without a leading slash.
-    pub fn get_without_slash(&self) -> &str
-    {
-        self.0.get_without_slash()
-    }
+    pub fn get_without_slash( & self)-> & str { self .0.get_without_slash() }
 
     /// Whether this is the path `/`.
-    pub fn is_root(&self) -> bool
-    {
-        self.0.is_empty()
-    }
+    pub fn is_root( & self)-> bool { self .0.is_empty() }
 
     /// Returns the file name portion of the path.
-    pub fn file_name(&self) -> Option<&str>
-    {
-        self.0.last().map(Segment::get)
-    }
+    pub fn file_name( & self)->Option <& str > { self .0.last().map(Segment::get) }
 
     /// Returns the file name portion of the path without the extension.
-    pub fn file_stem(&self) -> Option<&str>
-    {
-        let last = self.0.last()?;
-        let (before, after) = last.split_dot();
-        before.or(after)
-    }
+    pub fn file_stem( & self)->Option <& str > { let last = self .0.last()?; let (before, after) = last.split_dot(); before.or(after) }
 
     /// Returns the file extension of the path.
-    pub fn extension(&self) -> Option<&str>
-    {
-        let last = self.0.last()?;
-        let (before, after) = last.split_dot();
-        before.and(after)
-    }
+    pub fn extension( & self)->Option <& str > { let last = self .0.last()?; let (before, after) = last.split_dot(); before.and(after) }
 
     /// Returns a modified path with an adjusted extension.
     ///
     /// # Panics
     /// Panics if the resulting path segment would be invalid, e.g. because the
     /// extension contains a forward or backslash.
-    #[track_caller]
-    pub fn with_extension(&self, ext: &str) -> Self
+    # [track_caller]
+    pub fn with_extension( & self, ext: & str)->Self
     {
         let Some(stem) = self.file_stem()
-        else
-        {
-            return self.clone();
-        };
+        else { return self.clone(); };
         let buf = eco_format!("{stem}.{ext}");
-        let segment = Segment::new(&buf).expect("extension is invalid");
+        let segment = Segment:: new ( & buf).expect("extension is invalid");
 
-        let mut segments = self.0.clone();
+        let mut segments = self .0.clone();
         segments.pop();
         segments.push(segment);
         Self(segments)
@@ -377,54 +284,38 @@ impl VirtualPath
     /// Returns the path with its final component removed.
     ///
     /// Returns `None` if the path is already at the root.
-    pub fn parent(&self) -> Option<Self>
-    {
-        let mut segments = self.0.clone();
-        if !segments.pop()
-        {
-            return None;
-        }
-        Some(Self(segments))
-    }
+    pub fn parent( & self)->Option<Self> { let mut segments = self .0.clone(); if ! segments.pop() { return None; } Some(Self(segments)) }
 
     /// Joins the given `path` to `self`.
-    pub fn join(&self, path: &str) -> Result<Self, PathError>
+    pub fn join( & self, path: & str)->Result<Self, PathError>
     {
         let combined = self
-            .0
-            .iter()
-            .map(|c| Ok(Component::Normal(c)))
-            .chain(components(path));
+        .0
+        .iter()
+        .map( | c | Ok(Component::Normal(c)))
+        .chain(components(path));
         let segments = Segments::normalize(combined)?;
         Ok(Self(segments))
     }
 
     /// Expresses this path as a relative path from the given base path.
-    pub fn relative_from(&self, base: &Self) -> EcoString
+    pub fn relative_from( & self, base: & Self)->EcoString
     {
         // Adapted from rustc's `path_relative_from` function (MIT).
         // Copyright 2012-2015 The Rust Project Developers.
         // See NOTICE for full attribution.
-        let mut ita = self.0.iter();
-        let mut itb = base.0.iter();
-        let mut buf: Vec<&str> = vec![];
+        let mut ita = self .0.iter();
+        let mut itb = base .0.iter();
+        let mut buf: Vec <& str > = vec![];
         loop
         {
             match (ita.next(), itb.next())
             {
-                (None, None) => break,
-                (Some(a), None) =>
-                {
-                    buf.push(a.get());
-                    buf.extend(ita.map(Segment::get));
-                    break;
-                }
-                (None, Some(_)) => buf.push(".."),
-                (Some(a), Some(b)) if buf.is_empty() && a == b => (),
-                (Some(a), Some(_)) =>
+                (None, None) => break, (Some(a), None) => { buf.push(a.get ()); buf.extend(ita.map(Segment::get)); break ; }
+                (None, Some(_)) => buf.push(".."),(Some(a), Some(b)) if buf.is_empty() && a == b => (),(Some(a), Some(_)) =>
                 {
                     buf.extend(std::iter::repeat_n("..", 1 + itb.count()));
-                    buf.push(a.get());
+                    buf.push(a.get ());
                     buf.extend(ita.map(Segment::get));
                     break;
                 }
@@ -437,103 +328,75 @@ impl VirtualPath
 impl VirtualPath
 {
     /// Create a virtual path from a real path and a real root.
-    #[deprecated = "use `virtualize` with swapped arguments instead"]
-    pub fn within_root(path: &Path, root: &Path) -> Option<Self>
-    {
-        Self::virtualize(root, path).ok()
-    }
+    # [deprecated = "use `virtualize` with swapped arguments instead"]
+    pub fn within_root(path: & Path, root: & Path)->Option<Self> { Self::virtualize(root, path).ok() }
 
     /// Resolve the virtual path relative to an actual file system root
     /// (where the project or package resides).
-    #[deprecated = "use `realize` instead"]
-    pub fn resolve(&self, root: &Path) -> Option<PathBuf>
-    {
-        self.realize(root).ok()
-    }
+    # [deprecated = "use `realize` instead"]
+    pub fn resolve( & self, root: & Path)->Option<PathBuf> { self.realize(root).ok() }
 
     /// Get the underlying path without a leading `/` or `\`.
-    #[deprecated = "use `get_without_slash` instead"]
-    pub fn as_rootless_path(&self) -> &Path
-    {
-        Path::new(self.get_without_slash())
-    }
+    # [deprecated = "use `get_without_slash` instead"]
+    pub fn as_rootless_path( & self)-> & Path { Path::new (self.get_without_slash()) }
 
     /// Get the underlying path with a leading `/` or `\`.
-    #[deprecated = "use `get_with_slash` instead"]
-    pub fn as_rooted_path(&self) -> &Path
-    {
-        Path::new(self.get_with_slash())
-    }
+    # [deprecated = "use `get_with_slash` instead"]
+    pub fn as_rooted_path( & self)-> & Path { Path::new (self.get_with_slash()) }
 }
 
-impl Debug for VirtualPath
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        self.get_with_slash().fmt(f)
-    }
-}
+impl Debug for VirtualPath { fn fmt( & self, f: & mut Formatter)->fmt::Result { self.get_with_slash().fmt(f) } }
 
-impl<'de> Deserialize<'de> for VirtualPath
+impl <'de> Deserialize<'de> for VirtualPath
 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D)->Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+    D: serde::Deserializer<'de>,
     {
         let str = EcoString::deserialize(deserializer)?;
-        VirtualPath::new(str)
-            .map_err(|err| serde::de::Error::custom(format_args!("{err}")))
+        VirtualPath:: new (str)
+        .map_err( | err | serde::de::Error::custom(format_args ! ("{err}")))
     }
 }
 
 impl Serialize for VirtualPath
 {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    fn serialize<S>( & self, serializer: S)->Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(self.get_without_slash())
-    }
+    S: serde::Serializer, { serializer.serialize_str(self.get_without_slash()) }
 }
 
 /// A component in a virtual path.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-enum Component<'a>
-{
-    Root,
-    Current,
-    Parent,
-    Normal(Segment<'a>),
-}
+enum Component<'a> { Root, Current, Parent, Normal(Segment<'a>), }
 
 // Special symbols in virtual paths.
 const SEPARATOR: char = '/';
-const CURRENT: &str = ".";
-const PARENT: &str = "..";
+const CURRENT: & str = ".";
+const PARENT: & str = "..";
 
 /// Splits a user-supplied path into its constituent parts.
 ///
 /// This only splits and recognizes special segments. It does not check the
 /// validity of normal segments. This is done in [`Segments::push`].
-fn components(path: &str) -> impl Iterator<Item = Result<Component<'_>, PathError>>
+fn components(path: & str)-> impl Iterator<Item = Result<Component<'_>, PathError>>
 {
-    path.split(SEPARATOR).enumerate().map(|(i, s)| {
-        match s
+    path.split(SEPARATOR).enumerate().map
+    (
+        | (i, s) |
         {
-            // A leading separator indicates an absolute path.
-            "" if i == 0 && !path.is_empty() => Ok(Component::Root),
-            // Consecutive separators have no effect.
-            "" => Ok(Component::Current),
-            CURRENT => Ok(Component::Current),
-            PARENT => Ok(Component::Parent),
-            other => match Segment::new(other)
+            match s
             {
-                Ok(segment) => Ok(Component::Normal(segment)),
-                Err("\\") => Err(PathError::Backslash),
-                Err(_) => unreachable!(),
-            },
+                // A leading separator indicates an absolute path.
+                "" if i == 0 && ! path.is_empty() => Ok(Component::Root),
+                // Consecutive separators have no effect.
+                "" => Ok(Component::Current),
+                CURRENT => Ok(Component::Current),
+                PARENT => Ok(Component::Parent),
+                other => match Segment:: new (other) { Ok(segment) => Ok(Component::Normal(segment)), Err("\\") => Err(PathError::Backslash), Err(_) => unreachable ! (), },
+            }
         }
-    })
+    )
 }
 
 /// A segment in a normalized path.
@@ -541,57 +404,44 @@ fn components(path: &str) -> impl Iterator<Item = Result<Component<'_>, PathErro
 /// A segments is never empty, `.`, or `..` and it never contains back- or
 /// forward slashes.
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-struct Segment<'a>(&'a str);
+struct Segment<'a>( & 'a str);
 
-impl<'a> Segment<'a>
+impl <'a> Segment<'a>
 {
-    fn new(segment: &'a str) -> Result<Self, &'a str>
+    fn new (segment: & 'a str)->Result<Self, & 'a str>
     {
         // These invariants are important to avoid the path from escaping the
         // root after being realized, in particular the `..` part.
-        if matches!(segment, "" | CURRENT | PARENT)
-        {
-            return Err(segment);
-        }
+        if matches!(segment, "" | CURRENT | PARENT) { return Err(segment); }
 
         // Interior separators or backslashes are not allowed.
-        if let Some(m) = segment.matches([SEPARATOR, '\\']).next()
-        {
-            return Err(m);
-        }
+        if let Some(m) = segment.matches([SEPARATOR, '\\']).next() { return Err(m); }
 
         Ok(Self(segment))
     }
 
-    fn new_unchecked(segment: &'a str) -> Self
-    {
-        debug_assert!(Self::new(segment).is_ok());
-        Self(segment)
-    }
+    fn new_unchecked(segment: & 'a str)->Self { debug_assert ! (Self::new (segment).is_ok()); Self(segment) }
 
-    fn get(self) -> &'a str
-    {
-        self.0
-    }
+    fn get(self)-> & 'a str { self .0 }
 
-    fn split_dot(self) -> (Option<&'a str>, Option<&'a str>)
+    fn split_dot(self)->(Option <& 'a str > , Option <& 'a str >)
     {
-        let mut iter = self.0.rsplitn(2, '.');
+        let mut iter = self .0.rsplitn(2, '.');
         let after = iter.next();
         let before = iter.next();
-        if before == Some("") { (Some(self.0), None) } else { (before, after) }
+        if before == Some("") { (Some(self .0), None) } else { (before, after) }
     }
 
     /// Ensures that this segment can be joined to an existing platform-specific
     /// path without lexically escaping the root formed by that path.
     ///
     /// Sanity-checked against <https://pkg.go.dev/path/filepath#IsLocal>.
-    fn realize(self) -> Result<&'a OsStr, RealizeError>
+    fn realize(self)->Result <& 'a OsStr, RealizeError >
     {
         // We ensure that this segment corresponds to exactly one platform-level
         // path component. Drive letters on Windows are rejected since they are
         // `Prefix` components.
-        let mut iter = Path::new(self.get()).components();
+        let mut iter = Path:: new (self.get ()).components();
         match (iter.next(), iter.next())
         {
             // Exactly one normal component.
@@ -599,23 +449,14 @@ impl<'a> Segment<'a>
             {
                 // Forbid access to reserved files on Windows as they are
                 // conceptually not part of any root.
-                #[cfg(windows)]
-                if is_windows_reserved(self.get())
-                {
-                    return Err(RealizeError::Invalid(self.get().into()));
-                }
+                # [cfg(windows)]
+                if is_windows_reserved(self.get ()) { return Err(RealizeError::Invalid(self.get ().into())); }
                 Ok(s)
             }
             // No or multiple components, starting with normal.
-            (None | Some(path::Component::Normal(_)), _) =>
-            {
-                Err(RealizeError::Invalid(self.get().into()))
-            }
+            (None | Some(path::Component::Normal(_)), _) => { Err(RealizeError::Invalid(self.get ().into())) }
             // Non-normal component.
-            (Some(other), _) =>
-            {
-                Err(RealizeError::Invalid(other.as_os_str().to_string_lossy().into()))
-            }
+            (Some(other), _) => { Err(RealizeError::Invalid(other.as_os_str().to_string_lossy().into())) }
         }
     }
 }
@@ -625,25 +466,27 @@ impl<'a> Segment<'a>
 /// Follows <https://cs.opensource.google/go/go/+/refs/tags/go1.26.4:src/internal/filepathlite/path_windows.go;l=98>.
 /// See also: <https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file>
 #[cfg(windows)]
-fn is_windows_reserved(name: &str) -> bool
+fn is_windows_reserved(name: & str)-> bool
 {
-    #[rustfmt::skip]
-    fn is_reserved_base(basename: &str) -> bool {
-        matches!(
+    # [rustfmt::skip]
+    fn is_reserved_base(basename: & str)-> bool
+    {
+        matches!
+        (
             basename,
             "CON" | "PRN" | "AUX" | "NUL"
-                | "COM0" | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6"
-                | "COM7" | "COM8" | "COM9" | "COM¹" | "COM²" | "COM³"
-                | "LPT0" | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6"
-                | "LPT7" | "LPT8" | "LPT9" | "LPT¹" | "LPT²" | "LPT³"
-                | "CONIN$" | "CONOUT$"
+            | "COM0" | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6"
+            | "COM7" | "COM8" | "COM9" | "COM¹" | "COM²" | "COM³"
+            | "LPT0" | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6"
+            | "LPT7" | "LPT8" | "LPT9" | "LPT¹" | "LPT²" | "LPT³"
+            | "CONIN$" | "CONOUT$"
         )
     }
 
     // Some Windows versions also allow arbitrary characters after a dot or
     // colon in device names (and trailing spaces before that suffix).
     let base = name.split(['.', ':']).next().unwrap_or(name).trim_end_matches(' ');
-    base.len() <= 7 && is_reserved_base(&EcoString::from(base).to_ascii_uppercase())
+    base.len() <= 7 && is_reserved_base( & EcoString::from(base).to_ascii_uppercase())
 }
 
 /// Stores a sequence of path segments as a string.
@@ -656,104 +499,58 @@ struct Segments(EcoString);
 
 impl Segments
 {
-    fn new() -> Self
-    {
-        Self(EcoString::from(SEPARATOR))
-    }
+    fn new ()->Self { Self(EcoString::from(SEPARATOR)) }
 
-    fn normalize<'a>(
-        comps: impl IntoIterator<Item = Result<Component<'a>, PathError>>,
-    ) -> Result<Segments, PathError>
+    fn normalize<'a>(comps: impl IntoIterator<Item = Result<Component<'a>, PathError>>,)->Result<Segments, PathError>
     {
-        let mut out = Segments::new();
-        for component in comps
-        {
-            out.push_component(component?)?;
-        }
+        let mut out = Segments:: new ();
+        for component in comps { out.push_component(component?)?; }
         Ok(out)
     }
 
-    fn is_empty(&self) -> bool
-    {
-        self.0.len() == 1
-    }
+    fn is_empty( & self)-> bool { self .0.len() == 1 }
 
-    fn into_with_slash(self) -> EcoString
-    {
-        self.0
-    }
+    fn into_with_slash(self)->EcoString { self .0 }
 
-    fn get_with_slash(&self) -> &str
-    {
-        &self.0
-    }
+    fn get_with_slash( & self)-> & str { & self .0 }
 
-    fn get_without_slash(&self) -> &str
-    {
-        self.0.strip_prefix(SEPARATOR).expect("path to start with slash")
-    }
+    fn get_without_slash( & self)-> & str { self .0.strip_prefix(SEPARATOR).expect("path to start with slash") }
 
-    fn clear(&mut self)
-    {
-        self.0.truncate(1);
-    }
+    fn clear( & mut self) { self .0.truncate(1); }
 
-    fn push_component(&mut self, component: Component) -> Result<(), PathError>
+    fn push_component( & mut self, component: Component)->Result<(), PathError>
     {
         match component
         {
             // Root component resets the path.
             Component::Root => self.clear(),
             // Current component has no effect.
-            Component::Current =>
-            {}
+            Component::Current => {}
             // Parent component removes the last segment. If there is no
             // segment, this indicates that the path would escape the root.
             // In this case, we return an error.
-            Component::Parent =>
-            {
-                if !self.pop()
-                {
-                    return Err(PathError::Escapes);
-                }
-            }
+            Component::Parent => { if ! self.pop() { return Err(PathError::Escapes); } }
             Component::Normal(segment) => self.push(segment),
         }
         Ok(())
     }
 
-    fn push(&mut self, segment: Segment)
-    {
-        if !self.is_empty()
-        {
-            self.0.push(SEPARATOR);
-        }
-        self.0.push_str(segment.0);
-    }
+    fn push( & mut self, segment: Segment) { if ! self.is_empty() { self .0.push(SEPARATOR); } self .0.push_str(segment .0); }
 
-    fn pop(&mut self) -> bool
+    fn pop( & mut self)-> bool
     {
-        if self.is_empty()
-        {
-            return false;
-        }
-        let i = self.0.rfind(SEPARATOR).expect("to contain a slash");
-        self.0.truncate(std::cmp::max(1, i));
+        if self.is_empty() { return false; }
+        let i = self .0.rfind(SEPARATOR).expect("to contain a slash");
+        self .0.truncate(std::cmp::max(1, i));
         true
     }
 
-    fn last(&self) -> Option<Segment<'_>>
-    {
-        self.iter().next_back()
-    }
+    fn last( & self)->Option<Segment<'_>> { self.iter().next_back() }
 
-    fn iter(&self) -> impl DoubleEndedIterator<Item = Segment<'_>>
+    fn iter( & self)-> impl DoubleEndedIterator<Item = Segment<'_>>
     {
-        let mut iter = self.0[1..].split(SEPARATOR);
-        if self.is_empty()
-        {
-            iter.next();
-        }
+        let mut iter = self .0[1..].split(SEPARATOR);
+        if self.is_empty() { iter.next(); }
         iter.map(Segment::new_unchecked)
     }
 }
@@ -776,14 +573,7 @@ pub enum PathError
 
 impl fmt::Display for PathError
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        match self
-        {
-            Self::Escapes => write!(f, "path escapes root"),
-            Self::Backslash => write!(f, "path contains backslash"),
-        }
-    }
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { match self { Self::Escapes => write ! (f, "path escapes root"), Self::Backslash => write ! (f, "path contains backslash"), } }
 }
 
 impl error::Error for PathError {}
@@ -804,15 +594,12 @@ pub enum VirtualizeError
 
 impl fmt::Display for VirtualizeError
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result
     {
         match self
         {
             Self::Path(inner) => fmt::Display::fmt(inner, f),
-            Self::Invalid(component) =>
-            {
-                write!(f, "path contains invalid component `{component:?}`")
-            }
+            Self::Invalid(component) => { write ! (f, "path contains invalid component `{component:?}`") }
             Self::Utf8 => write!(f, "path contains non-UTF-8 bytes"),
         }
     }
@@ -823,13 +610,7 @@ impl fmt::Display for VirtualizeError
 // backtraces.
 impl error::Error for VirtualizeError {}
 
-impl From<PathError> for VirtualizeError
-{
-    fn from(err: PathError) -> Self
-    {
-        Self::Path(err)
-    }
-}
+impl From<PathError> for VirtualizeError { fn from(err: PathError)->Self { Self::Path(err) } }
 
 /// An error that can occur in [`VirtualPath::realize`].
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -849,15 +630,9 @@ pub enum RealizeError
 
 impl fmt::Display for RealizeError
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result
     {
-        match self
-        {
-            Self::Invalid(component) =>
-            {
-                write!(f, "path contains invalid component `{component:?}`")
-            }
-        }
+        match self { Self::Invalid(component) => { write ! (f, "path contains invalid component `{component:?}`") } }
     }
 }
 
@@ -866,25 +641,19 @@ impl error::Error for RealizeError {}
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[track_caller]
-    fn path(p: &str) -> VirtualPath
-    {
-        VirtualPath::new(p).unwrap()
-    }
+    # [track_caller]
+    fn path(p: & str)->VirtualPath { VirtualPath::new (p).unwrap() }
 
-    #[test]
+    # [test]
     fn test_new()
     {
-        #[track_caller]
-        fn test(path: &str, expected: Result<&str, PathError>)
+        # [track_caller]
+        fn test(path: & str, expected: Result <& str, PathError >)
         {
-            let path = VirtualPath::new(path);
-            assert_eq!(
-                path.as_ref().map(|s| s.get_with_slash()).map_err(Clone::clone),
-                expected
-            );
+            let path = VirtualPath:: new (path);
+            assert_eq!(path.as_ref().map( | s | s.get_with_slash()).map_err(Clone::clone), expected);
         }
 
         test("", Ok("/"));
@@ -905,72 +674,50 @@ mod tests
         test("a\\world.txt", Err(PathError::Backslash));
     }
 
-    #[test]
-    #[cfg(unix)]
+    # [test]
+    # [cfg(unix)]
     fn test_virtualize_unix()
     {
         test_virtualize("/", "/main.typ", Ok("/main.typ"));
         test_virtualize("//a/b", "/a//b///c//d", Ok("/c/d"));
-        test_virtualize(
-            "/home/typst/desktop/",
-            "/home/typst/desktop/src/main.typ",
-            Ok("/src/main.typ"),
-        );
-        test_virtualize(
-            "/home/typst/desktop/",
-            "/home/typst/main.typ",
-            Err(PathError::Escapes.into()),
-        );
+        test_virtualize("/home/typst/desktop/", "/home/typst/desktop/src/main.typ", Ok("/src/main.typ"),);
+        test_virtualize("/home/typst/desktop/", "/home/typst/main.typ", Err(PathError::Escapes.into()),);
     }
 
-    #[test]
-    #[cfg(windows)]
+    # [test]
+    # [cfg(windows)]
     fn test_virtualize_windows()
     {
-        test_virtualize(
-            "C:\\Users\\typst\\Desktop",
-            "C:\\Users\\typst\\Desktop\\src\\main.typ",
-            Ok("/src/main.typ"),
-        );
-        test_virtualize(
-            "C:\\Users\\typst\\Desktop",
-            "C:\\Users\\typst\\main.typ",
-            Err(PathError::Escapes.into()),
-        );
+        test_virtualize("C:\\Users\\typst\\Desktop", "C:\\Users\\typst\\Desktop\\src\\main.typ", Ok("/src/main.typ"),);
+        test_virtualize("C:\\Users\\typst\\Desktop", "C:\\Users\\typst\\main.typ", Err(PathError::Escapes.into()),);
     }
 
-    #[track_caller]
-    fn test_virtualize(
-        root_path: impl AsRef<Path>,
-        path: impl AsRef<Path>,
-        expected: Result<&str, VirtualizeError>,
-    )
+    # [track_caller]
+    fn test_virtualize(root_path: impl AsRef<Path>, path: impl AsRef<Path>, expected: Result <& str, VirtualizeError > ,)
     {
-        assert_eq!(
+        assert_eq!
+        (
             VirtualPath::virtualize(root_path.as_ref(), path.as_ref(),)
-                .as_ref()
-                .map(|v| v.get_with_slash())
-                .map_err(Clone::clone),
+            .as_ref()
+            .map( | v | v.get_with_slash())
+            .map_err(Clone::clone),
             expected,
         );
     }
 
-    #[test]
+    # [test]
     fn test_realize()
     {
         let p = path("src/text/main.typ");
-        assert_eq!(
-            p.realize(Path::new("/home/users/typst")),
-            Ok(PathBuf::from("/home/users/typst/src/text/main.typ")),
-        );
+        assert_eq!(p.realize(Path::new ("/home/users/typst")), Ok(PathBuf::from("/home/users/typst/src/text/main.typ")),);
     }
 
-    #[test]
-    #[cfg(windows)]
+    # [test]
+    # [cfg(windows)]
     fn test_realize_windows()
     {
-        let root = Path::new("C:\\Users\\typst");
-        let invalid = |s: &str| RealizeError::Invalid(s.into());
+        let root = Path:: new ("C:\\Users\\typst");
+        let invalid = | s: & str | RealizeError::Invalid(s.into());
         assert_eq!(path("C:System32").realize(root), Err(invalid("C:")));
         assert_eq!(path("D:Stuff").realize(root), Err(invalid("D:")));
         assert_eq!(path("C:/System32").realize(root), Err(invalid("C:")));
@@ -983,7 +730,7 @@ mod tests
         assert_eq!(path("a/LPT\u{00b2} .baz/b").realize(root), Err(invalid("LPT² .baz")));
     }
 
-    #[test]
+    # [test]
     fn test_file_ops()
     {
         let p1 = path("src/text/file.typ");
@@ -1008,79 +755,76 @@ mod tests
         assert_eq!(p3.parent(), None);
     }
 
-    #[test]
+    # [test]
     fn test_join()
     {
         let p1 = path("src");
         assert_eq!(p1.join("a\\b"), Err(PathError::Backslash));
         let p2 = p1.join("text").unwrap();
-        assert_eq!(p2.get_with_slash(), "/src/text");
+        assert_eq!(p2.get_with_slash(),"/src/text");
         let p3 = p2.join("..").unwrap();
         assert_eq!(p1, p3);
-        assert_eq!(p3.get_with_slash(), "/src");
+        assert_eq!(p3.get_with_slash(),"/src");
         let p4 = p3.join("..").unwrap();
-        assert_eq!(p4.get_with_slash(), "/");
+        assert_eq!(p4.get_with_slash(),"/");
         assert_eq!(p4.join(".."), Err(PathError::Escapes));
     }
 
-    #[test]
+    # [test]
     fn test_relative_from()
     {
         let p1 = path("src/text/main.typ");
-        assert_eq!(p1.relative_from(&path("/src/text")), "main.typ");
-        assert_eq!(p1.relative_from(&path("/src/data")), "../text/main.typ");
-        assert_eq!(p1.relative_from(&path("src/")), "text/main.typ");
-        assert_eq!(p1.relative_from(&path("/")), "src/text/main.typ");
+        assert_eq!(p1.relative_from( & path("/src/text")),"main.typ");
+        assert_eq!(p1.relative_from( & path("/src/data")),"../text/main.typ");
+        assert_eq!(p1.relative_from( & path("src/")),"text/main.typ");
+        assert_eq!(p1.relative_from( & path("/")),"src/text/main.typ");
 
         let p2 = path("src");
-        assert_eq!(p2.relative_from(&path("src")), "");
-        assert_eq!(p2.relative_from(&path("src/data")), "..");
+        assert_eq!(p2.relative_from( & path("src")),"");
+        assert_eq!(p2.relative_from( & path("src/data")),"..");
     }
 
-    #[test]
+    # [test]
     fn test_segments()
     {
-        let mut s = Segments::new();
-        assert_eq!(s.get_with_slash(), "/");
-        assert_eq!(s.get_without_slash(), "");
-        s.push(Segment::new("to").unwrap());
-        assert_eq!(s.get_with_slash(), "/to");
-        s.push(Segment::new("hi.txt").unwrap());
-        assert_eq!(s.get_with_slash(), "/to/hi.txt");
-        assert_eq!(s.get_without_slash(), "to/hi.txt");
+        let mut s = Segments:: new ();
+        assert_eq!(s.get_with_slash(),"/");
+        assert_eq!(s.get_without_slash(),"");
+        s.push(Segment::new ("to").unwrap());
+        assert_eq!(s.get_with_slash(),"/to");
+        s.push(Segment::new ("hi.txt").unwrap());
+        assert_eq!(s.get_with_slash(),"/to/hi.txt");
+        assert_eq!(s.get_without_slash(),"to/hi.txt");
         assert_eq!(s.last().map(Segment::get), Some("hi.txt"));
         assert!(s.pop());
-        assert_eq!(s.get_with_slash(), "/to");
+        assert_eq!(s.get_with_slash(),"/to");
         assert!(s.pop());
-        assert_eq!(s.get_with_slash(), "/");
-        assert!(!s.pop());
-        assert_eq!(s.get_with_slash(), "/");
+        assert_eq!(s.get_with_slash(),"/");
+        assert!( ! s.pop());
+        assert_eq!(s.get_with_slash(),"/");
         assert_eq!(s.last(), None);
     }
 
-    #[test]
+    # [test]
     fn test_segment()
     {
-        assert_eq!(Segment::new("\\b"), Err("\\"));
-        assert_eq!(Segment::new("a/b"), Err("/"));
-        assert_eq!(Segment::new(""), Err(""));
-        assert_eq!(Segment::new("."), Err("."));
-        assert_eq!(Segment::new(".."), Err(".."));
+        assert_eq!(Segment::new ("\\b"), Err("\\"));
+        assert_eq!(Segment::new ("a/b"), Err("/"));
+        assert_eq!(Segment::new (""), Err(""));
+        assert_eq!(Segment::new ("."), Err("."));
+        assert_eq!(Segment::new (".."), Err(".."));
     }
 
-    #[test]
+    # [test]
     fn test_virtual_path_deserialize()
     {
-        #[derive(Debug, Deserialize)]
-        struct Example
-        {
-            path: VirtualPath,
-        }
+        # [derive(Debug, Deserialize)]
+        struct Example { path: VirtualPath, }
 
         let m = toml::de::from_str::<Example>(r#"path = "hello""#).unwrap();
-        assert_eq!(m.path, VirtualPath::new("/hello").unwrap());
+        assert_eq!(m.path, VirtualPath::new ("/hello").unwrap());
 
         let e = toml::de::from_str::<Example>(r#"path = "../hello""#).unwrap_err();
-        assert_eq!(e.message(), "path escapes root");
+        assert_eq!(e.message(),"path escapes root");
     }
 }

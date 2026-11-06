@@ -1,27 +1,18 @@
 use std::cell::LazyCell;
 
-use typst_library::diag::{SourceResult, bail};
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::foundations::{Content, Packed, Resolve, Smart, StyleChain};
+use typst_library::foundations:: { Content, Packed, Resolve, Smart, StyleChain };
 use typst_library::introspection::Locator;
-use typst_library::layout::{
-    Abs, Axes, FixedAlignment, Frame, MoveElem, Point, Ratio, Region, Rel, RotateElem,
-    ScaleAmount, ScaleElem, Size, SkewElem, Transform,
-};
+use typst_library::layout:: { Abs, Axes, FixedAlignment, Frame, MoveElem, Point, Ratio, Region, Rel, RotateElem, ScaleAmount, ScaleElem, Size, SkewElem, Transform, };
 use typst_utils::Numeric;
 
 /// Layout the moved content.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_move(
-    elem: &Packed<MoveElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_move(elem: & Packed<MoveElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let mut frame = crate::layout_frame(engine, &elem.body, locator, styles, region)?;
-    let delta = Axes::new(elem.dx.resolve(styles), elem.dy.resolve(styles));
+    let mut frame = crate::layout_frame(engine, & elem.body, locator, styles, region)?;
+    let delta = Axes:: new (elem.dx.resolve(styles), elem.dy.resolve(styles));
     let delta = delta.zip_map(region.size, Rel::relative_to);
     frame.translate_visual(delta.to_point());
     Ok(frame)
@@ -29,38 +20,27 @@ pub fn layout_move(
 
 /// Layout the rotated content.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_rotate(
-    elem: &Packed<RotateElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_rotate(elem: & Packed<RotateElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let angle = elem.angle.get(styles);
+    let angle = elem.angle. get(styles);
     let align = elem.origin.resolve(styles);
 
     // Compute the new region's approximate size.
     let is_finite = region.size.is_finite();
-    let size = if is_finite
-    {
-        compute_bounding_box(region.size, Transform::rotate(-angle)).1
-    }
-    else
-    {
-        Size::splat(Abs::inf())
-    };
+    let size = if is_finite { compute_bounding_box(region.size, Transform::rotate( - angle)) .1 }
+    else { Size::splat(Abs::inf()) };
 
-    measure_and_layout(
+    measure_and_layout
+    (
         engine,
         locator,
         region,
         size,
         styles,
-        &elem.body,
+        & elem.body,
         Transform::rotate(angle),
         align,
-        elem.reflow.get(styles),
+        elem.reflow. get(styles),
         // TODO: Calculate new baseline after rotation
         false,
     )
@@ -68,170 +48,126 @@ pub fn layout_rotate(
 
 /// Layout the scaled content.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_scale(
-    elem: &Packed<ScaleElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_scale(elem: & Packed<ScaleElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
     // Compute the new region's approximate size.
     let scale = resolve_scale(elem, engine, locator.relayout(), region.size, styles)?;
     let size = region
-        .size
-        .zip_map(scale, |r, s| if r.is_finite() { Ratio::new(1.0 / s).of(r) } else { r })
-        .map(Abs::abs);
+    .size
+    .zip_map(scale, | r, s | if r.is_finite() { Ratio::new (1.0 / s).of(r) } else { r })
+    .map(Abs::abs);
 
-    measure_and_layout(
+    measure_and_layout
+    (
         engine,
         locator,
         region,
         size,
         styles,
-        &elem.body,
+        & elem.body,
         Transform::scale(scale.x, scale.y),
         elem.origin.resolve(styles),
-        elem.reflow.get(styles),
+        elem.reflow. get(styles),
         // TODO: Figure out where the baseline should go after a vertical flip.
         // Similar problem to >90deg rotation, as following the baseline would
         // lead text to go below the typical baseline. For now, simply do not
         // preserve the baseline if vertical scale is negative.
-        scale.y.get() >= 0.0,
+        scale.y. get() >= 0.0,
     )
 }
 
 /// Resolves scale parameters, preserving aspect ratio if one of the scales
 /// is set to `auto`.
-fn resolve_scale(
-    elem: &Packed<ScaleElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    container: Size,
-    styles: StyleChain,
-) -> SourceResult<Axes<Ratio>>
+fn resolve_scale(elem: & Packed<ScaleElem>, engine: & mut Engine, locator: Locator, container: Size, styles: StyleChain,)->SourceResult<Axes<Ratio>>
 {
-    fn resolve_axis(
-        axis: Smart<ScaleAmount>,
-        body: impl Fn() -> SourceResult<Abs>,
-        styles: StyleChain,
-    ) -> SourceResult<Smart<Ratio>>
+    fn resolve_axis(axis: Smart<ScaleAmount>, body: impl Fn()->SourceResult<Abs>, styles: StyleChain,)->SourceResult<Smart<Ratio>>
     {
-        Ok(match axis
-        {
-            Smart::Auto => Smart::Auto,
-            Smart::Custom(amt) => Smart::Custom(match amt
+        Ok
+        (
+            match axis
             {
-                ScaleAmount::Ratio(ratio) => ratio,
-                ScaleAmount::Length(length) =>
-                {
-                    let length = length.resolve(styles);
-                    Ratio::new(length / body()?)
-                }
-            }),
-        })
+                Smart::Auto => Smart::Auto,
+                Smart::Custom(amt) => Smart::Custom
+                (
+                    match amt
+                    {
+                        ScaleAmount::Ratio(ratio) => ratio,
+                        ScaleAmount::Length(length) => { let length = length.resolve(styles); Ratio::new (length / body()?) }
+                    }
+                ),
+            }
+        )
     }
 
-    let size = LazyCell::new(|| {
-        let pod = Region::new(container, Axes::splat(false));
-        let frame = crate::layout_frame(engine, &elem.body, locator, styles, pod)?;
-        SourceResult::Ok(frame.size())
-    });
+    let size = LazyCell:: new
+    (
+        ||
+        {
+            let pod = Region:: new (container, Axes::splat(false));
+            let frame = crate::layout_frame(engine, & elem.body, locator, styles, pod)?;
+            SourceResult::Ok(frame.size())
+        }
+    );
 
-    let x = resolve_axis(
-        elem.x.get(styles),
-        || size.as_ref().map(|size| size.x).map_err(Clone::clone),
-        styles,
-    )?;
+    let x = resolve_axis(elem.x.get (styles), || size.as_ref().map( | size | size.x).map_err(Clone::clone), styles,)?;
 
-    let y = resolve_axis(
-        elem.y.get(styles),
-        || size.as_ref().map(|size| size.y).map_err(Clone::clone),
-        styles,
-    )?;
+    let y = resolve_axis(elem.y.get (styles), || size.as_ref().map( | size | size.y).map_err(Clone::clone), styles,)?;
 
     match (x, y)
     {
-        (Smart::Auto, Smart::Auto) =>
-        {
-            bail!(elem.span(), "x and y cannot both be auto")
-        }
-        (Smart::Custom(x), Smart::Custom(y)) => Ok(Axes::new(x, y)),
-        (Smart::Auto, Smart::Custom(v)) | (Smart::Custom(v), Smart::Auto) =>
-        {
-            Ok(Axes::splat(v))
-        }
+        (Smart::Auto, Smart::Auto) => { bail ! (elem.span(),"x and y cannot both be auto") }
+        (Smart::Custom(x), Smart::Custom(y)) => Ok(Axes::new (x, y)),(Smart::Auto, Smart::Custom(v)) | (Smart::Custom(v), Smart::Auto) => { Ok(Axes::splat(v)) }
     }
 }
 
 /// Layout the skewed content.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_skew(
-    elem: &Packed<SkewElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_skew(elem: & Packed<SkewElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let ax = elem.ax.get(styles);
-    let ay = elem.ay.get(styles);
+    let ax = elem.ax. get(styles);
+    let ay = elem.ay. get(styles);
     let align = elem.origin.resolve(styles);
 
     // Compute the new region's approximate size.
-    let size = if region.size.is_finite()
-    {
-        compute_bounding_box(region.size, Transform::skew(ax, ay)).1
-    }
-    else
-    {
-        Size::splat(Abs::inf())
-    };
+    let size = if region.size.is_finite() { compute_bounding_box(region.size, Transform::skew(ax, ay)) .1 }
+    else { Size::splat(Abs::inf()) };
 
-    measure_and_layout(
-        engine,
-        locator,
-        region,
-        size,
-        styles,
-        &elem.body,
-        Transform::skew(ax, ay),
-        align,
-        elem.reflow.get(styles),
-        true,
-    )
+    measure_and_layout(engine, locator, region, size, styles, & elem.body, Transform::skew(ax, ay), align, elem.reflow.get (styles), true,)
 }
 
 /// Applies a transformation to a frame, reflowing the layout if necessary.
 #[expect(clippy::too_many_arguments)]
-fn measure_and_layout(
-    engine: &mut Engine,
+fn measure_and_layout
+(
+    engine: & mut Engine,
     locator: Locator,
     region: Region,
     size: Size,
     styles: StyleChain,
-    body: &Content,
+    body: & Content,
     transform: Transform,
     align: Axes<FixedAlignment>,
     reflow: bool,
     keep_baseline: bool,
-) -> SourceResult<Frame>
+)
+->SourceResult<Frame>
 {
     if reflow
     {
         // Measure the size of the body.
-        let pod = Region::new(size, Axes::splat(false));
+        let pod = Region:: new (size, Axes::splat(false));
         let frame = crate::layout_frame(engine, body, locator.relayout(), styles, pod)?;
 
         // Actually perform the layout.
-        let pod = Region::new(frame.size(), Axes::splat(true));
+        let pod = Region:: new (frame.size(), Axes::splat(true));
         let mut frame = crate::layout_frame(engine, body, locator, styles, pod)?;
-        let Axes { x, y } = align.zip_map(frame.size(), FixedAlignment::position);
+        let Axes { x, y }
+        = align.zip_map(frame.size(), FixedAlignment::position);
 
         // Compute the transform.
         let ts = Transform::translate(x, y)
-            .pre_concat(transform)
-            .pre_concat(Transform::translate(-x, -y));
+        .pre_concat(transform)
+        .pre_concat(Transform::translate( - x, - y));
 
         // Compute a new baseline that goes through the transformed baseline
         // (when seen as a hypothetical line crossing the frame at the baseline
@@ -249,7 +185,7 @@ fn measure_and_layout(
         // would be an expected outcome of rotation. (For example, a 180-degree
         // rotation would cause the baseline to be above the text!)
         let new_baseline = (frame.has_baseline() && keep_baseline)
-            .then(|| Point::new(frame.width() / 2.0, frame.baseline()).transform(ts).y);
+        .then( || Point::new (frame.width() / 2.0, frame.baseline()).transform(ts).y);
 
         // Compute the bounding box and offset and wrap in a new frame.
         let (offset, size) = compute_bounding_box(frame.size(), ts);
@@ -257,11 +193,8 @@ fn measure_and_layout(
         frame.translate_visual(offset);
         frame.set_size(size);
 
-        if let Some(new_baseline) = new_baseline
-        {
-            frame.set_baseline(new_baseline + offset.y);
-        }
-        else if !keep_baseline
+        if let Some(new_baseline) = new_baseline { frame.set_baseline(new_baseline + offset.y); }
+        else if ! keep_baseline
         {
             // Post-transformation baseline is not clear.
             frame.clear_baseline();
@@ -273,12 +206,13 @@ fn measure_and_layout(
     {
         // Layout the body.
         let mut frame = crate::layout_frame(engine, body, locator, styles, region)?;
-        let Axes { x, y } = align.zip_map(frame.size(), FixedAlignment::position);
+        let Axes { x, y }
+        = align.zip_map(frame.size(), FixedAlignment::position);
 
         // Compute the transform.
         let ts = Transform::translate(x, y)
-            .pre_concat(transform)
-            .pre_concat(Transform::translate(-x, -y));
+        .pre_concat(transform)
+        .pre_concat(Transform::translate( - x, - y));
 
         // Apply the transform.
         frame.transform(ts);
@@ -287,7 +221,7 @@ fn measure_and_layout(
 }
 
 /// Computes the bounding box and offset of a transformed area.
-fn compute_bounding_box(size: Size, ts: Transform) -> (Point, Size)
+fn compute_bounding_box(size: Size, ts: Transform)->(Point, Size)
 {
     let top_left = Point::zero().transform_inf(ts);
     let top_right = Point::with_x(size.x).transform_inf(ts);
@@ -303,6 +237,5 @@ fn compute_bounding_box(size: Size, ts: Transform) -> (Point, Size)
     // Then we compute the new size of the area.
     let width = max_x - min_x;
     let height = max_y - min_y;
-
-    (Point::new(-min_x, -min_y), Size::new(width.abs(), height.abs()))
+    (Point::new ( - min_x, - min_y), Size::new (width.abs(), height.abs()))
 }

@@ -1,9 +1,9 @@
 //! Modifiable symbols.
 
-use crate::foundations::{Deprecation, Module, Scope, Symbol, Value};
+use crate::foundations:: { Deprecation, Module, Scope, Symbol, Value };
 
 /// Hook up all `symbol` definitions.
-pub(super) fn define(global: &mut Scope)
+pub (super) fn define(global: & mut Scope)
 {
     global.start_category(crate::Category::Symbols);
     extend_scope_from_codex_module(global, codex::ROOT);
@@ -11,12 +11,9 @@ pub(super) fn define(global: &mut Scope)
 }
 
 /// Hook up all math `symbol` definitions, i.e., elements of the `sym` module.
-pub(super) fn define_math(math: &mut Scope)
-{
-    extend_scope_from_codex_module(math, codex::SYM);
-}
+pub (super) fn define_math(math: & mut Scope) { extend_scope_from_codex_module(math, codex::SYM); }
 
-fn extend_scope_from_codex_module(scope: &mut Scope, module: codex::Module)
+fn extend_scope_from_codex_module(scope: & mut Scope, module: codex::Module)
 {
     for (name, binding) in module.iter()
     {
@@ -26,42 +23,21 @@ fn extend_scope_from_codex_module(scope: &mut Scope, module: codex::Module)
             codex::Def::Symbol(s) =>
             {
                 let symbol = Symbol::from(s);
-                data = symbol.func().ok().and_then(|func| func.to_native());
+                data = symbol.func().ok().and_then( | func | func.to_native());
                 Value::Symbol(symbol)
             }
-            codex::Def::Module(m) => Value::Module(Module::new(name, m.into())),
+            codex::Def::Module(m) => Value::Module(Module::new (name, m.into())),
         };
 
         let scope_binding = scope.define(name, value);
-        if let Some(message) = binding.deprecation
-        {
-            scope_binding.with_deprecation(Deprecation::new().with_message(message));
-        }
-        if let Some(data) = data
-        {
-            scope_binding.with_documentation(data.into());
-        }
+        if let Some(message) = binding.deprecation { scope_binding.with_deprecation(Deprecation::new ().with_message(message)); }
+        if let Some(data) = data { scope_binding.with_documentation(data.into()); }
     }
 }
 
-impl From<codex::Module> for Scope
-{
-    fn from(module: codex::Module) -> Scope
-    {
-        let mut scope = Self::new();
-        extend_scope_from_codex_module(&mut scope, module);
-        scope
-    }
-}
+impl From<codex::Module> for Scope { fn from(module: codex::Module)->Scope { let mut scope = Self::new (); extend_scope_from_codex_module( & mut scope, module); scope } }
 
 impl From<codex::Symbol> for Symbol
 {
-    fn from(symbol: codex::Symbol) -> Self
-    {
-        match symbol
-        {
-            codex::Symbol::Single(value) => Symbol::single(value),
-            codex::Symbol::Multi(list) => Symbol::list(list),
-        }
-    }
+    fn from(symbol: codex::Symbol)->Self { match symbol { codex::Symbol::Single(value) => Symbol::single(value), codex::Symbol::Multi(list) => Symbol::list(list), } }
 }

@@ -1,29 +1,21 @@
-use typst_library::diag::{SourceResult, bail};
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::foundations::{Content, Packed, Resolve, StyleChain, StyledElem};
-use typst_library::introspection::{Locator, SplitLocator};
-use typst_library::layout::{
-    Abs, AlignElem, Axes, Axis, Dir, FixedAlignment, Fr, Fragment, Frame, HElem, Point,
-    Regions, Size, Spacing, StackChild, StackElem, VElem,
-};
+use typst_library::foundations:: { Content, Packed, Resolve, StyleChain, StyledElem };
+use typst_library::introspection:: { Locator, SplitLocator };
+use typst_library::layout:: { Abs, AlignElem, Axes, Axis, Dir, FixedAlignment, Fr, Fragment, Frame, HElem, Point, Regions, Size, Spacing, StackChild, StackElem, VElem, };
 use typst_syntax::Span;
-use typst_utils::{Get, Numeric};
+use typst_utils:: { Get, Numeric };
 
 /// Layout the stack.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_stack(
-    elem: &Packed<StackElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Fragment>
+pub fn layout_stack(elem: & Packed<StackElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>
 {
-    layout_stack_internal::<fn(&mut Engine, StyleChain, Regions) -> SourceResult<Fragment>>(
+    layout_stack_internal::<fn ( & mut Engine, StyleChain, Regions)->SourceResult<Fragment>>
+    (
         elem.children.iter().map(From::from),
         elem.span(),
-        elem.spacing.get(styles),
-        elem.dir.get(styles),
+        elem.spacing. get(styles),
+        elem.dir. get(styles),
         engine,
         locator,
         styles,
@@ -36,23 +28,17 @@ pub fn layout_stack(
 /// create other layouters, such as that of lists.
 pub enum StackLayoutChild<'a, F>
 where
-    F: Fn(&mut Engine, StyleChain, Regions) -> SourceResult<Fragment>,
+F: Fn( & mut Engine, StyleChain, Regions)->SourceResult<Fragment>,
 {
     /// A stack child with content or spacing.
-    StackChild(&'a StackChild),
+    StackChild( & 'a StackChild),
     /// A child with a custom layouter, producing its own frames.
     CustomLayouter(F),
 }
 
-impl<'a, F> From<&'a StackChild> for StackLayoutChild<'a, F>
+impl <'a, F> From <& 'a StackChild > for StackLayoutChild<'a, F>
 where
-    F: Fn(&mut Engine, StyleChain, Regions) -> SourceResult<Fragment>,
-{
-    fn from(value: &'a StackChild) -> Self
-    {
-        Self::StackChild(value)
-    }
-}
+F: Fn( & mut Engine, StyleChain, Regions)->SourceResult<Fragment>, { fn from(value: & 'a StackChild)->Self { Self::StackChild(value) } }
 
 /// Layout multiple cells like a stack. Requires only the spacing to insert
 /// between blocks, the stack growth direction, its children, as well as
@@ -67,20 +53,22 @@ where
 /// might borrow data from the environment for each list item (a stack child).
 /// Each child receives relevant layout data from the stack as well.
 #[expect(clippy::too_many_arguments)]
-pub fn layout_stack_internal<'a, F>(
+pub fn layout_stack_internal<'a, F>
+(
     children: impl IntoIterator<Item = StackLayoutChild<'a, F>>,
     span: Span,
     spacing: Option<Spacing>,
     dir: Dir,
-    engine: &mut Engine,
+    engine: & mut Engine,
     locator: Locator,
     styles: StyleChain,
     regions: Regions,
-) -> SourceResult<Fragment>
+)
+->SourceResult<Fragment>
 where
-    F: Fn(&mut Engine, StyleChain, Regions) -> SourceResult<Fragment>,
+F: Fn( & mut Engine, StyleChain, Regions)->SourceResult<Fragment>,
 {
-    let mut layouter = StackLayouter::new(span, dir, locator, styles, regions);
+    let mut layouter = StackLayouter:: new (span, dir, locator, styles, regions);
     let axis = layouter.dir.axis();
     let mut deferred = None;
 
@@ -88,43 +76,23 @@ where
     {
         match child
         {
-            StackLayoutChild::StackChild(StackChild::Spacing(kind)) =>
-            {
-                layouter.layout_spacing(*kind);
-                deferred = None;
-            }
+            StackLayoutChild::StackChild(StackChild::Spacing(kind)) => { layouter.layout_spacing( * kind); deferred = None; }
             StackLayoutChild::StackChild(StackChild::Block(block)) =>
             {
                 // Transparently handle `h`.
-                if let (Axis::X, Some(h)) = (axis, block.to_packed::<HElem>())
-                {
-                    layouter.layout_spacing(h.amount);
-                    deferred = None;
-                    continue;
-                }
+                if let (Axis::X, Some(h)) = (axis, block.to_packed::<HElem>()) { layouter.layout_spacing(h.amount); deferred = None; continue ; }
 
                 // Transparently handle `v`.
-                if let (Axis::Y, Some(v)) = (axis, block.to_packed::<VElem>())
-                {
-                    layouter.layout_spacing(v.amount);
-                    deferred = None;
-                    continue;
-                }
+                if let (Axis::Y, Some(v)) = (axis, block.to_packed::<VElem>()) { layouter.layout_spacing(v.amount); deferred = None; continue ; }
 
-                if let Some(kind) = deferred
-                {
-                    layouter.layout_spacing(kind);
-                }
+                if let Some(kind) = deferred { layouter.layout_spacing(kind); }
 
                 layouter.layout_block(engine, block, styles)?;
                 deferred = spacing;
             }
             StackLayoutChild::CustomLayouter(custom_layouter) =>
             {
-                if let Some(kind) = deferred
-                {
-                    layouter.layout_spacing(kind);
-                }
+                if let Some(kind) = deferred { layouter.layout_spacing(kind); }
 
                 layouter.layout_custom_layouter(engine, custom_layouter, styles)?;
                 deferred = spacing;
@@ -176,24 +144,19 @@ enum StackItem
     Frame(Frame, Axes<FixedAlignment>),
 }
 
-impl<'a> StackLayouter<'a>
+impl <'a> StackLayouter<'a>
 {
     /// Create a new stack layouter.
-    fn new(
-        span: Span,
-        dir: Dir,
-        locator: Locator<'a>,
-        styles: StyleChain<'a>,
-        mut regions: Regions<'a>,
-    ) -> Self
+    fn new (span: Span, dir: Dir, locator: Locator<'a>, styles: StyleChain<'a>, mut regions: Regions<'a>,)->Self
     {
         let axis = dir.axis();
         let expand = regions.expand;
 
         // Disable expansion along the block axis for children.
-        regions.expand.set(axis, false);
+        regions.expand. set(axis, false);
 
-        Self {
+        Self
+        {
             span,
             dir,
             axis,
@@ -210,7 +173,7 @@ impl<'a> StackLayouter<'a>
     }
 
     /// Add spacing along the spacing direction.
-    fn layout_spacing(&mut self, spacing: Spacing)
+    fn layout_spacing( & mut self, spacing: Spacing)
     {
         match spacing
         {
@@ -218,78 +181,40 @@ impl<'a> StackLayouter<'a>
             {
                 // Resolve the spacing and limit it to the remaining space.
                 let resolved = v
-                    .resolve(self.styles)
-                    .relative_to(self.regions.base().get(self.axis));
+                .resolve(self.styles)
+                .relative_to(self.regions.base().get (self.axis));
                 let remaining = self.regions.size.get_mut(self.axis);
-                let limited = resolved.min(*remaining);
-                if self.dir.axis() == Axis::Y
-                {
-                    *remaining -= limited;
-                }
+                let limited = resolved.min( * remaining);
+                if self.dir.axis() == Axis::Y { * remaining -= limited; }
                 self.used.main += limited;
                 self.items.push(StackItem::Absolute(resolved));
             }
-            Spacing::Fr(v) =>
-            {
-                self.fr += v;
-                self.items.push(StackItem::Fractional(v));
-            }
+            Spacing::Fr(v) => { self.fr += v; self.items.push(StackItem::Fractional(v)); }
         }
     }
 
     /// Layout an arbitrary block.
-    fn layout_block(
-        &mut self,
-        engine: &mut Engine,
-        block: &Content,
-        styles: StyleChain,
-    ) -> SourceResult<()>
+    fn layout_block( & mut self, engine: & mut Engine, block: & Content, styles: StyleChain,)->SourceResult<()>
     {
-        if self.regions.is_full()
-        {
-            self.finish_region()?;
-        }
+        if self.regions.is_full() { self.finish_region()?; }
 
         // Block-axis alignment of the `AlignElem` is respected by stacks.
-        let align = if let Some(align) = block.to_packed::<AlignElem>()
-        {
-            align.alignment.get(styles)
-        }
-        else if let Some(styled) = block.to_packed::<StyledElem>()
-        {
-            styles.chain(&styled.styles).get(AlignElem::alignment)
-        }
-        else
-        {
-            styles.get(AlignElem::alignment)
-        }
+        let align = if let Some(align) = block.to_packed::<AlignElem>() { align.alignment.get (styles) }
+        else if let Some(styled) = block.to_packed::<StyledElem>() { styles.chain( & styled.styles).get (AlignElem::alignment) }
+        else { styles.get (AlignElem::alignment) }
         .resolve(styles);
 
-        let fragment = crate::layout_fragment(
-            engine,
-            block,
-            self.locator.next(&block.span()),
-            styles,
-            self.regions,
-        )?;
+        let fragment = crate::layout_fragment(engine, block, self.locator.next( & block.span()), styles, self.regions,)?;
 
         self.layout_fragment(align, fragment)
     }
 
     /// Layout a child with a custom layouter procedure.
-    fn layout_custom_layouter(
-        &mut self,
-        engine: &mut Engine,
-        layouter: impl Fn(&mut Engine, StyleChain, Regions) -> SourceResult<Fragment>,
-        styles: StyleChain,
-    ) -> SourceResult<()>
+    fn layout_custom_layouter( & mut self, engine: & mut Engine, layouter: impl Fn( & mut Engine, StyleChain, Regions)->SourceResult<Fragment>, styles: StyleChain,)->SourceResult<()>
     {
-        if self.regions.is_full()
-        {
-            self.finish_region()?;
-        }
+        if self.regions.is_full() { self.finish_region()?; }
 
-        let align = styles.get(AlignElem::alignment).resolve(styles);
+        let align = styles. get(AlignElem::alignment).resolve(styles);
 
         let fragment = layouter(engine, styles, self.regions)?;
 
@@ -297,65 +222,44 @@ impl<'a> StackLayouter<'a>
     }
 
     /// Store laid out content, coming from either a block or a custom layouter.
-    fn layout_fragment(
-        &mut self,
-        align: Axes<FixedAlignment>,
-        fragment: Fragment,
-    ) -> SourceResult<()>
+    fn layout_fragment( & mut self, align: Axes<FixedAlignment>, fragment: Fragment,)->SourceResult<()>
     {
         let len = fragment.len();
         for (i, frame) in fragment.into_iter().enumerate()
         {
             // Grow our size, shrink the region and save the frame for later.
             let specific_size = frame.size();
-            if self.dir.axis() == Axis::Y
-            {
-                self.regions.size.y -= specific_size.y;
-            }
+            if self.dir.axis() == Axis::Y { self.regions.size.y -= specific_size.y; }
 
-            let generic_size = match self.axis
-            {
-                Axis::X => GenericSize::new(specific_size.y, specific_size.x),
-                Axis::Y => GenericSize::new(specific_size.x, specific_size.y),
-            };
+            let generic_size = match self.axis { Axis::X => GenericSize::new (specific_size.y, specific_size.x), Axis::Y => GenericSize::new (specific_size.x, specific_size.y), };
 
             self.used.main += generic_size.main;
             self.used.cross.set_max(generic_size.cross);
 
             self.items.push(StackItem::Frame(frame, align));
 
-            if i + 1 < len
-            {
-                self.finish_region()?;
-            }
+            if i + 1 < len { self.finish_region()?; }
         }
 
         Ok(())
     }
 
     /// Advance to the next region.
-    fn finish_region(&mut self) -> SourceResult<()>
+    fn finish_region( & mut self)->SourceResult<()>
     {
         // Determine the size of the stack in this region depending on whether
         // the region expands.
         let mut size = self
-            .expand
-            .select(self.initial, self.used.into_axes(self.axis))
-            .min(self.initial);
+        .expand
+        .select(self.initial, self.used.into_axes(self.axis))
+        .min(self.initial);
 
         // Expand fully if there are fr spacings.
-        let full = self.initial.get(self.axis);
+        let full = self.initial. get(self.axis);
         let remaining = full - self.used.main;
-        if !self.fr.is_zero() && full.is_finite()
-        {
-            self.used.main = full;
-            size.set(self.axis, full);
-        }
+        if ! self.fr.is_zero() && full.is_finite() { self.used.main = full; size.set (self.axis, full); }
 
-        if !size.is_finite()
-        {
-            bail!(self.span, "stack spacing is infinite");
-        }
+        if ! size.is_finite() { bail ! (self.span, "stack spacing is infinite"); }
 
         let mut output = Frame::soft(size);
         let mut cursor = Abs::zero();
@@ -370,35 +274,23 @@ impl<'a> StackLayouter<'a>
                 StackItem::Fractional(v) => cursor += v.share(self.fr, remaining),
                 StackItem::Frame(frame, align) =>
                 {
-                    if self.dir.is_positive()
-                    {
-                        ruler = ruler.max(align.get(self.axis));
-                    }
-                    else
-                    {
-                        ruler = ruler.min(align.get(self.axis));
-                    }
+                    if self.dir.is_positive() { ruler = ruler.max(align.get (self.axis)); }
+                    else { ruler = ruler.min(align.get (self.axis)); }
 
                     // Align along the main axis.
-                    let parent = size.get(self.axis);
-                    let child = frame.size().get(self.axis);
+                    let parent = size. get(self.axis);
+                    let child = frame.size(). get(self.axis);
                     let main = ruler.position(parent - self.used.main)
-                        + if self.dir.is_positive()
-                        {
-                            cursor
-                        }
-                        else
-                        {
-                            self.used.main - child - cursor
-                        };
+                    + if self.dir.is_positive() { cursor }
+                    else { self.used.main - child - cursor };
 
                     // Align along the cross axis.
                     let other = self.axis.other();
                     let cross = align
-                        .get(other)
-                        .position(size.get(other) - frame.size().get(other));
+                    . get(other)
+                    .position(size.get (other) - frame.size().get (other));
 
-                    let pos = GenericSize::new(cross, main).to_point(self.axis);
+                    let pos = GenericSize:: new (cross, main).to_point(self.axis);
                     cursor += child;
                     output.push_frame(pos, frame);
                 }
@@ -416,11 +308,7 @@ impl<'a> StackLayouter<'a>
     }
 
     /// Finish layouting and return the resulting frames.
-    fn finish(mut self) -> SourceResult<Fragment>
-    {
-        self.finish_region()?;
-        Ok(Fragment::frames(self.finished))
-    }
+    fn finish(mut self)->SourceResult<Fragment> { self.finish_region()?; Ok(Fragment::frames(self.finished)) }
 }
 
 /// A generic size with main and cross axes. The axes are generic, meaning the
@@ -434,36 +322,20 @@ struct GenericSize<T>
     pub main: T,
 }
 
-impl<T> GenericSize<T>
+impl <T> GenericSize<T>
 {
     /// Create a new instance from the two components.
-    const fn new(cross: T, main: T) -> Self
-    {
-        Self { cross, main }
-    }
+    const fn new (cross: T, main: T)->Self { Self { cross, main } }
 
     /// Convert to the specific representation, given the current main axis.
-    fn into_axes(self, main: Axis) -> Axes<T>
-    {
-        match main
-        {
-            Axis::X => Axes::new(self.main, self.cross),
-            Axis::Y => Axes::new(self.cross, self.main),
-        }
-    }
+    fn into_axes(self, main: Axis)->Axes<T> { match main { Axis::X => Axes::new (self.main, self.cross), Axis::Y => Axes::new (self.cross, self.main), } }
 }
 
 impl GenericSize<Abs>
 {
     /// The zero value.
-    fn zero() -> Self
-    {
-        Self { cross: Abs::zero(), main: Abs::zero() }
-    }
+    fn zero()->Self { Self { cross: Abs::zero(), main: Abs::zero() } }
 
     /// Convert to a point.
-    fn to_point(self, main: Axis) -> Point
-    {
-        self.into_axes(main).to_point()
-    }
+    fn to_point(self, main: Axis)->Point { self.into_axes(main).to_point() }
 }

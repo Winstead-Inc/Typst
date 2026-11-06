@@ -1,7 +1,7 @@
 use typst_syntax::LooselySpanned;
 
-use crate::foundations::{Content, Func, Smart, cast, elem};
-use crate::layout::{Angle, Em, Length, Ratio, Rel};
+use crate::foundations:: { Content, Func, Smart, cast, elem };
+use crate::layout:: { Angle, Em, Length, Ratio, Rel };
 use crate::math::Mathy;
 use crate::visualize::Stroke;
 
@@ -20,7 +20,7 @@ use crate::visualize::Stroke;
 pub struct CancelElem
 {
     /// The content over which the line should be placed.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The length of the line, relative to the length of the diagonal spanning
@@ -32,7 +32,7 @@ pub struct CancelElem
     /// $ a + cancel(x, length: #200%)
     ///     - cancel(x, length: #200%) $
     /// ```
-    #[default(Rel::new(Ratio::one(), Em::new(0.3).into()))]
+    # [default (Rel::new (Ratio::one(), Em::new (0.3).into()))]
     pub length: Rel<Length>,
 
     /// Whether the cancel line should be inverted (flipped along the y-axis).
@@ -44,7 +44,7 @@ pub struct CancelElem
     /// $ (a cancel((b + c), inverted: #true)) /
     ///     cancel(b + c, inverted: #true) $
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub inverted: bool,
 
     /// Whether two opposing cancel lines should be drawn, forming a cross over
@@ -54,7 +54,7 @@ pub struct CancelElem
     /// >>> #set page(width: 140pt)
     /// $ cancel(Pi, cross: #true) $
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub cross: bool,
 
     /// How much to rotate the cancel line.
@@ -91,12 +91,19 @@ pub struct CancelElem
     ///   ),
     /// ) $
     /// ```
-    #[fold]
-    #[default(Stroke {
-        // Default stroke has 0.05em for better visuals.
-        thickness: Smart::Custom(Em::new(0.05).into()),
-        ..Default::default()
-    })]
+    # [fold]
+    #
+    [
+        default
+        (
+            Stroke
+            {
+                // Default stroke has 0.05em for better visuals.
+                thickness: Smart::Custom(Em::new (0.05).into()),
+                ..Default:: default()
+            }
+        )
+    ]
     pub stroke: Stroke,
 
     /// Whether the line is placed behind the content.
@@ -107,24 +114,18 @@ pub struct CancelElem
     /// $ cancel("behind", background: #true) \
     ///   cancel("in front", background: #false) $
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub background: bool,
 }
 
 /// Defines the cancel line.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum CancelAngle
-{
-    Angle(Angle),
-    Func(Func),
-}
+pub enum CancelAngle { Angle(Angle), Func(Func), }
 
-cast! {
+cast!
+{
     CancelAngle,
-    self => match self {
-        Self::Angle(v) => v.into_value(),
-        Self::Func(v) => v.into_value()
-    },
+    self => match self { Self::Angle(v) => v.into_value(), Self::Func(v) => v.into_value() },
     v: Angle => CancelAngle::Angle(v),
     v: Func => CancelAngle::Func(v),
 }

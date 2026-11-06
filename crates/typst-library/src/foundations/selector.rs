@@ -1,36 +1,31 @@
-use std::any::{Any, TypeId};
+use std::any:: { Any, TypeId };
 use std::sync::Arc;
 
 use comemo::Tracked;
-use ecow::{EcoString, EcoVec, eco_format};
+use ecow:: { EcoString, EcoVec, eco_format };
 use smallvec::SmallVec;
 use typst_syntax::Span;
 
-use crate::diag::{At, HintedStrResult, SourceResult, StrResult, bail};
+use crate::diag:: { At, HintedStrResult, SourceResult, StrResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     CastInfo, Content, Context, Dict, Element, FromValue, Func, Label, Reflect, Regex,
     Repr, Str, StyleChain, Symbol, Type, Value, cast, func, repr, scope, ty,
 };
-use crate::introspection::{Location, QueryUniqueIntrospection};
+use crate::introspection:: { Location, QueryUniqueIntrospection };
 
 /// A helper macro to create a field selector used in [`Selector::Elem`]
 #[macro_export]
 #[doc(hidden)]
-macro_rules! __select_where {
-    ($ty:ty $(, $field:ident => $value:expr)* $(,)?) => {{
-        #[allow(unused_mut)]
-        let mut fields = $crate::foundations::SmallVec::new();
-        $(
-            fields.push((
-                <$ty>::$field.index(),
-                $crate::foundations::IntoValue::into_value($value),
-            ));
-        )*
-        $crate::foundations::Selector::Elem(
-            <$ty as $crate::foundations::NativeElement>::ELEM,
-            Some(fields),
-        )
+macro_rules! __select_where
+{
+    ($ty: ty $(, $field: ident => $value: expr) * $(,)?) =>
+    {{
+        # [allow(unused_mut)]
+        let mut fields = $crate::foundations::SmallVec:: new ();
+        $(fields.push(( < $ty >:: $field.index(), $crate::foundations::IntoValue::into_value($value),));) *
+        $crate::foundations::Selector::Elem( < $ty as $crate::foundations::NativeElement >:: ELEM, Some(fields),)
     }};
 }
 
@@ -79,7 +74,7 @@ pub enum Selector
     ///
     /// If there is a dictionary, only elements with the fields from the
     /// dictionary match.
-    Elem(Element, Option<SmallVec<[(u8, Value); 1]>>),
+    Elem(Element, Option < SmallVec < [(u8, Value); 1] >>),
     /// Matches the element at the specified location.
     Location(Location),
     /// Matches elements with a specific label.
@@ -95,84 +90,53 @@ pub enum Selector
     /// Matches if all of the subselectors match.
     And(EcoVec<Self>),
     /// Matches all matches of `selector` before `end`.
-    Before
-    {
-        selector: Arc<Self>, end: Arc<Self>, inclusive: bool
-    },
+    Before { selector: Arc<Self>, end: Arc<Self>, inclusive: bool },
+
     /// Matches all matches of `selector` after `start`.
-    After
-    {
-        selector: Arc<Self>, start: Arc<Self>, inclusive: bool
-    },
+    After { selector: Arc<Self>, start: Arc<Self>, inclusive: bool },
     /// Matches all matches of `selector` that are strictly within `ancestor`.
     ///
     /// This is not yet exposed, but used internally.
-    Within
-    {
-        selector: Arc<Self>, ancestor: Arc<Self>
-    },
+    Within { selector: Arc<Self>, ancestor: Arc<Self> },
 }
 
 impl Selector
 {
     /// Define a simple text selector.
-    pub fn text(text: &str) -> StrResult<Self>
-    {
-        if text.is_empty()
-        {
-            bail!("text selector is empty");
-        }
-        Ok(Self::Regex(Regex::new(&regex::escape(text)).unwrap()))
-    }
+    pub fn text(text: & str)->StrResult<Self> { if text.is_empty() { bail ! ("text selector is empty"); } Ok(Self::Regex(Regex::new ( & regex::escape(text)).unwrap())) }
 
     /// Define a regex selector.
-    pub fn regex(regex: Regex) -> StrResult<Self>
+    pub fn regex(regex: Regex)->StrResult<Self>
     {
-        if regex.as_str().is_empty()
-        {
-            bail!("regex selector is empty");
-        }
-        if regex.is_match("")
-        {
-            bail!("regex matches empty text");
-        }
+        if regex.as_str().is_empty() { bail ! ("regex selector is empty"); }
+        if regex.is_match("") { bail ! ("regex matches empty text"); }
         Ok(Self::Regex(regex))
     }
 
     /// Define a simple [`Selector::Can`] selector.
-    pub fn can<T: ?Sized + Any>() -> Self
-    {
-        Self::Can(TypeId::of::<T>())
-    }
+    pub fn can<T: ? Sized + Any>()->Self { Self::Can(TypeId::of::<T>()) }
 
     /// Whether the selector matches for the target.
-    pub fn matches(&self, target: &Content, styles: Option<StyleChain>) -> bool
+    pub fn matches( & self, target: & Content, styles: Option<StyleChain>)-> bool
     {
         match self
         {
             Self::Elem(element, dict) =>
             {
-                target.elem() == *element
-                    && dict.iter().flat_map(|dict| dict.iter()).all(|(id, value)| {
-                        target.get(*id, styles).as_ref().ok() == Some(value)
-                    })
+                target.elem() == * element
+                && dict.iter().flat_map( | dict | dict.iter()).all( | (id, value) | { target.get ( * id, styles).as_ref().ok() == Some(value) })
             }
-            Self::Label(label) => target.label() == Some(*label),
-            Self::Can(cap) => target.func().can_type_id(*cap),
-            Self::Or(selectors) =>
-            {
-                selectors.iter().any(move |sel| sel.matches(target, styles))
-            }
-            Self::And(selectors) =>
-            {
-                selectors.iter().all(move |sel| sel.matches(target, styles))
-            }
-            Self::Location(location) => target.location() == Some(*location),
+            Self::Label(label) => target.label() == Some( * label),
+            Self::Can(cap) => target.func().can_type_id( * cap),
+            Self::Or(selectors) => { selectors.iter().any(move | sel | sel.matches(target, styles)) }
+            Self::And(selectors) => { selectors.iter().all(move | sel | sel.matches(target, styles)) }
+            Self::Location(location) => target.location() == Some( * location),
             // Not supported here.
             Self::Regex(_)
-            | Self::Before { .. }
-            | Self::After { .. }
-            | Self::Within { .. } => false,
+            | Self::Before {.. }
+            | Self::After {.. }
+            | Self::Within {.. }
+            => false,
         }
     }
 }
@@ -186,88 +150,75 @@ impl Selector
     /// - A `{<label>}`.
     /// - A @location.
     /// - A more complex selector like `{heading.where(level: 1)}`.
-    #[func(constructor, since = "0.3.0")]
-    pub fn construct(
+    # [func(constructor, since = "0.3.0")]
+    pub fn construct
+    (
         /// Can be an element function like a `heading` or `figure`, a
         /// `{<label>}` or a more complex selector like
         /// `{heading.where(level: 1)}`.
         target: Selector,
-    ) -> Selector
-    {
-        target
-    }
+    )
+   ->Selector { target }
 
     /// Selects all elements that match this or any of the other selectors.
-    #[func(since = "0.3.0")]
-    pub fn or(
+    # [func(since = "0.3.0")]
+    pub fn or
+    (
         self,
         /// The other selectors to match on.
-        #[variadic]
+        # [variadic]
         others: Vec<Selector>,
-    ) -> Selector
-    {
-        Self::Or(others.into_iter().chain(Some(self)).collect())
-    }
+    )
+   ->Selector { Self::Or(others.into_iter().chain(Some(self)).collect()) }
 
     /// Selects all elements that match this and all of the other selectors.
-    #[func(since = "0.3.0")]
-    pub fn and(
+    # [func(since = "0.3.0")]
+    pub fn and
+    (
         self,
         /// The other selectors to match on.
-        #[variadic]
+        # [variadic]
         others: Vec<Selector>,
-    ) -> Selector
-    {
-        Self::And(others.into_iter().chain(Some(self)).collect())
-    }
+    )
+   ->Selector { Self::And(others.into_iter().chain(Some(self)).collect()) }
 
     /// Returns a modified selector that will only match elements that occur
     /// before the first match of `end`.
     ///
     /// _Note:_ This selector is currently only supported with introspection
     /// functions, not in show rules.
-    #[func(since = "0.3.0")]
-    pub fn before(
+    # [func(since = "0.3.0")]
+    pub fn before
+    (
         self,
         /// The original selection will end at the first match of `end`.
         end: LocatableSelector,
         /// Whether `end` itself should match or not. This is only relevant if
         /// both selectors match the same type of element. Defaults to `{true}`.
-        #[named]
-        #[default(true)]
+        # [named]
+        # [default (true)]
         inclusive: bool,
-    ) -> Selector
-    {
-        Self::Before {
-            selector: Arc::new(self),
-            end: Arc::new(end.0),
-            inclusive,
-        }
-    }
+    )
+   ->Selector { Self::Before { selector: Arc::new (self), end: Arc::new (end .0), inclusive, } }
 
     /// Returns a modified selector that will only match elements that occur
     /// after the first match of `start`.
     ///
     /// _Note:_ This selector is currently only supported with introspection
     /// functions, not in show rules.
-    #[func(since = "0.3.0")]
-    pub fn after(
+    # [func(since = "0.3.0")]
+    pub fn after
+    (
         self,
         /// The original selection will start at the first match of `start`.
         start: LocatableSelector,
         /// Whether `start` itself should match or not. This is only relevant if
         /// both selectors match the same type of element. Defaults to `{true}`.
-        #[named]
-        #[default(true)]
+        # [named]
+        # [default (true)]
         inclusive: bool,
-    ) -> Selector
-    {
-        Self::After {
-            selector: Arc::new(self),
-            start: Arc::new(start.0),
-            inclusive,
-        }
-    }
+    )
+   ->Selector { Self::After { selector: Arc::new (self), start: Arc::new (start .0), inclusive, } }
 
     /// Returns a modified selector that will only match elements that are
     /// contained within any elements matching the `ancestor` selector.
@@ -309,34 +260,24 @@ impl Selector
     ///
     /// _Note:_ This selector is currently only supported with introspection
     /// functions, not in show rules.
-    #[func(since = "0.15.0")]
-    pub fn within(
+    # [func(since = "0.15.0")]
+    pub fn within
+    (
         self,
         /// Only matches of `self` that are descendants of any element matching
         /// this selector will be included in the output.
         ///
         /// An element is not considered its own ancestor.
         ancestor: LocatableSelector,
-    ) -> Selector
-    {
-        Selector::Within {
-            selector: Arc::new(self),
-            ancestor: Arc::new(ancestor.0),
-        }
-    }
+    )
+   ->Selector { Selector::Within { selector: Arc::new (self), ancestor: Arc::new (ancestor .0), } }
 }
 
-impl From<Location> for Selector
-{
-    fn from(value: Location) -> Self
-    {
-        Self::Location(value)
-    }
-}
+impl From<Location> for Selector { fn from(value: Location)->Self { Self::Location(value) } }
 
 impl Repr for Selector
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
         match self
         {
@@ -345,16 +286,13 @@ impl Repr for Selector
                 if let Some(dict) = dict
                 {
                     let dict = dict
-                        .iter()
-                        .map(|(id, value)| (elem.field_name(*id).unwrap(), value.clone()))
-                        .map(|(name, value)| (EcoString::from(name).into(), value))
-                        .collect::<Dict>();
+                    .iter()
+                    .map( | (id, value) | (elem.field_name( * id).unwrap(), value.clone()))
+                    .map( | (name, value) | (EcoString::from(name).into(), value))
+                    .collect::<Dict>();
                     eco_format!("{}.where{}", elem.name(), dict.repr())
                 }
-                else
-                {
-                    elem.name().into()
-                }
+                else { elem.name().into() }
             }
             Self::Label(label) => label.repr(),
             Self::Regex(regex) => regex.repr(),
@@ -362,43 +300,33 @@ impl Repr for Selector
             Self::Or(selectors) | Self::And(selectors) =>
             {
                 let function = if matches!(self, Self::Or(_)) { "or" } else { "and" };
-                let pieces: Vec<_> = selectors.iter().map(Selector::repr).collect();
-                eco_format!(
-                    "selector.{}{}",
-                    function,
-                    repr::pretty_array_like(&pieces, false)
-                )
+                let pieces: Vec < _ > = selectors.iter().map(Selector::repr).collect();
+                eco_format!("selector.{}{}", function, repr::pretty_array_like( & pieces, false))
             }
             Self::Location(loc) => loc.repr(),
             Self::Before { selector, end: split, inclusive }
-            | Self::After { selector, start: split, inclusive } =>
+            | Self::After { selector, start: split, inclusive }
+            =>
             {
                 let method =
-                    if matches!(self, Self::Before { .. }) { "before" } else { "after" };
-                let inclusive_arg = if !*inclusive { ", inclusive: false" } else { "" };
-                eco_format!(
-                    "{}.{}({}{})",
-                    selector.repr(),
-                    method,
-                    split.repr(),
-                    inclusive_arg
-                )
+                if matches!(self, Self::Before {.. }) { "before" } else { "after" };
+                let inclusive_arg = if !* inclusive { ", inclusive: false" } else { "" };
+                eco_format!("{}.{}({}{})", selector.repr(), method, split.repr(), inclusive_arg)
             }
-            Self::Within { selector, ancestor } =>
-            {
-                eco_format!("{}.within({})", selector.repr(), ancestor.repr(),)
-            }
+            Self::Within { selector, ancestor }
+            => { eco_format ! ("{}.within({})", selector.repr(), ancestor.repr(),) }
         }
     }
 }
 
-cast! {
+cast!
+{
     type Selector,
-    text: EcoString => Self::text(&text)?,
+    text: EcoString => Self::text( & text)?,
     func: Func => func
-        .to_element()
-        .ok_or("only element functions can be used as selectors")?
-        .select(),
+    .to_element()
+    .ok_or("only element functions can be used as selectors")?
+    .select(),
     label: Label => Self::Label(label),
     regex: Regex => Self::regex(regex)?,
     location: Location => Self::Location(location),
@@ -414,23 +342,18 @@ pub struct LocatableSelector(pub Selector);
 impl LocatableSelector
 {
     /// Resolve this selector into a location that is guaranteed to be unique.
-    pub fn resolve_unique(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        span: Span,
-    ) -> SourceResult<Location>
+    pub fn resolve_unique( & self, engine: & mut Engine, context: Tracked<Context>, span: Span,)->SourceResult<Location>
     {
-        match self.0.clone()
+        match self .0.clone()
         {
             Selector::Location(loc) => Ok(loc),
             other =>
             {
                 context.introspect().at(span)?;
                 engine
-                    .introspect(QueryUniqueIntrospection(other, span))
-                    .map(|c| c.location().unwrap())
-                    .at(span)
+                .introspect(QueryUniqueIntrospection(other, span))
+                .map( | c | c.location().unwrap())
+                .at(span)
             }
         }
     }
@@ -438,100 +361,59 @@ impl LocatableSelector
 
 impl Reflect for LocatableSelector
 {
-    fn input() -> CastInfo
+    fn input()->CastInfo
     {
-        CastInfo::Union(vec![
-            CastInfo::Type(Type::of::<Label>()),
-            CastInfo::Type(Type::of::<Func>()),
-            CastInfo::Type(Type::of::<Location>()),
-            CastInfo::Type(Type::of::<Selector>()),
-        ])
+        CastInfo::Union
+        (
+            vec!
+            [
+                CastInfo::Type(Type::of::<Label>()),
+                CastInfo::Type(Type::of::<Func>()),
+                CastInfo::Type(Type::of::<Location>()),
+                CastInfo::Type(Type::of::<Selector>()),
+            ]
+        )
     }
 
-    fn output() -> CastInfo
-    {
-        CastInfo::Type(Type::of::<Selector>())
-    }
+    fn output()->CastInfo { CastInfo::Type(Type::of::<Selector>()) }
 
-    fn castable(value: &Value) -> bool
-    {
-        Label::castable(value)
-            || Func::castable(value)
-            || Location::castable(value)
-            || Selector::castable(value)
-    }
+    fn castable(value: & Value)-> bool { Label::castable(value) || Func::castable(value) || Location::castable(value) || Selector::castable(value) }
 }
 
-cast! {
-    LocatableSelector,
-    self => self.0.into_value(),
-}
+cast! { LocatableSelector, self => self .0.into_value(), }
 
 impl FromValue for LocatableSelector
 {
-    fn from_value(value: Value) -> HintedStrResult<Self>
+    fn from_value(value: Value)->HintedStrResult<Self>
     {
-        fn validate(selector: &Selector) -> StrResult<()>
+        fn validate(selector: & Selector)->StrResult<()>
         {
             match selector
             {
-                Selector::Elem(elem, _) =>
-                {
-                    if !elem.is_locatable() || elem.is_unqueriable()
-                    {
-                        Err(eco_format!("{} is not locatable", elem.name()))?;
-                    }
-                }
-                Selector::Location(_) =>
-                {}
-                Selector::Label(_) =>
-                {}
+                Selector::Elem(elem, _) => { if ! elem.is_locatable() || elem.is_unqueriable() { Err(eco_format ! ("{} is not locatable", elem.name()))?; } }
+                Selector::Location(_) => {}
+                Selector::Label(_) => {}
                 Selector::Regex(_) => bail!("text is not locatable"),
                 Selector::Can(_) => bail!("capability is not locatable"),
-                Selector::Or(list) | Selector::And(list) =>
-                {
-                    for selector in list
-                    {
-                        validate(selector)?;
-                    }
-                }
-                Selector::Before { selector, end: split, .. }
-                | Selector::After { selector, start: split, .. } =>
-                {
-                    for selector in [selector, split]
-                    {
-                        validate(selector)?;
-                    }
-                }
-                Selector::Within { selector, ancestor } =>
-                {
-                    for selector in [selector, ancestor]
-                    {
-                        validate(selector)?;
-                    }
-                }
+                Selector::Or(list) | Selector::And(list) => { for selector in list { validate(selector)?; } }
+                Selector::Before { selector, end: split,.. }
+                | Selector::After { selector, start: split,.. }
+                => { for selector in[selector, split] { validate(selector)?; } }
+                Selector::Within { selector, ancestor }
+                => { for selector in[selector, ancestor] { validate(selector)?; } }
             }
             Ok(())
         }
 
-        if !Self::castable(&value)
-        {
-            return Err(Self::error(&value));
-        }
+        if ! Self::castable( & value) { return Err(Self::error( & value)); }
 
         let selector = Selector::from_value(value)?;
-        validate(&selector)?;
+        validate( & selector)?;
         Ok(Self(selector))
     }
 }
 
-impl From<Location> for LocatableSelector
-{
-    fn from(loc: Location) -> Self
-    {
-        Self(Selector::Location(loc))
-    }
-}
+impl From<Location> for LocatableSelector { fn from(loc: Location)->Self { Self(Selector::Location(loc)) } }
 
 /// A selector that can be used with show rules.
 ///
@@ -542,86 +424,65 @@ pub struct ShowableSelector(pub Selector);
 
 impl Reflect for ShowableSelector
 {
-    fn input() -> CastInfo
+    fn input()->CastInfo
     {
-        CastInfo::Union(vec![
-            CastInfo::Type(Type::of::<Symbol>()),
-            CastInfo::Type(Type::of::<Str>()),
-            CastInfo::Type(Type::of::<Label>()),
-            CastInfo::Type(Type::of::<Func>()),
-            CastInfo::Type(Type::of::<Regex>()),
-            CastInfo::Type(Type::of::<Selector>()),
-        ])
+        CastInfo::Union
+        (
+            vec!
+            [
+                CastInfo::Type(Type::of::<Symbol>()),
+                CastInfo::Type(Type::of::<Str>()),
+                CastInfo::Type(Type::of::<Label>()),
+                CastInfo::Type(Type::of::<Func>()),
+                CastInfo::Type(Type::of::<Regex>()),
+                CastInfo::Type(Type::of::<Selector>()),
+            ]
+        )
     }
 
-    fn output() -> CastInfo
-    {
-        CastInfo::Type(Type::of::<Selector>())
-    }
+    fn output()->CastInfo { CastInfo::Type(Type::of::<Selector>()) }
 
-    fn castable(value: &Value) -> bool
+    fn castable(value: & Value)-> bool
     {
         Symbol::castable(value)
-            || Str::castable(value)
-            || Label::castable(value)
-            || Func::castable(value)
-            || Regex::castable(value)
-            || Selector::castable(value)
+        || Str::castable(value)
+        || Label::castable(value)
+        || Func::castable(value)
+        || Regex::castable(value)
+        || Selector::castable(value)
     }
 }
 
-cast! {
-    ShowableSelector,
-    self => self.0.into_value(),
-}
+cast! { ShowableSelector, self => self .0.into_value(), }
 
 impl FromValue for ShowableSelector
 {
-    fn from_value(value: Value) -> HintedStrResult<Self>
+    fn from_value(value: Value)->HintedStrResult<Self>
     {
-        fn validate(selector: &Selector, nested: bool) -> HintedStrResult<()>
+        fn validate(selector: & Selector, nested: bool)->HintedStrResult<()>
         {
             match selector
             {
-                Selector::Elem(_, _) =>
-                {}
-                Selector::Label(_) =>
-                {}
-                Selector::Regex(_) if !nested =>
-                {}
-                Selector::Or(list) | Selector::And(list) =>
-                {
-                    for selector in list
-                    {
-                        validate(selector, true)?;
-                    }
-                }
+                Selector::Elem(_, _) => {}
+                Selector::Label(_) => {}
+                Selector::Regex(_) if ! nested => {}
+                Selector::Or(list) | Selector::And(list) => { for selector in list { validate(selector, true)?; } }
                 Selector::Regex(_)
                 | Selector::Location(_)
                 | Selector::Can(_)
-                | Selector::Before { .. }
-                | Selector::After { .. } =>
-                {
-                    bail!("this selector cannot be used with show")
-                }
-                Selector::Within { .. } =>
-                {
-                    bail!(
-                        "this selector cannot currently be used with show";
-                        hint: "support for this is planned for the future";
-                    )
-                }
+                | Selector::Before {.. }
+                | Selector::After {.. }
+                => { bail ! ("this selector cannot be used with show") }
+                Selector::Within {.. }
+                => { bail ! ("this selector cannot currently be used with show"; hint: "support for this is planned for the future";) }
             }
             Ok(())
         }
 
-        if !Self::castable(&value)
-        {
-            return Err(Self::error(&value));
-        }
+        if ! Self::castable( & value) { return Err(Self::error( & value)); }
 
         let selector = Selector::from_value(value)?;
-        validate(&selector, false)?;
+        validate( & selector, false)?;
         Ok(Self(selector))
     }
 }

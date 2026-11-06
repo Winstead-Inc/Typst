@@ -1,5 +1,5 @@
-use crate::foundations::{Cast, Content, Smart, elem, scope};
-use crate::layout::{Alignment, Em, Length, Rel};
+use crate::foundations:: { Cast, Content, Smart, elem, scope };
+use crate::layout:: { Alignment, Em, Length, Rel };
 
 /// Places content relatively to its parent container.
 ///
@@ -83,8 +83,8 @@ pub struct PlaceElem
     ///
     /// When `float` is `{false}` and no vertical alignment is specified, the
     /// content is placed at the current position on the vertical axis.
-    #[positional]
-    #[default(Smart::Custom(Alignment::START))]
+    # [positional]
+    # [default (Smart::Custom(Alignment::START))]
     pub alignment: Smart<Alignment>,
 
     /// Relative to which containing scope something is placed.
@@ -141,7 +141,7 @@ pub struct PlaceElem
     /// layout.
     ///
     /// Has no effect if `float` is `{false}`.
-    #[default(Em::new(1.5).into())]
+    # [default (Em::new (1.5).into())]
     pub clearance: Length,
 
     /// The horizontal displacement of the placed content.
@@ -170,23 +170,19 @@ pub struct PlaceElem
     pub dy: Rel<Length>,
 
     /// The content to place.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 #[scope]
-impl PlaceElem
-{
-    #[elem]
-    type FlushElem;
-}
+impl PlaceElem { # [elem] type FlushElem; }
 
 /// Relative to which containing scope something shall be placed.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, Cast)]
 pub enum PlacementScope
 {
     /// Place into the current column.
-    #[default]
+    # [default]
     Column,
     /// Place relative to the parent, letting the content span over all columns.
     Parent,

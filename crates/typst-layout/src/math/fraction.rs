@@ -1,25 +1,20 @@
 use typst_library::diag::SourceResult;
-use typst_library::foundations::{Resolve, StyleChain};
-use typst_library::layout::{Abs, Axis, Frame, FrameItem, Point, Size};
+use typst_library::foundations:: { Resolve, StyleChain };
+use typst_library::layout:: { Abs, Axis, Frame, FrameItem, Point, Size };
 use typst_library::math::MathSize;
-use typst_library::math::ir::{FractionItem, MathProperties, SkewedFractionItem};
+use typst_library::math::ir:: { FractionItem, MathProperties, SkewedFractionItem };
 use typst_library::text::TextElem;
-use typst_library::visualize::{FixedStroke, Geometry};
+use typst_library::visualize:: { FixedStroke, Geometry };
 
 use super::MathContext;
 use super::fragment::FrameFragment;
 
 /// Lays out a [`FractionItem`].
 #[typst_macros::time(name = "math fraction layout", span = props.span)]
-pub fn layout_fraction(
-    item: &FractionItem,
-    ctx: &mut MathContext,
-    styles: StyleChain,
-    props: &MathProperties,
-) -> SourceResult<()>
+pub fn layout_fraction(item: & FractionItem, ctx: & mut MathContext, styles: StyleChain, props: & MathProperties,)->SourceResult<()>
 {
-    let num = ctx.layout_into_fragment(&item.numerator, styles)?.into_frame();
-    let denom = ctx.layout_into_fragment(&item.denominator, styles)?.into_frame();
+    let num = ctx.layout_into_fragment( & item.numerator, styles)?.into_frame();
+    let denom = ctx.layout_into_fragment( & item.denominator, styles)?.into_frame();
 
     let constants = ctx.font().math();
     let size = styles.resolve(TextElem::size);
@@ -29,46 +24,26 @@ pub fn layout_fraction(
     {
         let axis = constants.axis_height.at(size);
         let thickness = constants.fraction_rule_thickness.at(size);
-        let shift_up = match math_size
-        {
-            MathSize::Display => constants.fraction_numerator_display_style_shift_up,
-            _ => constants.fraction_numerator_shift_up,
-        }
+        let shift_up = match math_size { MathSize::Display => constants.fraction_numerator_display_style_shift_up, _ => constants.fraction_numerator_shift_up, }
         .at(size);
-        let shift_down = match math_size
-        {
-            MathSize::Display => constants.fraction_denominator_display_style_shift_down,
-            _ => constants.fraction_denominator_shift_down,
-        }
+        let shift_down = match math_size { MathSize::Display => constants.fraction_denominator_display_style_shift_down, _ => constants.fraction_denominator_shift_down, }
         .at(size);
-        let num_min = match math_size
-        {
-            MathSize::Display => constants.fraction_num_display_style_gap_min,
-            _ => constants.fraction_numerator_gap_min,
-        }
+        let num_min = match math_size { MathSize::Display => constants.fraction_num_display_style_gap_min, _ => constants.fraction_numerator_gap_min, }
         .at(size);
-        let denom_min = match math_size
-        {
-            MathSize::Display => constants.fraction_denom_display_style_gap_min,
-            _ => constants.fraction_denominator_gap_min,
-        }
+        let denom_min = match math_size { MathSize::Display => constants.fraction_denom_display_style_gap_min, _ => constants.fraction_denominator_gap_min, }
         .at(size);
 
         let num_gap = (shift_up - (axis + thickness / 2.0) - num.descent()).max(num_min);
-        let denom_gap =
-            (shift_down + (axis - thickness / 2.0) - denom.ascent()).max(denom_min);
+        let denom_gap = (shift_down + (axis - thickness / 2.0) - denom.ascent()).max(denom_min);
 
         let line_width = num.width().max(denom.width());
         let width = line_width + 2.0 * item.padding.at(size);
         let height = num.height() + num_gap + thickness + denom_gap + denom.height();
-        let size = Size::new(width, height);
+        let size = Size:: new (width, height);
         let num_pos = Point::with_x((width - num.width()) / 2.0);
-        let line_pos = Point::new(
-            (width - line_width) / 2.0,
-            num.height() + num_gap + thickness / 2.0,
-        );
+        let line_pos = Point:: new ((width - line_width) / 2.0, num.height() + num_gap + thickness / 2.0,);
         let denom_pos =
-            Point::new((width - denom.width()) / 2.0, height - denom.height());
+        Point:: new ((width - denom.width()) / 2.0, height - denom.height());
         let baseline = line_pos.y + axis;
 
         let mut frame = Frame::soft(size);
@@ -79,47 +54,32 @@ pub fn layout_fraction(
         let text_fill = styles.get_ref(TextElem::fill).as_decoration();
         let line = match styles.get_ref(TextElem::stroke)
         {
-            Some(stroke) => Geometry::Rect(Size::new(line_width, thickness))
-                .filled_and_stroked(
-                    text_fill.clone(),
-                    stroke.clone().resolve(styles).unwrap_or_default(),
-                ),
+            Some(stroke) => Geometry::Rect(Size::new (line_width, thickness))
+            .filled_and_stroked(text_fill.clone(), stroke.clone().resolve(styles).unwrap_or_default(),),
             None => Geometry::Line(Point::with_x(line_width))
-                .stroked(FixedStroke::from_pair(text_fill, thickness)),
+            .stroked(FixedStroke::from_pair(text_fill, thickness)),
         };
         frame.push(line_pos, FrameItem::Shape(line, props.span));
         frame
     }
     else
     {
-        let shift_up = match math_size
-        {
-            MathSize::Display => constants.stack_top_display_style_shift_up,
-            _ => constants.stack_top_shift_up,
-        }
+        let shift_up = match math_size { MathSize::Display => constants.stack_top_display_style_shift_up, _ => constants.stack_top_shift_up, }
         .at(size);
-        let shift_down = match math_size
-        {
-            MathSize::Display => constants.stack_bottom_display_style_shift_down,
-            _ => constants.stack_bottom_shift_down,
-        }
+        let shift_down = match math_size { MathSize::Display => constants.stack_bottom_display_style_shift_down, _ => constants.stack_bottom_shift_down, }
         .at(size);
-        let gap_min = match math_size
-        {
-            MathSize::Display => constants.stack_display_style_gap_min,
-            _ => constants.stack_gap_min,
-        }
+        let gap_min = match math_size { MathSize::Display => constants.stack_display_style_gap_min, _ => constants.stack_gap_min, }
         .at(size);
 
         let gap = (shift_up - num.descent()) + (shift_down - denom.ascent());
 
         let width = num.width().max(denom.width()) + 2.0 * item.padding.at(size);
         let height = num.height() + gap.max(gap_min) + denom.height();
-        let size = Size::new(width, height);
+        let size = Size:: new (width, height);
 
         let num_pos = Point::with_x((width - num.width()) / 2.0);
         let denom_pos =
-            Point::new((width - denom.width()) / 2.0, height - denom.height());
+        Point:: new ((width - denom.width()) / 2.0, height - denom.height());
 
         let baseline = num.ascent() + shift_up + (gap_min - gap).max(Abs::zero()) / 2.0;
         let mut frame = Frame::soft(size);
@@ -129,18 +89,13 @@ pub fn layout_fraction(
         frame
     };
 
-    ctx.push(FrameFragment::new(props, styles, frame));
+    ctx.push(FrameFragment::new (props, styles, frame));
     Ok(())
 }
 
 /// Lay out a skewed fraction.
 #[typst_macros::time(name = "math skewed fraction layout", span = props.span)]
-pub fn layout_skewed_fraction(
-    item: &SkewedFractionItem,
-    ctx: &mut MathContext,
-    styles: StyleChain,
-    props: &MathProperties,
-) -> SourceResult<()>
+pub fn layout_skewed_fraction(item: & SkewedFractionItem, ctx: & mut MathContext, styles: StyleChain, props: & MathProperties,)->SourceResult<()>
 {
     // Font-derived constants
     let constants = ctx.font().math();
@@ -149,9 +104,9 @@ pub fn layout_skewed_fraction(
     let hgap = constants.skewed_fraction_horizontal_gap.at(size);
     let axis = constants.axis_height.at(size);
 
-    let num_frame = ctx.layout_into_fragment(&item.numerator, styles)?.into_frame();
+    let num_frame = ctx.layout_into_fragment( & item.numerator, styles)?.into_frame();
     let num_size = num_frame.size();
-    let denom_frame = ctx.layout_into_fragment(&item.denominator, styles)?.into_frame();
+    let denom_frame = ctx.layout_into_fragment( & item.denominator, styles)?.into_frame();
     let denom_size = denom_frame.size();
 
     // Height of the fraction frame
@@ -160,7 +115,7 @@ pub fn layout_skewed_fraction(
 
     // Build the slash glyph to calculate its size
     item.slash.set_stretch_relative_to(fraction_height, Axis::Y);
-    let slash_frag = ctx.layout_into_fragment(&item.slash, styles)?;
+    let slash_frag = ctx.layout_into_fragment( & item.slash, styles)?;
     let slash_frame = slash_frag.into_frame();
 
     // Adjust the fraction height if the slash overflows
@@ -169,24 +124,24 @@ pub fn layout_skewed_fraction(
     fraction_height.set_max(slash_size.y);
 
     // Reference points for all three objects, used to place them in the frame.
-    let mut slash_up_left = Point::new(num_size.x + hgap / 2.0, fraction_height / 2.0)
-        - slash_size.to_point() / 2.0;
+    let mut slash_up_left = Point:: new (num_size.x + hgap / 2.0, fraction_height / 2.0)
+    - slash_size.to_point() / 2.0;
     let mut num_up_left = Point::with_y(vertical_offset);
-    let mut denom_up_left = num_up_left + num_size.to_point() + Point::new(hgap, vgap);
+    let mut denom_up_left = num_up_left + num_size.to_point() + Point:: new (hgap, vgap);
 
     // Fraction width
     let fraction_width = (denom_up_left.x + denom_size.x)
-        .max(slash_up_left.x + slash_size.x)
-        + Abs::zero().max(-slash_up_left.x);
+    .max(slash_up_left.x + slash_size.x)
+    + Abs::zero().max( - slash_up_left.x);
     // We have to shift everything right to avoid going in the negatives for
     // the x coordinate
-    let horizontal_offset = Point::with_x(Abs::zero().max(-slash_up_left.x));
+    let horizontal_offset = Point::with_x(Abs::zero().max( - slash_up_left.x));
     slash_up_left += horizontal_offset;
     num_up_left += horizontal_offset;
     denom_up_left += horizontal_offset;
 
     // Build the final frame
-    let mut fraction_frame = Frame::soft(Size::new(fraction_width, fraction_height));
+    let mut fraction_frame = Frame::soft(Size::new (fraction_width, fraction_height));
 
     // Baseline (use axis height to center slash on the axis)
     fraction_frame.set_baseline(fraction_height / 2.0 + axis);
@@ -196,6 +151,6 @@ pub fn layout_skewed_fraction(
     fraction_frame.push_frame(denom_up_left, denom_frame);
     fraction_frame.push_frame(slash_up_left, slash_frame);
 
-    ctx.push(FrameFragment::new(props, styles, fraction_frame));
+    ctx.push(FrameFragment::new (props, styles, fraction_frame));
     Ok(())
 }

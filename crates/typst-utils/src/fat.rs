@@ -16,12 +16,13 @@ use std::ptr::NonNull;
 /// to a value whose type implements the trait of `T` and the `vtable` must have
 /// been extracted with [`vtable`].
 #[track_caller]
-pub unsafe fn from_raw_parts<T: ?Sized>(data: *const (), vtable: *const ()) -> *const T
+pub unsafe fn from_raw_parts<T: ? Sized>(data: * const (), vtable: * const ())-> * const T
 {
-    unsafe {
+    unsafe
+    {
         let fat = FatPointer { data, vtable };
-        debug_assert_eq!(Layout::new::<*const T>(), Layout::new::<FatPointer>());
-        mem::transmute_copy::<FatPointer, *const T>(&fat)
+        debug_assert_eq!(Layout::new:: <* const T > (), Layout::new::<FatPointer>());
+        mem::transmute_copy::<FatPointer, * const T>( & fat)
     }
 }
 
@@ -32,12 +33,13 @@ pub unsafe fn from_raw_parts<T: ?Sized>(data: *const (), vtable: *const ()) -> *
 /// to a value whose type implements the trait of `T` and the `vtable` must have
 /// been extracted with [`vtable`].
 #[track_caller]
-pub unsafe fn from_raw_parts_mut<T: ?Sized>(data: *mut (), vtable: *const ()) -> *mut T
+pub unsafe fn from_raw_parts_mut<T: ? Sized>(data: * mut (), vtable: * const ())-> * mut T
 {
-    unsafe {
+    unsafe
+    {
         let fat = FatPointer { data, vtable };
-        debug_assert_eq!(Layout::new::<*mut T>(), Layout::new::<FatPointer>());
-        mem::transmute_copy::<FatPointer, *mut T>(&fat)
+        debug_assert_eq!(Layout::new:: <* mut T > (), Layout::new::<FatPointer>());
+        mem::transmute_copy::<FatPointer, * mut T>( & fat)
     }
 }
 
@@ -46,13 +48,12 @@ pub unsafe fn from_raw_parts_mut<T: ?Sized>(data: *mut (), vtable: *const ()) ->
 /// # Safety
 /// Must only be called when `T` is a `dyn Trait`.
 #[track_caller]
-pub unsafe fn vtable<T: ?Sized>(ptr: *const T) -> NonNull<()>
+pub unsafe fn vtable<T: ? Sized>(ptr: * const T)->NonNull<()>
 {
-    unsafe {
-        debug_assert_eq!(Layout::new::<*const T>(), Layout::new::<FatPointer>());
-        NonNull::new_unchecked(
-            mem::transmute_copy::<*const T, FatPointer>(&ptr).vtable as *mut (),
-        )
+    unsafe
+    {
+        debug_assert_eq!(Layout::new:: <* const T > (), Layout::new::<FatPointer>());
+        NonNull::new_unchecked(mem::transmute_copy:: <* const T, FatPointer > ( & ptr).vtable as * mut (),)
     }
 }
 
@@ -61,8 +62,4 @@ pub unsafe fn vtable<T: ?Sized>(ptr: *const T) -> NonNull<()>
 /// Although this is not guaranteed by Rust, it's improbable that it will
 /// change.
 #[repr(C)]
-struct FatPointer
-{
-    data: *const (),
-    vtable: *const (),
-}
+struct FatPointer { data: * const (), vtable: * const (), }

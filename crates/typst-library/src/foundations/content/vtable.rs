@@ -34,7 +34,7 @@
 //! [vtable]: https://en.wikipedia.org/wiki/Virtual_method_table
 
 use std::any::TypeId;
-use std::fmt::{self, Debug, Formatter};
+use std::fmt:: { self, Debug, Formatter };
 use std::ops::Deref;
 use std::ptr::NonNull;
 
@@ -44,40 +44,30 @@ use typst_utils::DefSite;
 use super::raw::RawContent;
 use crate::diag::SourceResult;
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Args, CastInfo, Construct, Content, LazyElementStore, NativeElement, NativeScope,
     Packed, Repr, Scope, Set, Since, StyleChain, Styles, Value,
 };
-use crate::text::{Lang, LocalName, Region};
+use crate::text:: { Lang, LocalName, Region };
 
 /// Encapsulates content and a vtable, granting safe access to vtable operations.
-pub(super) struct Handle<T, V: 'static>(T, &'static V);
+pub (super) struct Handle<T, V: 'static>(T, & 'static V);
 
-impl<T, V> Handle<T, V>
+impl <T, V> Handle<T, V>
 {
     /// Produces a new handle from content and a vtable.
     ///
     /// # Safety
     /// The content and vtable must be matching, i.e. `vtable` must be derived
     /// from the content's vtable.
-    pub(super) unsafe fn new(content: T, vtable: &'static V) -> Self
-    {
-        Self(content, vtable)
-    }
+    pub (super) unsafe fn new (content: T, vtable: & 'static V)->Self { Self(content, vtable) }
 }
 
-impl<T, V> Deref for Handle<T, V>
-{
-    type Target = V;
+impl <T, V> Deref for Handle<T, V> { type Target = V; fn deref( & self)-> & Self::Target { self .1 } }
 
-    fn deref(&self) -> &Self::Target
-    {
-        self.1
-    }
-}
-
-pub(super) type ContentHandle<T> = Handle<T, ContentVtable>;
-pub(super) type FieldHandle<T> = Handle<T, FieldVtable>;
+pub (super) type ContentHandle < T > = Handle<T, ContentVtable>;
+pub (super) type FieldHandle < T > = Handle<T, FieldVtable>;
 
 /// A vtable for performing element-specific actions on type-erased content.
 /// Also contains general metadata for the specific element.
@@ -85,56 +75,56 @@ pub(super) type FieldHandle<T> = Handle<T, FieldVtable>;
 pub struct ContentVtable<T: 'static = RawContent>
 {
     /// The element's normal name, as in code.
-    pub(super) name: &'static str,
+    pub (super) name: & 'static str,
     /// The element's title-cased name.
-    pub(super) title: &'static str,
+    pub (super) title: & 'static str,
     /// The version of Typst the element was introduced in.
-    pub(super) since: Option<Since>,
+    pub (super) since: Option<Since>,
     /// The element's documentation (as Markdown).
-    pub(super) docs: &'static str,
+    pub (super) docs: & 'static str,
     /// Whether the element is defined in the source code.
-    pub(super) def_site: DefSite,
+    pub (super) def_site: DefSite,
     /// Search keywords for the documentation.
-    pub(super) keywords: &'static [&'static str],
+    pub (super) keywords: & 'static[ & 'static str],
 
     /// Subvtables for all fields of the element.
-    pub(super) fields: &'static [FieldVtable<T>],
+    pub (super) fields: & 'static[FieldVtable<T>],
     /// Determines the ID for a field name. This is a separate function instead
     /// of searching through `fields` so that Rust can generate optimized code
     /// for the string matching.
-    pub(super) field_id: fn(name: &str) -> Option<u8>,
+    pub (super) field_id: fn (name: & str)->Option<u8>,
 
     /// The constructor of the element.
-    pub(super) construct: fn(&mut Engine, &mut Args) -> SourceResult<Content>,
+    pub (super) construct: fn ( & mut Engine, & mut Args)->SourceResult<Content>,
     /// The set rule of the element.
-    pub(super) set: fn(&mut Engine, &mut Args) -> SourceResult<Styles>,
+    pub (super) set: fn ( & mut Engine, & mut Args)->SourceResult<Styles>,
     /// The element's local name in a specific lang-region pairing.
-    pub(super) local_name: Option<fn(Lang, Option<Region>) -> &'static str>,
+    pub (super) local_name: Option<fn (Lang, Option<Region>)-> & 'static str>,
     /// Produces the associated [`Scope`] of the element.
-    pub(super) scope: fn() -> Scope,
+    pub (super) scope: fn ()->Scope,
     /// If the `capability` function returns `Some(p)`, then `p` must be a valid
     /// pointer to a native Rust vtable of `Packed<Self>` w.r.t to the trait `C`
     /// where `capability` is `TypeId::of::<dyn C>()`.
-    pub(super) capability: fn(capability: TypeId) -> Option<NonNull<()>>,
+    pub (super) capability: fn (capability: TypeId)->Option<NonNull<()>>,
     /// Introspection capabilities of the type.
-    pub(super) introspection: IntrospectionCapabilities,
+    pub (super) introspection: IntrospectionCapabilities,
 
     /// The `Drop` impl (for the whole raw content). The content must have a
     /// reference count of zero and may not be used anymore after `drop` was
     /// called.
-    pub(super) drop: unsafe fn(&mut RawContent),
+    pub (super) drop: unsafe fn ( & mut RawContent),
     /// The `Clone` impl (for the whole raw content).
-    pub(super) clone: unsafe fn(&T) -> RawContent,
+    pub (super) clone: unsafe fn ( & T)->RawContent,
     /// The `Hash` impl (for just the element).
-    pub(super) hash: unsafe fn(&T) -> u128,
+    pub (super) hash: unsafe fn ( & T)->u128,
     /// The `Debug` impl (for just the element).
-    pub(super) debug: unsafe fn(&T, &mut Formatter) -> fmt::Result,
+    pub (super) debug: unsafe fn ( & T, & mut Formatter)->fmt::Result,
     /// The `PartialEq` impl (for just the element). If this is `None`,
     /// field-wise equality checks (via `FieldVtable`) should be performed.
-    pub(super) eq: Option<unsafe fn(&T, &T) -> bool>,
+    pub (super) eq: Option<unsafe fn ( & T, & T)->bool>,
     /// The `Repr` impl (for just the element). If this is `None`, a generic
     /// name + fields representation should be produced.
-    pub(super) repr: Option<unsafe fn(&T) -> EcoString>,
+    pub (super) repr: Option<unsafe fn ( & T)->EcoString>,
 
     /// Produces a reference to a `static` variable holding a `LazyElementStore`
     /// that is unique for this element and can be populated with data that is
@@ -142,45 +132,48 @@ pub struct ContentVtable<T: 'static = RawContent>
     /// over and over again. Must be a function rather than a direct reference
     /// so that we can store the vtable in a `const` without Rust complaining
     /// about the presence of interior mutability.
-    pub(super) store: fn() -> &'static LazyElementStore,
+    pub (super) store: fn ()-> & 'static LazyElementStore,
 }
 
 impl ContentVtable
 {
     /// Creates the vtable for an element.
-    #[expect(clippy::too_many_arguments)]
-    pub const fn new<E: NativeElement>(
-        name: &'static str,
-        title: &'static str,
+    # [expect(clippy::too_many_arguments)]
+    pub const fn new <E: NativeElement>
+    (
+        name: & 'static str,
+        title: & 'static str,
         since: Option<Since>,
-        docs: &'static str,
+        docs: & 'static str,
         def_site: DefSite,
-        fields: &'static [FieldVtable<Packed<E>>],
-        field_id: fn(name: &str) -> Option<u8>,
-        capability: fn(TypeId) -> Option<NonNull<()>>,
+        fields: & 'static[FieldVtable<Packed<E>>],
+        field_id: fn (name: & str)->Option<u8>,
+        capability: fn (TypeId)->Option<NonNull<()>>,
         introspection: IntrospectionCapabilities,
-        store: fn() -> &'static LazyElementStore,
-    ) -> ContentVtable<Packed<E>>
+        store: fn ()-> & 'static LazyElementStore,
+    )
+   ->ContentVtable<Packed<E>>
     {
-        ContentVtable {
+        ContentVtable
+        {
             name,
             title,
             since,
             docs,
             def_site,
-            keywords: &[],
+            keywords: & [],
             fields,
             field_id,
-            construct: <E as Construct>::construct,
-            set: <E as Set>::set,
+            construct: < E as Construct >:: construct,
+            set: < E as Set >:: set,
             local_name: None,
-            scope: || Scope::new(),
+            scope: || Scope:: new (),
             capability,
             introspection,
             drop: RawContent::drop_impl::<E>,
             clone: RawContent::clone_impl::<E>,
-            hash: |elem| typst_utils::hash128(elem.as_ref()),
-            debug: |elem, f| Debug::fmt(elem.as_ref(), f),
+            hash: | elem | typst_utils::hash128(elem.as_ref()),
+            debug: | elem, f | Debug::fmt(elem.as_ref(), f),
             eq: None,
             repr: None,
             store,
@@ -188,59 +181,36 @@ impl ContentVtable
     }
 
     /// Retrieves the vtable of the element with the given ID.
-    pub fn field(&self, id: u8) -> Option<&'static FieldVtable>
-    {
-        self.fields.get(usize::from(id))
-    }
+    pub fn field( & self, id: u8)->Option <& 'static FieldVtable > { self.fields.get (usize::from(id)) }
 }
 
-impl<E: NativeElement> ContentVtable<Packed<E>>
+impl <E: NativeElement> ContentVtable<Packed<E>>
 {
     /// Attaches search keywords for the documentation.
-    pub const fn with_keywords(mut self, keywords: &'static [&'static str]) -> Self
-    {
-        self.keywords = keywords;
-        self
-    }
+    pub const fn with_keywords(mut self, keywords: & 'static[ & 'static str])->Self { self.keywords = keywords; self }
 
     /// Takes a [`Repr`] impl into account.
-    pub const fn with_repr(mut self) -> Self
+    pub const fn with_repr(mut self)->Self
     where
-        E: Repr,
-    {
-        self.repr = Some(|e| E::repr(&**e));
-        self
-    }
+    E: Repr, { self.repr = Some( | e | E::repr( &** e)); self }
 
     /// Takes a [`PartialEq`] impl into account.
-    pub const fn with_partial_eq(mut self) -> Self
+    pub const fn with_partial_eq(mut self)->Self
     where
-        E: PartialEq,
-    {
-        self.eq = Some(|a, b| E::eq(&**a, &**b));
-        self
-    }
+    E: PartialEq, { self.eq = Some( | a, b | E::eq( &** a, &** b)); self }
 
     /// Takes a [`LocalName`] impl into account.
-    pub const fn with_local_name(mut self) -> Self
+    pub const fn with_local_name(mut self)->Self
     where
-        Packed<E>: LocalName,
-    {
-        self.local_name = Some(<Packed<E> as LocalName>::local_name);
-        self
-    }
+    Packed < E >: LocalName, { self.local_name = Some( < Packed<E> as LocalName >:: local_name); self }
 
     /// Takes a [`NativeScope`] impl into account.
-    pub const fn with_scope(mut self) -> Self
+    pub const fn with_scope(mut self)->Self
     where
-        E: NativeScope,
-    {
-        self.scope = || E::scope();
-        self
-    }
+    E: NativeScope, { self.scope = || E::scope(); self }
 
     /// Type-erases the data.
-    pub const fn erase(self) -> ContentVtable
+    pub const fn erase(self)->ContentVtable
     {
         // Safety:
         // - `ContentVtable` is `repr(C)`.
@@ -252,88 +222,92 @@ impl<E: NativeElement> ContentVtable<Packed<E>>
         //   that is of type `E`.
         // - `Packed<E>` and `RawContent` have the exact same memory layout
         //   because of `repr(transparent)`.
-        unsafe {
-            std::mem::transmute::<ContentVtable<Packed<E>>, ContentVtable<RawContent>>(
-                self,
-            )
-        }
+        unsafe { std::mem::transmute::<ContentVtable<Packed<E>>, ContentVtable<RawContent>>(self,) }
     }
 }
 
-impl<T> ContentHandle<T>
+impl <T> ContentHandle<T>
 {
     /// Provides safe access to operations for the field with the given `id`.
-    pub(super) fn field(self, id: u8) -> Option<FieldHandle<T>>
+    pub (super) fn field(self, id: u8)->Option<FieldHandle<T>>
     {
-        self.fields.get(usize::from(id)).map(|vtable| {
-            // Safety: Field vtables are of same type as the content vtable.
-            unsafe { Handle::new(self.0, vtable) }
-        })
+        self.fields. get(usize::from(id)).map
+        (
+            | vtable |
+            {
+                // Safety: Field vtables are of same type as the content vtable.
+                unsafe { Handle::new (self .0, vtable) }
+            }
+        )
     }
 
     /// Provides safe access to all field operations.
-    pub(super) fn fields(self) -> impl Iterator<Item = FieldHandle<T>>
+    pub (super) fn fields(self)-> impl Iterator<Item = FieldHandle<T>>
     where
-        T: Copy,
+    T: Copy,
     {
-        self.fields.iter().map(move |vtable| {
-            // Safety: Field vtables are of same type as the content vtable.
-            unsafe { Handle::new(self.0, vtable) }
-        })
+        self.fields.iter().map
+        (
+            move | vtable |
+            {
+                // Safety: Field vtables are of same type as the content vtable.
+                unsafe { Handle::new (self .0, vtable) }
+            }
+        )
     }
 }
 
-impl ContentHandle<&RawContent>
+impl ContentHandle <& RawContent >
 {
     /// See [`ContentVtable::debug`].
-    pub fn debug(&self, f: &mut Formatter) -> fmt::Result
+    pub fn debug( & self, f: & mut Formatter)->fmt::Result
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.debug)(self.0, f) }
+        unsafe { (self .1.debug)(self .0, f) }
     }
 
     /// See [`ContentVtable::repr`].
-    pub fn repr(&self) -> Option<EcoString>
+    pub fn repr( & self)->Option<EcoString>
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { self.1.repr.map(|f| f(self.0)) }
+        unsafe { self .1.repr.map( | f | f(self .0)) }
     }
 
     /// See [`ContentVtable::clone`].
-    pub fn clone(&self) -> RawContent
+    pub fn clone( & self)->RawContent
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.clone)(self.0) }
+        unsafe { (self .1.clone)(self .0) }
     }
 
     /// See [`ContentVtable::hash`].
-    pub fn hash(&self) -> u128
+    pub fn hash( & self)->u128
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.hash)(self.0) }
+        unsafe { (self .1.hash)(self .0) }
     }
 }
 
-impl ContentHandle<&mut RawContent>
+impl ContentHandle <& mut RawContent >
 {
     /// See [`ContentVtable::drop`].
-    pub unsafe fn drop(&mut self)
+    pub unsafe fn drop( & mut self)
     {
         // Safety:
         // - `Handle` has the invariant that the vtable is matching.
         // - The caller satisfies the requirements of `drop`
-        unsafe { (self.1.drop)(self.0) }
+        unsafe { (self .1.drop)(self .0) }
     }
 }
 
-impl ContentHandle<(&RawContent, &RawContent)>
+impl ContentHandle<( & RawContent, & RawContent)>
 {
     /// See [`ContentVtable::eq`].
-    pub fn eq(&self) -> Option<bool>
+    pub fn eq( & self)->Option<bool>
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        let (a, b) = self.0;
-        unsafe { self.1.eq.map(|f| f(a, b)) }
+        let (a, b) = self .0;
+        unsafe { self .1.eq.map( | f | f(a, b)) }
     }
 }
 
@@ -354,92 +328,92 @@ pub struct IntrospectionCapabilities
 pub struct FieldVtable<T: 'static = RawContent>
 {
     /// The field's name, as in code.
-    pub(super) name: &'static str,
+    pub (super) name: & 'static str,
     /// The fields's documentation (as Markdown).
-    pub(super) docs: &'static str,
+    pub (super) docs: & 'static str,
     /// Where the field is defined in the source code.
-    pub(super) def_site: DefSite,
+    pub (super) def_site: DefSite,
 
     /// Whether the field's parameter is positional.
-    pub(super) positional: bool,
+    pub (super) positional: bool,
     /// Whether the field's parameter is variadic.
-    pub(super) variadic: bool,
+    pub (super) variadic: bool,
     /// Whether the field's parameter is required.
-    pub(super) required: bool,
+    pub (super) required: bool,
     /// Whether the field can be set via a set rule.
-    pub(super) settable: bool,
+    pub (super) settable: bool,
     /// Whether the field is synthesized (i.e. initially not present).
-    pub(super) synthesized: bool,
+    pub (super) synthesized: bool,
     /// Reflects what types the field's parameter accepts.
-    pub(super) input: fn() -> CastInfo,
+    pub (super) input: fn ()->CastInfo,
     /// Produces the default value of the field, if any. This would e.g. be
     /// `None` for a required parameter.
-    pub(super) default: Option<fn() -> Value>,
+    pub (super) default: Option<fn ()->Value>,
 
     /// Whether the field is set on the given element. Always true for required
     /// fields, but can be false for settable or synthesized fields.
-    pub(super) has: unsafe fn(elem: &T) -> bool,
+    pub (super) has: unsafe fn (elem: & T)-> bool,
     /// Retrieves the field and [turns it into a
     /// value](crate::foundations::IntoValue).
-    pub(super) get: unsafe fn(elem: &T) -> Option<Value>,
+    pub (super) get: unsafe fn (elem: & T)->Option<Value>,
     /// Retrieves the field given styles. The resulting value may come from the
     /// element, the style chain, or a mix (if it's a
     /// [`Fold`](crate::foundations::Fold) field).
-    pub(super) get_with_styles: unsafe fn(elem: &T, StyleChain) -> Option<Value>,
+    pub (super) get_with_styles: unsafe fn (elem: & T, StyleChain)->Option<Value>,
     /// Retrieves the field just from the styles, falling back to the default
     /// value if not manually set.
     ///
     /// Note that this is currently `Some` when the field is settable and `None`
     /// otherwise.
-    pub(super) get_from_styles: Option<fn(StyleChain) -> Value>,
+    pub (super) get_from_styles: Option<fn (StyleChain)->Value>,
     /// Sets the field from the styles if it is currently unset. (Or merges
     /// with the style data in case of a `Fold` field).
-    pub(super) materialize: unsafe fn(elem: &mut T, styles: StyleChain),
+    pub (super) materialize: unsafe fn (elem: & mut T, styles: StyleChain),
     /// Compares the field for equality.
-    pub(super) eq: unsafe fn(a: &T, b: &T) -> bool,
+    pub (super) eq: unsafe fn (a: & T, b: & T)-> bool,
 }
 
-impl FieldHandle<&RawContent>
+impl FieldHandle <& RawContent >
 {
     /// See [`FieldVtable::has`].
-    pub fn has(&self) -> bool
+    pub fn has( & self)-> bool
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.has)(self.0) }
+        unsafe { (self .1.has)(self .0) }
     }
 
     /// See [`FieldVtable::get`].
-    pub fn get(&self) -> Option<Value>
+    pub fn get( & self)->Option<Value>
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.get)(self.0) }
+        unsafe { (self .1.get)(self .0) }
     }
 
     /// See [`FieldVtable::get_with_styles`].
-    pub fn get_with_styles(&self, styles: StyleChain) -> Option<Value>
+    pub fn get_with_styles( & self, styles: StyleChain)->Option<Value>
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.get_with_styles)(self.0, styles) }
+        unsafe { (self .1.get_with_styles)(self .0, styles) }
     }
 }
 
-impl FieldHandle<&mut RawContent>
+impl FieldHandle <& mut RawContent >
 {
     /// See [`FieldVtable::materialize`].
-    pub fn materialize(&mut self, styles: StyleChain)
+    pub fn materialize( & mut self, styles: StyleChain)
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        unsafe { (self.1.materialize)(self.0, styles) }
+        unsafe { (self .1.materialize)(self .0, styles) }
     }
 }
 
-impl FieldHandle<(&RawContent, &RawContent)>
+impl FieldHandle<( & RawContent, & RawContent)>
 {
     /// See [`FieldVtable::eq`].
-    pub fn eq(&self) -> bool
+    pub fn eq( & self)-> bool
     {
         // Safety: `Handle` has the invariant that the vtable is matching.
-        let (a, b) = self.0;
-        unsafe { (self.1.eq)(a, b) }
+        let (a, b) = self .0;
+        unsafe { (self .1.eq)(a, b) }
     }
 }

@@ -330,8 +330,7 @@ Matrices and vectors express linear mappings. Inline forms like $mat(1, 2; 3, 4)
 
 Display matrix affine rotation:
 $
-  mat
-  (
+  mat(
     cos theta, -sin theta, 0;
     sin theta,  cos theta, 0;
     0,          0,         1
@@ -343,8 +342,7 @@ $ <eq:rotation>
 
 Display 3D cylindrical coordinate vector:
 $
-  vec
-  (
+  vec(
     r cos phi,
     r sin phi,
     z
@@ -356,8 +354,7 @@ Piecewise conditions can be expressed inline via $cases(1 "if" x > 0, 0 "otherwi
 $
   f(x)
   =
-  cases
-  (
+  cases(
     x^2 "if" x in QQ,
     0 "if" x in RR backslash QQ
   )
@@ -378,8 +375,7 @@ Radicals format inline as $sqrt(x^2 + 1)$ and $root(3, 8)$, and binomial coeffic
 
 Display radical of high-order forms:
 $
-  root
-  (
+  root(
     3,
     x^3 + y^3 + z^3
   )
@@ -388,8 +384,7 @@ $
 Display binomial expansion theorem:
 $
   sum_(k=0)^n
-  binom
-  (
+  binom(
     n,
     k
   )
@@ -582,7 +577,10 @@ let RenderToken = 0;
 let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
 let IsSyncTexEnabled = localStorage.getItem("typst_synctex_enabled") !== "false";
 let ActiveSpanMap = {};
+let ActiveSyncMap = [];
 let ActiveHighlightSpan = null;
+let ActiveHighlightBox = null;
+let ActiveHighlightBoxes = [];
 let SuppressForwardSync = false;
 let SyncLineDecorations = null;
 let ForwardSyncDebounceTimer = null;
@@ -2235,7 +2233,32 @@ async function InitializeMonaco()
                         {
                             PerformForwardSync(Event.position.lineNumber, Event.position.column);
                         },
-                        80
+                        40
+                    );
+                }
+            );
+
+            MonacoInstance.onDidChangeCursorSelection
+            (
+                () =>
+                {
+                    if (!IsSyncTexEnabled || SuppressForwardSync)
+                    {
+                        return;
+                    }
+
+                    clearTimeout(ForwardSyncDebounceTimer);
+                    ForwardSyncDebounceTimer = setTimeout
+                    (
+                        () =>
+                        {
+                            const Pos = MonacoInstance.getPosition();
+                            if (Pos)
+                            {
+                                PerformForwardSync(Pos.lineNumber, Pos.column);
+                            }
+                        },
+                        40
                     );
                 }
             );
@@ -2494,7 +2517,7 @@ async function InitializeMonaco()
 
             UpdateStatusBar();
             TriggerCompileNow();
-            MarkDocumentClean(InitialSource);
+            MarkDocumentClean(MonacoInstance ? MonacoInstance.getValue() : "");
             UpdateDocumentOutline();
         }
     );
@@ -2569,11 +2592,19 @@ async function TriggerCompileNow()
             LastCompiledPages = Result.Pages;
             CurrentPageCount = Result.PageCount;
             ActiveSpanMap = Result.SpanMap || {};
+            ActiveSyncMap = Result.SyncMap || [];
             RenderPages(Result.Pages);
             UpdatePagination();
-            if (ActiveHighlightSpan)
+            if (ActiveHighlightBoxes && ActiveHighlightBoxes.length > 0)
             {
-                setTimeout(() => { HighlightSvgSpan(ActiveHighlightSpan, false); }, 50);
+                setTimeout
+                (
+                    () =>
+                    {
+                        HighlightSvgRects(ActiveHighlightBoxes, false);
+                    },
+                    50
+                );
             }
         }
         else
@@ -2758,6 +2789,10 @@ function ConvertSvgToDarkMode(Svg)
 
 function RenderPages(Pages)
 {
+    const Viewport = document.getElementById("PreviewViewport");
+    const PrevScrollTop = Viewport ? Viewport.scrollTop : 0;
+    const PrevScrollLeft = Viewport ? Viewport.scrollLeft : 0;
+
     const PagesContainer = document.getElementById("PagesContainer");
     PagesContainer.innerHTML = "";
 
@@ -2832,6 +2867,12 @@ function RenderPages(Pages)
         PagesContainer.appendChild(CreatePageElement(Pages[I], I));
     }
 
+    if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
+    {
+        Viewport.scrollTop = PrevScrollTop;
+        Viewport.scrollLeft = PrevScrollLeft;
+    }
+
     // If more pages exist, stream them progressively via requestAnimationFrame
     // This completely eliminates browser hanging/freezing on large documents
     if (Pages.length > InitialBatchCount)
@@ -2847,6 +2888,11 @@ function RenderPages(Pages)
             for (; CurrentIndex < ChunkLimit; CurrentIndex++)
             {
                 PagesContainer.appendChild(CreatePageElement(Pages[CurrentIndex], CurrentIndex));
+            }
+            if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
+            {
+                Viewport.scrollTop = PrevScrollTop;
+                Viewport.scrollLeft = PrevScrollLeft;
             }
             if (CurrentIndex < Pages.length)
             {
@@ -2941,6 +2987,11 @@ function ApplyZoom()
         }
     );
     document.getElementById("ZoomDisplay").textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+}
+
+function RecalculateScale()
+{
+    ApplyZoom();
 }
 
 function SetZoom(NewZoom)
@@ -3280,7 +3331,7 @@ function SetViewportLayout(Layout)
         (
             () =>
             {
-                RecalculateScale();
+                ApplyZoom();
             }
         );
     }
@@ -4870,6 +4921,8 @@ function ClearSyncHighlights()
         SyncLineDecorations.clear();
     }
     ActiveHighlightSpan = null;
+    ActiveHighlightBox = null;
+    ActiveHighlightBoxes = [];
 }
 
 function HandlePreviewClick(Event)
@@ -4888,8 +4941,14 @@ function HandlePreviewClick(Event)
         return;
     }
 
-    const Target = Event.target.closest("[data-span]");
-    if (!Target)
+    const PageSheet = Event.target.closest(".PageSheet");
+    if (!PageSheet)
+    {
+        return;
+    }
+
+    const Svg = PageSheet.querySelector("svg");
+    if (!Svg)
     {
         return;
     }
@@ -4897,46 +4956,112 @@ function HandlePreviewClick(Event)
     Event.preventDefault();
     Event.stopPropagation();
 
-    const SpanId = Target.getAttribute("data-span");
-    if (!SpanId)
+    const PageIdMatch = PageSheet.id.match(/\d+/);
+    const PageNum = PageIdMatch ? parseInt(PageIdMatch[0], 10) : 1;
+
+    const SvgRect = Svg.getBoundingClientRect();
+    const Vb = Svg.viewBox && Svg.viewBox.baseVal && Svg.viewBox.baseVal.width > 0 
+        ? Svg.viewBox.baseVal 
+        : { x: 0, y: 0, width: parseFloat(PageSheet.dataset.baseWidth) || 576, height: parseFloat(PageSheet.dataset.baseHeight) || 864 };
+
+    const ClickPtX = Vb.x + (Event.clientX - SvgRect.left) * (Vb.width / SvgRect.width);
+    const ClickPtY = Vb.y + (Event.clientY - SvgRect.top) * (Vb.height / SvgRect.height);
+
+    let BestElem = null;
+    let MinDist = Infinity;
+
+    for (const Elem of ActiveSyncMap)
     {
+        if (Elem.page !== PageNum)
+        {
+            continue;
+        }
+
+        const InX = ClickPtX >= Elem.x && ClickPtX <= (Elem.x + Elem.width);
+        const InY = ClickPtY >= Elem.y && ClickPtY <= (Elem.y + Elem.height);
+
+        if (InX && InY)
+        {
+            BestElem = Elem;
+            break;
+        }
+
+        const CenterX = Elem.x + (Elem.width / 2);
+        const CenterY = Elem.y + (Elem.height / 2);
+        const Dx = ClickPtX - CenterX;
+        const Dy = (ClickPtY - CenterY) * 3;
+        const DistSq = (Dx * Dx) + (Dy * Dy);
+
+        if (DistSq < MinDist)
+        {
+            MinDist = DistSq;
+            BestElem = Elem;
+        }
+    }
+
+    if (BestElem)
+    {
+        let Related = ActiveSyncMap.filter((Elem) => Elem.page === BestElem.page && Elem.span === BestElem.span);
+        if (BestElem.line === BestElem.end_line)
+        {
+            const SameLineElems = ActiveSyncMap.filter
+            (
+                (Elem) => Elem.page === BestElem.page && Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
+            );
+            if (SameLineElems.length > Related.length)
+            {
+                Related = SameLineElems;
+            }
+        }
+        else if (BestElem.end_line - BestElem.line >= 2)
+        {
+            const BlockElems = ActiveSyncMap.filter
+            (
+                (Elem) =>
+                {
+                    if (Elem.page !== BestElem.page) { return false; }
+                    const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
+                    const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
+                    return Inside && !IsNumbering;
+                }
+            );
+            if (BlockElems.length > 0)
+            {
+                Related = BlockElems;
+            }
+        }
+
+        const GroupedBoxes = GroupElementsIntoVisualBoxes(Related);
+        HighlightSvgRects(GroupedBoxes, false);
+        SuppressForwardSync = true;
+        setTimeout(() => { SuppressForwardSync = false; }, 300);
+        JumpMonacoToLocation(BestElem.line, BestElem.col);
         return;
     }
 
-    HighlightSvgSpan(SpanId, false);
-
-    SuppressForwardSync = true;
-    setTimeout(() => { SuppressForwardSync = false; }, 300);
-
-    if (ActiveSpanMap[SpanId])
-    {
-        const Loc = ActiveSpanMap[SpanId];
-        JumpMonacoToLocation(Loc.line, Loc.col);
-    }
-    else
-    {
-        AuthenticatedFetch
-        (
-            "/api/sync/resolve-span",
+    AuthenticatedFetch
+    (
+        "/api/sync/click",
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ Page: PageNum, X: ClickPtX, Y: ClickPtY })
+        }
+    )
+    .then((Res) => Res.json())
+    .then
+    (
+        (Result) =>
+        {
+            if (Result.Success)
             {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Span: SpanId })
+                SuppressForwardSync = true;
+                setTimeout(() => { SuppressForwardSync = false; }, 300);
+                JumpMonacoToLocation(Result.Line, Result.Column);
             }
-        )
-        .then((Res) => Res.json())
-        .then
-        (
-            (Result) =>
-            {
-                if (Result.Success)
-                {
-                    JumpMonacoToLocation(Result.Line, Result.Column);
-                }
-            }
-        )
-        .catch(() => {});
-    }
+        }
+    )
+    .catch(() => {});
 }
 
 function JumpMonacoToLocation(Line, Column)
@@ -4990,6 +5115,157 @@ function FlashMonacoLine(LineNumber)
     );
 }
 
+function GroupElementsIntoVisualBoxes(Elements)
+{
+    if (!Elements || Elements.length === 0)
+    {
+        return [];
+    }
+
+    const Buckets = [];
+    for (const Elem of Elements)
+    {
+        const PageNum = Elem.page || 1;
+        let Bucket = Buckets.find((B) => B.page === PageNum && Math.abs(B.y - Elem.y) < 3.5);
+        if (!Bucket)
+        {
+            Bucket =
+            {
+                page: PageNum,
+                y: Elem.y,
+                minX: Elem.x,
+                maxX: Elem.x + Elem.width,
+                height: Elem.height
+            };
+            Buckets.push(Bucket);
+        }
+        else
+        {
+            Bucket.minX = Math.min(Bucket.minX, Elem.x);
+            Bucket.maxX = Math.max(Bucket.maxX, Elem.x + Elem.width);
+            Bucket.height = Math.max(Bucket.height, Elem.height);
+        }
+    }
+
+    return Buckets.map
+    (
+        (B) =>
+        ({
+            page: B.page,
+            x: B.minX,
+            y: B.y,
+            width: B.maxX - B.minX,
+            height: B.height
+        })
+    );
+}
+
+function HighlightSvgRects(Boxes, AutoScroll = false)
+{
+    if (!IsSyncTexEnabled || !Boxes || Boxes.length === 0)
+    {
+        ClearSyncHighlights();
+        return;
+    }
+
+    ActiveHighlightBoxes = Boxes;
+    ActiveHighlightBox = Boxes[0] || null;
+
+    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
+
+    const PageBoxesMap = new Map();
+    for (const Box of Boxes)
+    {
+        const PageNum = Box.page || 1;
+        if (!PageBoxesMap.has(PageNum))
+        {
+            PageBoxesMap.set(PageNum, []);
+        }
+        PageBoxesMap.get(PageNum).push(Box);
+    }
+
+    let PrimaryPageSheet = null;
+    let PrimaryTopY = Infinity;
+
+    for (const [PageNum, PageBoxes] of PageBoxesMap.entries())
+    {
+        const TargetPageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
+        if (!TargetPageSheet)
+        {
+            continue;
+        }
+
+        if (!PrimaryPageSheet)
+        {
+            PrimaryPageSheet = TargetPageSheet;
+        }
+
+        const Svgs = TargetPageSheet.querySelectorAll("svg");
+        if (!Svgs || Svgs.length === 0)
+        {
+            continue;
+        }
+
+        Svgs.forEach
+        (
+            (Svg) =>
+            {
+                let HighlightLayer = Svg.querySelector(".SyncHighlightLayer");
+                if (!HighlightLayer)
+                {
+                    HighlightLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                    HighlightLayer.setAttribute("class", "SyncHighlightLayer");
+                    Svg.appendChild(HighlightLayer);
+                }
+                HighlightLayer.innerHTML = "";
+
+                for (const Box of PageBoxes)
+                {
+                    const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    Rect.setAttribute("class", "SyncHighlightRect");
+                    Rect.setAttribute("x", (Box.x - 2).toFixed(2));
+                    Rect.setAttribute("y", (Box.y - 2).toFixed(2));
+                    Rect.setAttribute("width", (Box.width + 4).toFixed(2));
+                    Rect.setAttribute("height", (Box.height + 4).toFixed(2));
+                    Rect.setAttribute("rx", "3");
+                    Rect.setAttribute("ry", "3");
+
+                    HighlightLayer.appendChild(Rect);
+
+                    if (Box.y < PrimaryTopY)
+                    {
+                        PrimaryTopY = Box.y;
+                    }
+                }
+            }
+        );
+    }
+
+    if (AutoScroll && PrimaryPageSheet && PrimaryTopY !== Infinity)
+    {
+        const Viewport = document.getElementById("PreviewViewport");
+        if (Viewport)
+        {
+            const ViewportRect = Viewport.getBoundingClientRect();
+            const PageRect = PrimaryPageSheet.getBoundingClientRect();
+            const VbH = parseFloat(PrimaryPageSheet.dataset.baseHeight) || 864;
+            const ScaleY = PageRect.height / VbH;
+            const TargetScreenY = PageRect.top + (PrimaryTopY * ScaleY);
+
+            if (TargetScreenY < ViewportRect.top + 60 || TargetScreenY > ViewportRect.bottom - 60)
+            {
+                const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
+                Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
+            }
+        }
+    }
+}
+
+function HighlightSvgRect(PageNum, X, Y, Width, Height, AutoScroll = false)
+{
+    HighlightSvgRects([{ page: PageNum, x: X, y: Y, width: Width, height: Height }], AutoScroll);
+}
+
 function HighlightSvgSpan(SpanId, AutoScroll = false)
 {
     if (!IsSyncTexEnabled || !SpanId)
@@ -4997,127 +5273,139 @@ function HighlightSvgSpan(SpanId, AutoScroll = false)
         return;
     }
 
-    ActiveHighlightSpan = SpanId;
-    document.querySelectorAll(".SyncHighlightLayer").forEach((Layer) => { Layer.remove(); });
-
-    const Target = document.querySelector(`g[data-span="${SpanId}"]`);
-    if (!Target)
+    const Elem = ActiveSyncMap.find((E) => E.span === SpanId) || (ActiveSpanMap && ActiveSpanMap[SpanId]);
+    if (Elem && typeof Elem.x === "number")
     {
-        return;
-    }
-
-    const ParentSvg = Target.closest("svg");
-    if (!ParentSvg)
-    {
-        return;
-    }
-
-    let HighlightLayer = ParentSvg.querySelector(".SyncHighlightLayer");
-    if (!HighlightLayer)
-    {
-        HighlightLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        HighlightLayer.setAttribute("class", "SyncHighlightLayer");
-        ParentSvg.appendChild(HighlightLayer);
-    }
-    HighlightLayer.innerHTML = "";
-
-    try
-    {
-        const BBox = Target.getBBox();
-        const Transform = Target.getAttribute("transform") || "";
-
-        const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        Rect.setAttribute("class", "SyncHighlightRect");
-        Rect.setAttribute("x", (BBox.x - 2).toString());
-        Rect.setAttribute("y", (BBox.y - 2).toString());
-        Rect.setAttribute("width", (BBox.width + 4).toString());
-        Rect.setAttribute("height", (BBox.height + 4).toString());
-        Rect.setAttribute("rx", "3");
-        Rect.setAttribute("ry", "3");
-
-        if (Transform)
-        {
-            Rect.setAttribute("transform", Transform);
-        }
-
-        HighlightLayer.appendChild(Rect);
-
-        if (AutoScroll)
-        {
-            const PageSheet = Target.closest(".PageSheet");
-            const Viewport = document.getElementById("PreviewViewport");
-            if (PageSheet && Viewport)
-            {
-                const ViewportRect = Viewport.getBoundingClientRect();
-                const TargetRect = Target.getBoundingClientRect();
-
-                if (TargetRect.top < ViewportRect.top + 60 || TargetRect.bottom > ViewportRect.bottom - 60)
-                {
-                    const ScrollOffset = Viewport.scrollTop + (TargetRect.top - ViewportRect.top) - (Viewport.clientHeight / 2);
-                    Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
-                }
-            }
-        }
-    }
-    catch (Ignored)
-    {
+        HighlightSvgRect(Elem.page || 1, Elem.x, Elem.y, Elem.width, Elem.height, AutoScroll);
     }
 }
 
-function PerformForwardSync(Line, Col)
+function PerformForwardSync(Line, Col, ForceAutoScroll = false)
 {
-    if (!IsSyncTexEnabled || !ActiveSpanMap)
+    if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
     {
+        ClearSyncHighlights();
         return;
     }
 
-    let BestSpan = null;
-    let SmallestRange = Infinity;
-
-    for (const [SpanId, Loc] of Object.entries(ActiveSpanMap))
+    // 1. Text Selection in Monaco
+    if (MonacoInstance)
     {
-        const StartsBefore = Loc.line < Line || (Loc.line === Line && Loc.col <= Col);
-        const EndsAfter = Loc.end_line > Line || (Loc.end_line === Line && Loc.end_col >= Col);
-
-        if (StartsBefore && EndsAfter)
+        const Selection = MonacoInstance.getSelection();
+        if (Selection && !Selection.isEmpty())
         {
-            const RangeLen = Loc.end - Loc.start;
-            if (RangeLen < SmallestRange)
+            const SelStartLine = Selection.startLineNumber;
+            const SelStartCol = Selection.startColumn;
+            const SelEndLine = Selection.endLineNumber;
+            const SelEndCol = Selection.endColumn;
+
+            const Intersecting = ActiveSyncMap.filter
+            (
+                (Elem) =>
+                {
+                    const StartsBeforeEnd = Elem.line < SelEndLine || (Elem.line === SelEndLine && Elem.col <= SelEndCol);
+                    const EndsAfterStart = Elem.end_line > SelStartLine || (Elem.end_line === SelStartLine && Elem.end_col >= SelStartCol);
+                    if (!StartsBeforeEnd || !EndsAfterStart)
+                    {
+                        return false;
+                    }
+                    const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+                    const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+                    return !IsNumbering;
+                }
+            );
+
+            if (Intersecting.length > 0)
             {
-                SmallestRange = RangeLen;
-                BestSpan = SpanId;
+                const GroupedBoxes = GroupElementsIntoVisualBoxes(Intersecting);
+                HighlightSvgRects(GroupedBoxes, false);
+                return;
             }
         }
     }
 
-    if (BestSpan)
+    // 2. Cursor Position
+    let Matches = ActiveSyncMap.filter
+    (
+        (Elem) =>
+        {
+            const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
+            const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
+            return StartsBefore && EndsAfter;
+        }
+    );
+
+    if (Matches.length === 0)
     {
-        HighlightSvgSpan(BestSpan, true);
+        Matches = ActiveSyncMap.filter((Elem) => Elem.line === Line || Elem.end_line === Line);
     }
-    else
+
+    if (Matches.length === 0)
     {
-        AuthenticatedFetch
+        ClearSyncHighlights();
+        return;
+    }
+
+    const ContentMatches = Matches.filter
+    (
+        (Elem) =>
+        {
+            const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+            const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+            return !IsNumbering;
+        }
+    );
+
+    const Candidates = ContentMatches.length > 0 ? ContentMatches : Matches;
+
+    let BestElem = Candidates[0];
+    let MinRange = BestElem.end - BestElem.start;
+    for (const Elem of Candidates)
+    {
+        const RangeLen = Elem.end - Elem.start;
+        if (RangeLen < MinRange)
+        {
+            MinRange = RangeLen;
+            BestElem = Elem;
+        }
+    }
+
+    let Related = ActiveSyncMap.filter((Elem) => Elem.page === BestElem.page && Elem.span === BestElem.span);
+
+    if (BestElem.line === BestElem.end_line)
+    {
+        const SameLineElems = ActiveSyncMap.filter
         (
-            "/api/sync/cursor-span",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ Line: Line, Column: Col })
-            }
-        )
-        .then((Res) => Res.json())
-        .then
+            (Elem) => Elem.page === BestElem.page && Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
+        );
+        if (SameLineElems.length > Related.length)
+        {
+            Related = SameLineElems;
+        }
+    }
+    else if (BestElem.end_line - BestElem.line >= 2)
+    {
+        const BlockElems = ActiveSyncMap.filter
         (
-            (Result) =>
+            (Elem) =>
             {
-                if (Result.Success && Result.Span)
+                if (Elem.page !== BestElem.page)
                 {
-                    HighlightSvgSpan(Result.Span, true);
+                    return false;
                 }
+                const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
+                const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
+                return Inside && !IsNumbering;
             }
-        )
-        .catch(() => {});
+        );
+        if (BlockElems.length > 0)
+        {
+            Related = BlockElems;
+        }
     }
+
+    const GroupedBoxes = GroupElementsIntoVisualBoxes(Related);
+    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
 }
 
 // Make functions accessible from onclick handlers

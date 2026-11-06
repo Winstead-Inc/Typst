@@ -1,55 +1,42 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
-use chrono::{DateTime, Datelike, Timelike, Utc};
+use chrono:: { DateTime, Datelike, Timelike, Utc };
 use ecow::eco_format;
 use parking_lot::RwLock;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use typst::diag::
-{
-    At, HintedStrResult, HintedString, SourceDiagnostic, SourceResult, StrResult, Warned,
-    bail,
-};
-use typst::foundations::{Datetime, Smart};
-use typst::layout::{PageRange, PageRanges};
+use rayon::iter:: { IntoParallelRefIterator, ParallelIterator };
+use typst::diag:: { At, HintedStrResult, HintedString, SourceDiagnostic, SourceResult, StrResult, Warned, bail, };
+use typst::foundations:: { Datetime, Smart };
+use typst::layout:: { PageRange, PageRanges };
 use typst::model::Document;
 use typst::syntax::Span;
-use typst::World;
-use typst_bundle::{Bundle, BundleOptions, VirtualFs};
-use typst_html::{HtmlDocument, HtmlFormatOptions, HtmlOptions};
+use typst_bundle:: { Bundle, BundleOptions, VirtualFs };
+use typst_html:: { HtmlDocument, HtmlFormatOptions, HtmlOptions };
 use typst_kit::diagnostics::DiagnosticWorld;
 use typst_kit::timer::Timer;
-use typst_layout::{Page, PagedDocument};
-use typst_pdf::{PdfFormatOptions, PdfOptions, PdfStandards, Timestamp};
-use typst_render::{PngFormat, PngFormatOptions, RenderOptions};
-use typst_svg::{SvgFormat, SvgFormatOptions, SvgOptions};
+use typst_layout:: { Page, PagedDocument };
+use typst_pdf:: { PdfFormatOptions, PdfOptions, PdfStandards, Timestamp };
+use typst_render:: { PngFormat, PngFormatOptions, RenderOptions };
+use typst_svg:: { SvgFormat, SvgFormatOptions, SvgOptions };
 use typst_utils::Scalar;
 
-use crate::args::
-{
-    self, CompileArgs, CompileCommand, DepsFormat, DiagnosticFormat, Input, Output,
-    OutputFormat, WatchCommand,
-};
+use crate::args:: { self, CompileArgs, CompileCommand, DepsFormat, DiagnosticFormat, Input, Output, OutputFormat, WatchCommand, };
 use crate::deps::write_deps;
 use crate::watch::Status;
 use crate::world::SystemWorld;
-use crate::{set_failed, terminal};
+use crate:: { set_failed, terminal };
 
 #[cfg(feature = "http-server")]
 use typst_kit::server::HttpServer;
 
 /// Execute a compilation command.
-pub fn compile(command: &'static CompileCommand) -> HintedStrResult<()>
+pub fn compile(command: & 'static CompileCommand)->HintedStrResult<()>
 {
     let mut timer = Timer::new_or_placeholder(command.args.timings.clone());
-    let mut config = CompileConfig::new(command)?;
-    let mut world = SystemWorld::new(
-        Some(&command.args.input),
-        &command.args.world,
-        &command.args.process,
-    )
-    .map_err(|err| eco_format!("{err}"))?;
-    timer.record(&mut world, |world| compile_once(world, &mut config))?
+    let mut config = CompileConfig:: new (command)?;
+    let mut world = SystemWorld:: new (Some( & command.args.input), & command.args.world, & command.args.process,)
+    .map_err( | err | eco_format ! ("{err}"))?;
+    timer. record( & mut world, | world | compile_once(world, & mut config))?
 }
 
 /// A preprocessed `CompileCommand`.
@@ -92,37 +79,28 @@ pub struct CompileConfig
     /// watch` sessions with images.
     pub export_cache: ExportCache,
     /// Server for `typst watch` to HTML.
-    #[cfg(feature = "http-server")]
+    # [cfg(feature = "http-server")]
     pub server: Option<HttpServer>,
 }
 
 impl CompileConfig
 {
     /// Preprocess a `CompileCommand`, producing a compilation config.
-    pub fn new(command: &CompileCommand) -> HintedStrResult<Self>
-    {
-        Self::new_impl(&command.args, None)
-    }
+    pub fn new (command: & CompileCommand)->HintedStrResult<Self> { Self::new_impl( & command.args, None) }
 
     /// Preprocess a `WatchCommand`, producing a compilation config.
-    pub fn watching(command: &WatchCommand) -> HintedStrResult<Self>
-    {
-        Self::new_impl(&command.args, Some(command))
-    }
+    pub fn watching(command: & WatchCommand)->HintedStrResult<Self> { Self::new_impl( & command.args, Some(command)) }
 
     /// The shared implementation of [`CompileConfig::new`] and
     /// [`CompileConfig::watching`].
-    fn new_impl(args: &CompileArgs, watch: Option<&WatchCommand>)
-    -> HintedStrResult<Self>
+    fn new_impl(args: & CompileArgs, watch: Option <& WatchCommand >)
+   ->HintedStrResult<Self>
     {
-        let mut warnings = Vec::new();
+        let mut warnings = Vec:: new ();
         let input = args.input.clone();
 
-        let output_format = if let Some(specified) = args.format
-        {
-            specified
-        }
-        else if let Some(Output::Path(output)) = &args.output
+        let output_format = if let Some(specified) = args.format { specified }
+        else if let Some(Output::Path(output)) = & args.output
         {
             match output.extension()
             {
@@ -130,186 +108,138 @@ impl CompileConfig
                 Some(ext) if ext.eq_ignore_ascii_case("png") => OutputFormat::Png,
                 Some(ext) if ext.eq_ignore_ascii_case("svg") => OutputFormat::Svg,
                 Some(ext) if ext.eq_ignore_ascii_case("html") => OutputFormat::Html,
-                _ => bail!(
+                _ => bail!
+                (
                     "could not infer output format for path {}.\n\
                      consider providing the format manually with `--format/-f`",
                     output.display(),
                 ),
             }
         }
-        else
-        {
-            OutputFormat::Pdf
-        };
+        else { OutputFormat::Pdf };
 
-        let output = args.output.clone().unwrap_or_else(|| {
-            let Input::Path(path) = &input else {
-                panic!("output must be specified when input is from stdin, as guarded by the CLI");
-            };
-            Output::Path(path.with_extension(
-                match output_format {
-                    OutputFormat::Pdf => "pdf",
-                    OutputFormat::Png => "png",
-                    OutputFormat::Svg => "svg",
-                    OutputFormat::Html => "html",
-                    OutputFormat::Bundle => "",
-                },
-            ))
-        });
-
-        let pages = args.pages.as_ref().map(|export_ranges| {
-            PageRanges::new(
-                export_ranges
-                    .iter()
-                    .map(|r| PageRange::new(*r.0.start(), *r.0.end()))
-                    .collect(),
-            )
-        });
-
-        if args.no_pdf_tags
-        {
-            warnings.push(
-                "`--no-pdf-tags` is deprecated, use `--pdf-tagged=false` instead".into(),
-            );
-        }
-
-        let tagged = if let Some(tagged) = args.pdf_tagged
-        {
-            if tagged && pages.is_some()
+        let output = args.output.clone().unwrap_or_else
+        (
+            ||
             {
-                bail!("cannot enable PDF tags when exporting a page range");
+                let Input::Path(path) = & input else { panic ! ("output must be specified when input is from stdin, as guarded by the CLI"); };
+                Output::Path
+                (
+                    path.with_extension
+                    (
+                        match output_format
+                        {
+                            OutputFormat::Pdf => "pdf",
+                            OutputFormat::Png => "png",
+                            OutputFormat::Svg => "svg",
+                            OutputFormat::Html => "html",
+                            OutputFormat::Bundle => "",
+                        },
+                    )
+                )
             }
-            Some(tagged)
-        }
+        );
+
+        let pages = args.pages.as_ref().map( | export_ranges | { PageRanges::new (export_ranges.iter().map( | r | PageRange::new ( * r .0.start(), * r .0.end())).collect(),) });
+
+        if args.no_pdf_tags { warnings.push("`--no-pdf-tags` is deprecated, use `--pdf-tagged=false` instead".into(),); }
+
+        let tagged = if let Some(tagged) = args.pdf_tagged { if tagged && pages.is_some() { bail ! ("cannot enable PDF tags when exporting a page range"); } Some(tagged) }
         else
         {
-            if output_format == OutputFormat::Pdf && pages.is_some() && !args.no_pdf_tags
+            if output_format == OutputFormat::Pdf && pages.is_some() && ! args.no_pdf_tags
             {
-                warnings.push(
+                warnings.push
+                (
                     HintedString::from("using `--pages` implies `--pdf-tagged=false`")
-                        .with_hints([
-                            "the resulting PDF will be inaccessible".into(),
-                            "add `--pdf-tagged=false` to silence this warning".into(),
-                        ]),
+                    .with_hints(["the resulting PDF will be inaccessible".into(),"add `--pdf-tagged=false` to silence this warning".into(),]),
                 );
             }
-
             (args.no_pdf_tags || pages.is_some()).then_some(false)
         };
 
         if tagged == Some(false)
         {
-            const ACCESSIBLE: &[(args::PdfStandard, &str)] = &[
-                (args::PdfStandard::A_1a, "PDF/A-1a"),
-                (args::PdfStandard::A_2a, "PDF/A-2a"),
-                (args::PdfStandard::A_3a, "PDF/A-3a"),
-                (args::PdfStandard::UA_1, "PDF/UA-1"),
+            const ACCESSIBLE: & [(args::PdfStandard, & str)] = &
+            [
+                (args::PdfStandard::A_1a, "PDF/A-1a"),(args::PdfStandard::A_2a, "PDF/A-2a"),(args::PdfStandard::A_3a, "PDF/A-3a"),(args::PdfStandard::UA_1, "PDF/UA-1"),
             ];
 
             for (standard, name) in ACCESSIBLE
             {
                 if args.pdf_standard.contains(standard)
                 {
-                    if args.no_pdf_tags
-                    {
-                        bail!("cannot disable PDF tags when exporting a {name} document");
-                    }
+                    if args.no_pdf_tags { bail ! ("cannot disable PDF tags when exporting a {name} document"); }
                     else
                     {
-                        let mut err = HintedString::from(eco_format!(
-                            "cannot disable PDF tags when exporting a {name} document",
-                        ));
-                        if args.pages.is_some()
-                        {
-                            err.hint("using --pages implies --pdf-tagged=false");
-                        }
+                        let mut err = HintedString::from(eco_format ! ("cannot disable PDF tags when exporting a {name} document",));
+                        if args.pages.is_some() { err.hint("using --pages implies --pdf-tagged=false"); }
                         return Err(err);
                     }
                 }
             }
         }
 
-        let pdf_standards = (!args.pdf_standard.is_empty())
-            .then(|| PdfStandards::new(args.pdf_standard.iter().copied()))
-            .transpose()?;
+        let pdf_standards = ( ! args.pdf_standard.is_empty())
+        .then( || PdfStandards::new (args.pdf_standard.iter().copied()))
+        .transpose()?;
 
-        #[cfg(feature = "http-server")]
+        # [cfg(feature = "http-server")]
         let server = if let Some(command) = watch
-            && !command.server.no_serve
-            && matches!(output_format, OutputFormat::Html | OutputFormat::Bundle)
-        {
-            Some(HttpServer::new(
-                &eco_format!("{input}"),
-                command.server.port,
-                !command.server.no_reload,
-            )?)
-        }
-        else
-        {
-            None
-        };
+        && ! command.server.no_serve
+        && matches!(output_format, OutputFormat::Html | OutputFormat::Bundle) { Some(HttpServer::new ( & eco_format ! ("{input}"), command.server.port, ! command.server.no_reload,)?) }
+        else { None };
 
-        let fullscreen = watch.map(|command| !command.no_fullscreen).unwrap_or(true);
+        let fullscreen = watch.map( | command | ! command.no_fullscreen).unwrap_or(true);
 
         let mut deps = args.deps.clone();
         let mut deps_format = args.deps_format;
 
-        if let Some(path) = &args.make_deps
-            && deps.is_none()
+        if let Some(path) = & args.make_deps
+        && deps.is_none()
         {
             deps = Some(Output::Path(path.clone()));
             deps_format = DepsFormat::Make;
-            warnings.push(
-                "--make-deps is deprecated, use --deps and --deps-format instead".into(),
-            );
+            warnings.push("--make-deps is deprecated, use --deps and --deps-format instead".into(),);
         }
 
-        match (&output, &deps, watch)
+        match ( & output, & deps, watch)
         {
-            (Output::Stdout, _, Some(_)) =>
-            {
-                bail!("cannot write document to stdout in watch mode");
-            }
-            (_, Some(Output::Stdout), Some(_)) =>
-            {
-                bail!("cannot write dependencies to stdout in watch mode")
-            }
-            (Output::Stdout, Some(Output::Stdout), _) =>
-            {
-                bail!("cannot write both output and dependencies to stdout")
-            }
-            _ =>
-            {}
+            (Output::Stdout, _, Some(_)) => { bail ! ("cannot write document to stdout in watch mode"); }
+            (_, Some(Output::Stdout), Some(_)) => { bail ! ("cannot write dependencies to stdout in watch mode") }
+            (Output::Stdout, Some(Output::Stdout), _) => { bail ! ("cannot write both output and dependencies to stdout") }
+            _ => {}
         }
 
-        Ok(Self {
-            warnings,
-            watching: watch.is_some(),
-            input,
-            output,
-            output_format,
-            pretty: args.pretty,
-            pages,
-            pdf_standards,
-            tagged,
-            creation_timestamp: args
+        Ok
+        (
+            Self
+            {
+                warnings,
+                watching: watch.is_some(),
+                input,
+                output,
+                output_format,
+                pretty: args.pretty,
+                pages,
+                pdf_standards,
+                tagged,
+                creation_timestamp: args
                 .world
                 .creation_timestamp
-                .map(|time| {
-                    chrono::DateTime::from_timestamp(time, 0)
-                        .ok_or("creation timestamp is out of range")
-                })
+                .map( | time | { chrono::DateTime::from_timestamp(time, 0).ok_or("creation timestamp is out of range") })
                 .transpose()?,
-            ppi: args.ppi,
-            diagnostic_format: args.process.diagnostic_format,
-            open: args.open.clone(),
-            export_cache: ExportCache::new(),
-            deps,
-            deps_format,
-            #[cfg(feature = "http-server")]
-            server,
-            fullscreen,
-        })
+                ppi: args.ppi,
+                diagnostic_format: args.process.diagnostic_format,
+                open: args.open.clone(),
+                export_cache: ExportCache:: new (),
+                deps,
+                deps_format,
+                # [cfg(feature = "http-server")]
+                server,
+                fullscreen,
+            }
+        )
     }
 }
 
@@ -317,26 +247,18 @@ impl CompileConfig
 ///
 /// Returns whether it compiled without errors.
 #[typst_macros::time(name = "compile once")]
-pub fn compile_once(
-    world: &mut SystemWorld,
-    config: &mut CompileConfig,
-) -> HintedStrResult<()>
+pub fn compile_once(world: & mut SystemWorld, config: & mut CompileConfig,)->HintedStrResult<()>
 {
     let start = std::time::Instant::now();
-    if config.watching
-    {
-        Status::Compiling.print(config).unwrap();
-    }
+    if config.watching { Status::Compiling.print(config).unwrap(); }
 
-    let Warned { output, mut warnings } = compile_and_export(world, config);
+    let Warned { output, mut warnings }
+    = compile_and_export(world, config);
 
     // Add static warnings (for deprecated CLI flags and such).
-    for warning in &config.warnings
-    {
-        warnings.push(warning.clone().into_warning_at(Span::detached()));
-    }
+    for warning in & config.warnings { warnings.push(warning.clone().into_warning_at(Span::detached())); }
 
-    match &output
+    match & output
     {
         // Print success message and possibly warnings.
         Ok(_) =>
@@ -344,18 +266,12 @@ pub fn compile_once(
             let duration = start.elapsed();
             if config.watching
             {
-                if warnings.is_empty()
-                {
-                    Status::Success(duration).print(config).unwrap();
-                }
-                else
-                {
-                    Status::PartialSuccess(duration).print(config).unwrap();
-                }
+                if warnings.is_empty() { Status::Success(duration).print(config).unwrap(); }
+                else { Status::PartialSuccess(duration).print(config).unwrap(); }
             }
 
-            print_diagnostics(world, &[], &warnings, config.diagnostic_format)
-                .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
+            print_diagnostics(world, & [], & warnings, config.diagnostic_format)
+            .map_err( | err | eco_format ! ("failed to print diagnostics ({err})"))?;
 
             open_output(config)?;
         }
@@ -365,180 +281,149 @@ pub fn compile_once(
         {
             set_failed();
 
-            if config.watching
-            {
-                Status::Error.print(config).unwrap();
-            }
+            if config.watching { Status::Error.print(config).unwrap(); }
 
-            print_diagnostics(world, errors, &warnings, config.diagnostic_format)
-                .map_err(|err| eco_format!("failed to print diagnostics ({err})"))?;
+            print_diagnostics(world, errors, & warnings, config.diagnostic_format)
+            .map_err( | err | eco_format ! ("failed to print diagnostics ({err})"))?;
         }
     }
 
-    if let Some(dest) = &config.deps
+    if let Some(dest) = & config.deps
     {
         write_deps(world, dest, config.deps_format, output.as_deref().ok())
-            .map_err(|err| eco_format!("failed to create dependency file ({err})"))?;
+        .map_err( | err | eco_format ! ("failed to create dependency file ({err})"))?;
     }
 
     Ok(())
 }
 
 /// Compile and then export the document.
-fn compile_and_export(
-    world: &mut SystemWorld,
-    config: &mut CompileConfig,
-) -> Warned<SourceResult<Vec<Output>>>
+fn compile_and_export(world: & mut SystemWorld, config: & mut CompileConfig,)->Warned < SourceResult < Vec < Output >>>
 {
     match config.output_format
     {
         OutputFormat::Pdf | OutputFormat::Png | OutputFormat::Svg =>
         {
-            let res = typst::compile::<PagedDocument>(world)
-                .and_then(|document| export_paged(&document, config));
-            if config.output_format == OutputFormat::Svg
-            {
-                export_span_map(world, config);
-            }
-            res
+            let res = typst::compile::<PagedDocument>(world);
+            if let Ok(ref document) = res.output { if config.output_format == OutputFormat::Svg { crate::synctex::ExportSynctex(document, world, config); } }
+            res.and_then( | document | export_paged( & document, config))
         }
         OutputFormat::Html =>
         {
-            let Warned { output, warnings } = typst::compile::<HtmlDocument>(world);
-            let result = output.and_then(|document| export_html(&document, config));
-            Warned {
-                output: result.map(|()| vec![config.output.clone()]),
-                warnings,
-            }
+            let Warned { output, warnings }
+            = typst::compile::<HtmlDocument>(world);
+            let result = output.and_then( | document | export_html( & document, config));
+            Warned { output: result.map( | () | vec ! [config.output.clone()]), warnings, }
         }
         OutputFormat::Bundle => typst::compile::<Bundle>(world)
-            .and_then(|bundle| export_bundle(bundle, config)),
+        .and_then( | bundle | export_bundle(bundle, config)),
     }
 }
 
 /// Export to HTML.
-fn export_html(document: &HtmlDocument, config: &CompileConfig) -> SourceResult<()>
+fn export_html(document: & HtmlDocument, config: & CompileConfig)->SourceResult<()>
 {
     let options = html_options(config);
-    let html = typst_html::html(document, &options)?;
+    let html = typst_html::html(document, & options)?;
     let result = config.output.write(html.as_bytes());
 
-    #[cfg(feature = "http-server")]
-    if let Some(server) = &config.server
-    {
-        server.set_html(html);
-    }
+    # [cfg(feature = "http-server")]
+    if let Some(server) = & config.server { server.set_html(html); }
 
     result
-        .map_err(|err| eco_format!("failed to write HTML file ({err})"))
-        .at(Span::detached())
+    .map_err( | err | eco_format ! ("failed to write HTML file ({err})"))
+    .at(Span::detached())
 }
 
 /// Export to a paged target format.
-fn export_paged(
-    document: &PagedDocument,
-    config: &CompileConfig,
-) -> Warned<SourceResult<Vec<Output>>>
+fn export_paged(document: & PagedDocument, config: & CompileConfig,)->Warned < SourceResult < Vec < Output >>>
 {
     match config.output_format
     {
-        OutputFormat::Pdf =>
-        {
-            export_pdf(document, config).and_then(|()| Ok(vec![config.output.clone()]))
-        }
+        OutputFormat::Pdf => { export_pdf(document, config).and_then( | () | Ok(vec ! [config.output.clone()])) }
         OutputFormat::Png => export_image(document, config, ImageExportFormat::Png)
-            .at(Span::detached())
-            .into(),
+        .at(Span::detached())
+        .into(),
         OutputFormat::Svg => export_image(document, config, ImageExportFormat::Svg)
-            .at(Span::detached())
-            .into(),
+        .at(Span::detached())
+        .into(),
         OutputFormat::Html | OutputFormat::Bundle => unreachable!(),
     }
 }
 
 /// Export to a PDF.
-fn export_pdf(
-    document: &PagedDocument,
-    config: &CompileConfig,
-) -> Warned<SourceResult<()>>
+fn export_pdf(document: & PagedDocument, config: & CompileConfig,)->Warned<SourceResult<()>>
 {
     let options = pdf_options(config);
-    typst_pdf::pdf(document, &options).and_then(|buffer| {
-        config
+    typst_pdf::pdf(document, & options).and_then
+    (
+        | buffer |
+        {
+            config
             .output
-            .write(&buffer)
-            .map_err(|err| eco_format!("failed to write PDF file ({err})"))
+            .write( & buffer)
+            .map_err( | err | eco_format ! ("failed to write PDF file ({err})"))
             .at(Span::detached())?;
-        Ok(())
-    })
+            Ok(())
+        }
+    )
 }
 
 /// Export to a bundle, a collection of files in a directory.
-fn export_bundle(
-    bundle: Bundle,
-    config: &CompileConfig,
-) -> Warned<SourceResult<Vec<Output>>>
+fn export_bundle(bundle: Bundle, config: & CompileConfig,)->Warned < SourceResult < Vec < Output >>>
 {
-    let options = BundleOptions {
-        html: html_options(config),
-        pdf: pdf_options(config),
-        png: png_options(config),
-        svg: svg_options(config),
-    };
+    let options = BundleOptions { html: html_options(config), pdf: pdf_options(config), png: png_options(config), svg: svg_options(config), };
 
-    typst_bundle::export(&bundle, &options).and_then(|fs| {
-        let root = match &config.output
+    typst_bundle::export( & bundle, & options).and_then
+    (
+        | fs |
         {
-            Output::Path(path) => path,
-            Output::Stdout =>
-            {
-                bail!(Span::detached(), "cannot write bundle to standard output")
-            }
-        };
+            let root = match & config.output { Output::Path(path) => path, Output::Stdout => { bail ! (Span::detached(),"cannot write bundle to standard output") } };
 
-        let outputs = write_virtual_fs(root, &fs).at(Span::detached())?;
+            let outputs = write_virtual_fs(root, & fs).at(Span::detached())?;
 
-        #[cfg(feature = "http-server")]
-        if let Some(server) = &config.server
-        {
-            server.set_bundle(bundle, fs);
+            # [cfg(feature = "http-server")]
+            if let Some(server) = & config.server { server.set_bundle(bundle, fs); }
+
+            Ok(outputs)
         }
-
-        Ok(outputs)
-    })
+    )
 }
 
 /// Writes a bundle's files to disk.
-fn write_virtual_fs(root: &Path, fs: &VirtualFs) -> StrResult<Vec<Output>>
+fn write_virtual_fs(root: & Path, fs: & VirtualFs)->StrResult<Vec<Output>>
 {
     std::fs::create_dir_all(root)
-        .map_err(|err| eco_format!("failed to create output directory ({err})"))?;
+    .map_err( | err | eco_format ! ("failed to create output directory ({err})"))?;
 
     fs.par_iter()
-        .map(|(path, data)| {
+    .map
+    (
+        | (path, data) |
+        {
             let realized = path
-                .realize(root)
-                .map_err(|err| eco_format!("failed to realize path ({err})"))?;
+            .realize(root)
+            .map_err( | err | eco_format ! ("failed to realize path ({err})"))?;
 
             if let Some(parent) = realized.parent()
             {
                 std::fs::create_dir_all(parent)
-                    .map_err(|err| eco_format!("failed to create directory ({err})"))?;
+                .map_err( | err | eco_format ! ("failed to create directory ({err})"))?;
             }
 
-            std::fs::write(&realized, data)
-                .map_err(|err| eco_format!("failed to write file ({err})"))?;
+            std::fs::write( & realized, data)
+            .map_err( | err | eco_format ! ("failed to write file ({err})"))?;
             Ok(Output::Path(realized))
-        })
-        .collect()
+        }
+    )
+    .collect()
 }
 
 /// Convert [`chrono::DateTime`] to [`Datetime`]
-fn convert_datetime<Tz: chrono::TimeZone>(
-    date_time: chrono::DateTime<Tz>,
-) -> Option<Datetime>
+fn convert_datetime<Tz: chrono::TimeZone>(date_time: chrono::DateTime<Tz>,)->Option<Datetime>
 {
-    Datetime::from_ymd_hms(
+    Datetime::from_ymd_hms
+    (
         date_time.year(),
         date_time.month().try_into().ok()?,
         date_time.day().try_into().ok()?,
@@ -550,186 +435,152 @@ fn convert_datetime<Tz: chrono::TimeZone>(
 
 /// An image format to export in.
 #[derive(Copy, Clone)]
-enum ImageExportFormat
-{
-    Png,
-    Svg,
-}
+enum ImageExportFormat { Png, Svg, }
 
 /// Export to one or multiple images.
-fn export_image(
-    document: &PagedDocument,
-    config: &CompileConfig,
-    fmt: ImageExportFormat,
-) -> StrResult<Vec<Output>>
+fn export_image(document: & PagedDocument, config: & CompileConfig, fmt: ImageExportFormat,)->StrResult<Vec<Output>>
 {
     match fmt
     {
         ImageExportFormat::Png =>
         {
             let options =
-                png_options(config).resolve(document.options().get::<PngFormat>());
-            export_image_pages(config, document, |page, output| {
-                let pixmap = typst_render::render(page, &options);
-                let buf = pixmap
+            png_options(config).resolve(document.options().get::<PngFormat>());
+            export_image_pages
+            (
+                config, document, | page, output |
+                {
+                    let pixmap = typst_render::render(page, & options);
+                    let buf = pixmap
                     .encode_png()
-                    .map_err(|err| eco_format!("failed to encode PNG file ({err})"))?;
-                output
-                    .write(&buf)
-                    .map_err(|err| eco_format!("failed to write PNG file ({err})"))?;
-                Ok(())
-            })
+                    .map_err( | err | eco_format ! ("failed to encode PNG file ({err})"))?;
+                    output
+                    .write( & buf)
+                    .map_err( | err | eco_format ! ("failed to write PNG file ({err})"))?;
+                    Ok(())
+                }
+            )
         }
         ImageExportFormat::Svg =>
         {
             let options =
-                svg_options(config).resolve(document.options().get::<SvgFormat>());
-            export_image_pages(config, document, |page, output| {
-                let svg = typst_svg::svg(page, &options);
-                output
+            svg_options(config).resolve(document.options().get::<SvgFormat>());
+            export_image_pages
+            (
+                config, document, | page, output |
+                {
+                    let svg = typst_svg::svg(page, & options);
+                    output
                     .write(svg.as_bytes())
-                    .map_err(|err| eco_format!("failed to write SVG file ({err})"))?;
-                Ok(())
-            })
+                    .map_err( | err | eco_format ! ("failed to write SVG file ({err})"))?;
+                    Ok(())
+                }
+            )
         }
     }
 }
 
 /// Exports the document's pages as separate images, each exported with a
 /// format-specific `export_image_page` function.
-fn export_image_pages<F>(
-    config: &CompileConfig,
-    document: &PagedDocument,
-    export_image_page: F,
-) -> StrResult<Vec<Output>>
+fn export_image_pages<F>(config: & CompileConfig, document: & PagedDocument, export_image_page: F,)->StrResult<Vec<Output>>
 where
-    F: Fn(&Page, &Output) -> StrResult<()>,
-    F: Send + Sync,
+F: Fn( & Page, & Output)->StrResult<()>,
+F: Send + Sync,
 {
     // Determine whether we have indexable templates in output
-    let can_handle_multiple = match config.output
-    {
-        Output::Stdout => false,
-        Output::Path(ref output) =>
-        {
-            output_template::has_indexable_template(output.to_str().unwrap_or_default())
-        }
-    };
+    let can_handle_multiple = match config.output { Output::Stdout => false, Output::Path(ref output) => { output_template::has_indexable_template(output.to_str().unwrap_or_default()) } };
 
     let exported_pages = document
-        .pages()
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| {
-            config.pages.as_ref().is_none_or(|exported_page_ranges| {
-                exported_page_ranges.includes_page_index(*i)
-            })
-        })
-        .collect::<Vec<_>>();
+    .pages()
+    .iter()
+    .enumerate()
+    .filter( | (i, _) | { config.pages.as_ref().is_none_or( | exported_page_ranges | { exported_page_ranges.includes_page_index( * i) }) })
+    .collect::<Vec<_>>();
 
-    if !can_handle_multiple && exported_pages.len() > 1
+    if ! can_handle_multiple && exported_pages.len() > 1
     {
-        let err = match config.output
-        {
-            Output::Stdout => "to stdout",
-            Output::Path(_) =>
-            {
-                "without a page number template ({p}, {0p}) in the output path"
-            }
-        };
+        let err = match config.output { Output::Stdout => "to stdout", Output::Path(_) => { "without a page number template ({p}, {0p}) in the output path" } };
         bail!("cannot export multiple images {err}");
     }
 
     // The results are collected in a `Vec<()>` which does not allocate.
     exported_pages
-        .par_iter()
-        .map(|(i, page)| {
+    .par_iter()
+    .map
+    (
+        | (i, page) |
+        {
             // Use output with converted path.
-            let output = match &config.output
+            let output = match & config.output
             {
                 Output::Path(path) =>
                 {
                     let storage;
                     let path = if can_handle_multiple
                     {
-                        storage = output_template::format(
-                            path.to_str().unwrap_or_default(),
-                            i + 1,
-                            document.pages().len(),
-                        );
-                        Path::new(&storage)
+                        storage = output_template::format(path.to_str().unwrap_or_default(), i + 1, document.pages().len(),);
+                        Path:: new ( & storage)
                     }
-                    else
-                    {
-                        path
-                    };
+                    else { path };
 
                     // If we are not watching, don't use the cache.
                     // If the frame is in the cache, skip it.
                     // If the file does not exist, always create it.
                     if config.watching
-                        && config.export_cache.is_cached(*i, page)
-                        && path.exists()
-                    {
-                        return Ok(Output::Path(path.to_owned()));
-                    }
+                    && config.export_cache.is_cached( * i, page)
+                    && path.exists() { return Ok(Output::Path(path.to_owned())); }
 
                     Output::Path(path.to_owned())
                 }
                 Output::Stdout => Output::Stdout,
             };
 
-            export_image_page(page, &output)?;
+            export_image_page(page, & output)?;
 
             Ok(output)
-        })
-        .collect::<StrResult<Vec<Output>>>()
+        }
+    )
+    .collect:: < StrResult < Vec < Output >>> ()
 }
 
 mod output_template
 {
-    const INDEXABLE: [&str; 3] = ["{p}", "{0p}", "{n}"];
+    const INDEXABLE: [ & str; 3] = ["{p}", "{0p}", "{n}"];
 
-    pub fn has_indexable_template(output: &str) -> bool
-    {
-        INDEXABLE.iter().any(|template| output.contains(template))
-    }
+    pub fn has_indexable_template(output: & str)-> bool { INDEXABLE.iter().any( | template | output.contains(template)) }
 
-    pub fn format(output: &str, this_page: usize, total_pages: usize) -> String
+    pub fn format(output: & str, this_page: usize, total_pages: usize)->String
     {
         // Find the base 10 width of number `i`
-        fn width(i: usize) -> usize
-        {
-            1 + i.checked_ilog10().unwrap_or(0) as usize
-        }
+        fn width(i: usize)->usize { 1 + i.checked_ilog10().unwrap_or(0) as usize }
 
         let other_templates = ["{t}"];
-        INDEXABLE.iter().chain(other_templates.iter()).fold(
+        INDEXABLE.iter().chain(other_templates.iter()).fold
+        (
             output.to_string(),
-            |out, template| {
-                let replacement = match *template
+            | out, template |
+            {
+                let replacement = match * template
                 {
                     "{p}" => format!("{this_page}"),
                     "{0p}" | "{n}" => format!("{:01$}", this_page, width(total_pages)),
                     "{t}" => format!("{total_pages}"),
                     _ => unreachable!("unhandled template placeholder {template}"),
                 };
-                out.replace(template, replacement.as_str())
+                out.replace(template , replacement.as_str())
             },
         )
     }
 }
 
 /// Creates options for HTML export.
-fn html_options(config: &CompileConfig) -> HtmlOptions
+fn html_options(config: & CompileConfig)->HtmlOptions
 {
-    HtmlOptions {
-        format: HtmlFormatOptions { pretty: config.pretty },
-    }
+    HtmlOptions { format: HtmlFormatOptions { pretty: config.pretty }, }
 }
 
 /// Creates options for PDF export.
-fn pdf_options(config: &CompileConfig) -> PdfOptions
+fn pdf_options(config: & CompileConfig)->PdfOptions
 {
     // If the timestamp is provided through the CLI, use UTC suffix,
     // else, use the current local time and timezone.
@@ -739,20 +590,17 @@ fn pdf_options(config: &CompileConfig) -> PdfOptions
         None =>
         {
             let local_datetime = chrono::Local::now();
-            convert_datetime(local_datetime).and_then(|datetime| {
-                Timestamp::new_local(
-                    datetime,
-                    local_datetime.offset().local_minus_utc() / 60,
-                )
-            })
+            convert_datetime(local_datetime).and_then( | datetime | { Timestamp::new_local(datetime, local_datetime.offset().local_minus_utc() / 60,) })
         }
     };
 
-    PdfOptions {
+    PdfOptions
+    {
         ident: Smart::Auto,
         creator: Smart::Auto,
         timestamp,
-        format: PdfFormatOptions {
+        format: PdfFormatOptions
+        {
             pages: config.pages.clone().map(Some),
             standard: config.pdf_standards.clone(),
             tagged: config.tagged.map(Smart::Custom),
@@ -762,21 +610,15 @@ fn pdf_options(config: &CompileConfig) -> PdfOptions
 }
 
 /// Creates options for SVG export.
-fn svg_options(config: &CompileConfig) -> SvgOptions
+fn svg_options(config: & CompileConfig)->SvgOptions
 {
-    SvgOptions {
-        render_bleed: false,
-        format: SvgFormatOptions { pretty: config.pretty },
-    }
+    SvgOptions { render_bleed: false, format: SvgFormatOptions { pretty: config.pretty }, }
 }
 
 /// Creates options for PNG export.
-fn png_options(config: &CompileConfig) -> RenderOptions
+fn png_options(config: & CompileConfig)->RenderOptions
 {
-    RenderOptions {
-        render_bleed: false,
-        format: PngFormatOptions { ppi: config.ppi.map(Scalar::new) },
-    }
+    RenderOptions { render_bleed: false, format: PngFormatOptions { ppi: config.ppi.map(Scalar::new) }, }
 }
 
 /// Caches exported files so that we can avoid re-exporting them if they haven't
@@ -795,55 +637,42 @@ pub struct ExportCache
 impl ExportCache
 {
     /// Creates a new export cache.
-    pub fn new() -> Self
-    {
-        Self { cache: RwLock::new(Vec::with_capacity(32)) }
-    }
+    pub fn new ()->Self { Self { cache: RwLock::new (Vec::with_capacity(32)) } }
 
     /// Returns true if the entry is cached and appends the new hash to the
     /// cache (for the next compilation).
-    pub fn is_cached(&self, i: usize, page: &Page) -> bool
+    pub fn is_cached( & self, i: usize, page: & Page)-> bool
     {
         let hash = typst::utils::hash128(page);
 
         let mut cache = self.cache.upgradable_read();
-        if i >= cache.len()
-        {
-            cache.with_upgraded(|cache| cache.push(hash));
-            return false;
-        }
+        if i >= cache.len() { cache.with_upgraded( | cache | cache.push(hash)); return false; }
 
-        cache.with_upgraded(|cache| std::mem::replace(&mut cache[i], hash) == hash)
+        cache.with_upgraded( | cache | std::mem::replace( & mut cache[i], hash) == hash)
     }
 }
 
 /// Opens the output if desired.
-fn open_output(config: &mut CompileConfig) -> StrResult<()>
+fn open_output(config: & mut CompileConfig)->StrResult<()>
 {
     let Some(viewer) = config.open.take()
-    else
-    {
-        return Ok(());
-    };
+    else { return Ok(()); };
 
-    #[cfg(feature = "http-server")]
-    if let Some(server) = &config.server
+    # [cfg(feature = "http-server")]
+    if let Some(server) = & config.server
     {
         let url = format!("http://{}", server.addr());
-        return open_path(OsStr::new(&url), viewer.as_deref());
+        return open_path(OsStr::new ( & url), viewer.as_deref());
     }
 
     // Can't open stdout.
-    let Output::Path(path) = &config.output
-    else
-    {
-        return Ok(());
-    };
+    let Output::Path(path) = & config.output
+    else { return Ok(()); };
 
     // Some resource openers require the path to be canonicalized.
     let path = path
-        .canonicalize()
-        .map_err(|err| eco_format!("failed to canonicalize path ({err})"))?;
+    .canonicalize()
+    .map_err( | err | eco_format ! ("failed to canonicalize path ({err})"))?;
 
     open_path(path.as_os_str(), viewer.as_deref())
 }
@@ -852,39 +681,36 @@ fn open_output(config: &mut CompileConfig) -> StrResult<()>
 ///
 /// - The default file viewer if `app` is `None`.
 /// - The given viewer provided by `app` if it is `Some`.
-fn open_path(path: &OsStr, viewer: Option<&str>) -> StrResult<()>
+fn open_path(path: & OsStr, viewer: Option <& str >)->StrResult<()>
 {
-    if let Some(viewer) = viewer
-    {
-        open::with_detached(path, viewer)
-            .map_err(|err| eco_format!("failed to open file with {viewer} ({err})"))
-    }
+    if let Some(viewer) = viewer { open::with_detached(path, viewer).map_err( | err | eco_format ! ("failed to open file with {viewer} ({err})")) }
     else
     {
-        open::that_detached(path).map_err(|err| {
-            let openers = open::commands(path)
+        open::that_detached(path).map_err
+        (
+            | err |
+            {
+                let openers = open::commands(path)
                 .iter()
-                .map(|command| command.get_program().to_string_lossy())
+                .map( | command | command.get_program().to_string_lossy())
                 .collect::<Vec<_>>()
                 .join(", ");
-            eco_format!(
-                "failed to open file with any of these resource openers: {openers} \
+                eco_format!
+                (
+                    "failed to open file with any of these resource openers: {openers} \
                  ({err})",
-            )
-        })
+                )
+            }
+        )
     }
 }
 
 /// Print diagnostic messages to the terminal.
-pub fn print_diagnostics(
-    world: &dyn DiagnosticWorld,
-    errors: &[SourceDiagnostic],
-    warnings: &[SourceDiagnostic],
-    format: DiagnosticFormat,
-) -> Result<(), codespan_reporting::files::Error>
+pub fn print_diagnostics(world: & dyn DiagnosticWorld, errors: & [SourceDiagnostic], warnings: & [SourceDiagnostic], format: DiagnosticFormat,)->Result<(), codespan_reporting::files::Error>
 {
-    typst_kit::diagnostics::emit(
-        &mut terminal::out(),
+    typst_kit::diagnostics::emit
+    (
+        & mut terminal::out(),
         world,
         errors.iter().chain(warnings),
         match format
@@ -897,7 +723,7 @@ pub fn print_diagnostics(
 
 impl From<args::PdfStandard> for typst_pdf::PdfStandard
 {
-    fn from(standard: args::PdfStandard) -> Self
+    fn from(standard: args::PdfStandard)->Self
     {
         match standard
         {
@@ -919,89 +745,5 @@ impl From<args::PdfStandard> for typst_pdf::PdfStandard
             args::PdfStandard::A_4e => typst_pdf::PdfStandard::A_4e,
             args::PdfStandard::UA_1 => typst_pdf::PdfStandard::UA_1,
         }
-    }
-}
-
-#[derive(serde::Serialize)]
-struct SpanLocation
-{
-    line: usize,
-    col: usize,
-    end_line: usize,
-    end_col: usize,
-    start: usize,
-    end: usize,
-}
-
-fn collect_node_spans(
-    node: &typst::syntax::LinkedNode,
-    source: &typst::syntax::Source,
-    map: &mut std::collections::BTreeMap<String, SpanLocation>,
-)
-{
-    let span = node.span();
-    if !span.is_detached()
-    {
-        let raw = span.into_raw().get();
-        let span_hex = ecow::eco_format!("{:x}", raw);
-        let range = node.range();
-        if let Some((line, _)) = source.lines().byte_to_line_column(range.start)
-        {
-            let start_line_byte = source.lines().line_to_byte(line).unwrap_or(0);
-            let head = source.text().get(start_line_byte..range.start).unwrap_or("");
-            let col = head.chars().map(char::len_utf16).sum::<usize>() + 1;
-
-            let (end_line, _) =
-                source.lines().byte_to_line_column(range.end).unwrap_or((line, 0));
-            let end_line_byte = source.lines().line_to_byte(end_line).unwrap_or(0);
-            let end_head = source.text().get(end_line_byte..range.end).unwrap_or("");
-            let end_col = end_head.chars().map(char::len_utf16).sum::<usize>() + 1;
-
-            map.insert
-            (
-                span_hex.to_string(),
-                SpanLocation
-                {
-                    line: line + 1,
-                    col,
-                    end_line: end_line + 1,
-                    end_col,
-                    start: range.start,
-                    end: range.end,
-                },
-            );
-        }
-    }
-
-    for child in node.children()
-    {
-        collect_node_spans(&child, source, map);
-    }
-}
-
-fn export_span_map(world: &SystemWorld, config: &CompileConfig)
-{
-    let Output::Path(ref path) = config.output
-    else
-    {
-        return;
-    };
-    let Some(parent) = path.parent()
-    else
-    {
-        return;
-    };
-    let map_path = parent.join("span-map.json");
-
-    let mut map = std::collections::BTreeMap::new();
-    if let Ok(source) = world.source(world.main())
-    {
-        let root = typst::syntax::LinkedNode::new(source.root());
-        collect_node_spans(&root, &source, &mut map);
-    }
-
-    if let Ok(json) = serde_json::to_string(&map)
-    {
-        let _ = std::fs::write(map_path, json);
     }
 }

@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
-use crate::foundations::{Content, elem};
-use crate::layout::{Length, Ratio, Rel};
+use crate::foundations:: { Content, elem };
+use crate::layout:: { Length, Ratio, Rel };
 
 /// Separates a region into multiple equally sized columns.
 ///
@@ -59,8 +59,8 @@ use crate::layout::{Length, Ratio, Rel};
 pub struct ColumnsElem
 {
     /// The number of columns.
-    #[positional]
-    #[default(NonZeroUsize::new(2).unwrap())]
+    # [positional]
+    # [default (NonZeroUsize::new (2).unwrap())]
     pub count: NonZeroUsize,
 
     /// The size of the gutter space between each column.
@@ -71,7 +71,7 @@ pub struct ColumnsElem
     /// #set columns(gutter: 15mm)
     /// #lorem(30)
     /// ```
-    #[default(Ratio::new(0.04).into())]
+    # [default (Ratio::new (0.04).into())]
     pub gutter: Rel<Length>,
 
     /// Whether to equalize the height of columns by breaking columns early.
@@ -83,7 +83,7 @@ pub struct ColumnsElem
     /// #set columns(balanced: true)
     /// #lorem(30)
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub balanced: bool,
 
     /// The separator to place between each pair of non-empty columns.
@@ -129,11 +129,11 @@ pub struct ColumnsElem
     ///   #lorem(36)
     ///   ```
     /// )
-    #[default]
+    # [default]
     pub separator: Option<Content>,
 
     /// The content that should be layouted into the columns.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -165,6 +165,6 @@ pub struct ColbreakElem
 {
     /// If `{true}`, the column break is skipped if the current column is
     /// already empty.
-    #[default(false)]
+    # [default (false)]
     pub weak: bool,
 }

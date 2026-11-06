@@ -27,21 +27,19 @@ pub mod text;
 pub mod visualize;
 
 use std::fmt::Display;
-use std::ops::{Deref, Range};
+use std::ops:: { Deref, Range };
 use std::str::FromStr;
 
-use serde::{Deserialize, Serialize};
-use typst_syntax::{DiagSpan, DiagSpanKind, FileId, Source};
-use typst_utils::{LazyHash, SmallBitSet};
+use serde:: { Deserialize, Serialize };
+use typst_syntax:: { DiagSpan, DiagSpanKind, FileId, Source };
+use typst_utils:: { LazyHash, SmallBitSet };
 
 use crate::diag::FileResult;
 use crate::format::Format;
-use crate::foundations::{
-    Array, Binding, Bytes, Datetime, Dict, Duration, Module, NativeRuleMap, Scope, Styles,
-};
-use crate::layout::{Alignment, Dir};
+use crate::foundations:: { Array, Binding, Bytes, Datetime, Dict, Duration, Module, NativeRuleMap, Scope, Styles, };
+use crate::layout:: { Alignment, Dir };
 use crate::routines::Routines;
-use crate::text::{Font, FontBook};
+use crate::text:: { Font, FontBook };
 use crate::visualize::Color;
 
 /// The environment in which typesetting occurs.
@@ -65,23 +63,23 @@ pub trait World: Send + Sync
     /// The standard library.
     ///
     /// Can be created through `Library::build()`.
-    fn library(&self) -> &LazyHash<Library>;
+    fn library( & self)-> & LazyHash<Library>;
 
     /// Metadata about all known fonts.
-    fn book(&self) -> &LazyHash<FontBook>;
+    fn book( & self)-> & LazyHash<FontBook>;
 
     /// Get the file id of the main source file.
-    fn main(&self) -> FileId;
+    fn main( & self)->FileId;
 
     /// Try to access the specified file location as a source file.
-    fn source(&self, id: FileId) -> FileResult<Source>;
+    fn source( & self, id: FileId)->FileResult<Source>;
 
     /// Try to access the specified file.
     ///
     /// For file locations for which [`source`](Self::source) succeeds, this
     /// should also succeed. The [`Bytes`] can be cheaply created as a view into
     /// an existing [`Source`] through [`Bytes::from_string`].
-    fn file(&self, id: FileId) -> FileResult<Bytes>;
+    fn file( & self, id: FileId)->FileResult<Bytes>;
 
     /// Try to access the font with the given index in the font book.
     ///
@@ -89,7 +87,7 @@ pub trait World: Send + Sync
     /// returned by this world's `book()` function. This is the case because
     /// this function may be invoked with indices from an outdated or different
     /// font book during incremental compilation validation.
-    fn font(&self, index: usize) -> Option<Font>;
+    fn font( & self, index: usize)->Option<Font>;
 
     /// Get the current date.
     ///
@@ -98,54 +96,35 @@ pub trait World: Send + Sync
     ///
     /// If this function returns `None`, Typst's `datetime` function will
     /// return an error.
-    fn today(&self, offset: Option<Duration>) -> Option<Datetime>;
+    fn today( & self, offset: Option<Duration>)->Option<Datetime>;
 }
 
-macro_rules! world_impl {
-    ($W:ident for $ptr:ty) => {
-        impl<$W: World> World for $ptr
+macro_rules! world_impl
+{
+    ($W: ident for $ptr: ty) =>
+    {
+        impl <$W: World> World for $ptr
         {
-            fn library(&self) -> &LazyHash<Library>
-            {
-                self.deref().library()
-            }
+            fn library( & self)-> & LazyHash<Library> { self.deref().library() }
 
-            fn book(&self) -> &LazyHash<FontBook>
-            {
-                self.deref().book()
-            }
+            fn book( & self)-> & LazyHash<FontBook> { self.deref().book() }
 
-            fn main(&self) -> FileId
-            {
-                self.deref().main()
-            }
+            fn main( & self)->FileId { self.deref().main() }
 
-            fn source(&self, id: FileId) -> FileResult<Source>
-            {
-                self.deref().source(id)
-            }
+            fn source( & self, id: FileId)->FileResult<Source> { self.deref().source(id) }
 
-            fn file(&self, id: FileId) -> FileResult<Bytes>
-            {
-                self.deref().file(id)
-            }
+            fn file( & self, id: FileId)->FileResult<Bytes> { self.deref().file(id) }
 
-            fn font(&self, index: usize) -> Option<Font>
-            {
-                self.deref().font(index)
-            }
+            fn font( & self, index: usize)->Option<Font> { self.deref().font(index) }
 
-            fn today(&self, offset: Option<Duration>) -> Option<Datetime>
-            {
-                self.deref().today(offset)
-            }
+            fn today( & self, offset: Option<Duration>)->Option<Datetime> { self.deref().today(offset) }
         }
     };
 }
 
 world_impl!(W for std::boxed::Box<W>);
 world_impl!(W for std::sync::Arc<W>);
-world_impl!(W for &W);
+world_impl!(W for & W);
 
 /// Helper methods on [`World`] implementations.
 pub trait WorldExt
@@ -153,21 +132,20 @@ pub trait WorldExt
     /// Get the byte range for a span.
     ///
     /// Returns `None` if the `Span` does not point into any file.
-    fn range(&self, span: impl Into<DiagSpan>) -> Option<Range<usize>>;
+    fn range( & self, span: impl Into<DiagSpan>)->Option<Range<usize>>;
 }
 
-impl<T: World + ?Sized> WorldExt for T
+impl <T: World + ? Sized> WorldExt for T
 {
-    fn range(&self, span: impl Into<DiagSpan>) -> Option<Range<usize>>
+    fn range( & self, span: impl Into<DiagSpan>)->Option<Range<usize>>
     {
-        match span.into().get()
+        match span.into(). get()
         {
             DiagSpanKind::Detached => None,
-            DiagSpanKind::Number { id, num, sub_range } =>
-            {
-                self.source(id).ok()?.range(num, sub_range)
-            }
-            DiagSpanKind::Range { id: _, range } => Some(range),
+            DiagSpanKind::Number { id, num, sub_range }
+            => { self.source(id).ok()?.range(num, sub_range) }
+            DiagSpanKind::Range { id: _, range }
+            => Some(range),
         }
     }
 }
@@ -184,7 +162,7 @@ pub struct Library
 {
     /// Defines implementation of various Typst compiler routines as a table of
     /// function pointers.
-    pub routines: &'static Routines,
+    pub routines: & 'static Routines,
     /// The module that contains the definitions that are available everywhere.
     pub global: Module,
     /// The module that contains the definitions available in math mode.
@@ -206,63 +184,36 @@ pub struct Library
 ///
 /// Constructed via the `LibraryExt` trait.
 #[derive(Debug, Clone)]
-pub struct LibraryBuilder
-{
-    routines: &'static Routines,
-    inputs: Option<Dict>,
-    features: Features,
-    formats: Vec<Format>,
-}
+pub struct LibraryBuilder { routines: & 'static Routines, inputs: Option<Dict>, features: Features, formats: Vec<Format>, }
 
 impl LibraryBuilder
 {
     /// Creates a new builder.
-    #[doc(hidden)]
-    pub fn from_routines(
-        routines: &'static Routines,
-        formats: impl IntoIterator<Item = Format>,
-    ) -> Self
-    {
-        Self {
-            routines,
-            inputs: None,
-            features: Features::default(),
-            formats: formats.into_iter().collect(),
-        }
-    }
+    # [doc(hidden)]
+    pub fn from_routines(routines: & 'static Routines, formats: impl IntoIterator<Item = Format>,)->Self { Self { routines, inputs: None, features: Features::default (), formats: formats.into_iter().collect(), } }
 
     /// Configure the inputs visible through `sys.inputs`.
-    pub fn with_inputs(mut self, inputs: Dict) -> Self
-    {
-        self.inputs = Some(inputs);
-        self
-    }
+    pub fn with_inputs(mut self, inputs: Dict)->Self { self.inputs = Some(inputs); self }
 
     /// Configure in-development features that should be enabled.
     ///
     /// No guarantees whatsover!
-    pub fn with_features(mut self, features: Features) -> Self
-    {
-        self.features = features;
-        self
-    }
+    pub fn with_features(mut self, features: Features)->Self { self.features = features; self }
 
     /// Consumes the builder and returns a `Library`.
-    pub fn build(self) -> Library
+    pub fn build(self)->Library
     {
         let math = math::module();
         let inputs = self.inputs.unwrap_or_default();
-        let global = global(&self.formats, math.clone(), inputs);
+        let global = global( & self.formats, math.clone(), inputs);
         let mut rules = (self.routines.rules)();
-        for format in &self.formats
+        for format in & self.formats { format.register_rules( & mut rules); }
+        Library
         {
-            format.register_rules(&mut rules);
-        }
-        Library {
             routines: self.routines,
             global: global.clone(),
             math,
-            styles: Styles::new(),
+            styles: Styles:: new (),
             rules,
             std: Binding::detached(global),
             features: self.features,
@@ -280,33 +231,21 @@ pub struct Features(SmallBitSet);
 impl Features
 {
     /// Creates an instance where all features are enabled.
-    pub fn all() -> Self
-    {
-        Feature::all().collect()
-    }
+    pub fn all()->Self { Feature::all().collect() }
 
     /// Creates an instance where no features are enabled.
-    pub fn none() -> Self
-    {
-        Self::default()
-    }
+    pub fn none()->Self { Self::default () }
 
     /// Check whether the given feature is enabled.
-    pub fn is_enabled(&self, feature: Feature) -> bool
-    {
-        self.0.contains(feature as usize)
-    }
+    pub fn is_enabled( & self, feature: Feature)-> bool { self .0.contains(feature as usize) }
 }
 
 impl FromIterator<Feature> for Features
 {
-    fn from_iter<T: IntoIterator<Item = Feature>>(iter: T) -> Self
+    fn from_iter<T: IntoIterator<Item = Feature>>(iter: T)->Self
     {
-        let mut set = SmallBitSet::default();
-        for feature in iter
-        {
-            set.insert(feature as usize);
-        }
+        let mut set = SmallBitSet:: default();
+        for feature in iter { set.insert(feature as usize); }
         Self(set)
     }
 }
@@ -314,77 +253,35 @@ impl FromIterator<Feature> for Features
 /// An in-development feature that should be enabled.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[non_exhaustive]
-pub enum Feature
-{
-    Html,
-    Bundle,
-    A11yExtras,
-}
+pub enum Feature { Html, Bundle, A11yExtras, }
 
 impl Feature
 {
     /// Iterates over all available features.
-    pub fn all() -> impl Iterator<Item = Self>
-    {
-        [Self::Html, Self::Bundle, Self::A11yExtras].into_iter()
-    }
+    pub fn all()-> impl Iterator<Item = Self> { [Self::Html, Self::Bundle, Self::A11yExtras].into_iter() }
 }
 
 impl Display for Feature
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
-    {
-        f.write_str(match self
-        {
-            Feature::Html => "html",
-            Feature::Bundle => "bundle",
-            Feature::A11yExtras => "a11y-extras",
-        })
-    }
+    fn fmt( & self, f: & mut std::fmt::Formatter<'_>)->std::fmt::Result { f.write_str(match self { Feature::Html => "html", Feature::Bundle => "bundle", Feature::A11yExtras => "a11y-extras", }) }
 }
 
 impl FromStr for Feature
 {
     type Err = ();
 
-    fn from_str(s: &str) -> Result<Self, Self::Err>
-    {
-        match s
-        {
-            "html" => Ok(Self::Html),
-            "bundle" => Ok(Self::Bundle),
-            "a11y-extras" => Ok(Self::A11yExtras),
-            _ => Err(()),
-        }
-    }
+    fn from_str(s: & str)->Result<Self, Self::Err> { match s { "html" => Ok(Self::Html),"bundle" => Ok(Self::Bundle),"a11y-extras" => Ok(Self::A11yExtras), _ => Err(()), } }
 }
 
 /// A group of related standard library definitions.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum Category
-{
-    Foundations,
-    Introspection,
-    Layout,
-    DataLoading,
-    Math,
-    Model,
-    Symbols,
-    Text,
-    Visualize,
-    Format,
-    Pdf,
-    Html,
-    Svg,
-    Png,
-    Bundle,
-}
+pub enum Category { Foundations, Introspection, Layout, DataLoading, Math, Model, Symbols, Text, Visualize, Format, Pdf, Html, Svg, Png, Bundle, }
 
 impl Category
 {
     /// The kebab-case name of the category.
-    pub fn name(&self) -> &'static str
+    pub fn name( & self)-> & 'static str
     {
         match self
         {
@@ -408,28 +305,28 @@ impl Category
 }
 
 /// Construct the module with global definitions.
-fn global(formats: &[Format], math: Module, inputs: Dict) -> Module
+fn global(formats: & [Format], math: Module, inputs: Dict)->Module
 {
     let mut global = Scope::deduplicating();
 
-    self::foundations::define(&mut global, inputs);
-    self::model::define(&mut global);
-    self::text::define(&mut global);
-    self::layout::define(&mut global);
-    self::visualize::define(&mut global);
-    self::introspection::define(&mut global);
-    self::loading::define(&mut global);
-    self::symbols::define(&mut global);
+    self::foundations::define( & mut global, inputs);
+    self::model::define( & mut global);
+    self::text::define( & mut global);
+    self::layout::define( & mut global);
+    self::visualize::define( & mut global);
+    self::introspection::define( & mut global);
+    self::loading::define( & mut global);
+    self::symbols::define( & mut global);
     global.define("format", self::format::module(formats));
     global.define("math", math);
 
-    prelude(&mut global);
+    prelude( & mut global);
 
-    Module::new("global", global)
+    Module:: new ("global", global)
 }
 
 /// Defines scoped values that are globally available, too.
-fn prelude(global: &mut Scope)
+fn prelude(global: & mut Scope)
 {
     global.define("black", Color::BLACK);
     global.define("gray", Color::GRAY);

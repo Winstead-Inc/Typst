@@ -1,58 +1,30 @@
 use serde::Deserialize;
 
-use super::{FontStretch, FontStyle, FontWeight};
+use super:: { FontStretch, FontStyle, FontWeight };
 
-pub fn find_exception(postscript_name: &str) -> Option<&'static Exception>
-{
-    EXCEPTION_MAP.get(postscript_name)
-}
+pub fn find_exception(postscript_name: & str)->Option <& 'static Exception > { EXCEPTION_MAP.get (postscript_name) }
 
 #[derive(Debug, Copy, Clone, Default, Deserialize)]
-pub struct Exception
-{
-    pub family: Option<&'static str>,
-    pub style: Option<FontStyle>,
-    pub weight: Option<FontWeight>,
-    pub stretch: Option<FontStretch>,
-}
+pub struct Exception { pub family: Option <& 'static str > , pub style: Option<FontStyle>, pub weight: Option<FontWeight>, pub stretch: Option<FontStretch>, }
 
 impl Exception
 {
-    const fn new() -> Self
-    {
-        Self {
-            family: None,
-            style: None,
-            weight: None,
-            stretch: None,
-        }
-    }
+    const fn new ()->Self { Self { family: None, style: None, weight: None, stretch: None, } }
 
-    const fn family(self, family: &'static str) -> Self
-    {
-        Self { family: Some(family), ..self }
-    }
+    const fn family(self, family: & 'static str)->Self { Self { family: Some(family),..self } }
 
-    const fn style(self, style: FontStyle) -> Self
-    {
-        Self { style: Some(style), ..self }
-    }
+    const fn style(self, style: FontStyle)->Self { Self { style: Some(style),..self } }
 
-    const fn weight(self, weight: u16) -> Self
-    {
-        Self { weight: Some(FontWeight(weight)), ..self }
-    }
+    const fn weight(self, weight: u16)->Self { Self { weight: Some(FontWeight(weight)),..self } }
 
-    const fn stretch(self, stretch: u16) -> Self
-    {
-        Self { stretch: Some(FontStretch(stretch)), ..self }
-    }
+    const fn stretch(self, stretch: u16)->Self { Self { stretch: Some(FontStretch(stretch)),..self } }
 }
 
-const E: Exception = Exception::new();
+const E: Exception = Exception:: new ();
 
 /// A map which keys are PostScript name and values are override entries.
-static EXCEPTION_MAP: phf::Map<&'static str, Exception> = phf::phf_map! {
+static EXCEPTION_MAP: phf::Map <& 'static str, Exception > = phf::phf_map!
+{
     // The old version of Arial-Black, published by Microsoft in 1996 in their
     // "core fonts for the web" project, has a wrong weight of 400. See
     // https://corefonts.sourceforge.net/.

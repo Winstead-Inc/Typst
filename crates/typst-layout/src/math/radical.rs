@@ -1,12 +1,10 @@
 use typst_library::diag::SourceResult;
 use typst_library::foundations::StyleChain;
-use typst_library::layout::{
-    Abs, Axis, Corners, Frame, FrameItem, Point, Rel, Sides, Size,
-};
-use typst_library::math::ir::{MathProperties, RadicalItem};
-use typst_library::math::{EquationElem, MathSize};
+use typst_library::layout:: { Abs, Axis, Corners, Frame, FrameItem, Point, Rel, Sides, Size, };
+use typst_library::math::ir:: { MathProperties, RadicalItem };
+use typst_library::math:: { EquationElem, MathSize };
 use typst_library::text::TextElem;
-use typst_library::visualize::{FixedStroke, Geometry};
+use typst_library::visualize:: { FixedStroke, Geometry };
 
 use super::MathContext;
 use super::fragment::FrameFragment;
@@ -17,31 +15,23 @@ use crate::shapes::styled_rect;
 /// TeXbook page 443, page 360
 /// See also: <https://www.w3.org/TR/mathml-core/#radicals-msqrt-mroot>
 #[typst_macros::time(name = "math radical layout", span = props.span)]
-pub fn layout_radical(
-    item: &RadicalItem,
-    ctx: &mut MathContext,
-    styles: StyleChain,
-    props: &MathProperties,
-) -> SourceResult<()>
+pub fn layout_radical(item: & RadicalItem, ctx: & mut MathContext, styles: StyleChain, props: & MathProperties,)->SourceResult<()>
 {
-    let radicand = ctx.layout_into_fragment(&item.radicand, styles)?.into_frame();
-    let target = {
-        let sqrt = ctx.layout_into_fragment(&item.sqrt, styles)?;
+    let radicand = ctx.layout_into_fragment( & item.radicand, styles)?.into_frame();
+    let target =
+    {
+        let sqrt = ctx.layout_into_fragment( & item.sqrt, styles)?;
         let styles = item.sqrt.styles().unwrap_or(styles);
         let (font, size) = sqrt.font(ctx, styles);
         let thickness = font.math().radical_rule_thickness.at(size);
-        let gap = match styles.get(EquationElem::size)
-        {
-            MathSize::Display => font.math().radical_display_style_vertical_gap,
-            _ => font.math().radical_vertical_gap,
-        }
+        let gap = match styles. get(EquationElem::size) { MathSize::Display => font.math().radical_display_style_vertical_gap, _ => font.math().radical_vertical_gap, }
         .at(size);
         radicand.height() + thickness + gap
     };
 
     // Layout root symbol.
     item.sqrt.set_stretch_relative_to(target, Axis::Y);
-    let sqrt = ctx.layout_into_fragment(&item.sqrt, styles)?;
+    let sqrt = ctx.layout_into_fragment( & item.sqrt, styles)?;
     let sqrt_styles = item.sqrt.styles().unwrap_or(styles);
 
     let (font, size) = sqrt.font(ctx, sqrt_styles);
@@ -50,16 +40,12 @@ pub fn layout_radical(
     let kern_before = font.math().radical_kern_before_degree.at(size);
     let kern_after = font.math().radical_kern_after_degree.at(size);
     let raise_factor = font.math().radical_degree_bottom_raise_percent;
-    let gap = match sqrt_styles.get(EquationElem::size)
-    {
-        MathSize::Display => font.math().radical_display_style_vertical_gap,
-        _ => font.math().radical_vertical_gap,
-    }
+    let gap = match sqrt_styles. get(EquationElem::size) { MathSize::Display => font.math().radical_display_style_vertical_gap, _ => font.math().radical_vertical_gap, }
     .at(size);
 
     let text_fill = sqrt
-        .fill()
-        .unwrap_or_else(|| sqrt_styles.get_ref(TextElem::fill).as_decoration());
+    .fill()
+    .unwrap_or_else( || sqrt_styles.get_ref(TextElem::fill).as_decoration());
     let line_width = radicand.width();
     let sqrt_stroke = sqrt.stroke();
 
@@ -67,11 +53,11 @@ pub fn layout_radical(
 
     // Layout the index.
     let index = item
-        .index
-        .as_ref()
-        .map(|index| ctx.layout_into_fragment(index, styles))
-        .transpose()?
-        .map(|frag| frag.into_frame());
+    .index
+    .as_ref()
+    .map( | index | ctx.layout_into_fragment(index, styles))
+    .transpose()?
+    .map( | frag | frag.into_frame());
 
     // TeXbook, page 443, item 11
     // Keep original gap, and then distribute any remaining free space
@@ -86,7 +72,7 @@ pub fn layout_radical(
     let mut shift_up = Abs::zero();
     let mut ascent = inner_ascent;
 
-    if let Some(index) = &index
+    if let Some(index) = & index
     {
         sqrt_offset = kern_before + index.width() + kern_after;
         // The formula below for how much raise the index by comes from
@@ -102,21 +88,21 @@ pub fn layout_radical(
     let sqrt_x = sqrt_offset.max(Abs::zero());
     let radicand_x = sqrt_x + sqrt.width();
     let radicand_y = ascent - radicand.ascent();
-    let size = Size::new(radicand_x + line_width, ascent + descent);
+    let size = Size:: new (radicand_x + line_width, ascent + descent);
 
     // The extra "- thickness" comes from the fact that the sqrt is placed
     // in `push_frame` with respect to its top, not its baseline.
-    let sqrt_pos = Point::new(sqrt_x, radicand_y - gap - thickness);
-    let line_pos = Point::new(radicand_x, radicand_y - gap - (thickness / 2.0));
-    let radicand_pos = Point::new(radicand_x, radicand_y);
+    let sqrt_pos = Point:: new (sqrt_x, radicand_y - gap - thickness);
+    let line_pos = Point:: new (radicand_x, radicand_y - gap - (thickness / 2.0));
+    let radicand_pos = Point:: new (radicand_x, radicand_y);
 
     let mut frame = Frame::soft(size);
     frame.set_baseline(ascent);
 
     if let Some(index) = index
     {
-        let index_x = -sqrt_offset.min(Abs::zero()) + kern_before;
-        let index_pos = Point::new(index_x, ascent - index.ascent() - shift_up);
+        let index_x = - sqrt_offset.min(Abs::zero()) + kern_before;
+        let index_pos = Point:: new (index_x, ascent - index.ascent() - shift_up);
         frame.push_frame(index_pos, index);
     }
 
@@ -125,36 +111,29 @@ pub fn layout_radical(
     // Add the horizontal line of the root symbol.
     if let Some(fixed_stroke) = sqrt_stroke
     {
-        let sides = styled_rect(
-            Size::new(line_width, thickness),
-            &Corners::splat(Rel::<Abs>::zero()),
+        let sides = styled_rect
+        (
+            Size:: new (line_width, thickness),
+            & Corners::splat(Rel:: < Abs >:: zero()),
             Some(text_fill),
-            &Sides::new(
+            & Sides:: new
+            (
                 None, // Omit the left-side edge.
                 Some(fixed_stroke.clone()),
                 Some(fixed_stroke.clone()),
                 Some(fixed_stroke),
             ),
         );
-        frame.push_multiple(sides.into_iter().map(|shape| {
-            (
-                line_pos - Point::with_y(thickness / 2.0),
-                FrameItem::Shape(shape, props.span),
-            )
-        }));
+        frame.push_multiple(sides.into_iter().map( | shape | { (line_pos - Point::with_y(thickness / 2.0), FrameItem::Shape(shape, props.span),) }));
     }
     else
     {
-        let line = FrameItem::Shape(
-            Geometry::Line(Point::with_x(line_width))
-                .stroked(FixedStroke::from_pair(text_fill, thickness)),
-            props.span,
-        );
+        let line = FrameItem::Shape(Geometry::Line(Point::with_x(line_width)).stroked(FixedStroke::from_pair(text_fill, thickness)), props.span,);
         frame.push(line_pos, line);
     }
 
     frame.push_frame(radicand_pos, radicand);
 
-    ctx.push(FrameFragment::new(props, styles, frame));
+    ctx.push(FrameFragment::new (props, styles, frame));
     Ok(())
 }

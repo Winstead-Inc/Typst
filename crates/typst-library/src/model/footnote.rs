@@ -1,23 +1,18 @@
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use typst_syntax::Spanned;
-use typst_utils::{NonZeroExt, singleton};
+use typst_utils:: { NonZeroExt, singleton };
 
-use crate::diag::{At, SourceResult, StrResult, bail};
+use crate::diag:: { At, SourceResult, StrResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Content, Label, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles, cast,
-    elem, scope,
-};
-use crate::introspection::{
-    Count, Counter, CounterUpdate, Location, QueryLabelIntrospection,
-};
-use crate::layout::{Em, Length, Ratio};
-use crate::model::{DirectLinkElem, Numbering, NumberingPattern, ParElem};
-use crate::text::{LocalName, SuperElem, TextElem, TextSize};
-use crate::visualize::{LineElem, Stroke};
+use crate::foundations:: { Content, Label, NativeElement, Packed, ShowSet, Smart, StyleChain, Styles, cast, elem, scope, };
+use crate::introspection:: { Count, Counter, CounterUpdate, Location, QueryLabelIntrospection, };
+use crate::layout:: { Em, Length, Ratio };
+use crate::model:: { DirectLinkElem, Numbering, NumberingPattern, ParElem };
+use crate::text:: { LocalName, SuperElem, TextElem, TextSize };
+use crate::visualize:: { LineElem, Stroke };
 
 /// A footnote.
 ///
@@ -78,110 +73,74 @@ pub struct FootnoteElem
     /// #footnote[Star],
     /// #footnote[Dagger]
     /// ```
-    #[default(Numbering::Pattern(NumberingPattern::from_str("1").unwrap()))]
+    # [default (Numbering::Pattern(NumberingPattern::from_str("1").unwrap()))]
     pub numbering: Numbering,
 
     /// The content to put into the footnote. Can also be the label of another
     /// footnote this one should point to.
-    #[required]
+    # [required]
     pub body: FootnoteBody,
 }
 
 #[scope]
-impl FootnoteElem
-{
-    #[elem]
-    type FootnoteEntry;
-}
+impl FootnoteElem { # [elem] type FootnoteEntry; }
 
-impl LocalName for Packed<FootnoteElem>
-{
-    const KEY: &'static str = "footnote";
-}
+impl LocalName for Packed<FootnoteElem> { const KEY: & 'static str = "footnote"; }
 
 impl FootnoteElem
 {
-    pub fn alt_text(styles: StyleChain, num: &str) -> EcoString
+    pub fn alt_text(styles: StyleChain, num: & str)->EcoString
     {
-        let local_name = Packed::<FootnoteElem>::local_name_in(styles);
+        let local_name = Packed:: < FootnoteElem >:: local_name_in(styles);
         eco_format!("{local_name} {num}")
     }
 
     /// Creates a new footnote that the passed content as its body.
-    pub fn with_content(content: Content) -> Self
-    {
-        Self::new(FootnoteBody::Content(content))
-    }
+    pub fn with_content(content: Content)->Self { Self::new (FootnoteBody::Content(content)) }
 
     /// Creates a new footnote referencing the footnote with the specified label.
-    pub fn with_label(label: Label) -> Self
-    {
-        Self::new(FootnoteBody::Reference(label))
-    }
+    pub fn with_label(label: Label)->Self { Self::new (FootnoteBody::Reference(label)) }
 
     /// Creates a new footnote referencing the footnote with the specified label,
     /// with the other fields from the current footnote cloned.
-    pub fn into_ref(&self, label: Label) -> Self
-    {
-        Self {
-            body: FootnoteBody::Reference(label),
-            ..self.clone()
-        }
-    }
+    pub fn into_ref( & self, label: Label)->Self { Self { body: FootnoteBody::Reference(label),..self.clone() } }
 
     /// Tests if this footnote is a reference to another footnote.
-    pub fn is_ref(&self) -> bool
-    {
-        matches!(self.body, FootnoteBody::Reference(_))
-    }
+    pub fn is_ref( & self)-> bool { matches ! (self.body, FootnoteBody::Reference(_)) }
 
     /// Returns the content of the body of this footnote if it is not a ref.
-    pub fn body_content(&self) -> Option<&Content>
-    {
-        match &self.body
-        {
-            FootnoteBody::Content(content) => Some(content),
-            FootnoteBody::Reference(_) => None,
-        }
-    }
+    pub fn body_content( & self)->Option <& Content > { match & self.body { FootnoteBody::Content(content) => Some(content), FootnoteBody::Reference(_) => None, } }
 }
 
 impl Packed<FootnoteElem>
 {
     /// Returns the content that holds the number and links to the
     /// footnote entry.
-    pub fn realize(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-    ) -> SourceResult<Content>
+    pub fn realize( & self, engine: & mut Engine, styles: StyleChain,)->SourceResult<Content>
     {
         let span = self.span();
         let loc = self.declaration_location(engine).at(span)?;
         let numbering = self.numbering.get_ref(styles);
         let counter = Counter::of(FootnoteElem::ELEM);
         let num = counter.display_at(engine, loc, styles, numbering, span)?;
-        let alt = FootnoteElem::alt_text(styles, &num.plain_text());
+        let alt = FootnoteElem::alt_text(styles, & num.plain_text());
         let dest = loc.variant(1);
-        Ok(DirectLinkElem::new(dest, num, Some(alt)).pack().spanned(span))
+        Ok(DirectLinkElem::new (dest, num, Some(alt)).pack().spanned(span))
     }
 
     /// Returns the location of the definition of this footnote.
-    pub fn declaration_location(&self, engine: &mut Engine) -> StrResult<Location>
+    pub fn declaration_location( & self, engine: & mut Engine)->StrResult<Location>
     {
         match self.body
         {
             FootnoteBody::Reference(label) =>
             {
                 let element =
-                    engine.introspect(QueryLabelIntrospection(label, self.span()))?;
+                engine.introspect(QueryLabelIntrospection(label, self.span()))?;
                 let footnote = element
-                    .to_packed::<FootnoteElem>()
-                    .ok_or("referenced element should be a footnote")?;
-                if self.location() == footnote.location()
-                {
-                    bail!("footnote cannot reference itself");
-                }
+                .to_packed::<FootnoteElem>()
+                .ok_or("referenced element should be a footnote")?;
+                if self.location() == footnote.location() { bail ! ("footnote cannot reference itself"); }
                 footnote.declaration_location(engine)
             }
             FootnoteBody::Content(_) => Ok(self.location().unwrap()),
@@ -191,28 +150,18 @@ impl Packed<FootnoteElem>
 
 impl Count for Packed<FootnoteElem>
 {
-    fn update(&self) -> Option<Spanned<CounterUpdate>>
-    {
-        (!self.is_ref())
-            .then(|| Spanned::new(CounterUpdate::Step(NonZeroUsize::ONE), self.span()))
-    }
+    fn update( & self)->Option<Spanned<CounterUpdate>> { ( ! self.is_ref()).then( || Spanned::new (CounterUpdate::Step(NonZeroUsize::ONE), self.span())) }
 }
 
 /// The body of a footnote can be either some content or a label referencing
 /// another footnote.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum FootnoteBody
-{
-    Content(Content),
-    Reference(Label),
-}
+pub enum FootnoteBody { Content(Content), Reference(Label), }
 
-cast! {
+cast!
+{
     FootnoteBody,
-    self => match self {
-        Self::Content(v) => v.into_value(),
-        Self::Reference(v) => v.into_value(),
-    },
+    self => match self { Self::Content(v) => v.into_value(), Self::Reference(v) => v.into_value(), },
     v: Content => Self::Content(v),
     v: Label => Self::Reference(v),
 }
@@ -235,12 +184,12 @@ cast! {
 /// For this reason, set and show rules for footnote entries should be defined
 /// before any page content, typically at the very start of the document.
 #[elem(
-    name = "entry",
-    title = "Footnote Entry",
-    since = "0.4.0",
-    Locatable,
-    Tagged,
-    ShowSet
+name = "entry",
+title = "Footnote Entry",
+since = "0.4.0",
+Locatable,
+Tagged,
+ShowSet
 )]
 pub struct FootnoteEntry
 {
@@ -257,7 +206,7 @@ pub struct FootnoteEntry
     /// Customized #footnote[Hello]
     /// listing #footnote[World! 🌏]
     /// ```
-    #[required]
+    # [required]
     pub note: Packed<FootnoteElem>,
 
     /// The separator between the document body and the footnote listing.
@@ -273,15 +222,16 @@ pub struct FootnoteEntry
     ///   not that bad?
     /// ]
     /// ```
-    #[default(
-        LineElem::new()
-            .with_length(Ratio::new(0.3).into())
-            .with_stroke(Stroke {
-                thickness: Smart::Custom(Em::new(0.05).into()),
-                ..Default::default()
-            })
+    #
+    [
+        default
+        (
+            LineElem:: new ()
+            .with_length(Ratio::new (0.3).into())
+            .with_stroke(Stroke { thickness: Smart::Custom(Em::new (0.05).into()),..Default::default () })
             .pack()
-    )]
+        )
+    ]
     pub separator: Content,
 
     /// The amount of clearance between the document body and the separator.
@@ -294,7 +244,7 @@ pub struct FootnoteEntry
     ///   ... some space to breathe.
     /// ]
     /// ```
-    #[default(Em::new(1.0).into())]
+    # [default (Em::new (1.0).into())]
     pub clearance: Length,
 
     /// The gap between footnote entries.
@@ -306,7 +256,7 @@ pub struct FootnoteEntry
     /// #footnote[Spaced],
     /// #footnote[Apart]
     /// ```
-    #[default(Em::new(0.5).into())]
+    # [default (Em::new (0.5).into())]
     pub gap: Length,
 
     /// The indent of each footnote entry.
@@ -318,7 +268,7 @@ pub struct FootnoteEntry
     /// #footnote[No],
     /// #footnote[Indent]
     /// ```
-    #[default(Em::new(1.0).into())]
+    # [default (Em::new (1.0).into())]
     pub indent: Length,
 }
 
@@ -326,29 +276,22 @@ impl Packed<FootnoteEntry>
 {
     /// Returns the content of the superscript that holds the number and links
     /// back to the footnote, and the entry body.
-    pub fn realize(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-    ) -> SourceResult<(Content, Content)>
+    pub fn realize( & self, engine: & mut Engine, styles: StyleChain,)->SourceResult<(Content, Content)>
     {
         let span = self.span();
-        let default = StyleChain::default();
+        let default = StyleChain:: default();
         let numbering = self.note.numbering.get_ref(default);
         let counter = Counter::of(FootnoteElem::ELEM);
         let Some(dest) = self.note.location()
         else
         {
-            bail!(
-                self.span(), "footnote entry must have a location";
-                hint: "try using a query or a show rule to customize the footnote instead";
-            );
+            bail!(self.span(),"footnote entry must have a location"; hint: "try using a query or a show rule to customize the footnote instead";);
         };
 
         let num = counter.display_at(engine, dest, styles, numbering, span)?;
         let alt = num.plain_text();
-        let link = DirectLinkElem::new(dest, num, Some(alt)).pack().spanned(span);
-        let sup = SuperElem::new(link).pack().spanned(span);
+        let link = DirectLinkElem:: new (dest, num, Some(alt)).pack().spanned(span);
+        let sup = SuperElem:: new (link).pack().spanned(span);
         let body = self.note.body_content().unwrap().clone();
 
         Ok((sup, body))
@@ -357,19 +300,16 @@ impl Packed<FootnoteEntry>
 
 impl ShowSet for Packed<FootnoteEntry>
 {
-    fn show_set(&self, _: StyleChain) -> Styles
+    fn show_set( & self, _: StyleChain)->Styles
     {
-        let mut out = Styles::new();
-        out.set(ParElem::leading, Em::new(0.5).into());
-        out.set(TextElem::size, TextSize(Em::new(0.85).into()));
+        let mut out = Styles:: new ();
+        out. set(ParElem::leading, Em::new (0.5).into());
+        out. set(TextElem::size, TextSize(Em::new (0.85).into()));
         out
     }
 }
 
-cast! {
-    FootnoteElem,
-    v: Content => v.unpack::<Self>().unwrap_or_else(Self::with_content)
-}
+cast! { FootnoteElem, v: Content => v.unpack::<Self>().unwrap_or_else(Self::with_content) }
 
 /// In HTML export, this is inserted at the end of the body to display
 /// footnotes. In the future, we can expose this to allow customizing where the
@@ -380,10 +320,7 @@ pub struct FootnoteContainer {}
 impl FootnoteContainer
 {
     /// Get the globally shared footnote container element.
-    pub fn shared() -> &'static Content
-    {
-        singleton!(Content, FootnoteContainer::new().pack())
-    }
+    pub fn shared()-> & 'static Content { singleton ! (Content, FootnoteContainer::new ().pack()) }
 }
 
 /// This is an empty element inserted by the HTML footnote rule to indicate the

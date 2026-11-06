@@ -1,20 +1,17 @@
-use std::fmt::{self, Debug, Display, Formatter};
-use std::hash::{Hash, Hasher};
+use std::fmt:: { self, Debug, Display, Formatter };
+use std::hash:: { Hash, Hasher };
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use indexmap::IndexMap;
 use indexmap::map::Entry;
 use rustc_hash::FxBuildHasher;
 use typst_syntax::Span;
 use typst_utils::DefSite;
 
-use crate::diag::{HintedStrResult, HintedString, WarningSink, error};
+use crate::diag:: { HintedStrResult, HintedString, WarningSink, error };
 use crate::engine::Engine;
-use crate::foundations::{
-    Element, Func, IntoValue, NativeElement, NativeFunc, NativeFuncData, NativeType,
-    NativeTypeData, Since, Value,
-};
-use crate::{Category, Feature, Features, Library, World};
+use crate::foundations:: { Element, Func, IntoValue, NativeElement, NativeFunc, NativeFuncData, NativeType, NativeTypeData, Since, Value, };
+use crate:: { Category, Feature, Features, Library, World };
 
 /// A stack of scopes.
 #[derive(Debug, Default, Clone)]
@@ -25,200 +22,135 @@ pub struct Scopes<'a>
     /// The stack of lower scopes.
     pub scopes: Vec<Scope>,
     /// The standard library.
-    pub base: Option<&'a Library>,
+    pub base: Option <& 'a Library > ,
 }
 
-impl<'a> Scopes<'a>
+impl <'a> Scopes<'a>
 {
     /// Create a new, empty hierarchy of scopes.
-    pub fn new(base: Option<&'a Library>) -> Self
-    {
-        Self { top: Scope::new(), scopes: vec![], base }
-    }
+    pub fn new (base: Option <& 'a Library >)->Self { Self { top: Scope::new (), scopes: vec ! [], base } }
 
     /// Enter a new scope.
-    pub fn enter(&mut self)
-    {
-        self.scopes.push(std::mem::take(&mut self.top));
-    }
+    pub fn enter( & mut self) { self.scopes.push(std::mem::take( & mut self.top)); }
 
     /// Exit the topmost scope.
     ///
     /// This panics if no scope was entered.
-    pub fn exit(&mut self)
-    {
-        self.top = self.scopes.pop().expect("no pushed scope");
-    }
+    pub fn exit( & mut self) { self.top = self.scopes.pop().expect("no pushed scope"); }
 
     /// Try to access a binding value immutably.
-    pub fn get(&self, var: &str, guard: impl BindingGuard) -> HintedStrResult<&Value>
-    {
-        self.get_binding(var)?
-            .read(guard)
-            .or_cannot(format_args!("access variable `{var}`"))
-    }
+    pub fn get( & self, var : & str, guard: impl BindingGuard)->HintedStrResult <& Value > { self.get_binding(var)?.read(guard).or_cannot(format_args ! ("access variable `{var}`")) }
 
     /// Try to access a binding value immutably in math.
-    pub fn get_in_math(
-        &self,
-        var: &str,
-        guard: impl BindingGuard,
-    ) -> HintedStrResult<&Value>
-    {
-        self.get_binding_in_math(var)?
-            .read(guard)
-            .or_cannot(format_args!("access variable `{var}`"))
-    }
+    pub fn get_in_math( & self, var : & str, guard: impl BindingGuard,)->HintedStrResult <& Value > { self.get_binding_in_math(var)?.read(guard).or_cannot(format_args ! ("access variable `{var}`")) }
 
     /// Try to access a binding.
-    pub fn get_binding(&self, var: &str) -> HintedStrResult<&Binding>
+    pub fn get_binding( & self, var : & str)->HintedStrResult <& Binding >
     {
-        std::iter::once(&self.top)
-            .chain(self.scopes.iter().rev())
-            .find_map(|scope| scope.get(var))
-            .or_else(|| {
+        std::iter::once( & self.top)
+        .chain(self.scopes.iter().rev())
+        .find_map( | scope | scope.get (var))
+        .or_else
+        (
+            ||
+            {
                 let base = self.base?;
-                match base.global.scope().get(var)
-                {
-                    Some(binding) => Some(binding),
-                    None if var == "std" => Some(&base.std),
-                    None => None,
-                }
-            })
-            .ok_or_else(|| unknown_variable(var))
+                match base.global.scope(). get(var) { Some(binding) => Some(binding), None if var == "std" => Some( & base.std), None => None, }
+            }
+        )
+        .ok_or_else( || unknown_variable(var))
     }
 
     /// Try to access a binding in math.
-    pub fn get_binding_in_math(&self, var: &str) -> HintedStrResult<&Binding>
+    pub fn get_binding_in_math( & self, var : & str)->HintedStrResult <& Binding >
     {
-        std::iter::once(&self.top)
-            .chain(self.scopes.iter().rev())
-            .find_map(|scope| scope.get(var))
-            .or_else(|| {
+        std::iter::once( & self.top)
+        .chain(self.scopes.iter().rev())
+        .find_map( | scope | scope.get (var))
+        .or_else
+        (
+            ||
+            {
                 let base = self.base?;
-                match base.math.scope().get(var)
-                {
-                    Some(binding) => Some(binding),
-                    None if var == "std" => Some(&base.std),
-                    None => None,
-                }
-            })
-            .ok_or_else(|| {
-                unknown_variable_math(
-                    var,
-                    self.base.is_some_and(|base| base.global.scope().get(var).is_some()),
-                )
-            })
+                match base.math.scope(). get(var) { Some(binding) => Some(binding), None if var == "std" => Some( & base.std), None => None, }
+            }
+        )
+        .ok_or_else( || { unknown_variable_math(var , self.base.is_some_and( | base | base.global.scope().get (var).is_some()),) })
     }
 
     /// Try to access a binding mutably.
-    pub fn get_mut(
-        &mut self,
-        var: &str,
-        mut guard: impl BindingGuard,
-    ) -> HintedStrResult<&mut Value>
+    pub fn get_mut( & mut self, var : & str, mut guard: impl BindingGuard,)->HintedStrResult <& mut Value >
     {
-        std::iter::once(&mut self.top)
-            .chain(&mut self.scopes.iter_mut().rev())
-            .find_map(|scope| {
-                Some(
-                    scope
-                        .get_mut(var)?
-                        .write(&mut guard)
-                        .or_cannot(format_args!("access variable `{var}`")),
-                )
-            })
-            .transpose()?
-            .ok_or_else(|| {
-                match self.base.and_then(|base| base.global.scope().get(var))
+        std::iter::once( & mut self.top)
+        .chain( & mut self.scopes.iter_mut().rev())
+        .find_map( | scope | { Some(scope.get_mut(var)?.write( & mut guard).or_cannot(format_args ! ("access variable `{var}`")),) })
+        .transpose()?
+        .ok_or_else
+        (
+            ||
+            {
+                match self.base.and_then( | base | base.global.scope().get (var))
                 {
-                    Some(binding) => match binding.read(guard)
-                    {
-                        Err(err) => err.cannot(format_args!("access variable `{var}`")),
-                        _ => cannot_mutate_constant(var),
-                    },
+                    Some(binding) => match binding.read(guard) { Err(err) => err.cannot(format_args ! ("access variable `{var}`")), _ => cannot_mutate_constant(var), },
                     _ if var == "std" => cannot_mutate_constant(var),
                     _ => unknown_variable(var),
                 }
-            })
+            }
+        )
     }
 
     /// Check if an std variable is shadowed.
-    pub fn check_std_shadowed(&self, var: &str) -> bool
+    pub fn check_std_shadowed( & self, var : & str)-> bool
     {
-        self.base.is_some_and(|base| base.global.scope().get(var).is_some())
-            && std::iter::once(&self.top)
-                .chain(self.scopes.iter().rev())
-                .any(|scope| scope.get(var).is_some())
+        self.base.is_some_and( | base | base.global.scope().get (var).is_some())
+        && std::iter::once( & self.top)
+        .chain(self.scopes.iter().rev())
+        .any( | scope | scope.get (var).is_some())
     }
 }
 
 /// A map from binding names to values.
 #[derive(Default, Clone)]
-pub struct Scope
-{
-    map: IndexMap<EcoString, Binding, FxBuildHasher>,
-    deduplicate: bool,
-    category: Option<Category>,
-}
+pub struct Scope { map: IndexMap<EcoString, Binding, FxBuildHasher>, deduplicate: bool , category: Option<Category>, }
 
 /// Scope construction.
 impl Scope
 {
     /// Create a new empty scope.
-    pub fn new() -> Self
-    {
-        Self::default()
-    }
+    pub fn new ()->Self { Self::default () }
 
     /// Create a new scope with duplication prevention.
-    pub fn deduplicating() -> Self
-    {
-        Self { deduplicate: true, ..Default::default() }
-    }
+    pub fn deduplicating()->Self { Self { deduplicate: true,..Default::default () } }
 
     /// Enter a new category.
-    pub fn start_category(&mut self, category: Category)
-    {
-        self.category = Some(category);
-    }
+    pub fn start_category( & mut self, category: Category) { self.category = Some(category); }
 
     /// Reset the category.
-    pub fn reset_category(&mut self)
-    {
-        self.category = None;
-    }
+    pub fn reset_category( & mut self) { self.category = None; }
 
     /// Define a native function through a Rust type that shadows the function.
     ///
     /// Copies documentation information from the native function data to the
     /// binding.
-    #[track_caller]
-    pub fn define_func<T: NativeFunc>(&mut self) -> &mut Binding
-    {
-        self.define_func_with_data(T::data())
-    }
+    # [track_caller]
+    pub fn define_func<T: NativeFunc>( & mut self)-> & mut Binding { self.define_func_with_data(T::data()) }
 
     /// Define a native function with raw function data.
-    #[track_caller]
-    pub fn define_func_with_data(&mut self, data: &'static NativeFuncData)
-    -> &mut Binding
-    {
-        self.define(data.name, Func::from(data))
-            .with_documentation(data.into())
-    }
+    # [track_caller]
+    pub fn define_func_with_data( & mut self, data: & 'static NativeFuncData)
+   -> & mut Binding { self.define(data.name, Func::from(data)).with_documentation(data.into()) }
 
     /// Define a native type.
-    #[track_caller]
-    pub fn define_type<T: NativeType>(&mut self) -> &mut Binding
+    # [track_caller]
+    pub fn define_type<T: NativeType>( & mut self)-> & mut Binding
     {
         let ty = T::ty();
         self.define(ty.short_name(), ty).with_documentation(T::data().into())
     }
 
     /// Define a native element.
-    #[track_caller]
-    pub fn define_elem<T: NativeElement>(&mut self) -> &mut Binding
+    # [track_caller]
+    pub fn define_elem<T: NativeElement>( & mut self)-> & mut Binding
     {
         let elem = T::ELEM;
         self.define(elem.name(), elem).with_documentation(elem.into())
@@ -234,14 +166,11 @@ impl Scope
     ///   a `Vm` or if you are binding to something that is not an AST
     ///   identifier (e.g. when constructing a dynamic
     ///   [`Module`](super::Module))
-    #[track_caller]
-    pub fn define(&mut self, name: &'static str, value: impl IntoValue) -> &mut Binding
+    # [track_caller]
+    pub fn define( & mut self, name: & 'static str, value: impl IntoValue)-> & mut Binding
     {
-        #[cfg(debug_assertions)]
-        if self.deduplicate && self.map.contains_key(name)
-        {
-            panic!("duplicate definition: {name}");
-        }
+        # [cfg(debug_assertions)]
+        if self.deduplicate && self.map.contains_key(name) { panic ! ("duplicate definition: {name}"); }
 
         let mut binding = Binding::detached(value);
         binding.init_info().category = self.category;
@@ -252,29 +181,24 @@ impl Scope
     ///
     /// The path may not contain multiple bindings with different feature gates,
     /// otherwise this function will panic.
-    pub(crate) fn prelude_path<'a, const N: usize>(
-        &'a mut self,
-        path: [&'static str; N],
-    ) -> Option<&'a mut Binding>
+    pub (crate) fn prelude_path<'a, const N: usize>( & 'a mut self, path: [ & 'static str; N],)->Option <& 'a mut Binding >
     {
-        let [first, path @ .., last] = path.as_slice()
-        else
-        {
-            panic!("prelude path must have at least two segments");
-        };
+        let [first, path @.., last] = path.as_slice()
+        else { panic ! ("prelude path must have at least two segments"); };
 
-        let mut binding = self.get(first)?;
+        let mut binding = self. get(first)?;
         let mut path_feature = binding.feature();
 
         for name in path.iter().chain([last])
         {
-            binding = binding.value.scope()?.get(name)?;
+            binding = binding.value.scope()?. get(name)?;
 
             if let Some(new) = binding.feature()
-                && let Some(prev) = path_feature.replace(new)
-                && prev != new
+            && let Some(prev) = path_feature.replace(new)
+            && prev != new
             {
-                panic!(
+                panic!
+                (
                     "cannot prelude from path {path:?} because it's \
                      gated by two different features: `{prev}` and `{new}`"
                 );
@@ -282,11 +206,8 @@ impl Scope
         }
 
         let mut binding = binding.clone();
-        if let Some(feature) = path_feature
-        {
-            binding.with_feature(feature);
-        }
-        Some(self.bind((*last).into(), binding))
+        if let Some(feature) = path_feature { binding.with_feature(feature); }
+        Some(self.bind(( * last).into(), binding))
     }
 }
 
@@ -296,58 +217,38 @@ impl Scope
     /// Inserts a binding into this scope and returns a mutable reference to it.
     ///
     /// Prefer `Vm::bind` if you are operating in the context of a `Vm`.
-    pub fn bind(&mut self, name: EcoString, binding: Binding) -> &mut Binding
+    pub fn bind( & mut self, name: EcoString, binding: Binding)-> & mut Binding
     {
-        match self.map.entry(name)
-        {
-            Entry::Occupied(mut entry) =>
-            {
-                entry.insert(binding);
-                entry.into_mut()
-            }
-            Entry::Vacant(entry) => entry.insert(binding),
-        }
+        match self.map.entry(name) { Entry::Occupied(mut entry) => { entry.insert(binding); entry.into_mut() } Entry::Vacant(entry) => entry.insert(binding), }
     }
 
     /// Try to access a binding immutably.
-    pub fn get<'a>(&'a self, var: &str) -> Option<&'a Binding>
-    {
-        self.map.get(var)
-    }
+    pub fn get < 'a > ( & 'a self, var : & str)->Option <& 'a Binding > { self.map.get (var) }
 
     /// Try to access a binding mutably.
-    pub fn get_mut(&mut self, var: &str) -> Option<&mut Binding>
-    {
-        self.map.get_mut(var)
-    }
+    pub fn get_mut( & mut self, var : & str)->Option <& mut Binding > { self.map.get_mut(var) }
 
     /// Iterate over all definitions.
-    pub fn iter(&self) -> impl Iterator<Item = (&EcoString, &Binding)>
-    {
-        self.map.iter()
-    }
+    pub fn iter( & self)-> impl Iterator<Item = ( & EcoString, & Binding)> { self.map.iter() }
 }
 
 impl Debug for Scope
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         f.write_str("Scope ")?;
         f.debug_map()
-            .entries(self.map.iter().map(|(k, v)| (k, &v.value)))
-            .finish()
+        .entries(self.map.iter().map( | (k, v) | (k, & v.value)))
+        .finish()
     }
 }
 
 impl Hash for Scope
 {
-    fn hash<H: Hasher>(&self, state: &mut H)
+    fn hash<H: Hasher>( & self, state: & mut H)
     {
         state.write_usize(self.map.len());
-        for item in &self.map
-        {
-            item.hash(state);
-        }
+        for item in & self.map { item.hash(state); }
         self.deduplicate.hash(state);
         self.category.hash(state);
     }
@@ -357,10 +258,10 @@ impl Hash for Scope
 pub trait NativeScope
 {
     /// The constructor function for the type, if any.
-    fn constructor() -> Option<&'static NativeFuncData>;
+    fn constructor()->Option <& 'static NativeFuncData > ;
 
     /// Get the associated scope for the type.
-    fn scope() -> Scope;
+    fn scope()->Scope;
 }
 
 /// A bound value with metadata.
@@ -397,32 +298,16 @@ enum BindingKind
 impl Binding
 {
     /// Create a new binding with a span marking its definition site.
-    pub fn new(value: impl IntoValue, span: Span) -> Self
-    {
-        Self {
-            value: value.into_value(),
-            span,
-            kind: BindingKind::Normal,
-            check_access: false,
-            info: None,
-        }
-    }
+    pub fn new (value: impl IntoValue, span: Span)->Self { Self { value: value.into_value(), span, kind: BindingKind::Normal, check_access: false, info: None, } }
 
     /// Create a binding without a span.
-    pub fn detached(value: impl IntoValue) -> Self
-    {
-        Self::new(value, Span::detached())
-    }
+    pub fn detached(value: impl IntoValue)->Self { Self::new (value, Span::detached()) }
 
     /// Sets the category of this binding.
-    pub fn with_category(&mut self, category: Category) -> &mut Self
-    {
-        self.init_info().category = Some(category);
-        self
-    }
+    pub fn with_category( & mut self, category: Category)-> & mut Self { self.init_info().category = Some(category); self }
 
     /// Gates this binding behind the given [`Feature`].
-    pub fn with_feature(&mut self, feature: Feature) -> &mut Self
+    pub fn with_feature( & mut self, feature: Feature)-> & mut Self
     {
         let info = self.init_info();
         info.feature = Some(feature);
@@ -431,7 +316,7 @@ impl Binding
     }
 
     /// Marks this binding as deprecated, with the given `message`.
-    pub fn with_deprecation(&mut self, deprecation: Deprecation) -> &mut Self
+    pub fn with_deprecation( & mut self, deprecation: Deprecation)-> & mut Self
     {
         let info = self.init_info();
         info.deprecation = Some(deprecation);
@@ -440,17 +325,10 @@ impl Binding
     }
 
     /// Sets documentation for this binding.
-    pub fn with_documentation(&mut self, documentation: BindingDocumentation)
-    -> &mut Self
-    {
-        self.init_info().documentation = Some(documentation);
-        self
-    }
+    pub fn with_documentation( & mut self, documentation: BindingDocumentation)
+   -> & mut Self { self.init_info().documentation = Some(documentation); self }
 
-    fn init_info(&mut self) -> &mut BindingInfo
-    {
-        self.info.get_or_insert_default()
-    }
+    fn init_info( & mut self)-> & mut BindingInfo { self.info.get_or_insert_default() }
 
     /// Try to read the binding value.
     ///
@@ -471,133 +349,69 @@ impl Binding
     ///         .cloned()
     /// }
     /// ```
-    pub fn read(&self, guard: impl BindingGuard) -> Result<&Value, FeatureError>
-    {
-        if self.check_access
-        {
-            self.check_access(guard)?;
-        }
-        Ok(&self.value)
-    }
+    pub fn read( & self, guard: impl BindingGuard)->Result <& Value, FeatureError > { if self.check_access { self.check_access(guard)?; } Ok( & self.value) }
 
     /// Try to write to the binding.
-    pub fn write(&mut self, guard: impl BindingGuard)
-    -> Result<&mut Value, BindingError>
+    pub fn write( & mut self, guard: impl BindingGuard)
+   ->Result <& mut Value, BindingError >
     {
-        if self.check_access
-        {
-            self.check_access(guard)?;
-        }
+        if self.check_access { self.check_access(guard)?; }
 
-        if let BindingKind::Captured(capturer) = self.kind
-        {
-            return Err(BindingError::Captured(capturer));
-        }
+        if let BindingKind::Captured(capturer) = self.kind { return Err(BindingError::Captured(capturer)); }
 
-        Ok(&mut self.value)
+        Ok( & mut self.value)
     }
 
     /// Check if the binding is gated behind a feature or if it is deprecated.
-    #[cold]
-    fn check_access(&self, mut guard: impl BindingGuard) -> Result<(), FeatureError>
+    # [cold]
+    fn check_access( & self, mut guard: impl BindingGuard)->Result<(), FeatureError>
     {
-        let Some(info) = &self.info
-        else
-        {
-            return Ok(());
-        };
+        let Some(info) = & self.info
+        else { return Ok(()); };
 
         if let Some(feature) = info.feature
-            && !guard.features().is_enabled(feature)
-        {
-            return Err(FeatureError(feature));
-        }
+        && ! guard.features().is_enabled(feature) { return Err(FeatureError(feature)); }
 
-        if let Some(message) = info.deprecation
-        {
-            guard.emit(message.into());
-        }
+        if let Some(message) = info.deprecation { guard.emit(message.into()); }
 
         Ok(())
     }
 
     /// Create a copy of the binding for closure capturing.
-    pub fn capture(&self, capturer: Capturer) -> Self
-    {
-        Self {
-            kind: BindingKind::Captured(capturer),
-            ..self.clone()
-        }
-    }
+    pub fn capture( & self, capturer: Capturer)->Self { Self { kind: BindingKind::Captured(capturer),..self.clone() } }
 
     /// A span associated with the stored value.
-    pub fn span(&self) -> Span
-    {
-        self.span
-    }
+    pub fn span( & self)->Span { self.span }
 
     /// The category of the binding, if any.
-    pub fn category(&self) -> Option<Category>
-    {
-        self.info.as_ref()?.category
-    }
+    pub fn category( & self)->Option<Category> { self.info.as_ref()?.category }
 
     /// The feature that gates the binding, if any.
-    pub fn feature(&self) -> Option<Feature>
-    {
-        self.info.as_ref()?.feature
-    }
+    pub fn feature( & self)->Option<Feature> { self.info.as_ref()?.feature }
 
     /// The deprecation of the binding, if any.
-    pub fn deprecation(&self) -> Option<Deprecation>
-    {
-        self.info.as_ref()?.deprecation
-    }
+    pub fn deprecation( & self)->Option<Deprecation> { self.info.as_ref()?.deprecation }
 
     /// Whether the binding should be listed in the documentation.
-    pub fn is_documented(&self) -> bool
-    {
-        self.info.as_ref().is_some_and(|info| info.documentation.is_some())
-    }
+    pub fn is_documented( & self)-> bool { self.info.as_ref().is_some_and( | info | info.documentation.is_some()) }
 
     /// The name for the binding.
-    pub fn name(&self) -> Option<&'static str>
-    {
-        Some(self.info.as_ref()?.documentation?.name)
-    }
+    pub fn name( & self)->Option <& 'static str > { Some(self.info.as_ref()?.documentation?.name) }
 
     /// The title for the binding.
-    pub fn title(&self) -> Option<&'static str>
-    {
-        Some(self.info.as_ref()?.documentation?.title)
-    }
+    pub fn title( & self)->Option <& 'static str > { Some(self.info.as_ref()?.documentation?.title) }
 
     /// The documentation for the binding, if any.
-    pub fn docs(&self) -> Option<&'static str>
-    {
-        Some(self.info.as_ref()?.documentation?.docs)
-    }
+    pub fn docs( & self)->Option <& 'static str > { Some(self.info.as_ref()?.documentation?.docs) }
 
     /// The version of Typst the binding was introduced in, if any.
-    pub fn since(&self) -> Option<Since>
-    {
-        self.info.as_ref()?.documentation?.since
-    }
+    pub fn since( & self)->Option<Since> { self.info.as_ref()?.documentation?.since }
 
     /// The keywords associated with this binding.
-    pub fn keywords(&self) -> &'static [&'static str]
-    {
-        self.info
-            .as_ref()
-            .and_then(|info| Some(info.documentation?.keywords))
-            .unwrap_or_default()
-    }
+    pub fn keywords( & self)-> & 'static[ & 'static str] { self.info.as_ref().and_then( | info | Some(info.documentation?.keywords)).unwrap_or_default() }
 
     /// Where this binding is defined in the source code.
-    pub fn def_site(&self) -> Option<DefSite>
-    {
-        self.info.as_ref()?.documentation?.def_site
-    }
+    pub fn def_site( & self)->Option<DefSite> { self.info.as_ref()?.documentation?.def_site }
 }
 
 /// Infrequently accessed information related to a binding.
@@ -618,10 +432,7 @@ impl BindingInfo
 {
     /// Whether the binding info has a property set that requires checking
     /// it when it's accessed.
-    fn has_checked_access(self) -> bool
-    {
-        self.feature.is_some() || self.deprecation.is_some()
-    }
+    fn has_checked_access(self)-> bool { self.feature.is_some() || self.deprecation.is_some() }
 }
 
 /// Documentation information for a binding.
@@ -629,54 +440,38 @@ impl BindingInfo
 pub struct BindingDocumentation
 {
     /// The name for the binding.
-    pub name: &'static str,
+    pub name: & 'static str,
     /// The title for the binding.
-    pub title: &'static str,
+    pub title: & 'static str,
     /// The documentation for the binding as a Typst markup.
-    pub docs: &'static str,
+    pub docs: & 'static str,
     /// The version of Typst the binding was introduced in.
     pub since: Option<Since>,
     /// The keywords associated with this binding.
-    pub keywords: &'static [&'static str],
+    pub keywords: & 'static[ & 'static str],
     /// Where the binding is defined in the source code.
     pub def_site: Option<DefSite>,
 }
 
-impl From<&'static NativeFuncData> for BindingDocumentation
+impl From <& 'static NativeFuncData > for BindingDocumentation
 {
-    fn from(data: &'static NativeFuncData) -> Self
-    {
-        Self {
-            name: data.name,
-            title: data.title,
-            docs: data.docs,
-            since: data.since,
-            keywords: data.keywords,
-            def_site: data.def_site,
-        }
-    }
+    fn from(data: & 'static NativeFuncData)->Self { Self { name: data.name, title: data.title, docs: data.docs, since: data.since, keywords: data.keywords, def_site: data.def_site, } }
 }
 
-impl From<&'static NativeTypeData> for BindingDocumentation
+impl From <& 'static NativeTypeData > for BindingDocumentation
 {
-    fn from(data: &'static NativeTypeData) -> Self
+    fn from(data: & 'static NativeTypeData)->Self
     {
-        Self {
-            name: data.name,
-            title: data.title,
-            docs: data.docs,
-            since: data.since,
-            keywords: data.keywords,
-            def_site: Some(data.def_site),
-        }
+        Self { name: data.name, title: data.title, docs: data.docs, since: data.since, keywords: data.keywords, def_site: Some(data.def_site), }
     }
 }
 
 impl From<Element> for BindingDocumentation
 {
-    fn from(elem: Element) -> Self
+    fn from(elem: Element)->Self
     {
-        Self {
+        Self
+        {
             name: elem.name(),
             title: elem.title(),
             docs: elem.docs(),
@@ -706,13 +501,14 @@ pub enum BindingError
 
 impl BindingError
 {
-    pub fn cannot(self, what: impl Display) -> HintedString
+    pub fn cannot(self, what: impl Display)->HintedString
     {
         match self
         {
             BindingError::Captured(capturer) =>
             {
-                error!(
+                error!
+                (
                     "variables from outside the {capturer} are \
                      read-only and cannot be modified",
                 )
@@ -722,13 +518,7 @@ impl BindingError
     }
 }
 
-impl From<FeatureError> for BindingError
-{
-    fn from(v: FeatureError) -> Self
-    {
-        Self::Feature(v)
-    }
-}
+impl From<FeatureError> for BindingError { fn from(v: FeatureError)->Self { Self::Feature(v) } }
 
 /// There was an error accessing a binding.
 ///
@@ -739,10 +529,11 @@ pub struct FeatureError(Feature);
 
 impl FeatureError
 {
-    pub fn cannot(self, what: impl Display) -> HintedString
+    pub fn cannot(self, what: impl Display)->HintedString
     {
         let Self(feature) = self;
-        error!(
+        error!
+        (
             "cannot {what} because the `{feature}` feature is not enabled";
             // TODO: Support for CLI-specific hints would be nice.
             hint: "try enabling the `{feature}` feature";
@@ -756,24 +547,12 @@ impl FeatureError
 pub trait BindingAccess<T>
 {
     /// Add a description of what kind of binding couldn't be accessed.
-    fn or_cannot(self, what: impl Display) -> HintedStrResult<T>;
+    fn or_cannot(self, what: impl Display)->HintedStrResult<T>;
 }
 
-impl<T> BindingAccess<T> for Result<T, BindingError>
-{
-    fn or_cannot(self, what: impl Display) -> HintedStrResult<T>
-    {
-        self.map_err(|err| err.cannot(what))
-    }
-}
+impl <T> BindingAccess<T> for Result<T, BindingError> { fn or_cannot(self, what: impl Display)->HintedStrResult<T> { self.map_err( | err | err.cannot(what)) } }
 
-impl<T> BindingAccess<T> for Result<T, FeatureError>
-{
-    fn or_cannot(self, what: impl Display) -> HintedStrResult<T>
-    {
-        self.map_err(|err| err.cannot(what))
-    }
-}
+impl <T> BindingAccess<T> for Result<T, FeatureError> { fn or_cannot(self, what: impl Display)->HintedStrResult<T> { self.map_err( | err | err.cannot(what)) } }
 
 /// What the variable was captured by.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -787,14 +566,7 @@ pub enum Capturer
 
 impl Display for Capturer
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        f.write_str(match self
-        {
-            Capturer::Function => "function",
-            Capturer::Context => "context expression",
-        })
-    }
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { f.write_str(match self { Capturer::Function => "function", Capturer::Context => "context expression", }) }
 }
 
 /// Information about a deprecated binding.
@@ -802,89 +574,63 @@ impl Display for Capturer
 pub struct Deprecation
 {
     /// A deprecation message for the definition.
-    message: &'static str,
+    message: & 'static str,
     /// A version in which the deprecated binding is planned to be removed.
-    until: Option<&'static str>,
+    until: Option <& 'static str > ,
 }
 
 impl Deprecation
 {
     /// Creates new deprecation info with a default message to display when
     /// emitting the deprecation warning.
-    pub fn new() -> Self
-    {
-        Self { message: "item is deprecated", until: None }
-    }
+    pub fn new ()->Self { Self { message: "item is deprecated", until: None } }
 
     /// Set the message to display when emitting the deprecation warning.
-    pub fn with_message(mut self, message: &'static str) -> Self
-    {
-        self.message = message;
-        self
-    }
+    pub fn with_message(mut self, message: & 'static str)->Self { self.message = message; self }
 
     /// Set the version in which the binding is planned to be removed.
-    pub fn with_until(mut self, version: &'static str) -> Self
-    {
-        self.until = Some(version);
-        self
-    }
+    pub fn with_until(mut self, version: & 'static str)->Self { self.until = Some(version); self }
 
     /// The message to display when emitting the deprecation warning.
-    pub fn message(&self) -> &'static str
-    {
-        self.message
-    }
+    pub fn message( & self)-> & 'static str { self.message }
 
     /// The version in which the binding is planned to be removed.
-    pub fn until(&self) -> Option<&'static str>
-    {
-        self.until
-    }
+    pub fn until( & self)->Option <& 'static str > { self.until }
 }
 
-impl Default for Deprecation
-{
-    fn default() -> Self
-    {
-        Self::new()
-    }
-}
+impl Default for Deprecation { fn default ()->Self { Self::new () } }
 
 impl From<Deprecation> for HintedString
 {
-    fn from(deprecation: Deprecation) -> Self
+    fn from(deprecation: Deprecation)->Self
     {
-        HintedString::new(deprecation.message.into()).with_hints(
-            deprecation
-                .until
-                .map(|v| eco_format!("it will be removed in Typst {v}")),
-        )
+        HintedString:: new (deprecation.message.into()).with_hints(deprecation.until.map( | v | eco_format ! ("it will be removed in Typst {v}")),)
     }
 }
 
 /// The error message when trying to mutate a variable from the standard
 /// library.
 #[cold]
-fn cannot_mutate_constant(var: &str) -> HintedString
-{
-    eco_format!("cannot mutate a constant: {var}").into()
-}
+fn cannot_mutate_constant(var : & str)->HintedString { eco_format ! ("cannot mutate a constant: {var}").into() }
 
 /// The error message when a variable wasn't found.
 #[cold]
-fn unknown_variable(var: &str) -> HintedString
+fn unknown_variable(var : & str)->HintedString
 {
-    let mut res = HintedString::new(eco_format!("unknown variable `{var}`"));
+    let mut res = HintedString:: new (eco_format ! ("unknown variable `{var}`"));
 
     if var.contains('-')
     {
-        res.hint(eco_format!(
-            "if you meant to use subtraction, \
+        res.hint
+        (
+            eco_format!
+            (
+                "if you meant to use subtraction, \
              try adding spaces around the minus sign{}: `{}`",
-            if var.matches('-').count() > 1 { "s" } else { "" },
-            var.replace('-', " - ")
-        ));
+                if var.matches('-').count() > 1 { "s" } else { "" },
+                var.replace('-', " - ")
+            )
+        );
     }
 
     res
@@ -892,40 +638,46 @@ fn unknown_variable(var: &str) -> HintedString
 
 /// The error message when a variable wasn't found it math.
 #[cold]
-fn unknown_variable_math(var: &str, in_global: bool) -> HintedString
+fn unknown_variable_math(var : & str, in_global: bool)->HintedString
 {
-    let mut res = HintedString::new(eco_format!("unknown variable `{var}`"));
+    let mut res = HintedString:: new (eco_format ! ("unknown variable `{var}`"));
 
-    if matches!(var, "none" | "auto" | "false" | "true")
+    if matches!(var , "none" | "auto" | "false" | "true")
     {
-        res.hint(eco_format!(
-            "if you meant to use a literal, \
+        res.hint
+        (
+            eco_format!
+            (
+                "if you meant to use a literal, \
              try adding a hash before it: `#{var}`",
-        ));
+            )
+        );
     }
     else if in_global
     {
-        res.hint(eco_format!(
-            "`{var}` is not available directly in math, but is in the standard library",
-        ));
-        res.hint(eco_format!(
-            "to access `{var}` in code mode you can add a hash: `#{var}`",
-        ));
-        res.hint(eco_format!(
-            "or access `{var}` in math mode by using the `std` module: `std.{var}`",
-        ));
+        res.hint(eco_format ! ("`{var}` is not available directly in math, but is in the standard library",));
+        res.hint(eco_format ! ("to access `{var}` in code mode you can add a hash: `#{var}`",));
+        res.hint(eco_format ! ("or access `{var}` in math mode by using the `std` module: `std.{var}`",));
     }
     else
     {
-        res.hint(eco_format!(
-            "if you meant to display multiple letters as is, \
+        res.hint
+        (
+            eco_format!
+            (
+                "if you meant to display multiple letters as is, \
              try adding spaces between each letter: `{}`",
-            var.chars().flat_map(|c| [' ', c]).skip(1).collect::<EcoString>()
-        ));
-        res.hint(eco_format!(
-            "or if you meant to display this as text, \
+                var.chars().flat_map( | c | [' ', c]).skip(1).collect::<EcoString>()
+            )
+        );
+        res.hint
+        (
+            eco_format!
+            (
+                "or if you meant to display this as text, \
              try placing it in quotes: `\"{var}\"`"
-        ));
+            )
+        );
     }
 
     res
@@ -935,105 +687,59 @@ fn unknown_variable_math(var: &str, in_global: bool) -> HintedString
 pub trait BindingGuard: WarningSink
 {
     /// The features enabled in the current [`crate::Library`].
-    fn features(&self) -> &Features;
+    fn features( & self)-> & Features;
 
     /// Creates a [`BindingGuard`] that discards emitted warnings.
-    fn silent(&self) -> SilentBindingGuard
-    {
-        SilentBindingGuard::new(self.features().clone())
-    }
+    fn silent( & self)->SilentBindingGuard { SilentBindingGuard::new (self.features().clone()) }
 }
 
-impl<T: BindingGuard> BindingGuard for &mut T
-{
-    fn features(&self) -> &Features
-    {
-        T::features(self)
-    }
-}
+impl <T: BindingGuard> BindingGuard for & mut T { fn features( & self)-> & Features { T::features(self) } }
 
 /// Create a [`BindingGuard`] from a [`World`]'s library, that discards all
 /// emitted warnings.
 pub trait WorldBindingExt
 {
     /// Create a [`BindingGuard`] that discards emitted warnings.
-    fn silent_binding_guard(&self) -> SilentBindingGuard;
+    fn silent_binding_guard( & self)->SilentBindingGuard;
 }
 
-impl<T: World + ?Sized> WorldBindingExt for T
+impl <T: World + ? Sized> WorldBindingExt for T
 {
-    fn silent_binding_guard(&self) -> SilentBindingGuard
-    {
-        SilentBindingGuard { features: self.library().features.clone() }
-    }
+    fn silent_binding_guard( & self)->SilentBindingGuard { SilentBindingGuard { features: self.library().features.clone() } }
 }
 
 /// A [`BindingGuard`] that emits warnings to the engine's sink.
-pub struct NormalBindingGuard<'x, 'y>
-{
-    pub engine: &'x mut Engine<'y>,
-    pub span: Span,
-}
+pub struct NormalBindingGuard<'x, 'y> { pub engine: & 'x mut Engine<'y>, pub span: Span, }
 
-impl WarningSink for NormalBindingGuard<'_, '_>
-{
-    fn emit(&mut self, message: HintedString)
-    {
-        self.engine.sink.warn(message.into_warning_at(self.span));
-    }
-}
+impl WarningSink for NormalBindingGuard<'_, '_> { fn emit( & mut self, message: HintedString) { self.engine.sink.warn(message.into_warning_at(self.span)); } }
 
-impl BindingGuard for NormalBindingGuard<'_, '_>
-{
-    fn features(&self) -> &Features
-    {
-        &self.engine.library.features
-    }
-}
+impl BindingGuard for NormalBindingGuard<'_, '_> { fn features( & self)-> & Features { & self.engine.library.features } }
 
 /// A [`BindingGuard`] that discards emitted warnings.
 #[derive(Clone)]
-pub struct SilentBindingGuard
-{
-    features: Features,
-}
+pub struct SilentBindingGuard { features: Features, }
 
 impl SilentBindingGuard
 {
-    pub fn new(features: Features) -> Self
-    {
-        Self { features }
-    }
+    pub fn new (features: Features)->Self { Self { features } }
 }
 
 impl WarningSink for SilentBindingGuard
 {
-    fn emit(&mut self, _message: HintedString)
+    fn emit( & mut self, _message: HintedString)
     {
         // Just discard warnings.
     }
 }
 
-impl WarningSink for &SilentBindingGuard
+impl WarningSink for & SilentBindingGuard
 {
-    fn emit(&mut self, _message: HintedString)
+    fn emit( & mut self, _message: HintedString)
     {
         // Just discard warnings.
     }
 }
 
-impl BindingGuard for SilentBindingGuard
-{
-    fn features(&self) -> &Features
-    {
-        &self.features
-    }
-}
+impl BindingGuard for SilentBindingGuard { fn features( & self)-> & Features { & self.features } }
 
-impl BindingGuard for &SilentBindingGuard
-{
-    fn features(&self) -> &Features
-    {
-        &self.features
-    }
-}
+impl BindingGuard for & SilentBindingGuard { fn features( & self)-> & Features { & self.features } }

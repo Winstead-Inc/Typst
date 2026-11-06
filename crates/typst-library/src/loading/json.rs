@@ -1,10 +1,10 @@
 use ecow::eco_format;
 use typst_syntax::Spanned;
 
-use crate::diag::{At, LineCol, LoadError, LoadedWithin, SourceResult, bail};
+use crate::diag:: { At, LineCol, LoadError, LoadedWithin, SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{Str, Value, func, scope};
-use crate::loading::{DataSource, Load};
+use crate::foundations:: { Str, Value, func, scope };
+use crate::loading:: { DataSource, Load };
 
 /// Reads structured data from a JSON file.
 ///
@@ -97,11 +97,13 @@ use crate::loading::{DataSource, Load};
 /// - The `repr` function is @repr:debugging-only[for debugging purposes only],
 ///   and its output is not guaranteed to be stable across Typst versions.
 #[func(scope, title = "JSON", since = "forever")]
-pub fn json(
-    engine: &mut Engine,
+pub fn json
+(
+    engine: & mut Engine,
     /// A path to a JSON file or raw JSON bytes.
     source: Spanned<DataSource>,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
     let loaded = source.load(engine.world)?;
     let raw = loaded.data.as_slice();
@@ -109,50 +111,41 @@ pub fn json(
     // friendly error message.
     if raw.starts_with(b"\xef\xbb\xbf")
     {
-        bail!(
-            LoadError::text(
-                LineCol::one_based(1, 1),
-                "failed to parse JSON",
-                "unexpected Byte Order Mark",
-            )
-            .within(&loaded)
+        bail!
+        (
+            LoadError::text(LineCol::one_based(1, 1),"failed to parse JSON", "unexpected Byte Order Mark",)
+            .within( & loaded)
             .with_hint("JSON requires UTF-8 without a BOM")
         );
     }
 
     serde_json::from_slice(raw)
-        .map_err(|err| {
-            let pos = LineCol::one_based(err.line(), err.column());
-            LoadError::text(pos, "failed to parse JSON", err)
-        })
-        .within(&loaded)
+    .map_err( | err | { let pos = LineCol::one_based(err.line(), err.column()); LoadError::text(pos, "failed to parse JSON", err) })
+    .within( & loaded)
 }
 
 #[scope]
 impl json
 {
     /// Encodes structured data into a JSON string.
-    #[func(title = "Encode JSON", since = "0.8.0")]
-    pub fn encode(
+    # [func(title = "Encode JSON", since = "0.8.0")]
+    pub fn encode
+    (
         /// Value to be encoded.
         value: Spanned<Value>,
         /// Whether to pretty print the JSON with newlines and indentation.
-        #[named]
-        #[default(true)]
+        # [named]
+        # [default (true)]
         pretty: bool,
-    ) -> SourceResult<Str>
+    )
+   ->SourceResult<Str>
     {
-        let Spanned { v: value, span } = value;
-        if pretty
-        {
-            serde_json::to_string_pretty(&value)
-        }
-        else
-        {
-            serde_json::to_string(&value)
-        }
-        .map(|v| v.into())
-        .map_err(|err| eco_format!("failed to encode value as JSON ({err})"))
+        let Spanned { v: value, span }
+        = value;
+        if pretty { serde_json::to_string_pretty( & value) }
+        else { serde_json::to_string( & value) }
+        .map( | v | v.into())
+        .map_err( | err | eco_format ! ("failed to encode value as JSON ({err})"))
         .at(span)
     }
 }

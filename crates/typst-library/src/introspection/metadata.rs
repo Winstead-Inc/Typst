@@ -1,4 +1,4 @@
-use crate::foundations::{Value, elem};
+use crate::foundations:: { Value, elem };
 
 /// Exposes a value to the query system without producing visible content.
 ///
@@ -24,6 +24,6 @@ use crate::foundations::{Value, elem};
 pub struct MetadataElem
 {
     /// The value to embed into the document.
-    #[required]
+    # [required]
     pub value: Value,
 }

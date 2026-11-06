@@ -1,19 +1,17 @@
 use std::num::NonZeroUsize;
 use std::str::FromStr;
 
-use ecow::{EcoVec, eco_vec};
-use typst_utils::{NonZeroExt, Scalar, singleton};
+use ecow:: { EcoVec, eco_vec };
+use typst_utils:: { NonZeroExt, Scalar, singleton };
 
-use crate::diag::{HintedStrResult, SourceResult, bail};
+use crate::diag:: { HintedStrResult, SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Args, Array, Cast, CastInfo, Construct, Content, Dict, Fold, FromValue, IntoValue,
     NativeElement, Reflect, Set, Smart, Value, cast, dict, elem,
 };
-use crate::layout::{
-    Abs, Alignment, FlushElem, HAlignment, Length, OuterVAlignment, Ratio, Rel, Sides,
-    SpecificAlignment,
-};
+use crate::layout:: { Abs, Alignment, FlushElem, HAlignment, Length, OuterVAlignment, Ratio, Rel, Sides, SpecificAlignment, };
 use crate::model::Numbering;
 use crate::text::LocalName;
 use crate::visualize::Paint;
@@ -57,8 +55,8 @@ pub struct PageElem
     ///
     /// This is just a shorthand for setting `width` and `height` and, as such,
     /// cannot be retrieved in a context expression.
-    #[external]
-    #[default(Paper::A4)]
+    # [external]
+    # [default (Paper::A4)]
     pub paper: Paper,
 
     /// The width of the final page, after any trims have been applied.
@@ -79,13 +77,17 @@ pub struct PageElem
     ///   box(square(width: 1cm))
     /// }
     /// ```
-    #[parse(
-        let paper = args.named_or_find::<Paper>("paper")?;
-        args.named("width")?
-            .or_else(|| paper.map(|paper| Smart::Custom(paper.width().into())))
-    )]
-    #[default(Smart::Custom(Paper::A4.width().into()))]
-    #[ghost]
+    #
+    [
+        parse
+        (
+            let paper = args.named_or_find::<Paper>("paper")?;
+            args.named("width")?
+            .or_else( || paper.map( | paper | Smart::Custom(paper.width().into())))
+        )
+    ]
+    # [default (Smart::Custom(Paper::A4.width().into()))]
+    # [ghost]
     pub width: Smart<Length>,
 
     /// The height of the final page area, after any trims have been applied.
@@ -95,12 +97,9 @@ pub struct PageElem
     /// page set rule. Most examples throughout this documentation use `{auto}`
     /// for the height of the page to dynamically grow and shrink to fit their
     /// content.
-    #[parse(
-        args.named("height")?
-            .or_else(|| paper.map(|paper| Smart::Custom(paper.height().into())))
-    )]
-    #[default(Smart::Custom(Paper::A4.height().into()))]
-    #[ghost]
+    # [parse(args.named("height")?.or_else( || paper.map( | paper | Smart::Custom(paper.height().into()))))]
+    # [default (Smart::Custom(Paper::A4.height().into()))]
+    # [ghost]
     pub height: Smart<Length>,
 
     /// Whether the page is flipped into landscape orientation.
@@ -121,8 +120,8 @@ pub struct PageElem
     /// New York, NY 10010 \
     /// +1 (212) 555-0155
     /// ```
-    #[default(false)]
-    #[ghost]
+    # [default (false)]
+    # [ghost]
     pub flipped: bool,
 
     /// The page's margins.
@@ -164,9 +163,9 @@ pub struct PageElem
     ///   fill: aqua,
     /// )
     /// ```
-    #[fold]
-    #[ghost]
-    pub margin: Smart<Margin<Smart<Rel<Length>>>>,
+    # [fold]
+    # [ghost]
+    pub margin: Smart < Margin < Smart < Rel < Length >>>> ,
 
     /// The page's bleed margin.
     ///
@@ -216,7 +215,7 @@ pub struct PageElem
     ///
     /// #rect(width: 100%, height: 100%, fill: white)
     /// ```
-    #[ghost]
+    # [ghost]
     pub bleed: Margin<Rel<Length>>,
 
     /// On which side the pages will be bound.
@@ -228,7 +227,7 @@ pub struct PageElem
     ///
     /// This affects the meaning of the `inside` and `outside` options for
     /// margins.
-    #[ghost]
+    # [ghost]
     pub binding: Smart<Binding>,
 
     /// How many columns the page has.
@@ -251,8 +250,8 @@ pub struct PageElem
     ///   of a rapidly changing climate.
     ///   ```
     /// )
-    #[default(NonZeroUsize::ONE)]
-    #[ghost]
+    # [default (NonZeroUsize::ONE)]
+    # [ghost]
     pub columns: NonZeroUsize,
 
     /// The page's background fill.
@@ -275,7 +274,7 @@ pub struct PageElem
     /// #set text(fill: rgb("fdfdfd"))
     /// *Dark mode enabled.*
     /// ```
-    #[ghost]
+    # [ghost]
     pub fill: Smart<Option<Paint>>,
 
     /// How to number the pages. You can refer to the Page Setup Guide for
@@ -308,7 +307,7 @@ pub struct PageElem
     ///
     /// #lorem(48)
     /// ```
-    #[ghost]
+    # [ghost]
     pub numbering: Option<Numbering>,
 
     /// A supplement for the pages.
@@ -321,7 +320,7 @@ pub struct PageElem
     /// = Introduction <intro>
     /// We are on #ref(<intro>, form: "page")!
     /// ```
-    #[ghost]
+    # [ghost]
     pub supplement: Smart<Option<Content>>,
 
     /// The alignment of the page numbering.
@@ -340,8 +339,8 @@ pub struct PageElem
     ///
     /// #lorem(30)
     /// ```
-    #[default(SpecificAlignment::Both(HAlignment::Center, OuterVAlignment::Bottom))]
-    #[ghost]
+    # [default (SpecificAlignment::Both(HAlignment::Center, OuterVAlignment::Bottom))]
+    # [ghost]
     pub number_align: SpecificAlignment<HAlignment, OuterVAlignment>,
 
     /// The page's header. Fills the top margin of each page.
@@ -364,13 +363,13 @@ pub struct PageElem
     ///
     /// #lorem(19)
     /// ```
-    #[ghost]
+    # [ghost]
     pub header: Smart<Option<Content>>,
 
     /// The amount the header is raised into the top margin. Ratios are relative
     /// to the height of the top margin.
-    #[default(Ratio::new(0.3).into())]
-    #[ghost]
+    # [default (Ratio::new (0.3).into())]
+    # [ghost]
     pub header_ascent: Rel<Length>,
 
     /// The page's footer. Fills the bottom margin of each page.
@@ -401,7 +400,7 @@ pub struct PageElem
     ///
     /// #lorem(48)
     /// ```
-    #[ghost]
+    # [ghost]
     pub footer: Smart<Option<Content>>,
 
     /// The amount the footer is lowered into the bottom margin. Ratios are
@@ -446,8 +445,8 @@ pub struct PageElem
     ///   place(bottom, lorem(42))
     /// })
     /// ```
-    #[default(Ratio::new(0.3).into())]
-    #[ghost]
+    # [default (Ratio::new (0.3).into())]
+    # [ghost]
     pub footer_descent: Rel<Length>,
 
     /// Content in the page's background.
@@ -471,7 +470,7 @@ pub struct PageElem
     /// In the year 2023, we plan to take
     /// over the world (of typesetting).
     /// ```
-    #[ghost]
+    # [ghost]
     pub background: Option<Content>,
 
     /// Content in the page's foreground.
@@ -489,7 +488,7 @@ pub struct PageElem
     /// "Weak Reject" because they did
     /// not understand our approach...
     /// ```
-    #[ghost]
+    # [ghost]
     pub foreground: Option<Content>,
 
     /// The contents of the page(s).
@@ -497,39 +496,40 @@ pub struct PageElem
     /// Multiple pages will be created if the content does not fit on a single
     /// page. A new page with the page properties prior to the function
     /// invocation will be created after the body has been typeset.
-    #[external]
-    #[required]
+    # [external]
+    # [required]
     pub body: Content,
 }
 
 impl Construct for PageElem
 {
-    fn construct(engine: &mut Engine, args: &mut Args) -> SourceResult<Content>
+    fn construct(engine: & mut Engine, args: & mut Args)->SourceResult<Content>
     {
         // The page constructor is special: It doesn't create a page element.
         // Instead, it just ensures that the passed content lives in a separate
         // page and styles it. Because no element node is produced, `show`
         // rules can't match `page`; use `set` rules instead.
-        let styles = Self::set(engine, args)?;
+        let styles = Self:: set(engine, args)?;
         let body = args.expect::<Content>("body")?;
-        Ok(Content::sequence([
-            PagebreakElem::shared_weak().clone(),
-            // We put an effectless, invisible non-tag element on the page.
-            // This has two desirable consequences:
-            // - The page is kept even if the body is empty
-            // - The page doesn't inherit shared styles from the body
-            FlushElem::new().pack(),
-            body,
-            PagebreakElem::shared_boundary().clone(),
-        ])
-        .styled_with_map(styles))
+        Ok
+        (
+            Content::sequence
+            ([
+                PagebreakElem::shared_weak().clone(),
+                // We put an effectless, invisible non-tag element on the page.
+                // This has two desirable consequences:
+                // - The page is kept even if the body is empty
+                // - The page doesn't inherit shared styles from the body
+                FlushElem:: new ().pack(),
+                body,
+                PagebreakElem::shared_boundary().clone(),
+            ])
+            .styled_with_map(styles)
+        )
     }
 }
 
-impl LocalName for PageElem
-{
-    const KEY: &'static str = "page";
-}
+impl LocalName for PageElem { const KEY: & 'static str = "page"; }
 
 /// A manual page break.
 ///
@@ -558,7 +558,7 @@ pub struct PagebreakElem
 {
     /// If `{true}`, the page break is skipped if the current page is already
     /// empty.
-    #[default(false)]
+    # [default (false)]
     pub weak: bool,
 
     /// If given, ensures that the next page will be an even/odd page, with an
@@ -577,28 +577,19 @@ pub struct PagebreakElem
     /// an even weaker version of pagebreak `weak` because it not only doesn't
     /// force an empty page, but also doesn't force its initial styles onto a
     /// staged empty page.
-    #[internal]
-    #[parse(None)]
-    #[default(false)]
+    # [internal]
+    # [parse(None)]
+    # [default (false)]
     pub boundary: bool,
 }
 
 impl PagebreakElem
 {
     /// Get the globally shared weak pagebreak element.
-    pub fn shared_weak() -> &'static Content
-    {
-        singleton!(Content, PagebreakElem::new().with_weak(true).pack())
-    }
+    pub fn shared_weak()-> & 'static Content { singleton ! (Content, PagebreakElem::new ().with_weak(true).pack()) }
 
     /// Get the globally shared boundary pagebreak element.
-    pub fn shared_boundary() -> &'static Content
-    {
-        singleton!(
-            Content,
-            PagebreakElem::new().with_weak(true).with_boundary(true).pack()
-        )
-    }
+    pub fn shared_boundary()-> & 'static Content { singleton ! (Content, PagebreakElem::new ().with_weak(true).with_boundary(true).pack()) }
 }
 
 /// Specification of the page's margins.
@@ -612,95 +603,57 @@ pub struct Margin<T: PartialEq>
     pub two_sided: Option<bool>,
 }
 
-impl<T: Clone + PartialEq> Margin<T>
+impl <T: Clone + PartialEq> Margin<T>
 {
     /// Create an instance with four equal components.
-    pub fn splat(value: Option<T>) -> Self
-    {
-        Self { sides: Sides::splat(value), two_sided: None }
-    }
+    pub fn splat(value: Option<T>)->Self { Self { sides: Sides::splat(value), two_sided: None } }
 }
 
-impl<T: Fold + PartialEq> Fold for Margin<T>
+impl <T: Fold + PartialEq> Fold for Margin<T>
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        Margin {
-            sides: self.sides.fold(outer.sides),
-            two_sided: self.two_sided.fold(outer.two_sided),
-        }
-    }
+    fn fold(self, outer: Self)->Self { Margin { sides: self.sides.fold(outer.sides), two_sided: self.two_sided.fold(outer.two_sided), } }
 }
 
-impl<T: Reflect + PartialEq> Reflect for Margin<T>
+impl <T: Reflect + PartialEq> Reflect for Margin<T>
 {
-    fn input() -> CastInfo
-    {
-        T::input() + Dict::input()
-    }
+    fn input()->CastInfo { T::input() + Dict::input() }
 
-    fn output() -> CastInfo
-    {
-        Self::input()
-    }
+    fn output()->CastInfo { Self::input() }
 
-    fn castable(value: &Value) -> bool
-    {
-        T::castable(value) || Dict::castable(value)
-    }
+    fn castable(value: & Value)-> bool { T::castable(value) || Dict::castable(value) }
 }
 
-impl<T: IntoValue + PartialEq> IntoValue for Margin<T>
+impl <T: IntoValue + PartialEq> IntoValue for Margin<T>
 {
-    fn into_value(self) -> Value
+    fn into_value(self)->Value
     {
         let two_sided = self.two_sided.unwrap_or(false);
-        if !two_sided
-            && self.sides.is_uniform()
-            && let Some(left) = self.sides.left
-        {
-            return left.into_value();
-        }
+        if ! two_sided
+        && self.sides.is_uniform()
+        && let Some(left) = self.sides.left { return left.into_value(); }
 
-        let mut dict = Dict::new();
-        let mut handle = |key: &str, component: Option<T>| {
-            if let Some(c) = component
-            {
-                dict.insert(key.into(), c.into_value());
-            }
-        };
+        let mut dict = Dict:: new ();
+        let mut handle = | key: & str, component: Option < T >| { if let Some(c) = component { dict.insert(key.into(), c.into_value()); } };
 
         handle("top", self.sides.top);
         handle("bottom", self.sides.bottom);
-        if two_sided
-        {
-            handle("inside", self.sides.left);
-            handle("outside", self.sides.right);
-        }
-        else
-        {
-            handle("left", self.sides.left);
-            handle("right", self.sides.right);
-        }
+        if two_sided { handle("inside", self.sides.left); handle("outside", self.sides.right); }
+        else { handle("left", self.sides.left); handle("right", self.sides.right); }
 
         Value::Dict(dict)
     }
 }
 
-impl<T: Reflect + FromValue + Copy + PartialEq> FromValue for Margin<T>
+impl <T: Reflect + FromValue + Copy + PartialEq> FromValue for Margin<T>
 {
-    fn from_value(value: Value) -> HintedStrResult<Self>
+    fn from_value(value: Value)->HintedStrResult<Self>
     {
-        if T::castable(&value)
-        {
-            let v = T::from_value(value)?;
-            return Ok(Self::splat(Some(v)));
-        }
+        if T::castable( & value) { let v = T::from_value(value)?; return Ok(Self::splat(Some(v))); }
 
-        if Dict::castable(&value)
+        if Dict::castable( & value)
         {
             let mut dict = Dict::from_value(value)?;
-            let mut take = |key| dict.take(key).ok().map(Value::cast).transpose();
+            let mut take = | key | dict.take(key).ok().map(Value::cast).transpose();
 
             let rest = take("rest")?;
             let x = take("x")?.or(rest);
@@ -714,12 +667,7 @@ impl<T: Reflect + FromValue + Copy + PartialEq> FromValue for Margin<T>
 
             let implicitly_two_sided = outside.is_some() || inside.is_some();
             let implicitly_not_two_sided = left.is_some() || right.is_some();
-            if implicitly_two_sided && implicitly_not_two_sided
-            {
-                bail!(
-                    "`inside` and `outside` are mutually exclusive with `left` and `right`"
-                );
-            }
+            if implicitly_two_sided && implicitly_not_two_sided { bail ! ("`inside` and `outside` are mutually exclusive with `left` and `right`"); }
 
             // - If 'implicitly_two_sided' is false here, then
             //   'implicitly_not_two_sided' will be guaranteed to be true
@@ -728,24 +676,14 @@ impl<T: Reflect + FromValue + Copy + PartialEq> FromValue for Margin<T>
             //   affect lateral margins, and thus shouldn't make a difference on
             //   the 'two_sided' attribute of this margin.
             let two_sided = (implicitly_two_sided || implicitly_not_two_sided)
-                .then_some(implicitly_two_sided);
+            .then_some(implicitly_two_sided);
 
-            dict.finish(&[
-                "left", "top", "right", "bottom", "outside", "inside", "x", "y", "rest",
-            ])?;
+            dict.finish( & ["left", "top", "right", "bottom", "outside", "inside", "x", "y", "rest",])?;
 
-            return Ok(Margin {
-                sides: Sides {
-                    left: inside.or(left).or(x),
-                    top,
-                    right: outside.or(right).or(x),
-                    bottom,
-                },
-                two_sided,
-            });
+            return Ok(Margin { sides: Sides { left: inside.or(left).or(x), top, right: outside.or(right).or(x), bottom, }, two_sided, });
         }
 
-        Err(Self::error(&value))
+        Err(Self::error( & value))
     }
 }
 
@@ -762,77 +700,62 @@ pub enum Binding
 impl Binding
 {
     /// Whether to swap left and right margin for the page with this number.
-    pub fn swap(self, number: NonZeroUsize) -> bool
+    pub fn swap(self, number: NonZeroUsize)-> bool
     {
         match self
         {
             // Left-bound must swap on even pages
             // (because it is correct on the first page).
-            Self::Left => number.get() % 2 == 0,
+            Self::Left => number. get() % 2 == 0,
             // Right-bound must swap on odd pages
             // (because it is wrong on the first page).
-            Self::Right => number.get() % 2 == 1,
+            Self::Right => number. get() % 2 == 1,
         }
     }
 }
 
-cast! {
+cast!
+{
     Binding,
-    self => match self {
-        Self::Left => Alignment::LEFT.into_value(),
-        Self::Right => Alignment::RIGHT.into_value(),
-    },
-    v: Alignment => match v {
-        Alignment::LEFT => Self::Left,
-        Alignment::RIGHT => Self::Right,
-        _ => bail!("must be `left` or `right`"),
-    },
+    self => match self { Self::Left => Alignment::LEFT.into_value(), Self::Right => Alignment::RIGHT.into_value(), },
+    v: Alignment => match v { Alignment::LEFT => Self::Left, Alignment::RIGHT => Self::Right, _ => bail ! ("must be `left` or `right`"), },
 }
 
 /// A list of page ranges to be exported.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct PageRanges(EcoVec<PageRange>);
 
-cast! {
+cast!
+{
     PageRanges,
-    self => Value::Array(self.0.iter().copied().map(IntoValue::into_value).collect()),
-    range: PageRange => Self(eco_vec![range]),
-    array: Array => Self(array
-        .into_iter()
-        .map(Value::cast)
-        .collect::<HintedStrResult<_>>()?),
+    self => Value::Array(self .0.iter().copied().map(IntoValue::into_value).collect()),
+    range: PageRange => Self(eco_vec ! [range]),
+    array: Array => Self(array.into_iter().map(Value::cast).collect::<HintedStrResult<_>>()?),
 }
 
 impl PageRanges
 {
     /// Create new page ranges.
-    pub fn new(ranges: EcoVec<PageRange>) -> Self
-    {
-        Self(ranges)
-    }
+    pub fn new (ranges: EcoVec<PageRange>)->Self { Self(ranges) }
 
     /// Check if a page, given its number, should be included when exporting the
     /// document while restricting the exported pages to these page ranges.
     /// This is the one-indexed version of [`Self::includes_page_index`].
-    pub fn includes_page(&self, page: NonZeroUsize) -> bool
+    pub fn includes_page( & self, page: NonZeroUsize)-> bool
     {
-        self.0.iter().any(|range| match (range.start, range.end)
-        {
-            (Some(start), Some(end)) => (start..=end).contains(&page),
-            (Some(start), None) => (start..).contains(&page),
-            (None, Some(end)) => (..=end).contains(&page),
-            (None, None) => true,
-        })
+        self .0.iter().any
+        (
+            | range | match (range.start, range.end)
+            {
+                (Some(start), Some(end)) => (start.. = end).contains( & page),(Some(start), None) => (start..).contains( & page),(None, Some(end)) => (.. = end).contains( & page),(None, None) => true,
+            }
+        )
     }
 
     /// Check if a page, given its index, should be included when exporting the
     /// document while restricting the exported pages to these page ranges.
     /// This is the zero-indexed version of [`Self::includes_page`].
-    pub fn includes_page_index(&self, page: usize) -> bool
-    {
-        let page = NonZeroUsize::try_from(page + 1).unwrap();
-        self.includes_page(page)
-    }
+    pub fn includes_page_index( & self, page: usize)-> bool { let page = NonZeroUsize::try_from(page + 1).unwrap(); self.includes_page(page) }
 }
 
 /// A range of pages to export.
@@ -848,69 +771,43 @@ pub struct PageRange
     pub end: Option<NonZeroUsize>,
 }
 
-cast! {
+cast!
+{
     PageRange,
-    self => {
-        Value::Dict(dict! {
-            "from" => self.start.into_value(),
-            "to" => self.end.into_value(),
-        })
-    },
+    self => { Value::Dict(dict ! { "from" => self.start.into_value(),"to" => self.end.into_value(), }) },
     nr: i64 => Self::at(parse_page_number(nr)?),
-    mut dict: Dict => {
-        let parse_nr = |val: Value| parse_page_number(val.cast::<i64>()?);
+    mut dict: Dict =>
+    {
+        let parse_nr = | val: Value | parse_page_number(val.cast::<i64>()?);
         let start = dict.take("from").ok().map(parse_nr).transpose()?;
-        let end =  dict.take("to").ok().map(parse_nr).transpose()?;
-        dict.finish(&["from", "to"])?;
-        if start.is_none() && end.is_none() {
-            bail!("page range must not be empty");
-        }
+        let end = dict.take("to").ok().map(parse_nr).transpose()?;
+        dict.finish( & ["from", "to"])?;
+        if start.is_none() && end.is_none() { bail ! ("page range must not be empty"); }
         if let Some((start, end)) = start.zip(end)
-            && start > end
-        {
-            bail!("start of page range cannot be larger than end");
-        }
-        Self::new(start, end)
+        && start > end { bail ! ("start of page range cannot be larger than end"); }
+        Self:: new (start, end)
     }
 }
 
-fn parse_page_number(nr: i64) -> HintedStrResult<NonZeroUsize>
+fn parse_page_number(nr: i64)->HintedStrResult<NonZeroUsize>
 {
-    if nr < 1
-    {
-        bail!("page numbers start at one");
-    }
-    Ok(usize::try_from(nr)
-        .ok()
-        .and_then(NonZeroUsize::new)
-        .ok_or("not a valid page number")?)
+    if nr < 1 { bail ! ("page numbers start at one"); }
+    Ok(usize::try_from(nr).ok().and_then(NonZeroUsize::new).ok_or("not a valid page number")?)
 }
 
 impl PageRange
 {
     /// Constructs a page range with optional start and end bounds.
-    pub fn new(start: Option<NonZeroUsize>, end: Option<NonZeroUsize>) -> Self
-    {
-        Self { start, end }
-    }
+    pub fn new (start: Option<NonZeroUsize>, end: Option<NonZeroUsize>)->Self { Self { start, end } }
 
     /// Constructs a page range with one page.
-    pub fn at(nr: NonZeroUsize) -> Self
-    {
-        Self { start: Some(nr), end: Some(nr) }
-    }
+    pub fn at(nr: NonZeroUsize)->Self { Self { start: Some(nr), end: Some(nr) } }
 
     /// Constructs a page range without a start bound.
-    pub fn from(start: NonZeroUsize) -> Self
-    {
-        Self { start: Some(start), end: None }
-    }
+    pub fn from(start: NonZeroUsize)->Self { Self { start: Some(start), end: None } }
 
     /// Constructs a page range without an end bound.
-    pub fn to(end: NonZeroUsize) -> Self
-    {
-        Self { start: None, end: Some(end) }
-    }
+    pub fn to(end: NonZeroUsize)->Self { Self { start: None, end: Some(end) } }
 }
 
 /// Whether something should be even or odd.
@@ -926,14 +823,7 @@ pub enum Parity
 impl Parity
 {
     /// Whether the given number matches the parity.
-    pub fn matches(self, number: usize) -> bool
-    {
-        match self
-        {
-            Self::Even => number % 2 == 0,
-            Self::Odd => number % 2 == 1,
-        }
-    }
+    pub fn matches(self, number: usize)-> bool { match self { Self::Even => number % 2 == 0, Self::Odd => number % 2 == 1, } }
 }
 
 /// Specification of a paper.
@@ -941,7 +831,7 @@ impl Parity
 pub struct Paper
 {
     /// The name of the paper.
-    name: &'static str,
+    name: & 'static str,
     /// The width of the paper in millimeters.
     width: Scalar,
     /// The height of the paper in millimeters.
@@ -951,54 +841,43 @@ pub struct Paper
 impl Paper
 {
     /// The width of the paper.
-    pub fn width(self) -> Abs
-    {
-        Abs::mm(self.width.get())
-    }
+    pub fn width(self)->Abs { Abs::mm(self.width.get ()) }
 
     /// The height of the paper.
-    pub fn height(self) -> Abs
-    {
-        Abs::mm(self.height.get())
-    }
+    pub fn height(self)->Abs { Abs::mm(self.height.get ()) }
 }
 
 /// Defines paper constants and a paper parsing implementation.
-macro_rules! papers {
-    ($(($var:ident: $width:expr, $height: expr, $name:literal))*) => {
+macro_rules! papers
+{
+    ($(($var: ident: $width: expr, $height: expr, $name: literal)) *) =>
+    {
         /// Predefined papers.
         ///
         /// Each paper is parsable from its name in kebab-case.
-        impl Paper {
-            $(pub const $var: Self = Self {
-                name: $name,
-                width: Scalar::new($width),
-                height: Scalar::new($height),
-            };)*
+        impl Paper { $(pub const $var: Self = Self { name: $name, width: Scalar::new ($width), height: Scalar::new ($height), };) * }
+
+        impl FromStr for Paper
+        {
+            type Err = & 'static str;
+
+            fn from_str(name: & str)->Result<Self, Self::Err> { match name.to_lowercase().as_str() { $($name => Ok(Self::$var),) * _ => Err("unknown paper size"), } }
         }
 
-        impl FromStr for Paper {
-            type Err = &'static str;
-
-            fn from_str(name: &str) -> Result<Self, Self::Err> {
-                match name.to_lowercase().as_str() {
-                    $($name => Ok(Self::$var),)*
-                    _ => Err("unknown paper size"),
-                }
-            }
-        }
-
-        cast! {
+        cast!
+        {
             Paper,
             self => self.name.into_value(),
-            $(
+            $
+            (
                 /// A paper that is
-                #[doc = stringify!($width)]
+                # [doc = stringify ! ($width)]
                 /// ×
-                #[doc = stringify!($height)]
+                # [doc = stringify ! ($height)]
                 /// millimeters in size.
                 $name => Self::$var,
-            )*
+            )
+            *
         }
     };
 }
@@ -1010,106 +889,45 @@ macro_rules! papers {
 // - https://en.wikipedia.org/wiki/Paper_size
 // - https://www.theedkins.co.uk/jo/units/oldunits/print.htm
 // - https://vintagepaper.co/blogs/news/traditional-paper-sizes
-papers! {
+papers!
+{
     // ---------------------------------------------------------------------- //
     // ISO 216 A Series
-    (A0:  841.0, 1189.0, "a0")
-    (A1:  594.0,  841.0, "a1")
-    (A2:  420.0,  594.0, "a2")
-    (A3:  297.0,  420.0, "a3")
-    (A4:  210.0,  297.0, "a4")
-    (A5:  148.0,  210.0, "a5")
-    (A6:  105.0,  148.0, "a6")
-    (A7:   74.0,  105.0, "a7")
-    (A8:   52.0,   74.0, "a8")
-    (A9:   37.0,   52.0, "a9")
-    (A10:  26.0,   37.0, "a10")
-    (A11:  18.0,   26.0, "a11")
+    (A0: 841.0, 1189.0, "a0")(A1: 594.0, 841.0, "a1")(A2: 420.0, 594.0, "a2")(A3: 297.0, 420.0, "a3")(A4: 210.0, 297.0, "a4")(A5: 148.0, 210.0, "a5")(A6: 105.0, 148.0, "a6")(A7: 74.0, 105.0, "a7")(A8: 52.0, 74.0, "a8")(A9: 37.0, 52.0, "a9")(A10: 26.0, 37.0, "a10")(A11: 18.0, 26.0, "a11")
 
     // ISO 216 B Series
-    (ISO_B1: 707.0, 1000.0, "iso-b1")
-    (ISO_B2: 500.0,  707.0,  "iso-b2")
-    (ISO_B3: 353.0,  500.0,  "iso-b3")
-    (ISO_B4: 250.0,  353.0,  "iso-b4")
-    (ISO_B5: 176.0,  250.0,  "iso-b5")
-    (ISO_B6: 125.0,  176.0,  "iso-b6")
-    (ISO_B7:  88.0,  125.0,  "iso-b7")
-    (ISO_B8:  62.0,   88.0,  "iso-b8")
+    (ISO_B1: 707.0, 1000.0, "iso-b1")(ISO_B2: 500.0, 707.0, "iso-b2")(ISO_B3: 353.0, 500.0, "iso-b3")(ISO_B4: 250.0, 353.0, "iso-b4")(ISO_B5: 176.0, 250.0, "iso-b5")(ISO_B6: 125.0, 176.0, "iso-b6")(ISO_B7: 88.0, 125.0, "iso-b7")(ISO_B8: 62.0, 88.0, "iso-b8")
 
     // ISO 216 C Series
-    (ISO_C3: 324.0, 458.0, "iso-c3")
-    (ISO_C4: 229.0, 324.0, "iso-c4")
-    (ISO_C5: 162.0, 229.0, "iso-c5")
-    (ISO_C6: 114.0, 162.0, "iso-c6")
-    (ISO_C7:  81.0, 114.0, "iso-c7")
-    (ISO_C8:  57.0,  81.0, "iso-c8")
+    (ISO_C3: 324.0, 458.0, "iso-c3")(ISO_C4: 229.0, 324.0, "iso-c4")(ISO_C5: 162.0, 229.0, "iso-c5")(ISO_C6: 114.0, 162.0, "iso-c6")(ISO_C7: 81.0, 114.0, "iso-c7")(ISO_C8: 57.0, 81.0, "iso-c8")
 
     // DIN D Series (extension to ISO)
-    (DIN_D3: 272.0, 385.0, "din-d3")
-    (DIN_D4: 192.0, 272.0, "din-d4")
-    (DIN_D5: 136.0, 192.0, "din-d5")
-    (DIN_D6:  96.0, 136.0, "din-d6")
-    (DIN_D7:  68.0,  96.0, "din-d7")
-    (DIN_D8:  48.0,  68.0, "din-d8")
+    (DIN_D3: 272.0, 385.0, "din-d3")(DIN_D4: 192.0, 272.0, "din-d4")(DIN_D5: 136.0, 192.0, "din-d5")(DIN_D6: 96.0, 136.0, "din-d6")(DIN_D7: 68.0, 96.0, "din-d7")(DIN_D8: 48.0, 68.0, "din-d8")
 
     // SIS (used in academia)
-    (SIS_G5: 169.0, 239.0, "sis-g5")
-    (SIS_E5: 115.0, 220.0, "sis-e5")
+    (SIS_G5: 169.0, 239.0, "sis-g5")(SIS_E5: 115.0, 220.0, "sis-e5")
 
     // ANSI Extensions
-    (ANSI_A: 216.0,  279.0, "ansi-a")
-    (ANSI_B: 279.0,  432.0, "ansi-b")
-    (ANSI_C: 432.0,  559.0, "ansi-c")
-    (ANSI_D: 559.0,  864.0, "ansi-d")
-    (ANSI_E: 864.0, 1118.0, "ansi-e")
+    (ANSI_A: 216.0, 279.0, "ansi-a")(ANSI_B: 279.0, 432.0, "ansi-b")(ANSI_C: 432.0, 559.0, "ansi-c")(ANSI_D: 559.0, 864.0, "ansi-d")(ANSI_E: 864.0, 1118.0, "ansi-e")
 
     // ANSI Architectural Paper
-    (ARCH_A:  229.0,  305.0, "arch-a")
-    (ARCH_B:  305.0,  457.0, "arch-b")
-    (ARCH_C:  457.0,  610.0, "arch-c")
-    (ARCH_D:  610.0,  914.0, "arch-d")
-    (ARCH_E1: 762.0, 1067.0, "arch-e1")
-    (ARCH_E:  914.0, 1219.0, "arch-e")
+    (ARCH_A: 229.0, 305.0, "arch-a")(ARCH_B: 305.0, 457.0, "arch-b")(ARCH_C: 457.0, 610.0, "arch-c")(ARCH_D: 610.0, 914.0, "arch-d")(ARCH_E1: 762.0, 1067.0, "arch-e1")(ARCH_E: 914.0, 1219.0, "arch-e")
 
     // JIS B Series
-    (JIS_B0:  1030.0, 1456.0, "jis-b0")
-    (JIS_B1:   728.0, 1030.0, "jis-b1")
-    (JIS_B2:   515.0,  728.0, "jis-b2")
-    (JIS_B3:   364.0,  515.0, "jis-b3")
-    (JIS_B4:   257.0,  364.0, "jis-b4")
-    (JIS_B5:   182.0,  257.0, "jis-b5")
-    (JIS_B6:   128.0,  182.0, "jis-b6")
-    (JIS_B7:    91.0,  128.0, "jis-b7")
-    (JIS_B8:    64.0,   91.0, "jis-b8")
-    (JIS_B9:    45.0,   64.0, "jis-b9")
-    (JIS_B10:   32.0,   45.0, "jis-b10")
-    (JIS_B11:   22.0,   32.0, "jis-b11")
+    (JIS_B0: 1030.0, 1456.0, "jis-b0")(JIS_B1: 728.0, 1030.0, "jis-b1")(JIS_B2: 515.0, 728.0, "jis-b2")(JIS_B3: 364.0, 515.0, "jis-b3")(JIS_B4: 257.0, 364.0, "jis-b4")(JIS_B5: 182.0, 257.0, "jis-b5")(JIS_B6: 128.0, 182.0, "jis-b6")(JIS_B7: 91.0, 128.0, "jis-b7")(JIS_B8: 64.0, 91.0, "jis-b8")(JIS_B9: 45.0, 64.0, "jis-b9")(JIS_B10: 32.0, 45.0, "jis-b10")(JIS_B11: 22.0, 32.0, "jis-b11")
 
     // SAC D Series
-    (SAC_D0: 764.0, 1064.0, "sac-d0")
-    (SAC_D1: 532.0,  760.0, "sac-d1")
-    (SAC_D2: 380.0,  528.0, "sac-d2")
-    (SAC_D3: 264.0,  376.0, "sac-d3")
-    (SAC_D4: 188.0,  260.0, "sac-d4")
-    (SAC_D5: 130.0,  184.0, "sac-d5")
-    (SAC_D6:  92.0,  126.0, "sac-d6")
+    (SAC_D0: 764.0, 1064.0, "sac-d0")(SAC_D1: 532.0, 760.0, "sac-d1")(SAC_D2: 380.0, 528.0, "sac-d2")(SAC_D3: 264.0, 376.0, "sac-d3")(SAC_D4: 188.0, 260.0, "sac-d4")(SAC_D5: 130.0, 184.0, "sac-d5")(SAC_D6: 92.0, 126.0, "sac-d6")
 
     // ISO 7810 ID
-    (ISO_ID_1: 85.6, 53.98, "iso-id-1")
-    (ISO_ID_2: 74.0, 105.0, "iso-id-2")
-    (ISO_ID_3: 88.0, 125.0, "iso-id-3")
+    (ISO_ID_1: 85.6, 53.98, "iso-id-1")(ISO_ID_2: 74.0, 105.0, "iso-id-2")(ISO_ID_3: 88.0, 125.0, "iso-id-3")
 
     // ---------------------------------------------------------------------- //
     // Asia
     (ASIA_F4: 210.0, 330.0, "asia-f4")
 
     // Japan
-    (JP_SHIROKU_BAN_4: 264.0, 379.0, "jp-shiroku-ban-4")
-    (JP_SHIROKU_BAN_5: 189.0, 262.0, "jp-shiroku-ban-5")
-    (JP_SHIROKU_BAN_6: 127.0, 188.0, "jp-shiroku-ban-6")
-    (JP_KIKU_4:        227.0, 306.0, "jp-kiku-4")
-    (JP_KIKU_5:        151.0, 227.0, "jp-kiku-5")
-    (JP_BUSINESS_CARD:  91.0,  55.0, "jp-business-card")
+    (JP_SHIROKU_BAN_4: 264.0, 379.0, "jp-shiroku-ban-4")(JP_SHIROKU_BAN_5: 189.0, 262.0, "jp-shiroku-ban-5")(JP_SHIROKU_BAN_6: 127.0, 188.0, "jp-shiroku-ban-6")(JP_KIKU_4: 227.0, 306.0, "jp-kiku-4")(JP_KIKU_5: 151.0, 227.0, "jp-kiku-5")(JP_BUSINESS_CARD: 91.0, 55.0, "jp-business-card")
 
     // China
     (CN_BUSINESS_CARD: 90.0, 54.0, "cn-business-card")
@@ -1118,42 +936,15 @@ papers! {
     (EU_BUSINESS_CARD: 85.0, 55.0, "eu-business-card")
 
     // French Traditional (AFNOR)
-    (FR_TELLIERE:          340.0, 440.0, "fr-tellière")
-    (FR_COURONNE_ECRITURE: 360.0, 460.0, "fr-couronne-écriture")
-    (FR_COURONNE_EDITION:  370.0, 470.0, "fr-couronne-édition")
-    (FR_RAISIN:            500.0, 650.0, "fr-raisin")
-    (FR_CARRE:             450.0, 560.0, "fr-carré")
-    (FR_JESUS:             560.0, 760.0, "fr-jésus")
+    (FR_TELLIERE: 340.0, 440.0, "fr-tellière")(FR_COURONNE_ECRITURE: 360.0, 460.0, "fr-couronne-écriture")(FR_COURONNE_EDITION: 370.0, 470.0, "fr-couronne-édition")(FR_RAISIN: 500.0, 650.0, "fr-raisin")(FR_CARRE: 450.0, 560.0, "fr-carré")(FR_JESUS: 560.0, 760.0, "fr-jésus")
 
     // United Kingdom Imperial
-    (UK_BRIEF:    406.4, 342.9, "uk-brief")
-    (UK_DRAFT:    254.0, 406.4, "uk-draft")
-    (UK_FOOLSCAP: 203.2, 330.2, "uk-foolscap")
-    (UK_QUARTO:   203.2, 254.0, "uk-quarto")
-    (UK_CROWN:    508.0, 381.0, "uk-crown")
-    (UK_BOOK_A:   111.0, 178.0, "uk-book-a")
-    (UK_BOOK_B:   129.0, 198.0, "uk-book-b")
+    (UK_BRIEF: 406.4, 342.9, "uk-brief")(UK_DRAFT: 254.0, 406.4, "uk-draft")(UK_FOOLSCAP: 203.2, 330.2, "uk-foolscap")(UK_QUARTO: 203.2, 254.0, "uk-quarto")(UK_CROWN: 508.0, 381.0, "uk-crown")(UK_BOOK_A: 111.0, 178.0, "uk-book-a")(UK_BOOK_B: 129.0, 198.0, "uk-book-b")
 
     // Unites States
-    (US_LETTER:         215.9,  279.4, "us-letter")
-    (US_LEGAL:          215.9,  355.6, "us-legal")
-    (US_TABLOID:        279.4,  431.8, "us-tabloid")
-    (US_EXECUTIVE:      184.15, 266.7, "us-executive")
-    (US_FOOLSCAP_FOLIO: 215.9,  342.9, "us-foolscap-folio")
-    (US_STATEMENT:      139.7,  215.9, "us-statement")
-    (US_LEDGER:         431.8,  279.4, "us-ledger")
-    (US_OFICIO:         215.9, 340.36, "us-oficio")
-    (US_GOV_LETTER:     203.2,  266.7, "us-gov-letter")
-    (US_GOV_LEGAL:      215.9,  330.2, "us-gov-legal")
-    (US_BUSINESS_CARD:   88.9,   50.8, "us-business-card")
-    (US_DIGEST:         139.7,  215.9, "us-digest")
-    (US_TRADE:          152.4,  228.6, "us-trade")
+    (US_LETTER: 215.9, 279.4, "us-letter")(US_LEGAL: 215.9, 355.6, "us-legal")(US_TABLOID: 279.4, 431.8, "us-tabloid")(US_EXECUTIVE: 184.15, 266.7, "us-executive")(US_FOOLSCAP_FOLIO: 215.9, 342.9, "us-foolscap-folio")(US_STATEMENT: 139.7, 215.9, "us-statement")(US_LEDGER: 431.8, 279.4, "us-ledger")(US_OFICIO: 215.9, 340.36, "us-oficio")(US_GOV_LETTER: 203.2, 266.7, "us-gov-letter")(US_GOV_LEGAL: 215.9, 330.2, "us-gov-legal")(US_BUSINESS_CARD: 88.9, 50.8, "us-business-card")(US_DIGEST: 139.7, 215.9, "us-digest")(US_TRADE: 152.4, 228.6, "us-trade")
 
     // ---------------------------------------------------------------------- //
     // Other
-    (NEWSPAPER_COMPACT:    280.0,    430.0, "newspaper-compact")
-    (NEWSPAPER_BERLINER:   315.0,    470.0, "newspaper-berliner")
-    (NEWSPAPER_BROADSHEET: 381.0,    578.0, "newspaper-broadsheet")
-    (PRESENTATION_16_9:    297.0, 167.0625, "presentation-16-9")
-    (PRESENTATION_4_3:     280.0,    210.0, "presentation-4-3")
+    (NEWSPAPER_COMPACT: 280.0, 430.0, "newspaper-compact")(NEWSPAPER_BERLINER: 315.0, 470.0, "newspaper-berliner")(NEWSPAPER_BROADSHEET: 381.0, 578.0, "newspaper-broadsheet")(PRESENTATION_16_9: 297.0, 167.0625, "presentation-16-9")(PRESENTATION_4_3: 280.0, 210.0, "presentation-4-3")
 }

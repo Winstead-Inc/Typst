@@ -233,7 +233,9 @@ fn export_website(mut bundle: Bundle, config: &Config) -> Warned<SourceResult<()
 fn write_virtual_fs(root: &Path, fs: &VirtualFs)
 {
     std::fs::create_dir_all(root).unwrap();
-    fs.par_iter().for_each(|(path, data)| {
+    fs.par_iter().for_each
+    (|(path, data)|
+    {
         let realized = path.realize(root).unwrap();
         if let Some(parent) = realized.parent()
         {

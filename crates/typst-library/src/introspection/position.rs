@@ -3,8 +3,8 @@ use std::num::NonZeroUsize;
 use ecow::EcoVec;
 use typst_utils::NonZeroExt;
 
-use crate::foundations::{Dict, Value, cast, dict};
-use crate::layout::{Length, Point};
+use crate::foundations:: { Dict, Value, cast, dict };
+use crate::layout:: { Length, Point };
 
 /// Physical position in a document, be it paged or HTML.
 ///
@@ -24,36 +24,19 @@ pub enum DocumentPosition
 impl DocumentPosition
 {
     /// Returns the [`PagedPosition`] if this is one.
-    pub fn as_paged(self) -> Option<PagedPosition>
-    {
-        match self
-        {
-            DocumentPosition::Paged(position) => Some(position),
-            DocumentPosition::Html(_) => None,
-        }
-    }
+    pub fn as_paged(self)->Option<PagedPosition> { match self { DocumentPosition::Paged(position) => Some(position), DocumentPosition::Html(_) => None, } }
 
     /// Returns the [`PagedPosition`] or a position at page 1, point `(0, 0)` if
     /// this is not a paged position.
-    pub fn as_paged_or_default(self) -> PagedPosition
-    {
-        self.as_paged().unwrap_or(PagedPosition::ORIGIN)
-    }
+    pub fn as_paged_or_default(self)->PagedPosition { self.as_paged().unwrap_or(PagedPosition::ORIGIN) }
 
     /// Returns the [`HtmlPosition`] if available.
-    pub fn as_html(self) -> Option<HtmlPosition>
-    {
-        match self
-        {
-            DocumentPosition::Html(position) => Some(position),
-            DocumentPosition::Paged(_) => None,
-        }
-    }
+    pub fn as_html(self)->Option<HtmlPosition> { match self { DocumentPosition::Html(position) => Some(position), DocumentPosition::Paged(_) => None, } }
 
     /// Returns a dictionary with `x`, `y`, and `page` (unless in an
     /// `html.frame`) or `None` if the position cannot be expressed as
     /// coordinates.
-    pub fn into_dict(self) -> Option<Dict>
+    pub fn into_dict(self)->Option<Dict>
     {
         match self
         {
@@ -63,31 +46,16 @@ impl DocumentPosition
             // `Location::position`.
             DocumentPosition::Html(pos) => match pos.details()
             {
-                Some(&InnerHtmlPosition::Frame(point)) =>
-                {
-                    Some(dict! { "x" => point.x, "y" => point.y })
-                }
+                Some( & InnerHtmlPosition::Frame(point)) => { Some(dict ! { "x" => point.x, "y" => point.y }) }
                 Some(InnerHtmlPosition::Character(_)) | None => None,
             },
         }
     }
 }
 
-impl From<PagedPosition> for DocumentPosition
-{
-    fn from(value: PagedPosition) -> Self
-    {
-        Self::Paged(value)
-    }
-}
+impl From<PagedPosition> for DocumentPosition { fn from(value: PagedPosition)->Self { Self::Paged(value) } }
 
-impl From<HtmlPosition> for DocumentPosition
-{
-    fn from(value: HtmlPosition) -> Self
-    {
-        Self::Html(value)
-    }
-}
+impl From<HtmlPosition> for DocumentPosition { fn from(value: HtmlPosition)->Self { Self::Html(value) } }
 
 /// A physical position in a paged document.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -103,31 +71,26 @@ impl PagedPosition
 {
     /// A position at the origin of the first page.
     pub const ORIGIN: PagedPosition =
-        PagedPosition { page: NonZeroUsize::ONE, point: Point::zero() };
+    PagedPosition { page: NonZeroUsize::ONE, point: Point::zero() };
 }
 
-cast! {
+cast!
+{
     PagedPosition,
     self => Value::Dict(self.into()),
-    mut dict: Dict => {
+    mut dict: Dict =>
+    {
         let page = dict.take("page")?.cast()?;
         let x: Length = dict.take("x")?.cast()?;
         let y: Length = dict.take("y")?.cast()?;
-        dict.finish(&["page", "x", "y"])?;
-        Self { page, point: Point::new(x.abs, y.abs) }
+        dict.finish( & ["page", "x", "y"])?;
+        Self { page, point: Point::new (x.abs, y.abs) }
     },
 }
 
 impl From<PagedPosition> for Dict
 {
-    fn from(pos: PagedPosition) -> Self
-    {
-        dict! {
-            "page" => pos.page,
-            "x" => pos.point.x,
-            "y" => pos.point.y,
-        }
-    }
+    fn from(pos: PagedPosition)->Self { dict ! { "page" => pos.page, "x" => pos.point.x, "y" => pos.point.y, } }
 }
 
 /// A position in an HTML tree.
@@ -152,10 +115,7 @@ impl HtmlPosition
     /// Consecutive text nodes in Typst's HTML representation are grouped for
     /// the purpose of this indexing as the segmentation is not observable in
     /// the resulting DOM.
-    pub fn new(element: EcoVec<usize>) -> Self
-    {
-        Self { element, inner: None }
-    }
+    pub fn new (element: EcoVec<usize>)->Self { Self { element, inner: None } }
 
     /// Specifies a character offset inside of the node, to build a position
     /// pointing to a specific point in text.
@@ -165,40 +125,22 @@ impl HtmlPosition
     ///
     /// The offset is expressed in codepoints, not in bytes, to be
     /// encoding-independent.
-    pub fn at_char(self, offset: usize) -> Self
-    {
-        Self {
-            element: self.element,
-            inner: Some(InnerHtmlPosition::Character(offset)),
-        }
-    }
+    pub fn at_char(self, offset: usize)->Self { Self { element: self.element, inner: Some(InnerHtmlPosition::Character(offset)), } }
 
     /// Specifies a point in a frame, to build a more precise position.
     ///
     /// This only makes sense if the node is a frame.
-    pub fn in_frame(self, point: Point) -> Self
-    {
-        Self {
-            element: self.element,
-            inner: Some(InnerHtmlPosition::Frame(point)),
-        }
-    }
+    pub fn in_frame(self, point: Point)->Self { Self { element: self.element, inner: Some(InnerHtmlPosition::Frame(point)), } }
 
     /// Extra-information for a more precise location inside of the node
     /// designated by [`HtmlPosition::element`].
-    pub fn details(&self) -> Option<&InnerHtmlPosition>
-    {
-        self.inner.as_ref()
-    }
+    pub fn details( & self)->Option <& InnerHtmlPosition > { self.inner.as_ref() }
 
     /// Indices for traversing an HTML tree to reach the node corresponding to
     /// this position.
     ///
     /// See [`HtmlPosition::new`] for more details.
-    pub fn element(&self) -> impl Iterator<Item = usize>
-    {
-        self.element.iter().copied()
-    }
+    pub fn element( & self)-> impl Iterator<Item = usize> { self.element.iter().copied() }
 }
 
 /// A precise position inside of an HTML node.

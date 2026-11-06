@@ -33,32 +33,28 @@
 pub extern crate comemo;
 pub extern crate ecow;
 
-pub use typst_library::*;
+pub use typst_library:: * ;
+
 #[doc(inline)]
 pub use typst_syntax as syntax;
+
 #[doc(inline)]
 pub use typst_utils as utils;
 
 use std::sync::LazyLock;
 
 use arrayvec::ArrayVec;
-use comemo::{Track, Tracked};
-use ecow::{EcoString, EcoVec, eco_format, eco_vec};
+use comemo:: { Track, Tracked };
+use ecow:: { EcoString, EcoVec, eco_format, eco_vec };
 use rustc_hash::FxHashSet;
-use typst_library::diag::{
-    FileError, SourceDiagnostic, SourceResult, Warned, bail, warning,
-};
-use typst_library::engine::{Engine, Route, Sink, Traced};
+use typst_library::diag:: { FileError, SourceDiagnostic, SourceResult, Warned, bail, warning, };
+use typst_library::engine:: { Engine, Route, Sink, Traced };
 use typst_library::format::Format;
-use typst_library::foundations::{
-    NativeRuleMap, Output, StyleChain, Styles, Target, TargetElem, Value,
-};
-use typst_library::introspection::{
-    EmptyIntrospector, ITER_NAMES, Introspector, MAX_ITERS,
-};
+use typst_library::foundations:: { NativeRuleMap, Output, StyleChain, Styles, Target, TargetElem, Value, };
+use typst_library::introspection:: { EmptyIntrospector, ITER_NAMES, Introspector, MAX_ITERS, };
 use typst_library::routines::Routines;
-use typst_syntax::{FileId, Span};
-use typst_timing::{TimingScope, timed};
+use typst_syntax:: { FileId, Span };
+use typst_timing:: { TimingScope, timed };
 use typst_utils::Protected;
 
 /// Compiles sources into an output.
@@ -72,121 +68,96 @@ use typst_utils::Protected;
 /// - `Ok(output)` if there were no fatal errors.
 /// - `Err(errors)` if there were fatal errors.
 #[typst_macros::time]
-pub fn compile<T>(world: &dyn World) -> Warned<SourceResult<T>>
+pub fn compile<T>(world: & dyn World)->Warned<SourceResult<T>>
 where
-    T: Output,
+T: Output,
 {
-    let mut sink = Sink::new();
-    let output = compile_impl::<T>(world.track(), Traced::default().track(), &mut sink)
-        .map_err(deduplicate);
+    let mut sink = Sink:: new ();
+    let output = compile_impl::<T>(world.track(), Traced::default ().track(), & mut sink)
+    .map_err(deduplicate);
     Warned { output, warnings: sink.warnings() }
 }
 
 /// Compiles sources and returns all values and styles observed at the given
 /// `span` during compilation.
 #[typst_macros::time]
-pub fn trace<T>(world: &dyn World, span: Span) -> EcoVec<(Value, Option<Styles>)>
+pub fn trace<T>(world: & dyn World, span: Span)->EcoVec<(Value, Option<Styles>)>
 where
-    T: Output,
+T: Output,
 {
-    let mut sink = Sink::new();
-    let traced = Traced::new(span);
-    compile_impl::<T>(world.track(), traced.track(), &mut sink).ok();
+    let mut sink = Sink:: new ();
+    let traced = Traced:: new (span);
+    compile_impl::<T>(world.track(), traced.track(), & mut sink).ok();
     sink.values()
 }
 
 /// The internal implementation of `compile` with a bit lower-level interface
 /// that is also used by `trace`.
-fn compile_impl<T: Output>(
-    world: Tracked<dyn World + '_>,
-    traced: Tracked<Traced>,
-    sink: &mut Sink,
-) -> SourceResult<T>
+fn compile_impl<T: Output>(world: Tracked<dyn World + '_>, traced: Tracked<Traced>, sink: & mut Sink,)->SourceResult<T>
 {
     let library = world.library();
     match T::target()
     {
-        Target::Paged =>
-        {}
-        Target::Html => warn_or_error_for_html(&library.features, sink)?,
-        Target::Bundle => warn_or_error_for_bundle(&library.features, sink)?,
+        Target::Paged => {}
+        Target::Html => warn_or_error_for_html( & library.features, sink)?,
+        Target::Bundle => warn_or_error_for_bundle( & library.features, sink)?,
     }
 
-    let base = StyleChain::new(&library.styles);
-    let target = TargetElem::target.set(T::target()).wrap();
-    let styles = base.chain(&target);
+    let base = StyleChain:: new ( & library.styles);
+    let target = TargetElem::target. set(T::target()).wrap();
+    let styles = base.chain( & target);
     let empty_introspector = EmptyIntrospector;
 
     // Fetch the main source file once.
     let main = world.main();
     let main = world
-        .source(main)
-        .map_err(|err| hint_invalid_main_file(world, err, main))?;
+    .source(main)
+    .map_err( | err | hint_invalid_main_file(world, err, main))?;
 
     // First evaluate the main source file into a module.
-    let content = typst_eval::eval(
-        world,
-        library,
-        traced,
-        sink.track_mut(),
-        Route::default().track(),
-        &main,
-    )?
+    let content = typst_eval::eval(world, library, traced, sink.track_mut(), Route::default ().track(), & main,)?
     .content();
 
-    let mut history: ArrayVec<T, { MAX_ITERS - 1 }> = ArrayVec::new();
+    let mut history: ArrayVec < T, { MAX_ITERS - 1 }
+    > = ArrayVec:: new ();
     let mut document: T;
 
     // Relayout until all introspections stabilize.
     // If that doesn't happen within five attempts, we give up.
     loop
     {
-        let _scope = TimingScope::new(ITER_NAMES[history.len()]);
+        let _scope = TimingScope:: new (ITER_NAMES[history.len()]);
         let introspector = history
-            .last()
-            .map(|doc| doc.introspector())
-            .unwrap_or(&empty_introspector);
-        let constraint = comemo::Constraint::new();
+        .last()
+        .map( | doc | doc.introspector())
+        .unwrap_or( & empty_introspector);
+        let constraint = comemo::Constraint:: new ();
 
-        let mut subsink = Sink::new();
-        let mut engine = Engine {
+        let mut subsink = Sink:: new ();
+        let mut engine = Engine
+        {
             library,
             world,
-            introspector: Protected::new(introspector.track_with(&constraint)),
+            introspector: Protected:: new (introspector.track_with( & constraint)),
             traced,
             sink: subsink.track_mut(),
-            route: Route::default(),
+            route: Route:: default(),
         };
 
-        document = T::create(&mut engine, &content, styles)?;
+        document = T::create( & mut engine, & content, styles)?;
 
-        if timed!("check stabilized", constraint.validate(document.introspector()))
-        {
-            sink.extend_from_sink(subsink);
-            break;
-        }
+        if timed!("check stabilized", constraint.validate(document.introspector())) { sink.extend_from_sink(subsink); break ; }
 
         if history.is_full()
         {
-            let mut introspectors =
-                [&empty_introspector as &dyn Introspector; MAX_ITERS + 1];
-            for i in 1..MAX_ITERS
-            {
-                introspectors[i] = history[i - 1].introspector();
-            }
+            let mut introspectors = [ & empty_introspector as & dyn Introspector; MAX_ITERS + 1];
+            for i in 1..MAX_ITERS { introspectors[i] = history[i - 1].introspector(); }
             introspectors[MAX_ITERS] = document.introspector();
 
-            let warnings = typst_library::introspection::analyze(
-                world,
-                introspectors,
-                subsink.introspections(),
-            );
+            let warnings = typst_library::introspection::analyze(world, introspectors, subsink.introspections(),);
 
             sink.extend_from_sink(subsink);
-            for warning in warnings
-            {
-                sink.warn(warning);
-            }
+            for warning in warnings { sink.warn(warning); }
             break;
         }
 
@@ -195,36 +166,26 @@ fn compile_impl<T: Output>(
 
     // Promote delayed errors.
     let delayed = sink.delayed();
-    if !delayed.is_empty()
-    {
-        return Err(delayed);
-    }
+    if ! delayed.is_empty() { return Err(delayed); }
 
     Ok(document)
 }
 
 /// Deduplicate diagnostics.
-fn deduplicate(mut diags: EcoVec<SourceDiagnostic>) -> EcoVec<SourceDiagnostic>
+fn deduplicate(mut diags: EcoVec<SourceDiagnostic>)->EcoVec<SourceDiagnostic>
 {
-    let mut unique = FxHashSet::default();
-    diags.retain(|diag| {
-        let hash = typst_utils::hash128(&(&diag.span, &diag.message));
-        unique.insert(hash)
-    });
+    let mut unique = FxHashSet:: default();
+    diags.retain( | diag | { let hash = typst_utils::hash128( & ( & diag.span, & diag.message)); unique.insert(hash) });
     diags
 }
 
 /// Adds useful hints when the main source file couldn't be read
 /// and returns the final diagnostic.
-fn hint_invalid_main_file(
-    world: Tracked<dyn World + '_>,
-    file_error: FileError,
-    input: FileId,
-) -> EcoVec<SourceDiagnostic>
+fn hint_invalid_main_file(world: Tracked<dyn World + '_>, file_error: FileError, input: FileId,)->EcoVec<SourceDiagnostic>
 {
     let is_utf8_error = matches!(file_error, FileError::InvalidUtf8);
     let mut diagnostic =
-        SourceDiagnostic::error(Span::detached(), EcoString::from(file_error));
+    SourceDiagnostic::error(Span::detached(), EcoString::from(file_error));
 
     // Attempt to provide helpful hints for UTF-8 errors. Perhaps the user
     // mistyped the filename. For example, they could have written "file.pdf"
@@ -237,21 +198,12 @@ fn hint_invalid_main_file(
             // just invalid.
             Some("typ") => return eco_vec![diagnostic],
 
-            Some(ext) =>
-            {
-                diagnostic.hint(eco_format!(
-                    "a file with the `.{ext}` extension is not usually a Typst file",
-                ));
-            }
+            Some(ext) => { diagnostic.hint(eco_format ! ("a file with the `.{ext}` extension is not usually a Typst file",)); }
 
-            None =>
-            {
-                diagnostic
-                    .hint("a file without an extension is not usually a Typst file");
-            }
+            None => { diagnostic.hint("a file without an extension is not usually a Typst file"); }
         }
 
-        if world.source(input.map(|p| p.with_extension("typ")).intern()).is_ok()
+        if world.source(input.map( | p | p.with_extension("typ")).intern()).is_ok()
         {
             diagnostic.hint("check if you meant to use the `.typ` extension instead");
         }
@@ -261,22 +213,27 @@ fn hint_invalid_main_file(
 }
 
 /// HTML export will warn or error depending on whether the feature flag is enabled.
-fn warn_or_error_for_html(features: &Features, sink: &mut Sink) -> SourceResult<()>
+fn warn_or_error_for_html(features: & Features, sink: & mut Sink)->SourceResult<()>
 {
-    const ISSUE: &str = "https://github.com/typst/typst/issues/5512";
+    const ISSUE: & str = "https://github.com/typst/typst/issues/5512";
     if features.is_enabled(Feature::Html)
     {
-        sink.warn(warning!(
-            Span::detached(),
-            "html export is under active development and incomplete";
-            hint: "its behaviour may change at any time";
-            hint: "do not rely on this feature for production use cases";
-            hint: "see {ISSUE} for more information";
-        ));
+        sink.warn
+        (
+            warning!
+            (
+                Span::detached(),
+                "html export is under active development and incomplete";
+                hint: "its behaviour may change at any time";
+                hint: "do not rely on this feature for production use cases";
+                hint: "see {ISSUE} for more information";
+            )
+        );
     }
     else
     {
-        bail!(
+        bail!
+        (
             Span::detached(),
             "html export is only available when `--features html` is passed";
             hint: "html export is under active development and incomplete";
@@ -288,25 +245,22 @@ fn warn_or_error_for_html(features: &Features, sink: &mut Sink) -> SourceResult<
 
 /// Bundle export will warn or error depending on whether the feature flag is
 /// enabled.
-fn warn_or_error_for_bundle(features: &Features, sink: &mut Sink) -> SourceResult<()>
+fn warn_or_error_for_bundle(features: & Features, sink: & mut Sink)->SourceResult<()>
 {
     if features.is_enabled(Feature::Bundle)
     {
-        sink.warn(warning!(
-            Span::detached(),
-            "bundle export is experimental";
-            hint: "its behaviour may change at any time";
-            hint: "do not rely on this feature for production use cases";
-        ));
-    }
-    else
-    {
-        bail!(
-            Span::detached(),
-            "bundle export is only available when `--features bundle` is passed";
-            hint: "bundle export is experimental";
+        sink.warn
+        (
+            warning!
+            (
+                Span::detached(),
+                "bundle export is experimental";
+                hint: "its behaviour may change at any time";
+                hint: "do not rely on this feature for production use cases";
+            )
         );
     }
+    else { bail ! (Span::detached(),"bundle export is only available when `--features bundle` is passed"; hint: "bundle export is experimental";); }
     Ok(())
 }
 
@@ -317,8 +271,8 @@ pub trait LibraryExt
     ///
     /// Requires passing in all formats that should be registered, see
     /// [`Self::builder()`]
-    #[expect(clippy::new_ret_no_self)]
-    fn new(formats: impl IntoIterator<Item = Format>) -> Library;
+    # [expect(clippy::new_ret_no_self)]
+    fn new (formats: impl IntoIterator<Item = Format>)->Library;
 
     /// Creates a builder for configuring a library.
     ///
@@ -334,54 +288,47 @@ pub trait LibraryExt
     ///     typst_bundle::FORMAT,
     /// ]);
     /// ```
-    fn builder(formats: impl IntoIterator<Item = Format>) -> LibraryBuilder;
+    fn builder(formats: impl IntoIterator<Item = Format>)->LibraryBuilder;
 }
 
 impl LibraryExt for Library
 {
-    fn new(formats: impl IntoIterator<Item = Format>) -> Library
-    {
-        Self::builder(formats).build()
-    }
+    fn new (formats: impl IntoIterator<Item = Format>)->Library { Self::builder(formats).build() }
 
-    fn builder(formats: impl IntoIterator<Item = Format>) -> LibraryBuilder
-    {
-        LibraryBuilder::from_routines(&ROUTINES, formats)
-    }
+    fn builder(formats: impl IntoIterator<Item = Format>)->LibraryBuilder { LibraryBuilder::from_routines( & ROUTINES, formats) }
 }
 
 /// Defines implementation of various Typst compiler routines as a table of
 /// function pointers.
 ///
 /// This is essentially dynamic linking and done to allow for crate splitting.
-static ROUTINES: LazyLock<Routines> = LazyLock::new(|| Routines {
-    rules: || {
-        let mut rules = NativeRuleMap::new();
-        typst_layout::register(&mut rules);
-        typst_html::register(&mut rules);
-        rules
-    },
-    eval_string: typst_eval::eval_string,
-    eval_closure: typst_eval::eval_closure,
-    realize: typst_realize::realize,
-    layout_frame: typst_layout::layout_frame,
-    html_mathml_body: typst_html::html_mathml_body,
-    html_span_filled: typst_html::html_span_filled,
-});
+static ROUTINES: LazyLock < Routines > = LazyLock:: new
+(
+    || Routines
+    {
+        rules: || { let mut rules = NativeRuleMap::new (); typst_layout::register( & mut rules); typst_html::register( & mut rules); rules },
+        eval_string: typst_eval::eval_string,
+        eval_closure: typst_eval::eval_closure,
+        realize: typst_realize::realize,
+        layout_frame: typst_layout::layout_frame,
+        html_mathml_body: typst_html::html_mathml_body,
+        html_span_filled: typst_html::html_span_filled,
+    }
+);
 
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
+    # [test]
     fn formats()
     {
         // No formats at all.
-        Library::new([]);
+        Library:: new ([]);
         // Only the HTML format.
-        Library::new([typst_html::FORMAT]);
+        Library:: new ([typst_html::FORMAT]);
         // Only a paged format.
-        Library::new([typst_svg::FORMAT]);
+        Library:: new ([typst_svg::FORMAT]);
     }
 }

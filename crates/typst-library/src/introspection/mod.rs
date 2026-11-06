@@ -16,23 +16,23 @@ mod query_;
 mod state;
 mod tag;
 
-pub use self::convergence::*;
-pub use self::counter::*;
-pub use self::here_::*;
-pub use self::introspector::*;
-pub use self::locate_::*;
-pub use self::location::*;
-pub use self::locator::*;
-pub use self::metadata::*;
-pub use self::position::*;
-pub use self::query_::*;
-pub use self::state::*;
-pub use self::tag::*;
+pub use self::convergence:: * ;
+pub use self::counter:: * ;
+pub use self::here_:: * ;
+pub use self::introspector:: * ;
+pub use self::locate_:: * ;
+pub use self::location:: * ;
+pub use self::locator:: * ;
+pub use self::metadata:: * ;
+pub use self::position:: * ;
+pub use self::query_:: * ;
+pub use self::state:: * ;
+pub use self::tag:: * ;
 
 use crate::foundations::Scope;
 
 /// Hook up all `introspection` definitions.
-pub fn define(global: &mut Scope)
+pub fn define(global: & mut Scope)
 {
     global.start_category(crate::Category::Introspection);
     global.define_type::<Location>();

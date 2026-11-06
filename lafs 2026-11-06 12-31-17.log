@@ -1,0 +1,416 @@
+No target files specified. Format all {rs} files in current directory and subdirectories? [y/N]: Formatted & Saved: .\crates\typst-cli\src\completions.rs
+Formatted & Saved: .\crates\typst-cli\build.rs
+Formatted & Saved: .\crates\typst-bundle\src\link.rs
+Formatted & Saved: .\crates\typst-cli\src\download.rs
+Formatted & Saved: .\crates\typst-cli\src\packages.rs
+Formatted & Saved: .\crates\typst-bundle\src\export.rs
+Formatted & Saved: .\crates\typst-cli\src\init.rs
+Formatted & Saved: .\crates\typst-cli\src\deps.rs
+Formatted & Saved: .\crates\typst-cli\src\main.rs
+Formatted & Saved: .\crates\typst-cli\src\fonts.rs
+Formatted & Saved: .\crates\typst-cli\src\watch.rs
+Formatted & Saved: .\crates\typst-bundle\src\introspect.rs
+Formatted & Saved: .\crates\typst-cli\src\args.rs
+Formatted & Saved: .\crates\typst-cli\src\terminal.rs
+Formatted & Saved: .\crates\typst-cli\src\synctex.rs
+Formatted & Saved: .\crates\typst-bundle\src\format.rs
+Formatted & Saved: .\crates\typst-eval\src\call.rs
+Formatted & Saved: .\crates\typst-cli\src\eval.rs
+Formatted & Saved: .\crates\typst-eval\src\access.rs
+Formatted & Saved: .\crates\typst-cli\src\update.rs
+Formatted & Saved: .\crates\typst-cli\src\query.rs
+Formatted & Saved: .\crates\typst-cli\src\world.rs
+Formatted & Saved: .\crates\typst-eval\src\binding.rs
+Formatted & Saved: .\crates\typst-cli\src\compile.rs
+Formatted & Saved: .\crates\typst-cli\tests\smoke.rs
+Formatted & Saved: .\crates\typst-eval\src\lib.rs
+Formatted & Saved: .\crates\typst-eval\src\ops.rs
+Formatted & Saved: .\crates\typst-eval\src\import.rs
+Formatted & Saved: .\crates\typst-html\src\convert.rs
+Formatted & Saved: .\crates\typst-eval\src\markup.rs
+Formatted & Saved: .\crates\typst-eval\src\code.rs
+Formatted & Saved: .\crates\typst-eval\src\flow.rs
+Formatted & Saved: .\crates\typst-eval\src\math.rs
+Formatted & Saved: .\crates\typst-eval\src\vm.rs
+Formatted & Saved: .\crates\typst-eval\src\rules.rs
+Formatted & Saved: .\crates\typst-cli\src\info.rs
+Formatted & Saved: .\crates\typst-html\src\charsets.rs
+Formatted & Saved: .\crates\typst-html\src\css\mod.rs
+Formatted & Saved: .\crates\typst-html\src\css\encode.rs
+Formatted & Saved: .\crates\typst-html\src\attr.rs
+Formatted & Saved: .\crates\typst-eval\src\methods.rs
+Formatted & Saved: .\crates\typst-html\src\css\resolve.rs
+Formatted & Saved: .\crates\typst-html\src\document.rs
+Formatted & Saved: .\crates\typst-html\src\format.rs
+Formatted & Saved: .\crates\typst-html\src\introspect.rs
+Formatted & Saved: .\crates\typst-html\src\fragment.rs
+Formatted & Saved: .\crates\typst-html\src\lib.rs
+Formatted & Saved: .\crates\typst-html\src\encode.rs
+Formatted & Saved: .\crates\typst-html\src\link.rs
+Formatted & Saved: .\crates\typst-html\src\property.rs
+Formatted & Saved: .\crates\typst-html\src\tag.rs
+Formatted & Saved: .\crates\typst-html\src\typed.rs
+Formatted & Saved: .\crates\typst-html\src\rules.rs
+Formatted & Saved: .\crates\typst-ide\src\lib.rs
+Formatted & Saved: .\crates\typst-ide\src\docs.rs
+Formatted & Saved: .\crates\typst-ide\src\analyze.rs
+Formatted & Saved: .\crates\typst-ide\src\definition.rs
+Formatted & Saved: .\crates\typst-ide\src\matchers.rs
+Formatted & Saved: .\crates\typst-kit\src\datetime.rs
+Formatted & Saved: .\crates\typst-ide\src\jump.rs
+Formatted & Saved: .\crates\typst-ide\src\tests.rs
+Formatted & Saved: .\crates\typst-ide\src\utils.rs
+Formatted & Saved: .\crates\typst-ide\src\tooltip.rs
+Formatted & Saved: .\crates\typst-kit\src\lib.rs
+Formatted & Saved: .\crates\typst-ide\src\complete.rs
+Formatted & Saved: .\crates\typst-kit\src\timer.rs
+Formatted & Saved: .\crates\typst-kit\src\diagnostics.rs
+Formatted & Saved: .\crates\typst-kit\src\fonts.rs
+Formatted & Saved: .\crates\typst-kit\src\downloader.rs
+Formatted & Saved: .\crates\typst-kit\src\watcher.rs
+Formatted & Saved: .\crates\typst-kit\src\server.rs
+Formatted & Saved: .\crates\typst-layout\src\document.rs
+Formatted & Saved: .\crates\typst-layout\src\flow\block.rs
+Formatted & Saved: .\crates\typst-layout\src\grid\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\flow\collect.rs
+Formatted & Saved: .\crates\typst-layout\src\image.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\box.rs
+Formatted & Saved: .\crates\typst-layout\src\flow\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\deco.rs
+Formatted & Saved: .\crates\typst-layout\src\grid\repeated.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\finalize.rs
+Formatted & Saved: .\crates\typst-layout\src\flow\distribute.rs
+Formatted & Saved: .\crates\typst-layout\src\flow\compose.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\collect.rs
+Formatted & Saved: .\crates\typst-layout\src\grid\rowspans.rs
+Formatted & Saved: .\crates\typst-layout\src\grid\layouter.rs
+Formatted & Saved: .\crates\typst-layout\src\lib.rs
+Formatted & Saved: .\crates\typst-layout\src\introspect.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\prepare.rs
+Formatted & Saved: .\crates\typst-layout\src\math\accent.rs
+Formatted & Saved: .\crates\typst-layout\src\inline\linebreak.rs
+Formatted & Saved: .\crates\typst-layout\src\lists.rs
+Formatted & Saved: .\crates\typst-layout\src\math\cancel.rs
+Formatted & Saved: .\crates\typst-layout\src\math\fenced.rs
+Formatted & Saved: .\crates\typst-layout\src\math\fraction.rs
+Formatted & Saved: .\crates\typst-layout\src\math\radical.rs
+Formatted & Saved: .\crates\typst-layout\src\math\fragment\glyph.rs
+Formatted & Saved: .\crates\typst-layout\src\math\line.rs
+Formatted & Saved: .\crates\typst-layout\src\math\fragment\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\math\run.rs
+Formatted & Saved: .\crates\typst-layout\src\math\text.rs
+Formatted & Saved: .\crates\typst-layout\src\math\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\math\shaping.rs
+Formatted & Saved: .\crates\typst-layout\src\math\table.rs
+Formatted & Saved: .\crates\typst-layout\src\pad.rs
+Formatted & Saved: .\crates\typst-layout\src\math\scripts.rs
+Formatted & Saved: .\crates\typst-layout\src\pages\collect.rs
+Formatted & Saved: .\crates\typst-layout\src\modifiers.rs
+Formatted & Saved: .\crates\typst-layout\src\repeat.rs
+Formatted & Saved: .\crates\typst-layout\src\pages\finalize.rs
+Formatted & Saved: .\crates\typst-layout\src\pages\mod.rs
+Formatted & Saved: .\crates\typst-layout\src\pages\run.rs
+Formatted & Saved: .\crates\typst-layout\src\transforms.rs
+Formatted & Saved: .\crates\typst-layout\src\stack.rs
+Formatted & Saved: .\crates\typst-layout\src\rules.rs
+Formatted & Saved: .\crates\typst-library\src\format.rs
+Formatted & Saved: .\crates\typst-library\src\engine.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\args.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\auto.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\bool.rs
+Formatted & Saved: .\crates\typst-layout\src\shapes.rs
+Formatted & Saved: .\crates\typst-library\src\diag.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\bytes.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\cast.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\content\element.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\calc.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\content\packed.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\context.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\content\field.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\content\vtable.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\datetime.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\decimal.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\fields.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\duration.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\float.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\label.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\mod.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\int.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\module.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\func.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\none.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\path.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\ops.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\repr.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\plugin.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\scope.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\selector.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\symbol.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\sys.rs
+Formatted & Saved: .\crates\typst-library\src\foundations\target.rs
+Error formatting .\crates\typst-cli\src\greet.rs: Safety Gate Failed: Significant token count mismatch! (Original: 268, Formatted: 267). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\foundations\value.rs
+Error formatting .\crates\typst-bundle\src\lib.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1854, Formatted: 1853). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-html\src\dom.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2627, Formatted: 2625). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-kit\src\files.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2535, Formatted: 2533). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\here.rs
+Error formatting .\crates\typst-library\src\foundations\ty.rs: Safety Gate Failed: Significant token count mismatch! (Original: 867, Formatted: 863). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-kit\src\packages.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2273, Formatted: 2272). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\locate.rs
+Error formatting .\crates\typst-library\src\foundations\dict.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2371, Formatted: 2367). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\metadata.rs
+Error formatting .\crates\typst-library\src\foundations\content\mod.rs: Safety Gate Failed: Significant token count mismatch! (Original: 4117, Formatted: 4115). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-html\src\mathml.rs: Safety Gate Failed: Significant token count mismatch! (Original: 7340, Formatted: 7339). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-library\src\foundations\content\raw.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2124, Formatted: 2123). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\foundations\version.rs
+Error formatting .\crates\typst-layout\src\grid\lines.rs: Safety Gate Failed: Significant token count mismatch! (Original: 8334, Formatted: 8325). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-layout\src\inline\line.rs: Safety Gate Failed: Significant token count mismatch! (Original: 5288, Formatted: 5284). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-layout\src\inline\shaping.rs: Safety Gate Failed: Significant token count mismatch! (Original: 8276, Formatted: 8275). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\mod.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\tag.rs
+Error formatting .\crates\typst-library\src\foundations\array.rs: Safety Gate Failed: Significant token count mismatch! (Original: 6310, Formatted: 6308). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\locator.rs
+Formatted & Saved: .\crates\typst-library\src\layout\abs.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\location.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\query.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\position.rs
+Error formatting .\crates\typst-library\src\foundations\styles.rs: Safety Gate Failed: Significant token count mismatch! (Original: 5972, Formatted: 5971). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\layout\columns.rs
+Error formatting .\crates\typst-library\src\foundations\str.rs: Safety Gate Failed: Significant token count mismatch! (Original: 4971, Formatted: 4966). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\introspection\convergence.rs
+Formatted & Saved: .\crates\typst-library\src\layout\hide.rs
+Formatted & Saved: .\crates\typst-library\src\layout\em.rs
+Formatted & Saved: .\crates\typst-library\src\layout\fr.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\introspector.rs
+Formatted & Saved: .\crates\typst-library\src\layout\layout.rs
+Formatted & Saved: .\crates\typst-library\src\layout\align.rs
+Formatted & Saved: .\crates\typst-library\src\layout\fragment.rs
+Formatted & Saved: .\crates\typst-library\src\layout\dir.rs
+Formatted & Saved: .\crates\typst-library\src\layout\container.rs
+Formatted & Saved: .\crates\typst-library\src\layout\measure.rs
+Formatted & Saved: .\crates\typst-library\src\layout\frame.rs
+Formatted & Saved: .\crates\typst-library\src\layout\length.rs
+Formatted & Saved: .\crates\typst-library\src\layout\pad.rs
+Formatted & Saved: .\crates\typst-library\src\layout\place.rs
+Formatted & Saved: .\crates\typst-library\src\layout\grid\mod.rs
+Formatted & Saved: .\crates\typst-library\src\layout\repeat.rs
+Formatted & Saved: .\crates\typst-library\src\layout\corners.rs
+Formatted & Saved: .\crates\typst-library\src\layout\point.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\counter.rs
+Formatted & Saved: .\crates\typst-library\src\introspection\state.rs
+Formatted & Saved: .\crates\typst-library\src\layout\regions.rs
+Formatted & Saved: .\crates\typst-library\src\layout\spacing.rs
+Formatted & Saved: .\crates\typst-library\src\layout\size.rs
+Formatted & Saved: .\crates\typst-library\src\layout\angle.rs
+Error formatting .\crates\typst-library\src\loading\csv.rs: Safety Gate Failed: Significant token count mismatch! (Original: 798, Formatted: 797). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\layout\axes.rs
+Formatted & Saved: .\crates\typst-library\src\layout\rect.rs
+Error formatting .\crates\typst-library\src\loading\toml.rs: Safety Gate Failed: Token #346 mismatch! (Expected ':', Got '::'). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\layout\mod.rs
+Formatted & Saved: .\crates\typst-library\src\layout\stack.rs
+Formatted & Saved: .\crates\typst-library\src\layout\transform.rs
+Formatted & Saved: .\crates\typst-library\src\layout\page.rs
+Formatted & Saved: .\crates\typst-library\src\layout\sides.rs
+Formatted & Saved: .\crates\typst-library\src\loading\cbor.rs
+Formatted & Saved: .\crates\typst-library\src\layout\ratio.rs
+Formatted & Saved: .\crates\typst-library\src\loading\json.rs
+Formatted & Saved: .\crates\typst-library\src\layout\rel.rs
+Formatted & Saved: .\crates\typst-library\src\math\ir\process.rs
+Formatted & Saved: .\crates\typst-library\src\lib.rs
+Formatted & Saved: .\crates\typst-library\src\loading\read.rs
+Formatted & Saved: .\crates\typst-library\src\layout\grid\resolve.rs
+Formatted & Saved: .\crates\typst-library\src\loading\yaml.rs
+Formatted & Saved: .\crates\typst-library\src\math\accent.rs
+Formatted & Saved: .\crates\typst-library\src\loading\xml.rs
+Formatted & Saved: .\crates\typst-library\src\math\mod.rs
+Formatted & Saved: .\crates\typst-library\src\math\attach.rs
+Formatted & Saved: .\crates\typst-library\src\math\cancel.rs
+Formatted & Saved: .\crates\typst-library\src\math\matrix.rs
+Formatted & Saved: .\crates\typst-library\src\model\divider.rs
+Formatted & Saved: .\crates\typst-library\src\math\frac.rs
+Formatted & Saved: .\crates\typst-library\src\math\ir\multiline.rs
+Formatted & Saved: .\crates\typst-library\src\math\lr.rs
+Formatted & Saved: .\crates\typst-library\src\math\root.rs
+Formatted & Saved: .\crates\typst-library\src\math\op.rs
+Formatted & Saved: .\crates\typst-library\src\model\heading.rs
+Formatted & Saved: .\crates\typst-library\src\math\underover.rs
+Formatted & Saved: .\crates\typst-library\src\math\style.rs
+Formatted & Saved: .\crates\typst-library\src\math\equation.rs
+Formatted & Saved: .\crates\typst-library\src\model\accessibility.rs
+Formatted & Saved: .\crates\typst-library\src\model\cite.rs
+Error formatting .\crates\typst-library\src\loading\mod.rs: Safety Gate Failed: Significant token count mismatch! (Original: 980, Formatted: 978). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\math\ir\mod.rs
+Formatted & Saved: .\crates\typst-library\src\model\emph.rs
+Formatted & Saved: .\crates\typst-library\src\model\enum.rs
+Formatted & Saved: .\crates\typst-library\src\model\figure.rs
+Formatted & Saved: .\crates\typst-library\src\model\document.rs
+Formatted & Saved: .\crates\typst-library\src\model\footnote.rs
+Formatted & Saved: .\crates\typst-library\src\model\mod.rs
+Formatted & Saved: .\crates\typst-library\src\model\list.rs
+Formatted & Saved: .\crates\typst-library\src\model\strong.rs
+Formatted & Saved: .\crates\typst-library\src\routines.rs
+Formatted & Saved: .\crates\typst-library\src\model\numbering.rs
+Formatted & Saved: .\crates\typst-library\src\model\title.rs
+Error formatting .\crates\typst-library\src\math\ir\resolve.rs: Safety Gate Failed: Significant token count mismatch! (Original: 9964, Formatted: 9963). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\model\quote.rs
+Formatted & Saved: .\crates\typst-library\src\model\outline.rs
+Formatted & Saved: .\crates\typst-library\src\symbols.rs
+Error formatting .\crates\typst-library\src\math\ir\item.rs: Safety Gate Failed: Significant token count mismatch! (Original: 6542, Formatted: 6540). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\model\bibliography.rs
+Formatted & Saved: .\crates\typst-library\src\model\terms.rs
+Formatted & Saved: .\crates\typst-library\src\text\deco.rs
+Formatted & Saved: .\crates\typst-library\src\model\reference.rs
+Formatted & Saved: .\crates\typst-library\src\model\link.rs
+Formatted & Saved: .\crates\typst-library\src\text\font\color.rs
+Formatted & Saved: .\crates\typst-library\src\text\case.rs
+Formatted & Saved: .\crates\typst-library\src\text\lorem.rs
+Error formatting .\crates\typst-library\src\text\font\mod.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1653, Formatted: 1645). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\text\font\tag.rs
+Formatted & Saved: .\crates\typst-library\src\text\linebreak.rs
+Formatted & Saved: .\crates\typst-library\src\text\space.rs
+Formatted & Saved: .\crates\typst-library\src\model\table.rs
+Formatted & Saved: .\crates\typst-library\src\text\font\exceptions.rs
+Formatted & Saved: .\crates\typst-library\src\text\font\book.rs
+Formatted & Saved: .\crates\typst-library\src\text\item.rs
+Formatted & Saved: .\crates\typst-library\src\text\smallcaps.rs
+Formatted & Saved: .\crates\typst-library\src\text\font\variant.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\image\mod.rs
+Formatted & Saved: .\crates\typst-library\src\text\shift.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\mod.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\paint.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\polygon.rs
+Formatted & Saved: .\crates\typst-library\src\model\par.rs
+Formatted & Saved: .\crates\typst-library\src\text\smartquote.rs
+Formatted & Saved: .\crates\typst-library\src\text\font\metrics.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\shape.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\image\pdf.rs
+Error formatting .\crates\typst-library\src\text\raw.rs: Safety Gate Failed: Significant token count mismatch! (Original: 5233, Formatted: 5235). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\visualize\curve.rs
+Error formatting .\crates\typst-library\src\text\mod.rs: Safety Gate Failed: Significant token count mismatch! (Original: 5926, Formatted: 5922). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\text\font\info.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\line.rs
+Formatted & Saved: .\crates\typst-library\src\visualize\image\svg.rs
+Error formatting .\crates\typst-macros\src\ty.rs: Safety Gate Failed: Token #788 mismatch! (Expected ':', Got '::'). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\text\font\variations.rs
+Error formatting .\crates\typst-library\src\visualize\image\raster.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2647, Formatted: 2645). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\visualize\tiling.rs
+Formatted & Saved: .\crates\typst-macros\src\lib.rs
+Error formatting .\crates\typst-macros\src\scope.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2328, Formatted: 2327). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-library\src\visualize\stroke.rs
+Formatted & Saved: .\crates\typst-library\src\text\lang.rs
+Formatted & Saved: .\crates\typst-pdf\src\convert.rs
+Formatted & Saved: .\crates\typst-macros\src\util.rs
+Formatted & Saved: .\crates\typst-pdf\src\page.rs
+Error formatting .\crates\typst-pdf\src\format.rs: Safety Gate Failed: Significant token count mismatch! (Original: 3053, Formatted: 3050). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\attach.rs
+Error formatting .\crates\typst-macros\src\elem.rs: Safety Gate Failed: Significant token count mismatch! (Original: 4348, Formatted: 4343). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-pdf\src\image.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1707, Formatted: 1703). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\lib.rs
+Formatted & Saved: .\crates\typst-pdf\src\link.rs
+Formatted & Saved: .\crates\typst-pdf\src\metadata.rs
+Error formatting .\crates\typst-macros\src\func.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2882, Formatted: 2881). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\outline.rs
+Formatted & Saved: .\crates\typst-pdf\src\shape.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\list.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\grid.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\outline.rs
+Error formatting .\crates\typst-macros\src\time.rs: Safety Gate Failed: Significant token count mismatch! (Original: 296, Formatted: 295). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\paint.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\figure.rs
+Error formatting .\crates\typst-macros\src\cast.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1963, Formatted: 1962). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\tags\resolve\accumulator.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\mod.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\tree\text.rs
+Formatted & Saved: .\crates\typst-pdf\src\text.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\util\prop.rs
+Error formatting .\crates\typst-library\src\visualize\gradient.rs: Safety Gate Failed: Significant token count mismatch! (Original: 7281, Formatted: 7280). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\tags\util\mod.rs
+Formatted & Saved: .\crates\typst-realize\src\spaces.rs
+Formatted & Saved: .\crates\typst-pdf\src\util.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\util\idvec.rs
+Formatted & Saved: .\crates\typst-render\src\format.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\mod.rs
+Formatted & Saved: .\crates\typst-render\src\shape.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\resolve\mod.rs
+Formatted & Saved: .\crates\typst-render\src\lib.rs
+Formatted & Saved: .\crates\typst-render\src\paint.rs
+Formatted & Saved: .\crates\typst-render\src\text.rs
+Formatted & Saved: .\crates\typst-svg\src\format.rs
+Formatted & Saved: .\crates\typst-svg\src\paint.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\tree\mod.rs
+Formatted & Saved: .\crates\typst-svg\src\shape.rs
+Formatted & Saved: .\crates\typst-syntax\src\lib.rs
+Error formatting .\crates\typst-render\src\image.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1257, Formatted: 1256). Output aborted to prevent code corruption.
+Error formatting .\crates\typst-library\src\visualize\color.rs: Safety Gate Failed: Significant token count mismatch! (Original: 21550, Formatted: 21544). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-svg\src\write.rs
+Formatted & Saved: .\crates\typst-svg\src\path.rs
+Formatted & Saved: .\crates\typst-svg\src\text.rs
+Formatted & Saved: .\crates\typst-syntax\src\highlight.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\context\table.rs
+Error formatting .\crates\typst-svg\src\image.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1153, Formatted: 1152). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-pdf\src\tags\groups.rs
+Formatted & Saved: .\crates\typst-pdf\src\tags\tree\build.rs
+Formatted & Saved: .\crates\typst-syntax\src\lines.rs
+Formatted & Saved: .\crates\typst-utils\src\args.rs
+Formatted & Saved: .\crates\typst-syntax\src\set.rs
+Formatted & Saved: .\crates\typst-syntax\src\package.rs
+Formatted & Saved: .\crates\typst-utils\build.rs
+Formatted & Saved: .\crates\typst-syntax\src\kind.rs
+Formatted & Saved: .\crates\typst-utils\src\defer.rs
+Formatted & Saved: .\crates\typst-utils\src\bitset.rs
+Formatted & Saved: .\crates\typst-utils\src\duration.rs
+Formatted & Saved: .\crates\typst-utils\src\def_site.rs
+Formatted & Saved: .\crates\typst-utils\src\collection.rs
+Formatted & Saved: .\crates\typst-utils\src\deferred.rs
+Formatted & Saved: .\crates\typst-syntax\src\parser.rs
+Formatted & Saved: .\crates\typst-utils\src\lib.rs
+Formatted & Saved: .\crates\typst-syntax\src\span.rs
+Formatted & Saved: .\crates\typst-utils\src\fat.rs
+Formatted & Saved: .\crates\typst-utils\src\fmt.rs
+Formatted & Saved: .\crates\typst-utils\src\get.rs
+Formatted & Saved: .\crates\typst-utils\src\option.rs
+Formatted & Saved: .\crates\typst-realize\src\lib.rs
+Formatted & Saved: .\crates\typst-syntax\src\reparser.rs
+Formatted & Saved: .\crates\typst-utils\src\listset.rs
+Formatted & Saved: .\crates\typst-syntax\src\path.rs
+Formatted & Saved: .\crates\typst-utils\src\numeric.rs
+Formatted & Saved: .\crates\typst-utils\src\hash.rs
+Formatted & Saved: .\crates\typst-utils\src\math.rs
+Formatted & Saved: .\docs\src\example.rs
+Formatted & Saved: .\crates\typst-syntax\src\source.rs
+Formatted & Saved: .\crates\typst-utils\src\static.rs
+Formatted & Saved: .\crates\typst-utils\src\version.rs
+Formatted & Saved: .\crates\typst-utils\src\protected.rs
+Formatted & Saved: .\crates\typst-utils\src\scalar.rs
+Error formatting .\crates\typst-utils\src\macros.rs: Safety Gate Failed: Significant token count mismatch! (Original: 494, Formatted: 493). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-utils\src\round.rs
+Formatted & Saved: .\tests\src\args.rs
+Formatted & Saved: .\docs\src\live.rs
+Error formatting .\crates\typst-utils\src\pico.rs: Safety Gate Failed: Significant token count mismatch! (Original: 2422, Formatted: 2421). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst\src\lib.rs
+Formatted & Saved: .\crates\typst-timing\src\lib.rs
+Error formatting .\crates\typst-syntax\src\ast.rs: Safety Gate Failed: Significant token count mismatch! (Original: 13092, Formatted: 13072). Output aborted to prevent code corruption.
+Formatted & Saved: .\crates\typst-syntax\src\node.rs
+Error formatting .\docs\src\main.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1694, Formatted: 1693). Output aborted to prevent code corruption.
+Formatted & Saved: .\tests\fuzz\src\lib.rs
+Formatted & Saved: .\crates\typst-syntax\src\lexer.rs
+Formatted & Saved: .\docs\src\args.rs
+Formatted & Saved: .\tests\src\notes.rs
+Formatted & Saved: .\tests\src\custom.rs
+Formatted & Saved: .\tests\src\git.rs
+Formatted & Saved: .\docs\src\search.rs
+Formatted & Saved: .\docs\src\reflect.rs
+Formatted & Saved: .\tests\src\report\diff.rs
+Formatted & Saved: .\docs\src\world.rs
+Formatted & Saved: .\tests\src\report\mod.rs
+Formatted & Saved: .\tests\src\collect.rs
+Formatted & Saved: .\tests\src\world.rs
+Formatted & Saved: .\tests\src\tests.rs
+Formatted & Saved: .\tests\src\pdftags.rs
+Formatted & Saved: .\tests\src\run.rs
+Error formatting .\tests\wrapper\src\main.rs: Safety Gate Failed: Significant token count mismatch! (Original: 1627, Formatted: 1628). Output aborted to prevent code corruption.
+Error formatting .\tests\src\output.rs: Safety Gate Failed: Significant token count mismatch! (Original: 5010, Formatted: 5038). Output aborted to prevent code corruption.
+Formatted & Saved: .\tests\src\report\html.rs
+Summary: 371 formatted and saved, 2 already clean, 43 errors (926.09ms, 16 threads).
+Failed file paths recorded to 'failed.txt'. Use 'lafs format failed' to retry.

@@ -1,41 +1,31 @@
-use std::any::{Any, TypeId};
-use std::fmt::{Debug, Write};
-use std::hash::{Hash, Hasher};
+use std::any:: { Any, TypeId };
+use std::fmt:: { Debug, Write };
+use std::hash:: { Hash, Hasher };
 use std::sync::Arc;
 
-use comemo::{Track, Tracked};
-use ecow::{EcoString, EcoVec, eco_format};
+use comemo:: { Track, Tracked };
+use ecow:: { EcoString, EcoVec, eco_format };
 use typst_syntax::Span;
 use typst_utils::Protected;
 
 use crate::World;
-use crate::diag::{SourceDiagnostic, warning};
-use crate::engine::{Engine, Route, Sink, Traced};
+use crate::diag:: { SourceDiagnostic, warning };
+use crate::engine:: { Engine, Route, Sink, Traced };
 use crate::introspection::Introspector;
 
 pub const MAX_ITERS: usize = 5;
-pub const ITER_NAMES: &[&str] =
-    &["iter (1)", "iter (2)", "iter (3)", "iter (4)", "iter (5)"];
+pub const ITER_NAMES: & [ & str] =
+& ["iter (1)", "iter (2)", "iter (3)", "iter (4)", "iter (5)"];
 
 const INSTANCES: usize = MAX_ITERS + 1;
 
 /// Analyzes all introspections that were performed during compilation and
 /// produces non-convergence diagnostics.
 #[typst_macros::time(name = "analyze introspections")]
-pub fn analyze(
-    world: Tracked<dyn World + '_>,
-    introspectors: [&dyn Introspector; INSTANCES],
-    introspections: &[Introspection],
-) -> EcoVec<SourceDiagnostic>
+pub fn analyze(world: Tracked<dyn World + '_>, introspectors: [ & dyn Introspector; INSTANCES], introspections: & [Introspection],)->EcoVec<SourceDiagnostic>
 {
-    let mut sink = Sink::new();
-    for introspection in introspections
-    {
-        if let Some(warning) = introspection.0.diagnose(world, introspectors)
-        {
-            sink.warn(warning);
-        }
-    }
+    let mut sink = Sink:: new ();
+    for introspection in introspections { if let Some(warning) = introspection .0.diagnose(world, introspectors) { sink.warn(warning); } }
 
     // Let's say you want to write some code that depends on the presence of an
     // element in the document. You could (1) use the `QueryIntrospection` and
@@ -57,14 +47,15 @@ pub fn analyze(
     // However, it's nice to have as a fast path as the comemo checks are more
     // lightweight.
     let mut diags = sink.warnings();
-    if !diags.is_empty()
+    if ! diags.is_empty()
     {
-        let summary = warning!(
+        let summary = warning!
+        (
             Span::detached(),
             "document did not converge within five attempts";
             hint: "see {} additional warning{} for more details",
-                diags.len(),
-                if diags.len() > 1 { "s" } else { "" };
+            diags.len(),
+            if diags.len() > 1 { "s" } else { "" };
             hint: "see https://typst.app/help/convergence for help";
         );
         diags.insert(0, summary);
@@ -133,15 +124,11 @@ pub trait Introspect: Debug + PartialEq + Hash + Send + Sync + Sized + 'static
     ///
     /// Will primarily use the `introspector`, but is passed the full engine in
     /// case user functions need to be called (as is the case for counters).
-    fn introspect(
-        &self,
-        engine: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output;
+    fn introspect( & self, engine: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output;
 
     /// Produces a diagnostic for non-convergence given the history of its
     /// output values.
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic;
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic;
 }
 
 /// A type-erased representation of an [introspection](Introspect) that was
@@ -153,150 +140,118 @@ pub struct Introspection(Arc<dyn Bounds>);
 impl Introspection
 {
     /// Type erase a strongly-typed introspection.
-    pub fn new<I>(inner: I) -> Self
+    pub fn new <I>(inner: I)->Self
     where
-        I: Introspect,
-    {
-        Self(Arc::new(inner))
-    }
+    I: Introspect, { Self(Arc::new (inner)) }
 }
 
-impl PartialEq for Introspection
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.0.dyn_eq(other)
-    }
-}
+impl PartialEq for Introspection { fn eq( & self, other: & Self)->bool { self .0.dyn_eq(other) } }
 
 trait Bounds: Debug + Send + Sync + Any + 'static
 {
-    fn diagnose(
-        &self,
-        world: Tracked<dyn World + '_>,
-        introspectors: [&dyn Introspector; INSTANCES],
-    ) -> Option<SourceDiagnostic>;
-    fn dyn_eq(&self, other: &Introspection) -> bool;
-    fn dyn_hash(&self, state: &mut dyn Hasher);
+    fn diagnose( & self, world: Tracked<dyn World + '_>, introspectors: [ & dyn Introspector; INSTANCES],)->Option<SourceDiagnostic>;
+    fn dyn_eq( & self, other: & Introspection)-> bool;
+    fn dyn_hash( & self, state: & mut dyn Hasher);
 }
 
-impl<T> Bounds for T
+impl <T> Bounds for T
 where
-    T: Introspect,
+T: Introspect,
 {
-    fn diagnose(
-        &self,
-        world: Tracked<dyn World + '_>,
-        introspectors: [&dyn Introspector; INSTANCES],
-    ) -> Option<SourceDiagnostic>
+    fn diagnose( & self, world: Tracked<dyn World + '_>, introspectors: [ & dyn Introspector; INSTANCES],)->Option<SourceDiagnostic>
     {
-        let history = History::compute(world, introspectors, |engine, introspector| {
-            self.introspect(engine, introspector)
-        });
-        (!history.converged()).then(|| self.diagnose(&history))
+        let history = History::compute(world, introspectors, | engine, introspector | { self.introspect(engine, introspector) });
+        ( ! history.converged()).then( || self.diagnose( & history))
     }
 
-    fn dyn_eq(&self, other: &Introspection) -> bool
+    fn dyn_eq( & self, other: & Introspection)-> bool
     {
-        let inner: &dyn Bounds = &*other.0;
-        let Some(other) = (inner as &dyn Any).downcast_ref::<Self>()
-        else
-        {
-            return false;
-        };
+        let inner: & dyn Bounds = &* other .0;
+        let Some(other) = (inner as & dyn Any).downcast_ref::<Self>()
+        else { return false; };
         self == other
     }
 
-    fn dyn_hash(&self, mut state: &mut dyn Hasher)
+    fn dyn_hash( & self, mut state: & mut dyn Hasher)
     {
         // Also hash the TypeId since introspections with different types but
         // equal data should be different.
-        TypeId::of::<Self>().hash(&mut state);
-        self.hash(&mut state);
+        TypeId::of::<Self>().hash( & mut state);
+        self.hash( & mut state);
     }
 }
 
-impl Hash for dyn Bounds
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H)
-    {
-        self.dyn_hash(state);
-    }
-}
+impl Hash for dyn Bounds { fn hash<H: std::hash::Hasher>( & self, state: & mut H) { self.dyn_hash(state); } }
 
 /// A history of values that were observed throughout iterations, alongside the
 /// introspectors they were observed for.
-pub struct History<'a, T>([(&'a dyn Introspector, T); INSTANCES]);
+pub struct History<'a, T>([( & 'a dyn Introspector, T); INSTANCES]);
 
-impl<'a, T> History<'a, T>
+impl <'a, T> History<'a, T>
 {
     /// Computes the value for each introspector with an ad-hoc engine.
-    fn compute(
+    fn compute
+    (
         world: Tracked<dyn World + '_>,
-        introspectors: [&'a dyn Introspector; INSTANCES],
-        f: impl Fn(&mut Engine, Tracked<'a, dyn Introspector + '_>) -> T,
-    ) -> Self
+        introspectors: [ & 'a dyn Introspector; INSTANCES],
+        f: impl Fn( & mut Engine, Tracked<'a, dyn Introspector + '_>)->T,
+    )
+   ->Self
     {
-        Self(introspectors.map(|introspector| {
-            let tracked = introspector.track();
-            let traced = Traced::default();
-            let mut sink = Sink::new();
-            let mut engine = Engine {
-                library: world.library(),
-                world,
-                introspector: Protected::new(tracked),
-                traced: traced.track(),
-                sink: sink.track_mut(),
-                route: Route::default(),
-            };
-            (introspector, f(&mut engine, tracked))
-        }))
+        Self
+        (
+            introspectors.map
+            (
+                | introspector |
+                {
+                    let tracked = introspector.track();
+                    let traced = Traced:: default();
+                    let mut sink = Sink:: new ();
+                    let mut engine = Engine
+                    {
+                        library: world.library(),
+                        world,
+                        introspector: Protected:: new (tracked),
+                        traced: traced.track(),
+                        sink: sink.track_mut(),
+                        route: Route:: default(),
+                    };
+                    (introspector, f( & mut engine, tracked))
+                }
+            )
+        )
     }
 
     /// Whether the values in this history converged, i.e. the final and
     /// pre-final values are the same.
-    pub fn converged(&self) -> bool
+    pub fn converged( & self)-> bool
     where
-        T: Hash,
+    T: Hash,
     {
         // We compare by hash because the values should be fully the same, i.e.
         // with no observable difference. When a state changes from `0.0`
         // (float) to `0` (int), that could be observed in the next iteration
         // and should not count as converged.
-        typst_utils::hash128(&self.0[MAX_ITERS - 1].1)
-            == typst_utils::hash128(&self.0[MAX_ITERS].1)
+        typst_utils::hash128( & self .0[MAX_ITERS - 1] .1)
+        == typst_utils::hash128( & self .0[MAX_ITERS] .1)
     }
 
     /// Transforms the contained values with `f`.
-    pub fn map<U>(self, mut f: impl FnMut(T) -> U) -> History<'a, U>
-    {
-        History(self.0.map(move |(i, t)| (i, f(t))))
-    }
+    pub fn map<U>(self, mut f: impl FnMut(T)->U)->History<'a, U> { History(self .0.map(move | (i, t) | (i, f(t)))) }
 
     /// Takes a reference to the contained values.
-    pub fn as_ref(&self) -> History<'a, &T>
-    {
-        History(self.0.each_ref().map(|(i, t)| (*i, t)))
-    }
+    pub fn as_ref( & self)->History<'a, & T> { History(self .0.each_ref().map( | (i, t) | ( * i, t))) }
 
     /// Accesses the final iteration's introspector.
-    pub fn final_introspector(&self) -> &'a dyn Introspector
-    {
-        self.0[MAX_ITERS].0
-    }
+    pub fn final_introspector( & self)-> & 'a dyn Introspector { self .0[MAX_ITERS] .0 }
 
     /// Produces a hint with the observed values for each iteration.
-    pub fn hint(&self, what: &str, mut f: impl FnMut(&T) -> EcoString) -> EcoString
+    pub fn hint( & self, what: & str, mut f: impl FnMut( & T)->EcoString)->EcoString
     {
         let mut hint = eco_format!("the following {what} were observed:");
-        for (i, (_, val)) in self.0.iter().enumerate()
+        for (i, (_, val)) in self .0.iter().enumerate()
         {
-            let attempt = match i
-            {
-                0..MAX_ITERS => eco_format!("run {}", i + 1),
-                MAX_ITERS => eco_format!("final"),
-                _ => panic!(),
-            };
+            let attempt = match i { 0..MAX_ITERS => eco_format ! ("run {}", i + 1), MAX_ITERS => eco_format ! ("final"), _ => panic ! (), };
             let output = f(val);
             write!(hint, "\n- {attempt}: {output}").unwrap();
         }

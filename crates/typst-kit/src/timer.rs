@@ -7,11 +7,11 @@
 
 use std::fs::File;
 use std::io::BufWriter;
-use std::path::{Path, PathBuf};
+use std::path:: { Path, PathBuf };
 
 use typst_library::World;
-use typst_library::diag::{StrResult, bail};
-use typst_syntax::{Span, SpanKind};
+use typst_library::diag:: { StrResult, bail };
+use typst_syntax:: { Span, SpanKind };
 
 /// Allows to record timings of function executions.
 pub struct Timer
@@ -32,7 +32,7 @@ impl Timer
     /// If the path contains the string `{n}`, it is replaced with a per
     /// recording index. If recording multiple events, the path _must_ contain
     /// this string.
-    pub fn new(path: PathBuf) -> Self
+    pub fn new (path: PathBuf)->Self
     {
         // Enable event collection.
         typst_timing::enable();
@@ -42,86 +42,58 @@ impl Timer
     /// Returns a placeholder that does not record any actual timings. This can
     /// be useful to have uniform code paths with `timer.record` regardless of
     /// whether timings are enabled at runtime.
-    pub fn placeholder() -> Self
-    {
-        Self { path: None, iter: 0 }
-    }
+    pub fn placeholder()->Self { Self { path: None, iter: 0 } }
 
     /// Creates a proper timer if the `path` is `Some(_)` or a placeholder timer
     /// if the path is `None`.
-    pub fn new_or_placeholder(path: Option<PathBuf>) -> Self
-    {
-        match path
-        {
-            Some(path) => Self::new(path),
-            None => Self::placeholder(),
-        }
-    }
+    pub fn new_or_placeholder(path: Option<PathBuf>)->Self { match path { Some(path) => Self::new (path), None => Self::placeholder(), } }
 
     /// Records all timings in `f` and writes them to disk as JSON compatible
     /// with Chrome's tracing tool.
-    pub fn record<W: World, T>(
-        &mut self,
-        world: &mut W,
-        f: impl FnOnce(&mut W) -> T,
-    ) -> StrResult<T>
+    pub fn record < W: World, T > ( & mut self, world: & mut W, f: impl FnOnce( & mut W)->T,)->StrResult<T>
     {
-        let Some(path) = &self.path
-        else
-        {
-            return Ok(f(world));
-        };
+        let Some(path) = & self.path
+        else { return Ok(f(world)); };
 
         typst_timing::clear();
 
         let string = path.to_str().unwrap_or_default();
         let numbered = string.contains("{n}");
-        if !numbered && self.iter > 0
-        {
-            bail!("cannot export multiple recordings without `{{n}}` in path");
-        }
+        if ! numbered && self.iter > 0 { bail ! ("cannot export multiple recordings without `{{n}}` in path"); }
 
         let storage;
-        let path = if numbered
-        {
-            storage = string.replace("{n}", &self.iter.to_string());
-            Path::new(&storage)
-        }
-        else
-        {
-            path.as_path()
-        };
+        let path = if numbered { storage = string.replace("{n}", & self.iter.to_string()); Path::new ( & storage) }
+        else { path.as_path() };
 
         let output = f(world);
         self.iter += 1;
 
         let file =
-            File::create(path).map_err(|e| format!("failed to create file: {e}"))?;
+        File::create(path).map_err( | e | format ! ("failed to create file: {e}"))?;
         let writer = BufWriter::with_capacity(1 << 20, file);
 
-        typst_timing::export_json(writer, |span| {
-            resolve_span(world, Span::from_raw(span))
-                .unwrap_or_else(|| ("unknown".to_string(), 0))
-        })?;
+        typst_timing::export_json(writer, | span | { resolve_span(world, Span::from_raw(span)).unwrap_or_else( || ("unknown".to_string(), 0)) })?;
 
         Ok(output)
     }
 }
 
 /// Turns a span into a (file, line) pair.
-fn resolve_span<W: World>(world: &W, span: Span) -> Option<(String, u32)>
+fn resolve_span<W: World>(world: & W, span: Span)->Option<(String, u32)>
 {
-    let (id, line) = match span.get()
+    let (id, line) = match span. get()
     {
         SpanKind::Detached => return None,
-        SpanKind::Number { id, num } =>
+        SpanKind::Number { id, num }
+        =>
         {
             let source = world.source(id).ok()?;
             let range = source.range(num, None)?;
             let line = source.lines().byte_to_line(range.start)?;
             (id, line)
         }
-        SpanKind::Range { id, range } =>
+        SpanKind::Range { id, range }
+        =>
         {
             let file = world.file(id).ok()?;
             let lines = file.lines().ok()?;
@@ -129,5 +101,5 @@ fn resolve_span<W: World>(world: &W, span: Span) -> Option<(String, u32)>
             (id, line)
         }
     };
-    Some((format!("{id:?}"), line as u32 + 1))
+    Some((format ! ("{id:?}"), line as u32 + 1))
 }

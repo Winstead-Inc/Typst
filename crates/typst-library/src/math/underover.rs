@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 use crate::math::Mathy;
 
 /// A horizontal line under content.
@@ -10,7 +10,7 @@ use crate::math::Mathy;
 pub struct UnderlineElem
 {
     /// The content above the line.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -23,7 +23,7 @@ pub struct UnderlineElem
 pub struct OverlineElem
 {
     /// The content below the line.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -36,11 +36,11 @@ pub struct OverlineElem
 pub struct UnderbraceElem
 {
     /// The content above the brace.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content below the brace.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -53,11 +53,11 @@ pub struct UnderbraceElem
 pub struct OverbraceElem
 {
     /// The content below the brace.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content above the brace.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -70,11 +70,11 @@ pub struct OverbraceElem
 pub struct UnderbracketElem
 {
     /// The content above the bracket.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content below the bracket.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -87,11 +87,11 @@ pub struct UnderbracketElem
 pub struct OverbracketElem
 {
     /// The content below the bracket.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content above the bracket.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -104,11 +104,11 @@ pub struct OverbracketElem
 pub struct UnderparenElem
 {
     /// The content above the parenthesis.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content below the parenthesis.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -121,11 +121,11 @@ pub struct UnderparenElem
 pub struct OverparenElem
 {
     /// The content below the parenthesis.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content above the parenthesis.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -139,11 +139,11 @@ pub struct OverparenElem
 pub struct UndershellElem
 {
     /// The content above the tortoise shell bracket.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content below the tortoise shell bracket.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }
 
@@ -157,10 +157,10 @@ pub struct UndershellElem
 pub struct OvershellElem
 {
     /// The content below the tortoise shell bracket.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The optional content above the tortoise shell bracket.
-    #[positional]
+    # [positional]
     pub annotation: Option<Content>,
 }

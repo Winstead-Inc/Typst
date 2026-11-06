@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use smallvec::SmallVec;
 
-use crate::foundations::{Content, Packed, Smart, Styles, cast, elem, scope};
-use crate::layout::{Alignment, Em, HAlignment, Length};
-use crate::model::{ListItemLike, ListLike, Numbering, NumberingPattern};
+use crate::foundations:: { Content, Packed, Smart, Styles, cast, elem, scope };
+use crate::layout:: { Alignment, Em, HAlignment, Length };
+use crate::model:: { ListItemLike, ListLike, Numbering, NumberingPattern };
 
 /// A numbered list.
 ///
@@ -87,7 +87,7 @@ pub struct EnumElem
     ///   insert a blank line between the
     ///   items.
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub tight: bool,
 
     /// How to number the enumeration. Accepts a
@@ -109,7 +109,7 @@ pub struct EnumElem
     /// + Superscript
     /// + Numbering!
     /// ```
-    #[default(Numbering::Pattern(NumberingPattern::from_str("1.").unwrap()))]
+    # [default (Numbering::Pattern(NumberingPattern::from_str("1.").unwrap()))]
     pub numbering: Numbering,
 
     /// Which number to start the enumeration with.
@@ -133,7 +133,7 @@ pub struct EnumElem
     ///   + Add ingredients
     /// + Eat
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub full: bool,
 
     /// Whether to reverse the numbering for this enumeration.
@@ -144,14 +144,14 @@ pub struct EnumElem
     /// + Tea
     /// + Milk
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub reversed: bool,
 
     /// The indentation of each item.
     pub indent: Length,
 
     /// The space between the numbering and the body of each item.
-    #[default(Em::new(0.5).into())]
+    # [default (Em::new (0.5).into())]
     pub body_indent: Length,
 
     /// The spacing between the items of the enumeration.
@@ -195,7 +195,7 @@ pub struct EnumElem
     /// 16. Sixteen
     /// 32. Thirty two
     /// ```
-    #[default(Alignment::H(HAlignment::End))]
+    # [default (Alignment::H(HAlignment::End))]
     pub number_align: Alignment,
 
     /// The numbered list's items.
@@ -210,56 +210,39 @@ pub struct EnumElem
     ///    "Descent",
     /// ) [+ #phase]
     /// ```
-    #[variadic]
+    # [variadic]
     pub children: Vec<Packed<EnumItem>>,
 
     /// The numbers of parent items.
-    #[internal]
-    #[fold]
-    #[ghost]
-    pub parents: SmallVec<[u64; 4]>,
+    # [internal]
+    # [fold]
+    # [ghost]
+    pub parents: SmallVec < [u64; 4] > ,
 }
 
 #[scope]
-impl EnumElem
-{
-    #[elem]
-    type EnumItem;
-}
+impl EnumElem { # [elem] type EnumItem; }
 
 /// An enumeration item.
 #[elem(name = "item", title = "Numbered List Item", since = "0.4.0", Tagged)]
 pub struct EnumItem
 {
     /// The item's number.
-    #[positional]
+    # [positional]
     pub number: Smart<u64>,
 
     /// The item's body.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
-cast! {
-    EnumItem,
-    v: Content => v.unpack::<Self>().unwrap_or_else(Self::new),
-}
+cast! { EnumItem, v: Content => v.unpack::<Self>().unwrap_or_else(Self::new), }
 
 impl ListLike for EnumElem
 {
     type Item = EnumItem;
 
-    fn create(children: Vec<Packed<Self::Item>>, tight: bool) -> Self
-    {
-        Self::new(children).with_tight(tight)
-    }
+    fn create(children: Vec<Packed<Self::Item>>, tight: bool)->Self { Self::new (children).with_tight(tight) }
 }
 
-impl ListItemLike for EnumItem
-{
-    fn styled(mut item: Packed<Self>, styles: Styles) -> Packed<Self>
-    {
-        item.body.style_in_place(styles);
-        item
-    }
-}
+impl ListItemLike for EnumItem { fn styled(mut item: Packed<Self>, styles: Styles)->Packed<Self> { item.body.style_in_place(styles); item } }

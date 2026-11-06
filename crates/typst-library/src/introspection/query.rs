@@ -1,13 +1,11 @@
 use comemo::Tracked;
-use ecow::{EcoString, EcoVec, eco_format};
+use ecow:: { EcoString, EcoVec, eco_format };
 use typst_syntax::Span;
 
-use super::{History, Introspect};
-use crate::diag::{HintedStrResult, SourceDiagnostic, StrResult, warning};
+use super:: { History, Introspect };
+use crate::diag:: { HintedStrResult, SourceDiagnostic, StrResult, warning };
 use crate::engine::Engine;
-use crate::foundations::{
-    Array, Content, Context, Label, LocatableSelector, Repr, Selector, Value, func,
-};
+use crate::foundations:: { Array, Content, Context, Label, LocatableSelector, Repr, Selector, Value, func, };
 use crate::introspection::Introspector;
 
 /// Finds elements in the document.
@@ -157,8 +155,9 @@ use crate::introspection::Introspector;
 /// you can use the `--target` argument. Valid values are `paged`, and `html`
 /// (if the @html feature is enabled).
 #[func(contextual, since = "forever")]
-pub fn query(
-    engine: &mut Engine,
+pub fn query
+(
+    engine: & mut Engine,
     context: Tracked<Context>,
     span: Span,
     /// Can be
@@ -169,10 +168,11 @@ pub fn query(
     ///
     /// Only @location:locatable[locatable] element functions are supported.
     target: LocatableSelector,
-) -> HintedStrResult<Array>
+)
+->HintedStrResult<Array>
 {
     context.introspect()?;
-    let vec = engine.introspect(QueryIntrospection(target.0, span));
+    let vec = engine.introspect(QueryIntrospection(target .0, span));
     Ok(vec.into_iter().map(Value::Content).collect())
 }
 
@@ -184,28 +184,15 @@ impl Introspect for QueryIntrospection
 {
     type Output = EcoVec<Content>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.query(&self.0)
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.query( & self .0) }
 
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic
     {
-        let lengths = history.as_ref().map(|vec| vec.len());
-        let things = format_selector(&self.0, "elements");
-        let what = if !lengths.converged()
-        {
-            eco_format!("number of {things}")
-        }
-        else
-        {
-            eco_format!("query for {things}")
-        };
-        format_convergence_warning(self.1, &lengths, &what)
+        let lengths = history.as_ref().map( | vec | vec.len());
+        let things = format_selector( & self .0, "elements");
+        let what = if ! lengths.converged() { eco_format ! ("number of {things}") }
+        else { eco_format ! ("query for {things}") };
+        format_convergence_warning(self .1, & lengths, & what)
     }
 }
 
@@ -217,21 +204,14 @@ impl Introspect for QueryFirstIntrospection
 {
     type Output = Option<Content>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.query_first(&self.0)
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.query_first( & self .0) }
 
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic
     {
-        let lengths = history.as_ref().map(|vec| vec.is_some() as usize);
-        let thing = format_selector(&self.0, "element");
+        let lengths = history.as_ref().map( | vec | vec.is_some() as usize);
+        let thing = format_selector( & self .0, "element");
         let what = eco_format!("query for the first {thing}");
-        format_convergence_warning(self.1, &lengths, &what)
+        format_convergence_warning(self .1, & lengths, & what)
     }
 }
 
@@ -245,21 +225,14 @@ impl Introspect for QueryUniqueIntrospection
 {
     type Output = StrResult<Content>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.query_unique(&self.0)
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.query_unique( & self .0) }
 
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic
     {
-        let lengths = history.as_ref().map(|vec| vec.is_ok() as usize);
-        let thing = format_selector(&self.0, "element");
+        let lengths = history.as_ref().map( | vec | vec.is_ok() as usize);
+        let thing = format_selector( & self .0, "element");
         let what = eco_format!("query for a unique {thing}");
-        format_convergence_warning(self.1, &lengths, &what)
+        format_convergence_warning(self .1, & lengths, & what)
     }
 }
 
@@ -273,39 +246,22 @@ impl Introspect for QueryLabelIntrospection
 {
     type Output = StrResult<Content>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.query_label(self.0).cloned()
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.query_label(self .0).cloned() }
 
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic
-    {
-        QueryUniqueIntrospection(Selector::Label(self.0), self.1).diagnose(history)
-    }
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic { QueryUniqueIntrospection(Selector::Label(self .0), self .1).diagnose(history) }
 }
 
 /// The warning when an introspection on a [`Location`](super::Location) did not
 /// converge.
-fn format_convergence_warning(
-    span: Span,
-    lengths: &History<usize>,
-    what: &str,
-) -> SourceDiagnostic
+fn format_convergence_warning(span: Span, lengths: & History<usize>, what: & str,)->SourceDiagnostic
 {
     let mut diag = warning!(span, "{what} did not stabilize");
-    if !lengths.converged()
-    {
-        diag.hint(lengths.hint("numbers of elements", |c| eco_format!("{c}")));
-    }
+    if ! lengths.converged() { diag.hint(lengths.hint("numbers of elements", | c | eco_format ! ("{c}"))); }
     diag
 }
 
 /// Formats a selector human-readably.
-fn format_selector(selector: &Selector, kind: &str) -> EcoString
+fn format_selector(selector: & Selector, kind: & str)->EcoString
 {
     match selector
     {

@@ -1,6 +1,6 @@
 use ecow::EcoString;
 
-use crate::foundations::{Repr, ty};
+use crate::foundations:: { Repr, ty };
 
 /// A type with two states.
 ///
@@ -18,12 +18,5 @@ type bool;
 
 impl Repr for bool
 {
-    fn repr(&self) -> EcoString
-    {
-        match self
-        {
-            true => "true".into(),
-            false => "false".into(),
-        }
-    }
+    fn repr( & self)->EcoString { match self { true => "true".into(), false => "false".into(), } }
 }

@@ -1,13 +1,10 @@
 use comemo::Track;
-use typst_syntax::{LooselySpanned, Span, Spanned};
+use typst_syntax:: { LooselySpanned, Span, Spanned };
 
-use crate::diag::{SourceResult, bail};
+use crate::diag:: { SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Array, Content, Context, Depth, Func, NativeElement, Packed, Smart, StyleChain,
-    Styles, Value, cast, elem, scope,
-};
-use crate::layout::{Alignment, Em, HAlignment, Length};
+use crate::foundations:: { Array, Content, Context, Depth, Func, NativeElement, Packed, Smart, StyleChain, Styles, Value, cast, elem, scope, };
+use crate::layout:: { Alignment, Em, HAlignment, Length };
 use crate::text::TextElem;
 
 /// A bullet list.
@@ -64,7 +61,7 @@ pub struct ListElem
     /// - To make a list wide, simply insert
     ///   a blank line between the items.
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub tight: bool,
 
     /// The marker which introduces each item.
@@ -86,21 +83,34 @@ pub struct ListElem
     ///   - Items
     /// - Items
     /// ```
-    #[default(Spanned::detached(ListMarker::Content(vec![
-        // These are all available in the default font, vertically centered, and
-        // roughly of the same size (with the last one having slightly lower
-        // weight because it is not filled).
-        TextElem::packed('\u{2022}'), // Bullet
-        TextElem::packed('\u{2023}'), // Triangular Bullet
-        TextElem::packed('\u{2013}'), // En-dash
-    ])))]
+    #
+    [
+        default
+        (
+            Spanned::detached
+            (
+                ListMarker::Content
+                (
+                    vec!
+                    [
+                        // These are all available in the default font, vertically centered, and
+                        // roughly of the same size (with the last one having slightly lower
+                        // weight because it is not filled).
+                        TextElem::packed('\u{2022}'), // Bullet
+                        TextElem::packed('\u{2023}'), // Triangular Bullet
+                        TextElem::packed('\u{2013}'), // En-dash
+                    ]
+                )
+            )
+        )
+    ]
     pub marker: LooselySpanned<ListMarker>,
 
     /// The indent of each item.
     pub indent: Length,
 
     /// The spacing between the marker and the body of each item.
-    #[default(Em::new(0.5).into())]
+    # [default (Em::new (0.5).into())]
     pub body_indent: Length,
 
     /// The spacing between the items of the list.
@@ -135,7 +145,7 @@ pub struct ListElem
     /// - Horizon \
     ///   aligned
     /// ```
-    #[default(Alignment::H(HAlignment::End))]
+    # [default (Alignment::H(HAlignment::End))]
     pub marker_align: Alignment,
 
     /// The bullet list's children.
@@ -148,88 +158,69 @@ pub struct ListElem
     ///   - Letter #letter
     /// ]
     /// ```
-    #[variadic]
+    # [variadic]
     pub children: Vec<Packed<ListItem>>,
 
     /// The nesting depth.
-    #[internal]
-    #[fold]
-    #[ghost]
+    # [internal]
+    # [fold]
+    # [ghost]
     pub depth: Depth,
 }
 
 #[scope]
-impl ListElem
-{
-    #[elem]
-    type ListItem;
-}
+impl ListElem { # [elem] type ListItem; }
 
 /// A bullet list item.
 #[elem(name = "item", title = "Bullet List Item", since = "0.4.0", Tagged)]
 pub struct ListItem
 {
     /// The item's body.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
-cast! {
-    ListItem,
-    v: Content => v.unpack::<Self>().unwrap_or_else(Self::new)
-}
+cast! { ListItem, v: Content => v.unpack::<Self>().unwrap_or_else(Self::new) }
 
 /// A list's marker.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum ListMarker
-{
-    Content(Vec<Content>),
-    Func(Func),
-}
+pub enum ListMarker { Content(Vec<Content>), Func(Func), }
 
 impl ListMarker
 {
     /// Resolve the marker for the given depth.
-    pub fn resolve(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-        depth: usize,
-        span: Span,
-    ) -> SourceResult<Content>
+    pub fn resolve( & self, engine: & mut Engine, styles: StyleChain, depth: usize, span: Span,)->SourceResult<Content>
     {
-        Ok(match self
-        {
-            Self::Content(list) =>
+        Ok
+        (
+            match self
             {
-                list.get(depth % list.len()).cloned().unwrap_or_default()
+                Self::Content(list) => { list.get (depth % list.len()).cloned().unwrap_or_default() }
+                Self::Func(func) =>
+                {
+                    let context = Context:: new (None, Some(styles));
+                    func.call::<Value>(engine, context.track(),[depth], span)?.display()
+                }
             }
-            Self::Func(func) =>
-            {
-                let context = Context::new(None, Some(styles));
-                func.call::<Value>(engine, context.track(), [depth], span)?.display()
-            }
-        })
+        )
     }
 }
 
-cast! {
+cast!
+{
     ListMarker,
-    self => match self {
-        Self::Content(vec) => if vec.len() == 1 {
-            vec.into_iter().next().unwrap().into_value()
-        } else {
-            vec.into_value()
-        },
+    self => match self
+    {
+        Self::Content(vec) => if vec.len() == 1 { vec.into_iter().next().unwrap().into_value() } else { vec.into_value() },
         Self::Func(func) => func.into_value(),
     },
-    v: Content => Self::Content(vec![v]),
-    array: Array => {
-        if array.is_empty() {
-            bail!("array must contain at least one marker");
-        }
+    v: Content => Self::Content(vec ! [v]),
+    array: Array =>
+    {
+        if array.is_empty() { bail ! ("array must contain at least one marker"); }
         Self::Content(array.into_iter().map(Value::display).collect())
     },
+
     v: Func => Self::Func(v),
 }
 
@@ -240,31 +231,21 @@ pub trait ListLike: NativeElement
     type Item: ListItemLike;
 
     /// Create this kind of list from its children and tightness.
-    fn create(children: Vec<Packed<Self::Item>>, tight: bool) -> Self;
+    fn create(children: Vec<Packed<Self::Item>>, tight: bool)->Self;
 }
 
 /// A list item, enum item, or term list item.
 pub trait ListItemLike: NativeElement
 {
     /// Apply styles to the element's body.
-    fn styled(item: Packed<Self>, styles: Styles) -> Packed<Self>;
+    fn styled(item: Packed<Self>, styles: Styles)->Packed<Self>;
 }
 
 impl ListLike for ListElem
 {
     type Item = ListItem;
 
-    fn create(children: Vec<Packed<Self::Item>>, tight: bool) -> Self
-    {
-        Self::new(children).with_tight(tight)
-    }
+    fn create(children: Vec<Packed<Self::Item>>, tight: bool)->Self { Self::new (children).with_tight(tight) }
 }
 
-impl ListItemLike for ListItem
-{
-    fn styled(mut item: Packed<Self>, styles: Styles) -> Packed<Self>
-    {
-        item.body.style_in_place(styles);
-        item
-    }
-}
+impl ListItemLike for ListItem { fn styled(mut item: Packed<Self>, styles: Styles)->Packed<Self> { item.body.style_in_place(styles); item } }

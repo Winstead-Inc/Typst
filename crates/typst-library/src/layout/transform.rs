@@ -1,5 +1,5 @@
-use crate::foundations::{Content, Smart, cast, elem};
-use crate::layout::{Abs, Alignment, Angle, HAlignment, Length, Ratio, Rel, VAlignment};
+use crate::foundations:: { Content, Smart, cast, elem };
+use crate::layout:: { Abs, Alignment, Angle, HAlignment, Length, Ratio, Rel, VAlignment };
 
 /// Moves content without affecting layout.
 ///
@@ -35,7 +35,7 @@ pub struct MoveElem
     pub dy: Rel<Length>,
 
     /// The content to move.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -61,7 +61,7 @@ pub struct RotateElem
     /// ```example
     /// #rotate(-1.571rad)[Space!]
     /// ```
-    #[positional]
+    # [positional]
     pub angle: Angle,
 
     /// The origin of the rotation.
@@ -79,8 +79,8 @@ pub struct RotateElem
     /// #box(rotate(30deg, origin: top + left, square()))
     /// #box(rotate(30deg, origin: bottom + right, square()))
     /// ```
-    #[fold]
-    #[default(HAlignment::Center + VAlignment::Horizon)]
+    # [fold]
+    # [default (HAlignment::Center + VAlignment::Horizon)]
     pub origin: Alignment,
 
     /// Whether the rotation impacts the layout.
@@ -92,11 +92,11 @@ pub struct RotateElem
     /// ```example
     /// Hello #rotate(90deg, reflow: true)[World]!
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub reflow: bool,
 
     /// The content to rotate.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -116,26 +116,23 @@ pub struct ScaleElem
     /// The scaling factor for both axes, as a positional argument. This is just
     /// an optional shorthand notation for setting `x` and `y` to the same
     /// value.
-    #[external]
-    #[positional]
-    #[default(Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
+    # [external]
+    # [positional]
+    # [default (Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
     pub factor: Smart<ScaleAmount>,
 
     /// The horizontal scaling factor.
     ///
     /// The body will be mirrored horizontally if the parameter is negative.
-    #[parse(
-        let all = args.find()?;
-        args.named("x")?.or(all)
-    )]
-    #[default(Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
+    # [parse(let all = args.find()?; args.named("x")?.or(all))]
+    # [default (Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
     pub x: Smart<ScaleAmount>,
 
     /// The vertical scaling factor.
     ///
     /// The body will be mirrored vertically if the parameter is negative.
-    #[parse(args.named("y")?.or(all))]
-    #[default(Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
+    # [parse(args.named("y")?.or(all))]
+    # [default (Smart::Custom(ScaleAmount::Ratio(Ratio::one())))]
     pub y: Smart<ScaleAmount>,
 
     /// The origin of the transformation.
@@ -144,8 +141,8 @@ pub struct ScaleElem
     /// A#box(scale(75%)[A])A \
     /// B#box(scale(75%, origin: bottom + left)[B])B
     /// ```
-    #[fold]
-    #[default(HAlignment::Center + VAlignment::Horizon)]
+    # [fold]
+    # [default (HAlignment::Center + VAlignment::Horizon)]
     pub origin: Alignment,
 
     /// Whether the scaling impacts the layout.
@@ -157,28 +154,22 @@ pub struct ScaleElem
     /// ```example
     /// Hello #scale(x: 20%, y: 40%, reflow: true)[World]!
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub reflow: bool,
 
     /// The content to scale.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 /// To what size something shall be scaled.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum ScaleAmount
-{
-    Ratio(Ratio),
-    Length(Length),
-}
+pub enum ScaleAmount { Ratio(Ratio), Length(Length), }
 
-cast! {
+cast!
+{
     ScaleAmount,
-    self => match self {
-        ScaleAmount::Ratio(ratio) => ratio.into_value(),
-        ScaleAmount::Length(length) => length.into_value(),
-    },
+    self => match self { ScaleAmount::Ratio(ratio) => ratio.into_value(), ScaleAmount::Length(length) => length.into_value(), },
     ratio: Ratio => ScaleAmount::Ratio(ratio),
     length: Length => ScaleAmount::Length(length),
 }
@@ -202,7 +193,7 @@ pub struct SkewElem
     /// ```example
     /// #skew(ax: 30deg)[Skewed]
     /// ```
-    #[default(Angle::zero())]
+    # [default (Angle::zero())]
     pub ax: Angle,
 
     /// The vertical skewing angle.
@@ -210,7 +201,7 @@ pub struct SkewElem
     /// ```example
     /// #skew(ay: 30deg)[Skewed]
     /// ```
-    #[default(Angle::zero())]
+    # [default (Angle::zero())]
     pub ay: Angle,
 
     /// The origin of the skew transformation.
@@ -222,8 +213,8 @@ pub struct SkewElem
     /// X #box(skew(ax: -30deg, origin: bottom + left)[X]) X \
     /// X #box(skew(ax: -30deg, origin: top + right)[X]) X
     /// ```
-    #[fold]
-    #[default(HAlignment::Center + VAlignment::Horizon)]
+    # [fold]
+    # [default (HAlignment::Center + VAlignment::Horizon)]
     pub origin: Alignment,
 
     /// Whether the skew transformation impacts the layout.
@@ -236,121 +227,60 @@ pub struct SkewElem
     /// ```example
     /// Hello #skew(ay: 30deg, reflow: true, "World")!
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub reflow: bool,
 
     /// The content to skew.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
 /// A scale-skew-translate transformation.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Transform
-{
-    pub sx: Ratio,
-    pub ky: Ratio,
-    pub kx: Ratio,
-    pub sy: Ratio,
-    pub tx: Abs,
-    pub ty: Abs,
-}
+pub struct Transform { pub sx: Ratio, pub ky: Ratio, pub kx: Ratio, pub sy: Ratio, pub tx: Abs, pub ty: Abs, }
 
 impl Transform
 {
     /// The identity transformation.
-    pub const fn identity() -> Self
-    {
-        Self {
-            sx: Ratio::one(),
-            ky: Ratio::zero(),
-            kx: Ratio::zero(),
-            sy: Ratio::one(),
-            tx: Abs::zero(),
-            ty: Abs::zero(),
-        }
-    }
+    pub const fn identity()->Self { Self { sx: Ratio::one(), ky: Ratio::zero(), kx: Ratio::zero(), sy: Ratio::one(), tx: Abs::zero(), ty: Abs::zero(), } }
 
     /// A translate transform.
-    pub const fn translate(tx: Abs, ty: Abs) -> Self
-    {
-        Self { tx, ty, ..Self::identity() }
-    }
+    pub const fn translate(tx: Abs, ty: Abs)->Self { Self { tx, ty,..Self::identity() } }
 
     /// A scale transform.
-    pub const fn scale(sx: Ratio, sy: Ratio) -> Self
-    {
-        Self { sx, sy, ..Self::identity() }
-    }
+    pub const fn scale(sx: Ratio, sy: Ratio)->Self { Self { sx, sy,..Self::identity() } }
 
     /// A scale transform at a specific position.
-    pub fn scale_at(sx: Ratio, sy: Ratio, px: Abs, py: Abs) -> Self
-    {
-        Self::translate(px, py)
-            .pre_concat(Self::scale(sx, sy))
-            .pre_concat(Self::translate(-px, -py))
-    }
+    pub fn scale_at(sx: Ratio, sy: Ratio, px: Abs, py: Abs)->Self { Self::translate(px, py).pre_concat(Self::scale(sx, sy)).pre_concat(Self::translate( - px, - py)) }
 
     /// A rotate transform at a specific position.
-    pub fn rotate_at(angle: Angle, px: Abs, py: Abs) -> Self
-    {
-        Self::translate(px, py)
-            .pre_concat(Self::rotate(angle))
-            .pre_concat(Self::translate(-px, -py))
-    }
+    pub fn rotate_at(angle: Angle, px: Abs, py: Abs)->Self { Self::translate(px, py).pre_concat(Self::rotate(angle)).pre_concat(Self::translate( - px, - py)) }
 
     /// A rotate transform.
-    pub fn rotate(angle: Angle) -> Self
+    pub fn rotate(angle: Angle)->Self
     {
-        let cos = Ratio::new(angle.cos());
-        let sin = Ratio::new(angle.sin());
-        Self {
-            sx: cos,
-            ky: sin,
-            kx: -sin,
-            sy: cos,
-            ..Self::default()
-        }
+        let cos = Ratio:: new (angle.cos());
+        let sin = Ratio:: new (angle.sin());
+        Self { sx: cos, ky: sin, kx: - sin, sy: cos,..Self::default () }
     }
 
     /// A skew transform.
-    pub fn skew(ax: Angle, ay: Angle) -> Self
-    {
-        Self {
-            kx: Ratio::new(ax.tan()),
-            ky: Ratio::new(ay.tan()),
-            ..Self::identity()
-        }
-    }
+    pub fn skew(ax: Angle, ay: Angle)->Self { Self { kx: Ratio::new (ax.tan()), ky: Ratio::new (ay.tan()),..Self::identity() } }
 
     /// Whether this is the identity transformation.
-    pub fn is_identity(self) -> bool
-    {
-        self == Self::identity()
-    }
+    pub fn is_identity(self)-> bool { self == Self::identity() }
 
     /// Whether this transformation only scales along the X and Y axis.
-    pub fn is_only_scale(self) -> bool
-    {
-        self.ky == Ratio::zero()
-            && self.kx == Ratio::zero()
-            && self.tx == Abs::zero()
-            && self.ty == Abs::zero()
-    }
+    pub fn is_only_scale(self)-> bool { self.ky == Ratio::zero() && self.kx == Ratio::zero() && self.tx == Abs::zero() && self.ty == Abs::zero() }
 
     /// Whether this transformation only translates along the X and Y axis.
-    pub fn is_only_translate(self) -> bool
-    {
-        self.sx == Ratio::one()
-            && self.sy == Ratio::one()
-            && self.ky == Ratio::zero()
-            && self.kx == Ratio::zero()
-    }
+    pub fn is_only_translate(self)-> bool { self.sx == Ratio::one() && self.sy == Ratio::one() && self.ky == Ratio::zero() && self.kx == Ratio::zero() }
 
     /// Pre-concatenate another transformation.
-    pub fn pre_concat(self, prev: Self) -> Self
+    pub fn pre_concat(self, prev: Self)->Self
     {
-        Transform {
+        Transform
+        {
             sx: self.sx * prev.sx + self.kx * prev.ky,
             ky: self.ky * prev.sx + self.sy * prev.ky,
             kx: self.sx * prev.kx + self.kx * prev.sy,
@@ -361,70 +291,46 @@ impl Transform
     }
 
     /// Post-concatenate another transformation.
-    pub fn post_concat(self, next: Self) -> Self
-    {
-        next.pre_concat(self)
-    }
+    pub fn post_concat(self, next: Self)->Self { next.pre_concat(self) }
 
     /// Inverts the transformation.
     ///
     /// Returns `None` if the determinant of the matrix is zero.
-    pub fn invert(self) -> Option<Self>
+    pub fn invert(self)->Option<Self>
     {
         // Allow the trivial case to be inlined.
-        if self.is_identity()
-        {
-            return Some(self);
-        }
+        if self.is_identity() { return Some(self); }
 
         // Fast path for scale-translate-only transforms.
         if self.kx.is_zero() && self.ky.is_zero()
         {
-            if self.sx.is_zero() || self.sy.is_zero()
-            {
-                return Some(Self::translate(-self.tx, -self.ty));
-            }
+            if self.sx.is_zero() || self.sy.is_zero() { return Some(Self::translate( - self.tx, - self.ty)); }
 
             let inv_x = 1.0 / self.sx;
             let inv_y = 1.0 / self.sy;
-            return Some(Self {
-                sx: Ratio::new(inv_x),
-                ky: Ratio::zero(),
-                kx: Ratio::zero(),
-                sy: Ratio::new(inv_y),
-                tx: -self.tx * inv_x,
-                ty: -self.ty * inv_y,
-            });
+            return Some
+            (
+                Self { sx: Ratio::new (inv_x), ky: Ratio::zero(), kx: Ratio::zero(), sy: Ratio::new (inv_y), tx: - self.tx * inv_x, ty: - self.ty * inv_y, }
+            );
         }
 
         let det = self.sx * self.sy - self.kx * self.ky;
-        if det.get().abs() < 1e-12
-        {
-            return None;
-        }
+        if det. get().abs() < 1e - 12 { return None; }
 
         let inv_det = 1.0 / det;
-        Some(Self {
-            sx: (self.sy * inv_det),
-            ky: (-self.ky * inv_det),
-            kx: (-self.kx * inv_det),
-            sy: (self.sx * inv_det),
-            tx: Abs::pt(
-                (self.kx.get() * self.ty.to_pt() - self.sy.get() * self.tx.to_pt())
-                    * inv_det,
-            ),
-            ty: Abs::pt(
-                (self.ky.get() * self.tx.to_pt() - self.sx.get() * self.ty.to_pt())
-                    * inv_det,
-            ),
-        })
+        Some
+        (
+            Self
+            {
+                sx: (self.sy * inv_det),
+                ky: ( - self.ky * inv_det),
+                kx: ( - self.kx * inv_det),
+                sy: (self.sx * inv_det),
+                tx: Abs::pt((self.kx.get () * self.ty.to_pt() - self.sy.get () * self.tx.to_pt()) * inv_det,),
+                ty: Abs::pt((self.ky.get () * self.tx.to_pt() - self.sx.get () * self.ty.to_pt()) * inv_det,),
+            }
+        )
     }
 }
 
-impl Default for Transform
-{
-    fn default() -> Self
-    {
-        Self::identity()
-    }
-}
+impl Default for Transform { fn default ()->Self { Self::identity() } }

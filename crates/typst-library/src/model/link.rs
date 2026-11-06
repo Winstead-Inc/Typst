@@ -2,24 +2,22 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use comemo::Tracked;
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use rustc_hash::FxHashMap;
-use typst_syntax::{Span, VirtualPath};
+use typst_syntax:: { Span, VirtualPath };
 use typst_utils::PicoStr;
 
-use crate::diag::{At, SourceDiagnostic, SourceResult, StrResult, bail, warning};
+use crate::diag:: { At, SourceDiagnostic, SourceResult, StrResult, bail, warning };
 use crate::engine::Engine;
-use crate::foundations::{
-    Args, Construct, Content, Label, NativeElement, Packed, Repr, Selector, ShowSet,
-    Smart, StyleChain, Styles, cast, elem,
-};
-use crate::introspection::{
+use crate::foundations:: { Args, Construct, Content, Label, NativeElement, Packed, Repr, Selector, ShowSet, Smart, StyleChain, Styles, cast, elem, };
+use crate::introspection::
+{
     Counter, CounterKey, History, Introspect, Introspector, Location, PagedPosition,
     PathIntrospection, QueryFirstIntrospection, QueryLabelIntrospection,
 };
 use crate::layout::PageElem;
-use crate::model::{NumberingPattern, Refable};
-use crate::text::{LocalName, TextElem};
+use crate::model:: { NumberingPattern, Refable };
+use crate::text:: { LocalName, TextElem };
 
 /// Links to a URL or a location in the document.
 ///
@@ -193,137 +191,106 @@ pub struct LinkElem
     ///   Go to top
     /// ]
     /// ```
-    #[required]
-    #[parse(
-        let dest = args.expect::<LinkTarget>("destination")?;
-        dest.clone()
-    )]
+    # [required]
+    # [parse(let dest = args.expect::<LinkTarget>("destination")?; dest.clone())]
     pub dest: LinkTarget,
 
     /// The content that should become a link.
     ///
     /// If `dest` is an URL string, the parameter can be omitted. In this case,
     /// the URL will be shown as the link.
-    #[required]
-    #[parse(match &dest {
-        LinkTarget::Dest(Destination::Url(url)) => match args.eat()? {
-            Some(body) => body,
-            None => body_from_url(url),
-        },
-        _ => args.expect("body")?,
-    })]
+    # [required]
+    #
+    [
+        parse
+        (
+            match & dest
+            {
+                LinkTarget::Dest(Destination::Url(url)) => match args.eat()? { Some(body) => body, None => body_from_url(url), },
+                _ => args.expect("body")?,
+            }
+        )
+    ]
     pub body: Content,
 
     /// A destination style that should be applied to elements.
-    #[internal]
-    #[ghost]
+    # [internal]
+    # [ghost]
     pub current: Option<Destination>,
 }
 
 impl LinkElem
 {
     /// Create a link element from a URL with its bare text.
-    pub fn from_url(url: Url) -> Self
-    {
-        let body = body_from_url(&url);
-        Self::new(LinkTarget::Dest(Destination::Url(url)), body)
-    }
+    pub fn from_url(url: Url)->Self { let body = body_from_url( & url); Self::new (LinkTarget::Dest(Destination::Url(url)), body) }
 
     /// Finds all linked-to locations referenced in an introspector.
-    pub fn find_destinations(
-        introspector: &dyn Introspector,
-    ) -> impl Iterator<Item = Location>
+    pub fn find_destinations(introspector: & dyn Introspector,)-> impl Iterator<Item = Location>
     {
         introspector
-            .query(&Self::ELEM.select())
-            .into_iter()
-            .map(|elem| elem.into_packed::<Self>().unwrap())
-            .filter_map(|elem| match elem.dest.resolve_late(introspector)
-            {
-                Ok(Destination::Location(loc)) => Some(loc),
-                _ => None,
-            })
+        .query( & Self::ELEM.select())
+        .into_iter()
+        .map( | elem | elem.into_packed::<Self>().unwrap())
+        .filter_map( | elem | match elem.dest.resolve_late(introspector) { Ok(Destination::Location(loc)) => Some(loc), _ => None, })
     }
 }
 
-impl ShowSet for Packed<LinkElem>
-{
-    fn show_set(&self, _: StyleChain) -> Styles
-    {
-        let mut out = Styles::new();
-        out.set(TextElem::hyphenate, Smart::Custom(false));
-        out
-    }
-}
+impl ShowSet for Packed<LinkElem> { fn show_set( & self, _: StyleChain)->Styles { let mut out = Styles::new (); out.set (TextElem::hyphenate, Smart::Custom(false)); out } }
 
-pub(crate) fn body_from_url(url: &Url) -> Content
+pub (crate) fn body_from_url(url: & Url)->Content
 {
-    let stripped = url.strip_contact_scheme().map(|(_, s)| s.into());
-    TextElem::packed(stripped.unwrap_or_else(|| url.clone().into_inner()))
+    let stripped = url.strip_contact_scheme().map( | (_, s) | s.into());
+    TextElem::packed(stripped.unwrap_or_else( || url.clone().into_inner()))
 }
 
 /// A target where a link can go.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum LinkTarget
-{
-    Dest(Destination),
-    Label(Label),
-}
+pub enum LinkTarget { Dest(Destination), Label(Label), }
 
 impl LinkTarget
 {
     /// Resolves the destination.
-    pub fn resolve_early(
-        &self,
-        engine: &mut Engine,
-        span: Span,
-    ) -> SourceResult<Destination>
+    pub fn resolve_early( & self, engine: & mut Engine, span: Span,)->SourceResult<Destination>
     {
-        Ok(match self
-        {
-            LinkTarget::Dest(dest) => dest.clone(),
-            LinkTarget::Label(label) =>
+        Ok
+        (
+            match self
             {
-                let elem =
-                    engine.introspect(QueryLabelIntrospection(*label, span)).at(span)?;
-                Destination::Location(elem.location().unwrap())
+                LinkTarget::Dest(dest) => dest.clone(),
+                LinkTarget::Label(label) =>
+                {
+                    let elem =
+                    engine.introspect(QueryLabelIntrospection( * label, span)).at(span)?;
+                    Destination::Location(elem.location().unwrap())
+                }
             }
-        })
+        )
     }
 
     /// Resolves the destination without an engine.
-    pub fn resolve_late(&self, introspector: &dyn Introspector)
-    -> StrResult<Destination>
+    pub fn resolve_late( & self, introspector: & dyn Introspector)
+   ->StrResult<Destination>
     {
-        Ok(match self
-        {
-            LinkTarget::Dest(dest) => dest.clone(),
-            LinkTarget::Label(label) =>
+        Ok
+        (
+            match self
             {
-                let elem = introspector.query_label(*label)?;
-                Destination::Location(elem.location().unwrap())
+                LinkTarget::Dest(dest) => dest.clone(),
+                LinkTarget::Label(label) => { let elem = introspector.query_label( * label)?; Destination::Location(elem.location().unwrap()) }
             }
-        })
+        )
     }
 }
 
-cast! {
+cast!
+{
     LinkTarget,
-    self => match self {
-        Self::Dest(v) => v.into_value(),
-        Self::Label(v) => v.into_value(),
-    },
+    self => match self { Self::Dest(v) => v.into_value(), Self::Label(v) => v.into_value(), },
     v: Destination => Self::Dest(v),
     v: Label => Self::Label(v),
 }
 
-impl From<Destination> for LinkTarget
-{
-    fn from(dest: Destination) -> Self
-    {
-        Self::Dest(dest)
-    }
-}
+impl From<Destination> for LinkTarget { fn from(dest: Destination)->Self { Self::Dest(dest) } }
 
 /// A link destination.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -339,68 +306,50 @@ pub enum Destination
 
 impl Destination
 {
-    pub fn alt_text(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-        span: Span,
-    ) -> SourceResult<EcoString>
+    pub fn alt_text( & self, engine: & mut Engine, styles: StyleChain, span: Span,)->SourceResult<EcoString>
     {
         match self
         {
             Destination::Url(url) =>
             {
-                let contact = url.strip_contact_scheme().map(|(scheme, stripped)| {
-                    eco_format!("{} {stripped}", scheme.local_name_in(styles))
-                });
-                Ok(contact.unwrap_or_else(|| url.clone().into_inner()))
+                let contact = url.strip_contact_scheme().map( | (scheme, stripped) | { eco_format ! ("{} {stripped}", scheme.local_name_in(styles)) });
+                Ok(contact.unwrap_or_else( || url.clone().into_inner()))
             }
             Destination::Position(pos) =>
             {
-                let page_nr = eco_format!("{}", pos.page.get());
+                let page_nr = eco_format!("{}", pos.page.get ());
                 let page_str = PageElem::local_name_in(styles);
-                Ok(eco_format!("{page_str} {page_nr}"))
+                Ok(eco_format ! ("{page_str} {page_nr}"))
             }
-            &Destination::Location(loc) =>
+            & Destination::Location(loc) =>
             {
-                let fallback = |engine: &mut Engine| {
+                let fallback = | engine: & mut Engine |
+                {
                     // Fall back to a generating a page reference.
                     let numbering =
-                        loc.page_numbering(engine, span).unwrap_or_else(|| {
-                            NumberingPattern::from_str("1").unwrap().into()
-                        });
-                    let page_nr = Counter::new(CounterKey::Page)
-                        .display_at(engine, loc, styles, &numbering, span)?
-                        .plain_text();
+                    loc.page_numbering(engine, span).unwrap_or_else( || { NumberingPattern::from_str("1").unwrap().into() });
+                    let page_nr = Counter:: new (CounterKey::Page)
+                    .display_at(engine, loc, styles, & numbering, span)?
+                    .plain_text();
                     let page_str = PageElem::local_name_in(styles);
-                    Ok(eco_format!("{page_str} {page_nr}"))
+                    Ok(eco_format ! ("{page_str} {page_nr}"))
                 };
 
                 // Try to generate more meaningful alt text if the location is a
                 // refable element.
                 if let Some(elem) = engine
-                    .introspect(QueryFirstIntrospection(Selector::Location(loc), span))
-                    && let Some(refable) = elem.with::<dyn Refable>()
+                .introspect(QueryFirstIntrospection(Selector::Location(loc), span))
+                && let Some(refable) = elem.with::<dyn Refable>()
                 {
                     let counter = refable.counter();
                     let supplement = refable.supplement().plain_text();
 
                     if let Some(numbering) = refable.numbering()
                     {
-                        let numbers = counter.display_at(
-                            engine,
-                            loc,
-                            styles,
-                            &numbering.clone().trimmed(),
-                            span,
-                        )?;
-                        return Ok(eco_format!("{supplement} {}", numbers.plain_text()));
+                        let numbers = counter.display_at(engine, loc, styles, & numbering.clone().trimmed(), span,)?;
+                        return Ok(eco_format ! ("{supplement} {}", numbers.plain_text()));
                     }
-                    else
-                    {
-                        let page_ref = fallback(engine)?;
-                        return Ok(eco_format!("{supplement}, {page_ref}"));
-                    }
+                    else { let page_ref = fallback(engine)?; return Ok(eco_format ! ("{supplement}, {page_ref}")); }
                 }
 
                 fallback(engine)
@@ -409,21 +358,12 @@ impl Destination
     }
 }
 
-impl Repr for Destination
-{
-    fn repr(&self) -> EcoString
-    {
-        eco_format!("{self:?}")
-    }
-}
+impl Repr for Destination { fn repr( & self)->EcoString { eco_format ! ("{self:?}") } }
 
-cast! {
+cast!
+{
     Destination,
-    self => match self {
-        Self::Url(v) => v.into_value(),
-        Self::Position(v) => v.into_value(),
-        Self::Location(v) => v.into_value(),
-    },
+    self => match self { Self::Url(v) => v.into_value(), Self::Position(v) => v.into_value(), Self::Location(v) => v.into_value(), },
     v: Url => Self::Url(v),
     v: PagedPosition => Self::Position(v),
     v: Location => Self::Location(v),
@@ -436,52 +376,28 @@ pub struct Url(EcoString);
 impl Url
 {
     /// Create a URL from a string, checking the maximum length.
-    pub fn new(url: impl Into<EcoString>) -> StrResult<Self>
+    pub fn new (url: impl Into<EcoString>)->StrResult<Self>
     {
         let url = url.into();
-        if url.len() > 8000
-        {
-            bail!("URL is too long")
-        }
-        else if url.is_empty()
-        {
-            bail!("URL must not be empty")
-        }
+        if url.len() > 8000 { bail ! ("URL is too long") }
+        else if url.is_empty() { bail ! ("URL must not be empty") }
         Ok(Self(url))
     }
 
     /// Extract the underlying [`EcoString`].
-    pub fn into_inner(self) -> EcoString
-    {
-        self.0
-    }
+    pub fn into_inner(self)->EcoString { self .0 }
 
-    pub fn strip_contact_scheme(&self) -> Option<(UrlContactScheme, &str)>
+    pub fn strip_contact_scheme( & self)->Option<(UrlContactScheme, & str)>
     {
         [UrlContactScheme::Mailto, UrlContactScheme::Tel]
-            .into_iter()
-            .find_map(|scheme| {
-                let stripped = self.strip_prefix(scheme.as_str())?;
-                Some((scheme, stripped))
-            })
+        .into_iter()
+        .find_map( | scheme | { let stripped = self.strip_prefix(scheme.as_str())?; Some((scheme, stripped)) })
     }
 }
 
-impl Deref for Url
-{
-    type Target = EcoString;
+impl Deref for Url { type Target = EcoString; fn deref( & self)-> & Self::Target { & self .0 } }
 
-    fn deref(&self) -> &Self::Target
-    {
-        &self.0
-    }
-}
-
-cast! {
-    Url,
-    self => self.0.into_value(),
-    v: EcoString => Self::new(v)?,
-}
+cast! { Url, self => self .0.into_value(), v: EcoString => Self::new (v)?, }
 
 /// This is a temporary hack to dispatch to
 /// - a raw link that does not go through `LinkElem` in paged
@@ -497,45 +413,33 @@ cast! {
 #[elem(Construct)]
 pub struct DirectLinkElem
 {
-    #[required]
-    #[internal]
+    # [required]
+    # [internal]
     pub loc: Location,
-    #[required]
-    #[internal]
+    # [required]
+    # [internal]
     pub body: Content,
-    #[required]
-    #[internal]
+    # [required]
+    # [internal]
     pub alt: Option<EcoString>,
 }
 
-impl Construct for DirectLinkElem
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+impl Construct for DirectLinkElem { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
 
 /// An element that wraps all content that is @Content::linked to a destination.
 #[elem(Tagged, Construct)]
 pub struct LinkMarker
 {
     /// The content.
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub body: Content,
-    #[internal]
-    #[required]
+    # [internal]
+    # [required]
     pub alt: Option<EcoString>,
 }
 
-impl Construct for LinkMarker
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+impl Construct for LinkMarker { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
 
 #[derive(Copy, Clone)]
 pub enum UrlContactScheme
@@ -548,67 +452,32 @@ pub enum UrlContactScheme
 
 impl UrlContactScheme
 {
-    pub fn as_str(self) -> &'static str
-    {
-        match self
-        {
-            Self::Mailto => "mailto:",
-            Self::Tel => "tel:",
-        }
-    }
+    pub fn as_str(self)-> & 'static str { match self { Self::Mailto => "mailto:", Self::Tel => "tel:", } }
 
-    pub fn local_name_in(self, styles: StyleChain) -> &'static str
-    {
-        match self
-        {
-            UrlContactScheme::Mailto => Email::local_name_in(styles),
-            UrlContactScheme::Tel => Telephone::local_name_in(styles),
-        }
-    }
+    pub fn local_name_in(self, styles: StyleChain)-> & 'static str { match self { UrlContactScheme::Mailto => Email::local_name_in(styles), UrlContactScheme::Tel => Telephone::local_name_in(styles), } }
 }
 
 #[derive(Copy, Clone)]
 pub struct Email;
-impl LocalName for Email
-{
-    const KEY: &'static str = "email";
-}
+impl LocalName for Email { const KEY: & 'static str = "email"; }
 
 #[derive(Copy, Clone)]
 pub struct Telephone;
-impl LocalName for Telephone
-{
-    const KEY: &'static str = "telephone";
-}
+impl LocalName for Telephone { const KEY: & 'static str = "telephone"; }
 
 /// Creates unique IDs for elements.
-pub struct AnchorGenerator<'a>
-{
-    introspector: &'a dyn Introspector,
-    loc_counter: usize,
-    label_counter: FxHashMap<Label, usize>,
-}
+pub struct AnchorGenerator<'a> { introspector: & 'a dyn Introspector, loc_counter: usize, label_counter: FxHashMap<Label, usize>, }
 
-impl<'a> AnchorGenerator<'a>
+impl <'a> AnchorGenerator<'a>
 {
     /// Creates a new identificator.
-    pub fn new(introspector: &'a dyn Introspector) -> Self
-    {
-        Self {
-            introspector,
-            loc_counter: 0,
-            label_counter: FxHashMap::default(),
-        }
-    }
+    pub fn new (introspector: & 'a dyn Introspector)->Self { Self { introspector, loc_counter: 0, label_counter: FxHashMap::default (), } }
 
     /// Returns a reference to the underlying introspector.
-    pub fn introspector(&self) -> &'a dyn Introspector
-    {
-        self.introspector
-    }
+    pub fn introspector( & self)-> & 'a dyn Introspector { self.introspector }
 
     /// Generates an ID, potentially based on a label.
-    pub fn identify(&mut self, label: Option<Label>) -> EcoString
+    pub fn identify( & mut self, label: Option<Label>)->EcoString
     {
         if let Some(label) = label
         {
@@ -616,19 +485,16 @@ impl<'a> AnchorGenerator<'a>
             let text = resolved.as_str();
             if can_use_label_as_id(text)
             {
-                if self.introspector.label_count(label) == 1
-                {
-                    return text.into();
-                }
+                if self.introspector.label_count(label) == 1 { return text.into(); }
 
                 let counter = self.label_counter.entry(label).or_insert(0);
-                *counter += 1;
+                * counter += 1;
                 return disambiguate(self.introspector, text, counter);
             }
         }
 
         self.loc_counter += 1;
-        disambiguate(self.introspector, "loc", &mut self.loc_counter)
+        disambiguate(self.introspector, "loc", & mut self.loc_counter)
     }
 }
 
@@ -637,34 +503,24 @@ impl<'a> AnchorGenerator<'a>
 ///
 /// This is slightly more restrictive than HTML and CSS, but easier to
 /// understand and explain.
-fn can_use_label_as_id(label: &str) -> bool
+fn can_use_label_as_id(label: & str)-> bool
 {
-    !label.is_empty()
-        && label.chars().all(|c| c.is_alphanumeric() || matches!(c, '-' | '_'))
-        && !label.starts_with(|c: char| c.is_numeric() || c == '-')
+    ! label.is_empty()
+    && label.chars().all( | c | c.is_alphanumeric() || matches ! (c, '-' | '_'))
+    && ! label.starts_with( | c: char | c.is_numeric() || c == '-')
 }
 
 /// Disambiguates `text` with the suffix `-{counter}`, while ensuring that this
 /// does not result in a collision with an existing label.
-fn disambiguate(
-    introspector: &dyn Introspector,
-    text: &str,
-    counter: &mut usize,
-) -> EcoString
+fn disambiguate(introspector: & dyn Introspector, text: & str, counter: & mut usize,)->EcoString
 {
     loop
     {
         let disambiguated = eco_format!("{text}-{counter}");
-        if PicoStr::get(&disambiguated)
-            .and_then(Label::new)
-            .is_some_and(|label| introspector.label_count(label) > 0)
-        {
-            *counter += 1;
-        }
-        else
-        {
-            break disambiguated;
-        }
+        if PicoStr:: get( & disambiguated)
+        .and_then(Label::new)
+        .is_some_and( | label | introspector.label_count(label) > 0) { * counter += 1; }
+        else { break disambiguated; }
     }
 }
 
@@ -673,61 +529,44 @@ fn disambiguate(
 /// This is used in HTML export as there isn't a dedicated export stage that
 /// could make use of the [`LateLinkResolver`]. There is the HTML serialization,
 /// but that's not an appropriate stage for meaningful DOM manipulation.
-pub struct EarlyLinkResolver
-{
-    base: Location,
-    span: Span,
-}
+pub struct EarlyLinkResolver { base: Location, span: Span, }
 
 impl EarlyLinkResolver
 {
     /// Creates a resolver that resolves links relatively to the element with
     /// the given location.
-    pub fn new(base: Location, span: Span) -> Self
-    {
-        Self { base, span }
-    }
+    pub fn new (base: Location, span: Span)->Self { Self { base, span } }
 
     /// Resolves a link to the given location.
-    pub fn resolve(
-        &self,
-        engine: &mut Engine,
-        location: Location,
-    ) -> StrResult<ResolvedLink>
+    pub fn resolve( & self, engine: & mut Engine, location: Location,)->StrResult<ResolvedLink>
     {
         let from = engine.introspect(PathIntrospection(self.base, self.span));
         let to = engine.introspect(PathIntrospection(location, self.span));
         let anchor = engine
-            .introspect(LinkAnchorIntrospection(location, self.span))
-            .ok_or("failed to determine link anchor")?;
+        .introspect(LinkAnchorIntrospection(location, self.span))
+        .ok_or("failed to determine link anchor")?;
 
-        Ok(match (from, to)
-        {
-            // This is the normal case in single file export.
-            (None, None) => ResolvedLink::Local { anchor },
-            // This is the normal case in bundle export.
-            (Some(from), Some(to)) =>
+        Ok
+        (
+            match (from, to)
             {
-                if from == to
+                // This is the normal case in single file export.
+                (None, None) => ResolvedLink::Local { anchor },
+                // This is the normal case in bundle export.
+                (Some(from), Some(to)) =>
                 {
-                    ResolvedLink::Local { anchor }
+                    if from == to { ResolvedLink::Local { anchor } }
+                    else { ResolvedLink::Cross { from, to, anchor } }
                 }
-                else
-                {
-                    ResolvedLink::Cross { from, to, anchor }
-                }
+                // This can, for instance, happen when trying to link to
+                // metadata that is not within a document (top-level in the
+                // bundle).
+                (Some(_), None) => { bail ! ("link destination is not within a document") }
+                // This is rather unlikely because we can't resolve a link rule
+                // in a non-file. It could happen in a non-convergent case.
+                (None, Some(_)) => bail!("failed to resolve cross-link"),
             }
-            // This can, for instance, happen when trying to link to
-            // metadata that is not within a document (top-level in the
-            // bundle).
-            (Some(_), None) =>
-            {
-                bail!("link destination is not within a document")
-            }
-            // This is rather unlikely because we can't resolve a link rule
-            // in a non-file. It could happen in a non-convergent case.
-            (None, Some(_)) => bail!("failed to resolve cross-link"),
-        })
+        )
     }
 }
 
@@ -742,55 +581,44 @@ impl EarlyLinkResolver
 /// The downside is that links could be silently broken in a non-converging
 /// scenario where HTML would instead generate an error, so it's a bit of a
 /// trade-off and not entirely clear whether this is the best way to do it.
-pub struct LateLinkResolver<'a>
-{
-    base: Option<&'a VirtualPath>,
-    introspector: &'a dyn Introspector,
-}
+pub struct LateLinkResolver<'a> { base: Option <& 'a VirtualPath > , introspector: & 'a dyn Introspector, }
 
-impl<'a> LateLinkResolver<'a>
+impl <'a> LateLinkResolver<'a>
 {
     /// Creates a resolver.
     ///
     /// - In single-document export, `base` should be `None`.
     /// - In bundle export, `base` should be the path of the document relative
     ///   to which links shall be resolved.
-    pub fn new(base: Option<&'a VirtualPath>, introspector: &'a dyn Introspector)
-    -> Self
-    {
-        Self { base, introspector }
-    }
+    pub fn new (base: Option <& 'a VirtualPath > , introspector: & 'a dyn Introspector)
+   ->Self { Self { base, introspector } }
 }
 
 /// Resolves a link to the given location.
 #[comemo::track]
 #[expect(clippy::elidable_lifetime_names, reason = "required for `comemo::track`")]
-impl<'a> LateLinkResolver<'a>
+impl <'a> LateLinkResolver<'a>
 {
-    pub fn resolve(&self, location: Location) -> Option<ResolvedLink>
+    pub fn resolve( & self, location: Location)->Option<ResolvedLink>
     {
         let from = self.base;
         let to = self.introspector.path(location);
         let anchor = self.introspector.anchor(location)?.clone();
 
         // See `EarlyLinkResolver::resolve` for more details.
-        Some(match (from, to)
-        {
-            (None, None) => ResolvedLink::Local { anchor },
-            (Some(from), Some(to)) =>
+        Some
+        (
+            match (from, to)
             {
-                if from == to
+                (None, None) => ResolvedLink::Local { anchor },
+                (Some(from), Some(to)) =>
                 {
-                    ResolvedLink::Local { anchor }
+                    if from == to { ResolvedLink::Local { anchor } }
+                    else { ResolvedLink::Cross { from: from.clone(), to: to.clone(), anchor } }
                 }
-                else
-                {
-                    ResolvedLink::Cross { from: from.clone(), to: to.clone(), anchor }
-                }
+                (Some(_), None) => return None, (None, Some(_)) => return None,
             }
-            (Some(_), None) => return None,
-            (None, Some(_)) => return None,
-        })
+        )
     }
 }
 
@@ -826,43 +654,45 @@ impl ResolvedLink
     /// This will percent-encode characters in relative paths if necessary.
     /// Anchor fragments are guaranteed to be URI-compatible so they are not
     /// encoded.
-    pub fn into_relative_uri(self) -> StrResult<EcoString>
+    pub fn into_relative_uri(self)->StrResult<EcoString>
     {
-        Ok(match self
-        {
-            // Still write the empty anchor if linking to the document itself
-            // because `#` doesn't trigger a reload unlike an empty href.
-            Self::Local { anchor } => eco_format!("#{anchor}"),
-            Self::Cross { from, to, anchor } =>
+        Ok
+        (
+            match self
             {
-                let Some(parent) = from.parent()
-                else
+                // Still write the empty anchor if linking to the document itself
+                // because `#` doesn't trigger a reload unlike an empty href.
+                Self::Local { anchor }
+                => eco_format!("#{anchor}"),
+                Self::Cross { from, to, anchor }
+                =>
                 {
-                    // For this to happen, `src` would have to be `/`, which
-                    // is not allowed.
-                    bail!("containing document has invalid path");
-                };
+                    let Some(parent) = from.parent()
+                    else
+                    {
+                        // For this to happen, `src` would have to be `/`, which
+                        // is not allowed.
+                        bail!("containing document has invalid path");
+                    };
 
-                let relative_path = to.relative_from(&parent);
-                let encoded = percent_encode_path(&relative_path);
+                    let relative_path = to.relative_from( & parent);
+                    let encoded = percent_encode_path( & relative_path);
 
-                if anchor.is_empty()
-                {
-                    // Don't write a trailing `#` if linking to a full document.
-                    encoded
-                }
-                else
-                {
-                    eco_format!("{encoded}#{anchor}")
+                    if anchor.is_empty()
+                    {
+                        // Don't write a trailing `#` if linking to a full document.
+                        encoded
+                    }
+                    else { eco_format ! ("{encoded}#{anchor}") }
                 }
             }
-        })
+        )
     }
 }
 
 /// Cross-bundle relative paths may contain characters that are not safe to use
 /// in URIs. This function encodes them with percent encoding.
-fn percent_encode_path(relative_path: &str) -> EcoString
+fn percent_encode_path(relative_path: & str)->EcoString
 {
     /// This is the complement of an allow-list of alphanumeric + the listed
     /// chars. The double negation is necessary because `percent_encode`
@@ -875,25 +705,22 @@ fn percent_encode_path(relative_path: &str) -> EcoString
     /// in less pretty URIs while a missing encoding could result in a broken
     /// link.
     static NOT_PATH_SAFE: percent_encoding::AsciiSet = percent_encoding::NON_ALPHANUMERIC
-        // These are all unreserved.
-        .remove(b'-')
-        .remove(b'.')
-        .remove(b'_')
-        .remove(b'~')
-        // Slashes should be kept as-is, as they separate fragments in the
-        // relative path.
-        .remove(b'/');
+    // These are all unreserved.
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_')
+    .remove(b'~')
+    // Slashes should be kept as-is, as they separate fragments in the
+    // relative path.
+    .remove(b'/');
 
     // Encode the path with URI encoding.
     let encoded_parts =
-        percent_encoding::percent_encode(relative_path.as_bytes(), &NOT_PATH_SAFE);
+    percent_encoding::percent_encode(relative_path.as_bytes(), & NOT_PATH_SAFE);
 
     // TODO: This loop can be replaced with `collect()` after bumping to ecow 0.3.
-    let mut encoded = EcoString::new();
-    for item in encoded_parts
-    {
-        encoded.push_str(item);
-    }
+    let mut encoded = EcoString:: new ();
+    for item in encoded_parts { encoded.push_str(item); }
 
     encoded
 }
@@ -906,31 +733,13 @@ impl Introspect for LinkAnchorIntrospection
 {
     type Output = Option<EcoString>;
 
-    fn introspect(
-        &self,
-        _: &mut Engine,
-        introspector: Tracked<dyn Introspector + '_>,
-    ) -> Self::Output
-    {
-        introspector.anchor(self.0).cloned()
-    }
+    fn introspect( & self, _: & mut Engine, introspector: Tracked<dyn Introspector + '_>,)->Self::Output { introspector.anchor(self .0).cloned() }
 
-    fn diagnose(&self, history: &History<Self::Output>) -> SourceDiagnostic
+    fn diagnose( & self, history: & History<Self::Output>)->SourceDiagnostic
     {
         let introspector = history.final_introspector();
-        let what = match introspector.query_first(&Selector::Location(self.0))
-        {
-            Some(content) => content.elem().name(),
-            None => "element",
-        };
-        warning!(
-            self.1,
-            "link anchor assigned to the destination {what} did not stabilize",
-        )
-        .with_hint(history.hint("anchors", |id| match id
-        {
-            Some(id) => id.clone(),
-            None => "(no anchor)".into(),
-        }))
+        let what = match introspector.query_first( & Selector::Location(self .0)) { Some(content) => content.elem().name(), None => "element", };
+        warning!(self .1, "link anchor assigned to the destination {what} did not stabilize",)
+        .with_hint(history.hint("anchors", | id | match id { Some(id) => id.clone(), None => "(no anchor)".into(), }))
     }
 }

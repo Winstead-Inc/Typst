@@ -1,27 +1,20 @@
-use krilla::action::{Action, LinkAction};
+use krilla::action:: { Action, LinkAction };
 use krilla::annotation::Target;
 use krilla::destination::XyzDestination;
 use krilla::geom as kg;
-use typst_library::diag::{At, ExpectInternal, SourceResult, bail};
+use typst_library::diag:: { At, ExpectInternal, SourceResult, bail };
 use typst_library::introspection::PagedPosition;
-use typst_library::layout::{Abs, Point, Size};
-use typst_library::model::{Destination, ResolvedLink};
+use typst_library::layout:: { Abs, Point, Size };
+use typst_library::model:: { Destination, ResolvedLink };
 use typst_syntax::Span;
 
-use crate::convert::{FrameContext, GlobalContext, PageIndexConverter};
-use crate::tags::{self, AnnotationId, GroupId};
+use crate::convert:: { FrameContext, GlobalContext, PageIndexConverter };
+use crate::tags:: { self, AnnotationId, GroupId };
 use crate::util::PointExt;
 
-pub(crate) struct LinkAnnotation
-{
-    pub kind: LinkAnnotationKind,
-    pub alt: Option<String>,
-    pub span: Span,
-    pub rects: Vec<kg::Rect>,
-    pub target: Target,
-}
+pub (crate) struct LinkAnnotation { pub kind: LinkAnnotationKind, pub alt: Option<String>, pub span: Span, pub rects: Vec<kg::Rect>, pub target: Target, }
 
-pub(crate) enum LinkAnnotationKind
+pub (crate) enum LinkAnnotationKind
 {
     /// A link annotation that is tagged within a `Link` structure element.
     Tagged(AnnotationId),
@@ -29,42 +22,31 @@ pub(crate) enum LinkAnnotationKind
     Artifact,
 }
 
-pub(crate) fn handle_link(
-    fc: &mut FrameContext,
-    gc: &mut GlobalContext,
-    dest: &Destination,
-    size: Size,
-) -> SourceResult<()>
+pub (crate) fn handle_link(fc: & mut FrameContext, gc: & mut GlobalContext, dest: & Destination, size: Size,)->SourceResult<()>
 {
     let target = match dest
     {
-        Destination::Url(u) =>
-        {
-            Target::Action(Action::Link(LinkAction::new(u.to_string())))
-        }
+        Destination::Url(u) => { Target::Action(Action::Link(LinkAction::new (u.to_string()))) }
         Destination::Position(p) =>
         {
-            let Some(dest) = pos_to_xyz(&gc.page_index_converter, *p)
-            else
-            {
-                return Ok(());
-            };
+            let Some(dest) = pos_to_xyz( & gc.page_index_converter, * p)
+            else { return Ok(()); };
             Target::Destination(krilla::destination::Destination::Xyz(dest))
         }
         Destination::Location(loc) =>
         {
             if let Some(resolver) = gc.link_resolver
-                && let Some(kind @ ResolvedLink::Cross { .. }) = resolver.resolve(*loc)
-                && let Ok(uri) = kind.into_relative_uri()
+            && let Some(kind @ ResolvedLink::Cross {.. }) = resolver.resolve( * loc)
+            && let Ok(uri) = kind.into_relative_uri()
             {
                 // Cross-links could potentially also be emitted as Go-To Remote
                 // actions (for PDFs) or Launch actions for other files.
                 // However, this is not yet supported in krilla. Viewer support
                 // is not great either way: Link actions are good for browsers
                 // while the others work better in Acrobat.
-                Target::Action(Action::Link(LinkAction::new(uri.into())))
+                Target::Action(Action::Link(LinkAction::new (uri.into())))
             }
-            else if let Some(nd) = gc.loc_to_names.get(loc)
+            else if let Some(nd) = gc.loc_to_names. get(loc)
             {
                 // If a named destination has been registered, it's already guaranteed to
                 // not point to an excluded page.
@@ -75,15 +57,12 @@ pub(crate) fn handle_link(
                 // TODO: Consider erroring or at least warning if the location
                 // cannot be resolved.
                 let pos = gc
-                    .document
-                    .introspector()
-                    .position(*loc)
-                    .unwrap_or(PagedPosition::ORIGIN);
-                let Some(dest) = pos_to_xyz(&gc.page_index_converter, pos)
-                else
-                {
-                    return Ok(());
-                };
+                .document
+                .introspector()
+                .position( * loc)
+                .unwrap_or(PagedPosition::ORIGIN);
+                let Some(dest) = pos_to_xyz( & gc.page_index_converter, pos)
+                else { return Ok(()); };
                 Target::Destination(krilla::destination::Destination::Xyz(dest))
             }
         }
@@ -94,10 +73,11 @@ pub(crate) fn handle_link(
     if tags::disabled(gc)
     {
         if gc.tags.in_tiling
-            && let Some(accessibility) = gc.options.validators().accessibility()
+        && let Some(accessibility) = gc.options.validators().accessibility()
         {
             let validator = accessibility.as_str();
-            bail!(
+            bail!
+            (
                 Span::detached(),
                 "{validator} error: PDF artifacts may not contain links";
                 hint: "a link was used within a tiling";
@@ -106,22 +86,13 @@ pub(crate) fn handle_link(
             );
         }
 
-        fc.push_link_annotation(
-            GroupId::INVALID,
-            LinkAnnotation {
-                kind: LinkAnnotationKind::Artifact,
-                alt: None,
-                span: Span::detached(),
-                rects: vec![rect],
-                target,
-            },
-        );
+        fc.push_link_annotation(GroupId::INVALID, LinkAnnotation { kind: LinkAnnotationKind::Artifact, alt: None, span: Span::detached(), rects: vec ! [rect], target, },);
         return Ok(());
     }
 
     let (group_id, link) = (gc.tags.tree.parent_link())
-        .expect_internal("expected link ancestor in logical tree")
-        .at(Span::detached())?;
+    .expect_internal("expected link ancestor in logical tree")
+    .at(Span::detached())?;
     let alt = link.alt.as_ref().map(Into::into);
 
     if gc.tags.tree.parent_artifact().is_some()
@@ -129,7 +100,8 @@ pub(crate) fn handle_link(
         if let Some(accessibility) = gc.options.validators().accessibility()
         {
             let validator = accessibility.as_str();
-            bail!(
+            bail!
+            (
                 link.span(),
                 "{validator} error: PDF artifacts may not contain links";
                 hint: "references, citations, and footnotes \
@@ -137,16 +109,7 @@ pub(crate) fn handle_link(
             );
         }
 
-        fc.push_link_annotation(
-            group_id,
-            LinkAnnotation {
-                kind: LinkAnnotationKind::Artifact,
-                alt,
-                span: link.span(),
-                rects: vec![rect],
-                target,
-            },
-        );
+        fc.push_link_annotation(group_id, LinkAnnotation { kind: LinkAnnotationKind::Artifact, alt, span: link.span(), rects: vec ! [rect], target, },);
         return Ok(());
     }
 
@@ -167,16 +130,7 @@ pub(crate) fn handle_link(
         _ =>
         {
             let annot_id = gc.tags.annotations.reserve();
-            fc.push_link_annotation(
-                group_id,
-                LinkAnnotation {
-                    kind: LinkAnnotationKind::Tagged(annot_id),
-                    alt,
-                    span: link.span(),
-                    rects: vec![rect],
-                    target,
-                },
-            );
+            fc.push_link_annotation(group_id, LinkAnnotation { kind: LinkAnnotationKind::Tagged(annot_id), alt, span: link.span(), rects: vec ! [rect], target, },);
             let group = gc.tags.tree.groups.get_mut(group_id);
             group.push_annotation(annot_id);
         }
@@ -186,15 +140,10 @@ pub(crate) fn handle_link(
 }
 
 /// Compute the bounding box of the transformed rectangle for this frame.
-fn bounding_box(fc: &FrameContext, size: Size) -> kg::Rect
+fn bounding_box(fc: & FrameContext, size: Size)->kg::Rect
 {
     let pos = Point::zero();
-    let points = [
-        pos + Point::with_y(size.y),
-        pos + size.to_point(),
-        pos + Point::with_x(size.x),
-        pos,
-    ];
+    let points = [pos + Point::with_y(size.y), pos + size.to_point(), pos + Point::with_x(size.x), pos,];
 
     let mut min_x = f32::INFINITY;
     let mut min_y = f32::INFINITY;
@@ -220,13 +169,10 @@ fn bounding_box(fc: &FrameContext, size: Size) -> kg::Rect
 /// - Consistently shifts the link by 10pt because the position of e.g.
 ///   backlinks to footnotes is always at the baseline and if you link directly
 ///   to it, the text will not be visible since it is right above.
-pub(crate) fn pos_to_xyz(
-    pic: &PageIndexConverter,
-    pos: PagedPosition,
-) -> Option<XyzDestination>
+pub (crate) fn pos_to_xyz(pic: & PageIndexConverter, pos: PagedPosition,)->Option<XyzDestination>
 {
-    let page_index = pic.pdf_page_index(pos.page.get() - 1)?;
+    let page_index = pic.pdf_page_index(pos.page.get () - 1)?;
     let adjusted =
-        Point::new(pos.point.x, (pos.point.y - Abs::pt(10.0)).max(Abs::zero()));
-    Some(XyzDestination::new(page_index, adjusted.to_krilla()))
+    Point:: new (pos.point.x, (pos.point.y - Abs::pt(10.0)).max(Abs::zero()));
+    Some(XyzDestination::new (page_index, adjusted.to_krilla()))
 }

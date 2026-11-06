@@ -1,12 +1,12 @@
 use typst_syntax::Spanned;
 
 use crate::diag::bail;
-use crate::foundations::{Cast, Content, Value, elem};
+use crate::foundations:: { Cast, Content, Value, elem };
 use crate::layout::Em;
 use crate::math::Mathy;
 
 /// How much padding to add around each side of a fraction.
-pub const FRAC_PADDING: Em = Em::new(0.1);
+pub const FRAC_PADDING: Em = Em:: new (0.1);
 
 /// A mathematical fraction.
 ///
@@ -25,11 +25,11 @@ pub const FRAC_PADDING: Em = Em::new(0.1);
 pub struct FracElem
 {
     /// The fraction's numerator.
-    #[required]
+    # [required]
     pub num: Content,
 
     /// The fraction's denominator.
-    #[required]
+    # [required]
     pub denom: Content,
 
     /// How the fraction should be laid out.
@@ -93,21 +93,21 @@ pub struct FracElem
     ///   #assert.eq($p/q$, $std.math.frac(p, q)$)
     ///   ```
     /// )
-    #[default(FracStyle::Vertical)]
+    # [default (FracStyle::Vertical)]
     pub style: FracStyle,
 
     /// Whether the numerator was originally surrounded by parentheses that were
     /// stripped by the parser.
-    #[internal]
-    #[parse(None)]
-    #[default(false)]
+    # [internal]
+    # [parse(None)]
+    # [default (false)]
     pub num_deparenthesized: bool,
 
     /// Whether the denominator was originally surrounded by parentheses that
     /// were stripped by the parser.
-    #[internal]
-    #[parse(None)]
-    #[default(false)]
+    # [internal]
+    # [parse(None)]
+    # [default (false)]
     pub denom_deparenthesized: bool,
 }
 
@@ -116,7 +116,7 @@ pub struct FracElem
 pub enum FracStyle
 {
     /// Stacked numerator and denominator with a bar.
-    #[default]
+    # [default]
     Vertical,
     /// Numerator and denominator separated by a slash.
     Skewed,
@@ -136,19 +136,24 @@ pub enum FracStyle
 pub struct BinomElem
 {
     /// The binomial's upper index.
-    #[required]
+    # [required]
     pub upper: Content,
 
     /// The binomial's lower index.
-    #[required]
-    #[variadic]
-    #[parse(
-        let values = args.all::<Spanned<Value>>()?;
-        if values.is_empty() {
-            // Prevents one element binomials
-            bail!(args.span, "missing argument: lower");
-        }
-        values.into_iter().map(|spanned| spanned.v.display()).collect()
-    )]
+    # [required]
+    # [variadic]
+    #
+    [
+        parse
+        (
+            let values = args.all::<Spanned<Value>>()?;
+            if values.is_empty()
+            {
+                // Prevents one element binomials
+                bail!(args.span, "missing argument: lower");
+            }
+            values.into_iter().map( | spanned | spanned.v.display()).collect()
+        )
+    ]
     pub lower: Vec<Content>,
 }

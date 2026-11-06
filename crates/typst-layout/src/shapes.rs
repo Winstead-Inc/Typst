@@ -1,52 +1,46 @@
 use std::f64::consts::SQRT_2;
 
-use kurbo::{CubicBez, ParamCurveExtrema};
-use typst_library::diag::{SourceResult, bail};
+use kurbo:: { CubicBez, ParamCurveExtrema };
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::foundations::{Content, Packed, Resolve, Smart, StyleChain};
+use typst_library::foundations:: { Content, Packed, Resolve, Smart, StyleChain };
 use typst_library::introspection::Locator;
-use typst_library::layout::{
-    Abs, Axes, Corner, Corners, Frame, FrameItem, Point, Ratio, Region, Rel, Sides, Size,
-};
-use typst_library::visualize::{
+use typst_library::layout:: { Abs, Axes, Corner, Corners, Frame, FrameItem, Point, Ratio, Region, Rel, Sides, Size, };
+use typst_library::visualize::
+{
     CircleElem, CloseMode, Curve, CurveComponent, CurveElem, EllipseElem, FillRule,
     FixedStroke, Geometry, LineCap, LineElem, Paint, PolygonElem, RectElem, Shape,
     SquareElem, Stroke,
 };
 use typst_syntax::Span;
-use typst_utils::{Get, Numeric};
+use typst_utils:: { Get, Numeric };
 
 /// Layout the line.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_line(
-    elem: &Packed<LineElem>,
-    _: &mut Engine,
-    _: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_line(elem: & Packed<LineElem>, _: & mut Engine, _: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let resolve = |axes: Axes<Rel<Abs>>| axes.zip_map(region.size, Rel::relative_to);
+    let resolve = | axes: Axes < Rel < Abs >>| axes.zip_map(region.size, Rel::relative_to);
     let start = resolve(elem.start.resolve(styles));
     let delta = elem
-        .end
-        .resolve(styles)
-        .map(|end| resolve(end) - start)
-        .unwrap_or_else(|| {
+    .end
+    .resolve(styles)
+    .map( | end | resolve(end) - start)
+    .unwrap_or_else
+    (
+        ||
+        {
             let length = elem.length.resolve(styles);
-            let angle = elem.angle.get(styles);
+            let angle = elem.angle. get(styles);
             let x = angle.cos() * length;
             let y = angle.sin() * length;
-            resolve(Axes::new(x, y))
-        });
+            resolve(Axes::new (x, y))
+        }
+    );
 
     let stroke = elem.stroke.resolve(styles).unwrap_or_default();
     let size = start.max(start + delta).max(Size::zero());
 
-    if !size.is_finite()
-    {
-        bail!(elem.span(), "cannot create line with infinite length");
-    }
+    if ! size.is_finite() { bail ! (elem.span(),"cannot create line with infinite length"); }
 
     let mut frame = Frame::soft(size);
     let shape = Geometry::Line(delta.to_point()).stroked(stroke);
@@ -56,44 +50,35 @@ pub fn layout_line(
 
 /// Layout the curve.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_curve(
-    elem: &Packed<CurveElem>,
-    _: &mut Engine,
-    _: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_curve(elem: & Packed<CurveElem>, _: & mut Engine, _: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let mut builder = CurveBuilder::new(region, styles);
+    let mut builder = CurveBuilder:: new (region, styles);
 
-    for item in &elem.components
+    for item in & elem.components
     {
         match item
         {
             CurveComponent::Move(element) =>
             {
-                let relative = element.relative.get(styles);
+                let relative = element.relative. get(styles);
                 let point = builder.resolve_point(element.start, relative);
                 builder.move_(point);
             }
 
             CurveComponent::Line(element) =>
             {
-                let relative = element.relative.get(styles);
+                let relative = element.relative. get(styles);
                 let point = builder.resolve_point(element.end, relative);
                 builder.line(point);
             }
 
             CurveComponent::Quad(element) =>
             {
-                let relative = element.relative.get(styles);
+                let relative = element.relative. get(styles);
                 let end = builder.resolve_point(element.end, relative);
                 let control = match element.control
                 {
-                    Smart::Auto =>
-                    {
-                        control_c2q(builder.last_point, builder.last_control_from)
-                    }
+                    Smart::Auto => { control_c2q(builder.last_point, builder.last_control_from) }
                     Smart::Custom(Some(p)) => builder.resolve_point(p, relative),
                     Smart::Custom(None) => end,
                 };
@@ -102,7 +87,7 @@ pub fn layout_curve(
 
             CurveComponent::Cubic(element) =>
             {
-                let relative = element.relative.get(styles);
+                let relative = element.relative. get(styles);
                 let end = builder.resolve_point(element.end, relative);
                 let c1 = match element.control_start
                 {
@@ -110,49 +95,31 @@ pub fn layout_curve(
                     Some(Smart::Auto) => builder.last_control_from,
                     None => builder.last_point,
                 };
-                let c2 = match element.control_end
-                {
-                    Some(p) => builder.resolve_point(p, relative),
-                    None => end,
-                };
+                let c2 = match element.control_end { Some(p) => builder.resolve_point(p, relative), None => end, };
                 builder.cubic(c1, c2, end);
             }
 
-            CurveComponent::Close(element) =>
-            {
-                builder.close(element.mode.get(styles));
-            }
+            CurveComponent::Close(element) => { builder.close(element.mode.get (styles)); }
         }
     }
 
     let (curve, size) = builder.finish();
-    if curve.is_empty()
-    {
-        return Ok(Frame::soft(size));
-    }
+    if curve.is_empty() { return Ok(Frame::soft(size)); }
 
-    if !size.is_finite()
-    {
-        bail!(elem.span(), "cannot create curve with infinite size");
-    }
+    if ! size.is_finite() { bail ! (elem.span(),"cannot create curve with infinite size"); }
 
     // Prepare fill and stroke.
     let fill = elem.fill.get_cloned(styles);
-    let fill_rule = elem.fill_rule.get(styles);
+    let fill_rule = elem.fill_rule. get(styles);
     let stroke = match elem.stroke.resolve(styles)
     {
-        Smart::Auto if fill.is_none() => Some(FixedStroke::default()),
+        Smart::Auto if fill.is_none() => Some(FixedStroke::default ()),
         Smart::Auto => None,
         Smart::Custom(stroke) => stroke.map(Stroke::unwrap_or_default),
     };
 
     let mut frame = Frame::soft(size);
-    let shape = Shape {
-        geometry: Geometry::Curve(curve),
-        stroke,
-        fill,
-        fill_rule,
-    };
+    let shape = Shape { geometry: Geometry::Curve(curve), stroke, fill, fill_rule, };
     frame.push(Point::zero(), FrameItem::Shape(shape, elem.span()));
     Ok(frame)
 }
@@ -183,13 +150,14 @@ struct CurveBuilder<'a>
     is_empty: bool,
 }
 
-impl<'a> CurveBuilder<'a>
+impl <'a> CurveBuilder<'a>
 {
     /// Create a new curve builder.
-    fn new(region: Region, styles: StyleChain<'a>) -> Self
+    fn new (region: Region, styles: StyleChain<'a>)->Self
     {
-        Self {
-            curve: Curve::new(),
+        Self
+        {
+            curve: Curve:: new (),
             size: Size::zero(),
             region,
             styles,
@@ -203,13 +171,10 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Finish building, returning the curve and its bounding size.
-    fn finish(self) -> (Curve, Size)
-    {
-        (self.curve, self.size)
-    }
+    fn finish(self)->(Curve, Size) { (self.curve, self.size) }
 
     /// Move to a point, starting a new segment.
-    fn move_(&mut self, point: Point)
+    fn move_( & mut self, point: Point)
     {
         // Delay calling `curve.move` in case there is another move element
         // before any actual drawing.
@@ -223,13 +188,9 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Add a line segment.
-    fn line(&mut self, point: Point)
+    fn line( & mut self, point: Point)
     {
-        if self.is_empty
-        {
-            self.start_component();
-            self.start_control_into = self.start_point;
-        }
+        if self.is_empty { self.start_component(); self.start_control_into = self.start_point; }
         self.curve.line(point);
         self.expand_bounds(point);
         self.last_point = point;
@@ -237,7 +198,7 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Add a quadratic curve segment.
-    fn quad(&mut self, control: Point, end: Point)
+    fn quad( & mut self, control: Point, end: Point)
     {
         let c1 = control_q2c(self.last_point, control);
         let c2 = control_q2c(end, control);
@@ -245,20 +206,16 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Add a cubic curve segment.
-    fn cubic(&mut self, c1: Point, c2: Point, end: Point)
+    fn cubic( & mut self, c1: Point, c2: Point, end: Point)
     {
-        if self.is_empty
-        {
-            self.start_component();
-            self.start_control_into = mirror_c(self.start_point, c1);
-        }
+        if self.is_empty { self.start_component(); self.start_control_into = mirror_c(self.start_point, c1); }
         self.curve.cubic(c1, c2, end);
 
         let p0 = point_to_kurbo(self.last_point);
         let p1 = point_to_kurbo(c1);
         let p2 = point_to_kurbo(c2);
         let p3 = point_to_kurbo(end);
-        let extrema = CubicBez::new(p0, p1, p2, p3).bounding_box();
+        let extrema = CubicBez:: new (p0, p1, p2, p3).bounding_box();
         self.size.x.set_max(Abs::raw(extrema.x1));
         self.size.y.set_max(Abs::raw(extrema.y1));
 
@@ -267,18 +224,11 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Close the curve if it was opened.
-    fn close(&mut self, mode: CloseMode)
+    fn close( & mut self, mode: CloseMode)
     {
-        if self.is_started && !self.is_empty
+        if self.is_started && ! self.is_empty
         {
-            if mode == CloseMode::Smooth
-            {
-                self.cubic(
-                    self.last_control_from,
-                    self.start_control_into,
-                    self.start_point,
-                );
-            }
+            if mode == CloseMode::Smooth { self.cubic(self.last_control_from, self.start_control_into, self.start_point,); }
             self.curve.close();
             self.last_point = self.start_point;
             self.last_control_from = self.start_point;
@@ -288,129 +238,80 @@ impl<'a> CurveBuilder<'a>
     }
 
     /// Push the initial move component.
-    fn start_component(&mut self)
-    {
-        self.curve.move_(self.start_point);
-        self.is_empty = false;
-        self.is_started = true;
-    }
+    fn start_component( & mut self) { self.curve.move_(self.start_point); self.is_empty = false; self.is_started = true; }
 
     /// Expand the curve's bounding box.
-    fn expand_bounds(&mut self, point: Point)
-    {
-        self.size.x.set_max(point.x);
-        self.size.y.set_max(point.y);
-    }
+    fn expand_bounds( & mut self, point: Point) { self.size.x.set_max(point.x); self.size.y.set_max(point.y); }
 
     /// Resolve the point relative to the region.
-    fn resolve_point(&self, point: Axes<Rel>, relative: bool) -> Point
+    fn resolve_point( & self, point: Axes<Rel>, relative: bool)->Point
     {
         let mut p = point
-            .resolve(self.styles)
-            .zip_map(self.region.size, Rel::relative_to)
-            .to_point();
-        if relative
-        {
-            p += self.last_point;
-        }
+        .resolve(self.styles)
+        .zip_map(self.region.size, Rel::relative_to)
+        .to_point();
+        if relative { p += self.last_point; }
         p
     }
 }
 
 /// Convert a cubic control point into a quadratic one.
-fn control_c2q(p: Point, c: Point) -> Point
-{
-    1.5 * c - 0.5 * p
-}
+fn control_c2q(p: Point, c: Point)->Point { 1.5 * c - 0.5 * p }
 
 /// Convert a quadratic control point into a cubic one.
-fn control_q2c(p: Point, c: Point) -> Point
-{
-    (p + 2.0 * c) / 3.0
-}
+fn control_q2c(p: Point, c: Point)->Point { (p + 2.0 * c) / 3.0 }
 
 /// Mirror a control point.
-fn mirror_c(p: Point, c: Point) -> Point
-{
-    2.0 * p - c
-}
+fn mirror_c(p: Point, c: Point)->Point { 2.0 * p - c }
 
 /// Convert a point to a `kurbo::Point`.
-fn point_to_kurbo(point: Point) -> kurbo::Point
-{
-    kurbo::Point::new(point.x.to_raw(), point.y.to_raw())
-}
+fn point_to_kurbo(point: Point)->kurbo::Point { kurbo::Point::new (point.x.to_raw(), point.y.to_raw()) }
 
 /// Layout the polygon.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_polygon(
-    elem: &Packed<PolygonElem>,
-    _: &mut Engine,
-    _: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_polygon(elem: & Packed<PolygonElem>, _: & mut Engine, _: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    let points: Vec<Point> = elem
-        .vertices
-        .iter()
-        .map(|c| c.resolve(styles).zip_map(region.size, Rel::relative_to).to_point())
-        .collect();
+    let points: Vec < Point > = elem
+    .vertices
+    .iter()
+    .map( | c | c.resolve(styles).zip_map(region.size, Rel::relative_to).to_point())
+    .collect();
 
-    let size = points.iter().fold(Point::zero(), |max, c| c.max(max)).to_size();
-    if !size.is_finite()
-    {
-        bail!(elem.span(), "cannot create polygon with infinite size");
-    }
+    let size = points.iter().fold(Point::zero(), | max, c | c.max(max)).to_size();
+    if ! size.is_finite() { bail ! (elem.span(),"cannot create polygon with infinite size"); }
 
     let mut frame = Frame::soft(size);
 
     // Only create a curve if there are more than zero points.
-    if points.is_empty()
-    {
-        return Ok(frame);
-    }
+    if points.is_empty() { return Ok(frame); }
 
     // Prepare fill and stroke.
     let fill = elem.fill.get_cloned(styles);
-    let fill_rule = elem.fill_rule.get(styles);
+    let fill_rule = elem.fill_rule. get(styles);
     let stroke = match elem.stroke.resolve(styles)
     {
-        Smart::Auto if fill.is_none() => Some(FixedStroke::default()),
+        Smart::Auto if fill.is_none() => Some(FixedStroke::default ()),
         Smart::Auto => None,
         Smart::Custom(stroke) => stroke.map(Stroke::unwrap_or_default),
     };
 
     // Construct a closed curve given all points.
-    let mut curve = Curve::new();
+    let mut curve = Curve:: new ();
     curve.move_(points[0]);
-    for &point in &points[1..]
-    {
-        curve.line(point);
-    }
+    for & point in & points[1..] { curve.line(point); }
     curve.close();
 
-    let shape = Shape {
-        geometry: Geometry::Curve(curve),
-        stroke,
-        fill,
-        fill_rule,
-    };
+    let shape = Shape { geometry: Geometry::Curve(curve), stroke, fill, fill_rule, };
     frame.push(Point::zero(), FrameItem::Shape(shape, elem.span()));
     Ok(frame)
 }
 
 /// Lay out the rectangle.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_rect(
-    elem: &Packed<RectElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_rect(elem: & Packed<RectElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    layout_shape(
+    layout_shape
+    (
         engine,
         locator,
         styles,
@@ -428,15 +329,10 @@ pub fn layout_rect(
 
 /// Lay out the square.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_square(
-    elem: &Packed<SquareElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_square(elem: & Packed<SquareElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    layout_shape(
+    layout_shape
+    (
         engine,
         locator,
         styles,
@@ -454,15 +350,10 @@ pub fn layout_square(
 
 /// Lay out the ellipse.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_ellipse(
-    elem: &Packed<EllipseElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_ellipse(elem: & Packed<EllipseElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    layout_shape(
+    layout_shape
+    (
         engine,
         locator,
         styles,
@@ -470,7 +361,7 @@ pub fn layout_ellipse(
         ShapeKind::Ellipse,
         elem.body.get_ref(styles),
         elem.fill.get_cloned(styles),
-        elem.stroke.resolve(styles).map(|s| Sides::splat(Some(s))),
+        elem.stroke.resolve(styles).map( | s | Sides::splat(Some(s))),
         elem.inset.resolve(styles),
         elem.outset.resolve(styles),
         Corners::splat(None),
@@ -480,15 +371,10 @@ pub fn layout_ellipse(
 
 /// Lay out the circle.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_circle(
-    elem: &Packed<CircleElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    region: Region,
-) -> SourceResult<Frame>
+pub fn layout_circle(elem: & Packed<CircleElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, region: Region,)->SourceResult<Frame>
 {
-    layout_shape(
+    layout_shape
+    (
         engine,
         locator,
         styles,
@@ -496,7 +382,7 @@ pub fn layout_circle(
         ShapeKind::Circle,
         elem.body.get_ref(styles),
         elem.fill.get_cloned(styles),
-        elem.stroke.resolve(styles).map(|s| Sides::splat(Some(s))),
+        elem.stroke.resolve(styles).map( | s | Sides::splat(Some(s))),
         elem.inset.resolve(styles),
         elem.outset.resolve(styles),
         Corners::splat(None),
@@ -521,34 +407,30 @@ enum ShapeKind
 impl ShapeKind
 {
     /// Whether this shape kind is curvy.
-    fn is_round(self) -> bool
-    {
-        matches!(self, Self::Circle | Self::Ellipse)
-    }
+    fn is_round(self)-> bool { matches ! (self, Self::Circle | Self::Ellipse) }
 
     /// Whether this shape kind has equal side length.
-    fn is_quadratic(self) -> bool
-    {
-        matches!(self, Self::Square | Self::Circle)
-    }
+    fn is_quadratic(self)-> bool { matches ! (self, Self::Square | Self::Circle) }
 }
 
 /// Layout a shape.
 #[expect(clippy::too_many_arguments)]
-fn layout_shape(
-    engine: &mut Engine,
+fn layout_shape
+(
+    engine: & mut Engine,
     locator: Locator,
     styles: StyleChain,
     region: Region,
     kind: ShapeKind,
-    body: &Option<Content>,
+    body: & Option<Content>,
     fill: Option<Paint>,
-    stroke: Smart<Sides<Option<Option<Stroke<Abs>>>>>,
-    inset: Sides<Option<Rel<Abs>>>,
-    outset: Sides<Option<Rel<Abs>>>,
-    radius: Corners<Option<Rel<Abs>>>,
+    stroke: Smart < Sides < Option < Option < Stroke < Abs >>>>> ,
+    inset: Sides < Option < Rel < Abs >>> ,
+    outset: Sides < Option < Rel < Abs >>> ,
+    radius: Corners < Option < Rel < Abs >>> ,
     span: Span,
-) -> SourceResult<Frame>
+)
+->SourceResult<Frame>
 {
     let mut frame;
     if let Some(child) = body
@@ -557,16 +439,13 @@ fn layout_shape(
         if kind.is_round()
         {
             // Apply extra inset to round shapes.
-            inset = inset.map(|v| v + Ratio::new(0.5 - SQRT_2 / 4.0));
+            inset = inset.map( | v | v + Ratio::new (0.5 - SQRT_2 / 4.0));
         }
-        let has_inset = !inset.is_zero();
+        let has_inset = ! inset.is_zero();
 
         // Take the inset, if any, into account.
         let mut pod = region;
-        if has_inset
-        {
-            pod.size = crate::pad::shrink(region.size, &inset);
-        }
+        if has_inset { pod.size = crate::pad::shrink(region.size, & inset); }
 
         // If the shape is quadratic, we first measure it to determine its size
         // and then layout with full expansion to force the aspect ratio and
@@ -580,38 +459,28 @@ fn layout_shape(
                 {
                     // Take as much as the child wants, but without overflowing.
                     crate::layout_frame(engine, child, locator.relayout(), styles, pod)?
-                        .size()
-                        .max_by_side()
-                        .min(pod.size.min_by_side())
+                    .size()
+                    .max_by_side()
+                    .min(pod.size.min_by_side())
                 }
             };
 
-            pod = Region::new(Size::splat(length), Axes::splat(true));
+            pod = Region:: new (Size::splat(length), Axes::splat(true));
         }
 
         // Layout the child.
         frame = crate::layout_frame(engine, child, locator, styles, pod)?;
 
         // Apply the inset.
-        if has_inset
-        {
-            crate::pad::grow(&mut frame, &inset);
-        }
+        if has_inset { crate::pad::grow( & mut frame, & inset); }
     }
     else
     {
         // The default size that a shape takes on if it has no child and no
         // forced sizes.
-        let default = Size::new(Abs::pt(45.0), Abs::pt(30.0)).min(region.size);
+        let default = Size:: new (Abs::pt(45.0), Abs::pt(30.0)).min(region.size);
 
-        let size = if kind.is_quadratic()
-        {
-            Size::splat(match quadratic_size(region)
-            {
-                Some(length) => length,
-                None => default.min_by_side(),
-            })
-        }
+        let size = if kind.is_quadratic() { Size::splat(match quadratic_size(region) { Some(length) => length, None => default.min_by_side(), }) }
         else
         {
             // For each dimension, pick the region size if forced, otherwise
@@ -626,12 +495,9 @@ fn layout_shape(
     // Prepare stroke.
     let stroke = match stroke
     {
-        Smart::Auto if fill.is_none() => Sides::splat(Some(FixedStroke::default())),
+        Smart::Auto if fill.is_none() => Sides::splat(Some(FixedStroke::default ())),
         Smart::Auto => Sides::splat(None),
-        Smart::Custom(strokes) =>
-        {
-            strokes.unwrap_or_default().map(|s| s.map(Stroke::unwrap_or_default))
-        }
+        Smart::Custom(strokes) => { strokes.unwrap_or_default().map( | s | s.map(Stroke::unwrap_or_default)) }
     };
 
     // Add fill and/or stroke.
@@ -641,26 +507,11 @@ fn layout_shape(
         {
             let outset = outset.unwrap_or_default().relative_to(frame.size());
             let size = frame.size() + outset.sum_by_axis();
-            let pos = Point::new(-outset.left, -outset.top);
-            let shape = Shape {
-                geometry: Geometry::Curve(Curve::ellipse(size)),
-                fill,
-                stroke: stroke.left,
-                fill_rule: FillRule::default(),
-            };
+            let pos = Point:: new ( - outset.left, - outset.top);
+            let shape = Shape { geometry: Geometry::Curve(Curve::ellipse(size)), fill, stroke: stroke.left, fill_rule: FillRule::default (), };
             frame.prepend(pos, FrameItem::Shape(shape, span));
         }
-        else
-        {
-            fill_and_stroke(
-                &mut frame,
-                fill,
-                &stroke,
-                &outset.unwrap_or_default(),
-                &radius.unwrap_or_default(),
-                span,
-            );
-        }
+        else { fill_and_stroke( & mut frame, fill, & stroke, & outset.unwrap_or_default(), & radius.unwrap_or_default(), span,); }
     }
 
     Ok(frame)
@@ -670,7 +521,7 @@ fn layout_shape(
 ///
 /// The size is forced if at least one axis is expanded because `expand` is
 /// `true` for axes whose size was manually specified by the user.
-fn quadratic_size(region: Region) -> Option<Abs>
+fn quadratic_size(region: Region)->Option<Abs>
 {
     if region.expand.x && region.expand.y
     {
@@ -678,192 +529,125 @@ fn quadratic_size(region: Region) -> Option<Abs>
         // smaller one.
         Some(region.size.x.min(region.size.y))
     }
-    else if region.expand.x
-    {
-        Some(region.size.x)
-    }
-    else if region.expand.y
-    {
-        Some(region.size.y)
-    }
-    else
-    {
-        None
-    }
+    else if region.expand.x { Some(region.size.x) }
+    else if region.expand.y { Some(region.size.y) }
+    else { None }
 }
 
 /// Creates a new rectangle as a curve.
-pub fn clip_rect(
-    size: Size,
-    radius: &Corners<Rel<Abs>>,
-    stroke: &Sides<Option<FixedStroke>>,
-    outset: &Sides<Rel<Abs>>,
-) -> Curve
+pub fn clip_rect(size: Size, radius: & Corners<Rel<Abs>>, stroke: & Sides<Option<FixedStroke>>, outset: & Sides<Rel<Abs>>,)->Curve
 {
     let outset = outset.relative_to(size);
     let size = size + outset.sum_by_axis();
 
-    let stroke_widths = stroke.as_ref().map(|s| s.as_ref().map(|s| s.thickness / 2.0));
+    let stroke_widths = stroke.as_ref().map( | s | s.as_ref().map( | s | s.thickness / 2.0));
 
     let base_radius = size.x.min(size.y) / 2.0;
     let corner_max =
-        stroke_widths.map_corners(|a, b| base_radius + a.min(b).unwrap_or(Abs::zero()));
+    stroke_widths.map_corners( | a, b | base_radius + a.min(b).unwrap_or(Abs::zero()));
 
     let radius = radius
-        .zip(corner_max)
-        .map(|(value, max)| value.relative_to(max * 2.0).min(max));
-    let corners = corners_control_points(size, &radius, stroke, &stroke_widths);
+    .zip(corner_max)
+    .map( | (value, max) | value.relative_to(max * 2.0).min(max));
+    let corners = corners_control_points(size, & radius, stroke, & stroke_widths);
 
-    let mut curve = Curve::new();
+    let mut curve = Curve:: new ();
     if corners.top_left.arc_inner()
     {
-        curve.arc_move(
-            corners.top_left.start_inner(),
-            corners.top_left.center_inner(),
-            corners.top_left.end_inner(),
-        );
+        curve.arc_move(corners.top_left.start_inner(), corners.top_left.center_inner(), corners.top_left.end_inner(),);
     }
-    else
+    else { curve.move_(corners.top_left.center_inner()); }
+    for corner in[ & corners.top_right, & corners.bottom_right, & corners.bottom_left]
     {
-        curve.move_(corners.top_left.center_inner());
-    }
-    for corner in [&corners.top_right, &corners.bottom_right, &corners.bottom_left]
-    {
-        if corner.arc_inner()
-        {
-            curve.arc_line(
-                corner.start_inner(),
-                corner.center_inner(),
-                corner.end_inner(),
-            );
-        }
-        else
-        {
-            curve.line(corner.center_inner());
-        }
+        if corner.arc_inner() { curve.arc_line(corner.start_inner(), corner.center_inner(), corner.end_inner(),); }
+        else { curve.line(corner.center_inner()); }
     }
     curve.close();
-    curve.translate(Point::new(-outset.left, -outset.top));
+    curve.translate(Point::new ( - outset.left, - outset.top));
     curve
 }
 
 /// Add a fill and stroke with optional radius and outset to the frame.
-pub fn fill_and_stroke(
-    frame: &mut Frame,
+pub fn fill_and_stroke
+(
+    frame: & mut Frame,
     fill: Option<Paint>,
-    stroke: &Sides<Option<FixedStroke>>,
-    outset: &Sides<Rel<Abs>>,
-    radius: &Corners<Rel<Abs>>,
+    stroke: & Sides<Option<FixedStroke>>,
+    outset: & Sides<Rel<Abs>>,
+    radius: & Corners<Rel<Abs>>,
     span: Span,
 )
 {
     let outset = outset.relative_to(frame.size());
     let size = frame.size() + outset.sum_by_axis();
-    let pos = Point::new(-outset.left, -outset.top);
-    frame.prepend_multiple(
-        styled_rect(size, radius, fill, stroke)
-            .into_iter()
-            .map(|x| (pos, FrameItem::Shape(x, span))),
-    );
+    let pos = Point:: new ( - outset.left, - outset.top);
+    frame.prepend_multiple(styled_rect(size, radius, fill, stroke).into_iter().map( | x | (pos, FrameItem::Shape(x, span))),);
 }
 
 /// Create a styled rectangle with shapes.
 /// - use rect primitive for simple rectangles
 /// - stroke sides if possible
 /// - use fill for sides for best looks
-pub fn styled_rect(
-    size: Size,
-    radius: &Corners<Rel<Abs>>,
-    fill: Option<Paint>,
-    stroke: &Sides<Option<FixedStroke>>,
-) -> Vec<Shape>
+pub fn styled_rect(size: Size, radius: & Corners<Rel<Abs>>, fill: Option<Paint>, stroke: & Sides<Option<FixedStroke>>,)->Vec<Shape>
 {
-    if stroke.is_uniform() && radius.iter().copied().all(Rel::is_zero)
-    {
-        simple_rect(size, fill, stroke.top.clone())
-    }
-    else
-    {
-        segmented_rect(size, radius, fill, stroke)
-    }
+    if stroke.is_uniform() && radius.iter().copied().all(Rel::is_zero) { simple_rect(size, fill, stroke.top.clone()) }
+    else { segmented_rect(size, radius, fill, stroke) }
 }
 
 /// Use rect primitive for the rectangle
 fn simple_rect(size: Size, fill: Option<Paint>, stroke: Option<FixedStroke>)
--> Vec<Shape>
-{
-    vec![Shape {
-        geometry: Geometry::Rect(size),
-        fill,
-        stroke,
-        fill_rule: FillRule::default(),
-    }]
-}
+->Vec<Shape> { vec ! [Shape { geometry: Geometry::Rect(size), fill, stroke, fill_rule: FillRule::default (), }] }
 
-fn corners_control_points(
-    size: Size,
-    radius: &Corners<Abs>,
-    strokes: &Sides<Option<FixedStroke>>,
-    stroke_widths: &Sides<Option<Abs>>,
-) -> Corners<ControlPoints>
+fn corners_control_points(size: Size, radius: & Corners<Abs>, strokes: & Sides<Option<FixedStroke>>, stroke_widths: & Sides<Option<Abs>>,)->Corners<ControlPoints>
 {
-    Corners {
-        top_left: Corner::TopLeft,
-        top_right: Corner::TopRight,
-        bottom_right: Corner::BottomRight,
-        bottom_left: Corner::BottomLeft,
-    }
-    .map(|corner| ControlPoints {
-        radius: radius.get(corner),
-        stroke_before: stroke_widths.get(corner.side_ccw()),
-        stroke_after: stroke_widths.get(corner.side_cw()),
-        corner,
-        size,
-        same: match (
-            strokes.get_ref(corner.side_ccw()),
-            strokes.get_ref(corner.side_cw()),
-        )
+    Corners { top_left: Corner::TopLeft, top_right: Corner::TopRight, bottom_right: Corner::BottomRight, bottom_left: Corner::BottomLeft, }
+    .map
+    (
+        | corner | ControlPoints
         {
-            (Some(a), Some(b)) =>
+            radius: radius. get(corner),
+            stroke_before: stroke_widths. get(corner.side_ccw()),
+            stroke_after: stroke_widths. get(corner.side_cw()),
+            corner,
+            size,
+            same: match (strokes.get_ref(corner.side_ccw()), strokes.get_ref(corner.side_cw()),)
             {
-                // Solid strokes can be drawn as `fill_segment`s.
-                let solid =
-                    a.dash.as_ref().map(|dash| dash.array.is_empty()).unwrap_or(true);
+                (Some(a), Some(b)) =>
+                {
+                    // Solid strokes can be drawn as `fill_segment`s.
+                    let solid =
+                    a.dash.as_ref().map( | dash | dash.array.is_empty()).unwrap_or(true);
 
-                // For solid strokes the caps are only relevant for the end of
-                // the strokes, and they can be filled. For dashed strokes the
-                // cap determines how the entire line is drawn, thus there
-                // should be two different segments if the cap differs.
-                let filled_segment_same = a.paint == b.paint && a.dash == b.dash;
-                let stroke_segment_same = a.cap == b.cap && a.thickness == b.thickness;
+                    // For solid strokes the caps are only relevant for the end of
+                    // the strokes, and they can be filled. For dashed strokes the
+                    // cap determines how the entire line is drawn, thus there
+                    // should be two different segments if the cap differs.
+                    let filled_segment_same = a.paint == b.paint && a.dash == b.dash;
+                    let stroke_segment_same = a.cap == b.cap && a.thickness == b.thickness;
 
-                filled_segment_same && (solid || stroke_segment_same)
-            }
-            (None, None) => true,
-            _ => false,
-        },
-    })
+                    filled_segment_same && (solid || stroke_segment_same)
+                }
+                (None, None) => true,
+                _ => false,
+            },
+        }
+    )
 }
 
 /// Use stroke and fill for the rectangle
-fn segmented_rect(
-    size: Size,
-    radius: &Corners<Rel<Abs>>,
-    fill: Option<Paint>,
-    strokes: &Sides<Option<FixedStroke>>,
-) -> Vec<Shape>
+fn segmented_rect(size: Size, radius: & Corners<Rel<Abs>>, fill: Option<Paint>, strokes: & Sides<Option<FixedStroke>>,)->Vec<Shape>
 {
     let mut res = vec![];
-    let stroke_widths = strokes.as_ref().map(|s| s.as_ref().map(|s| s.thickness / 2.0));
+    let stroke_widths = strokes.as_ref().map( | s | s.as_ref().map( | s | s.thickness / 2.0));
 
     let base_radius = size.x.abs().min(size.y.abs()) / 2.0;
     let corner_max =
-        stroke_widths.map_corners(|a, b| base_radius + a.min(b).unwrap_or(Abs::zero()));
+    stroke_widths.map_corners( | a, b | base_radius + a.min(b).unwrap_or(Abs::zero()));
 
     let radius = radius
-        .zip(corner_max)
-        .map(|(value, max)| value.relative_to(max * 2.0).min(max));
-    let corners = corners_control_points(size, &radius, strokes, &stroke_widths);
+    .zip(corner_max)
+    .map( | (value, max) | value.relative_to(max * 2.0).min(max));
+    let corners = corners_control_points(size, & radius, strokes, & stroke_widths);
 
     // insert stroked sides below filled sides
     let mut stroke_insert = 0;
@@ -871,40 +655,23 @@ fn segmented_rect(
     // fill shape with inner curve
     if let Some(fill) = fill
     {
-        let mut curve = Curve::new();
+        let mut curve = Curve:: new ();
         let c = corners.get_ref(Corner::TopLeft);
-        if c.arc()
-        {
-            curve.arc_move(c.start(), c.center(), c.end());
-        }
-        else
-        {
-            curve.move_(c.center());
-        }
+        if c.arc() { curve.arc_move(c.start(), c.center(), c.end()); }
+        else { curve.move_(c.center()); }
 
-        for corner in [Corner::TopRight, Corner::BottomRight, Corner::BottomLeft]
+        for corner in[Corner::TopRight, Corner::BottomRight, Corner::BottomLeft]
         {
             let c = corners.get_ref(corner);
-            if c.arc()
-            {
-                curve.arc_line(c.start(), c.center(), c.end());
-            }
-            else
-            {
-                curve.line(c.center());
-            }
+            if c.arc() { curve.arc_line(c.start(), c.center(), c.end()); }
+            else { curve.line(c.center()); }
         }
         curve.close();
-        res.push(Shape {
-            geometry: Geometry::Curve(curve),
-            fill: Some(fill),
-            fill_rule: FillRule::default(),
-            stroke: None,
-        });
+        res.push(Shape { geometry: Geometry::Curve(curve), fill: Some(fill), fill_rule: FillRule::default (), stroke: None, });
         stroke_insert += 1;
     }
 
-    let current = corners.iter().find(|c| !c.same).map(|c| c.corner);
+    let current = corners.iter().find( | c | ! c.same).map( | c | c.corner);
     if let Some(mut current) = current
     {
         // multiple segments
@@ -913,218 +680,106 @@ fn segmented_rect(
         for _ in 0..4
         {
             current = current.next_cw();
-            if corners.get_ref(current).same
-            {
-                continue;
-            }
+            if corners.get_ref(current).same { continue ; }
             // create segment
             let start = last;
             let end = current;
             last = current;
             let Some(stroke) = strokes.get_ref(start.side_cw())
-            else
-            {
-                continue;
-            };
+            else { continue ; };
             let start_cap = stroke.cap;
-            let end_cap = match strokes.get_ref(end.side_ccw())
-            {
-                Some(stroke) => stroke.cap,
-                None => start_cap,
-            };
+            let end_cap = match strokes.get_ref(end.side_ccw()) { Some(stroke) => stroke.cap, None => start_cap, };
             let (shape, ontop) =
-                segment(start, end, start_cap, end_cap, &corners, stroke);
-            if ontop
-            {
-                res.push(shape);
-            }
-            else
-            {
-                res.insert(stroke_insert, shape);
-                stroke_insert += 1;
-            }
+            segment(start, end, start_cap, end_cap, & corners, stroke);
+            if ontop { res.push(shape); }
+            else { res.insert(stroke_insert, shape); stroke_insert += 1; }
         }
     }
-    else if let Some(stroke) = &strokes.top
+    else if let Some(stroke) = & strokes.top
     {
         // single segment
-        let (shape, _) = segment(
-            Corner::TopLeft,
-            Corner::TopLeft,
-            stroke.cap,
-            stroke.cap,
-            &corners,
-            stroke,
-        );
+        let (shape, _) = segment(Corner::TopLeft, Corner::TopLeft, stroke.cap, stroke.cap, & corners, stroke,);
         res.push(shape);
     }
     res
 }
 
-fn curve_segment(
-    start: Corner,
-    end: Corner,
-    corners: &Corners<ControlPoints>,
-    curve: &mut Curve,
-)
+fn curve_segment(start: Corner, end: Corner, corners: & Corners<ControlPoints>, curve: & mut Curve,)
 {
     // create start corner
     let c = corners.get_ref(start);
-    if start == end || !c.arc()
-    {
-        curve.move_(c.end());
-    }
-    else
-    {
-        curve.arc_move(c.mid(), c.center(), c.end());
-    }
+    if start == end || ! c.arc() { curve.move_(c.end()); }
+    else { curve.arc_move(c.mid(), c.center(), c.end()); }
 
     // create corners between start and end
     let mut current = start.next_cw();
     while current != end
     {
         let c = corners.get_ref(current);
-        if c.arc()
-        {
-            curve.arc_line(c.start(), c.center(), c.end());
-        }
-        else
-        {
-            curve.line(c.end());
-        }
+        if c.arc() { curve.arc_line(c.start(), c.center(), c.end()); }
+        else { curve.line(c.end()); }
         current = current.next_cw();
     }
 
     // create end corner
     let c = corners.get_ref(end);
-    if !c.arc()
-    {
-        curve.line(c.start());
-    }
-    else if start == end
-    {
-        curve.arc_line(c.start(), c.center(), c.end());
-    }
-    else
-    {
-        curve.arc_line(c.start(), c.center(), c.mid());
-    }
+    if ! c.arc() { curve.line(c.start()); }
+    else if start == end { curve.arc_line(c.start(), c.center(), c.end()); }
+    else { curve.arc_line(c.start(), c.center(), c.mid()); }
 }
 
 /// Returns the shape for the segment and whether the shape should be drawn on top.
-fn segment(
-    start: Corner,
-    end: Corner,
-    start_cap: LineCap,
-    end_cap: LineCap,
-    corners: &Corners<ControlPoints>,
-    stroke: &FixedStroke,
-) -> (Shape, bool)
+fn segment(start: Corner, end: Corner, start_cap: LineCap, end_cap: LineCap, corners: & Corners<ControlPoints>, stroke: & FixedStroke,)->(Shape, bool)
 {
-    fn fill_corner(corner: &ControlPoints) -> bool
-    {
-        corner.stroke_before != corner.stroke_after
-            || corner.radius() < corner.stroke_width_before()
-    }
+    fn fill_corner(corner: & ControlPoints)-> bool { corner.stroke_before != corner.stroke_after || corner.radius() < corner.stroke_width_before() }
 
-    fn fill_corners(start: Corner, end: Corner, corners: &Corners<ControlPoints>)
-    -> bool
+    fn fill_corners(start: Corner, end: Corner, corners: & Corners<ControlPoints>)
+   -> bool
     {
-        if fill_corner(corners.get_ref(start))
-        {
-            return true;
-        }
-        if fill_corner(corners.get_ref(end))
-        {
-            return true;
-        }
+        if fill_corner(corners.get_ref(start)) { return true; }
+        if fill_corner(corners.get_ref(end)) { return true; }
         let mut current = start.next_cw();
-        while current != end
-        {
-            if fill_corner(corners.get_ref(current))
-            {
-                return true;
-            }
-            current = current.next_cw();
-        }
+        while current != end { if fill_corner(corners.get_ref(current)) { return true; } current = current.next_cw(); }
         false
     }
 
-    let solid = stroke.dash.as_ref().map(|dash| dash.array.is_empty()).unwrap_or(true);
+    let solid = stroke.dash.as_ref().map( | dash | dash.array.is_empty()).unwrap_or(true);
 
     let use_fill = solid && fill_corners(start, end, corners);
-    let shape = if use_fill
-    {
-        fill_segment(start, end, start_cap, end_cap, corners, stroke)
-    }
-    else
-    {
-        stroke_segment(start, end, corners, stroke.clone())
-    };
-
+    let shape = if use_fill { fill_segment(start, end, start_cap, end_cap, corners, stroke) }
+    else { stroke_segment(start, end, corners, stroke.clone()) };
     (shape, use_fill)
 }
 
 /// Stroke the sides from `start` to `end` clockwise.
-fn stroke_segment(
-    start: Corner,
-    end: Corner,
-    corners: &Corners<ControlPoints>,
-    stroke: FixedStroke,
-) -> Shape
+fn stroke_segment(start: Corner, end: Corner, corners: & Corners<ControlPoints>, stroke: FixedStroke,)->Shape
 {
     // Create start corner.
-    let mut curve = Curve::new();
-    curve_segment(start, end, corners, &mut curve);
+    let mut curve = Curve:: new ();
+    curve_segment(start, end, corners, & mut curve);
 
-    Shape {
-        geometry: Geometry::Curve(curve),
-        stroke: Some(stroke),
-        fill: None,
-        fill_rule: FillRule::default(),
-    }
+    Shape { geometry: Geometry::Curve(curve), stroke: Some(stroke), fill: None, fill_rule: FillRule::default (), }
 }
 
 /// Fill the sides from `start` to `end` clockwise.
-fn fill_segment(
-    start: Corner,
-    end: Corner,
-    start_cap: LineCap,
-    end_cap: LineCap,
-    corners: &Corners<ControlPoints>,
-    stroke: &FixedStroke,
-) -> Shape
+fn fill_segment(start: Corner, end: Corner, start_cap: LineCap, end_cap: LineCap, corners: & Corners<ControlPoints>, stroke: & FixedStroke,)->Shape
 {
-    let mut curve = Curve::new();
+    let mut curve = Curve:: new ();
 
     // create the start corner
     // begin on the inside and finish on the outside
     // no corner if start and end are equal
     // half corner if different
-    if start == end
-    {
-        let c = corners.get_ref(start);
-        curve.move_(c.end_inner());
-        curve.line(c.end_outer());
-    }
+    if start == end { let c = corners.get_ref(start); curve.move_(c.end_inner()); curve.line(c.end_outer()); }
     else
     {
         let c = corners.get_ref(start);
 
-        if c.arc_inner()
-        {
-            curve.arc_move(c.end_inner(), c.center_inner(), c.mid_inner());
-        }
-        else
-        {
-            curve.move_(c.end_inner());
-        }
+        if c.arc_inner() { curve.arc_move(c.end_inner(), c.center_inner(), c.mid_inner()); }
+        else { curve.move_(c.end_inner()); }
 
-        c.start_cap(&mut curve, start_cap);
-        if c.arc_outer()
-        {
-            curve.arc_line(c.mid_outer(), c.center_outer(), c.end_outer());
-        }
+        c.start_cap( & mut curve, start_cap);
+        if c.arc_outer() { curve.arc_line(c.mid_outer(), c.center_outer(), c.end_outer()); }
     }
 
     // create the clockwise outside curve for the corners between start and end
@@ -1132,14 +787,8 @@ fn fill_segment(
     while current != end
     {
         let c = corners.get_ref(current);
-        if c.arc_outer()
-        {
-            curve.arc_line(c.start_outer(), c.center_outer(), c.end_outer());
-        }
-        else
-        {
-            curve.line(c.outer());
-        }
+        if c.arc_outer() { curve.arc_line(c.start_outer(), c.center_outer(), c.end_outer()); }
+        else { curve.line(c.outer()); }
         current = current.next_cw();
     }
 
@@ -1150,40 +799,18 @@ fn fill_segment(
     if start == end
     {
         let c = corners.get_ref(end);
-        if c.arc_outer()
-        {
-            curve.arc_line(c.start_outer(), c.center_outer(), c.end_outer());
-        }
-        else
-        {
-            curve.line(c.outer());
-            curve.line(c.end_outer());
-        }
-        if c.arc_inner()
-        {
-            curve.arc_line(c.end_inner(), c.center_inner(), c.start_inner());
-        }
-        else
-        {
-            curve.line(c.center_inner());
-        }
+        if c.arc_outer() { curve.arc_line(c.start_outer(), c.center_outer(), c.end_outer()); }
+        else { curve.line(c.outer()); curve.line(c.end_outer()); }
+        if c.arc_inner() { curve.arc_line(c.end_inner(), c.center_inner(), c.start_inner()); }
+        else { curve.line(c.center_inner()); }
     }
     else
     {
         let c = corners.get_ref(end);
-        if c.arc_outer()
-        {
-            curve.arc_line(c.start_outer(), c.center_outer(), c.mid_outer());
-        }
-        else
-        {
-            curve.line(c.outer());
-        }
-        c.end_cap(&mut curve, end_cap);
-        if c.arc_inner()
-        {
-            curve.arc_line(c.mid_inner(), c.center_inner(), c.start_inner());
-        }
+        if c.arc_outer() { curve.arc_line(c.start_outer(), c.center_outer(), c.mid_outer()); }
+        else { curve.line(c.outer()); }
+        c.end_cap( & mut curve, end_cap);
+        if c.arc_inner() { curve.arc_line(c.mid_inner(), c.center_inner(), c.start_inner()); }
     }
 
     // create the counterclockwise inside curve for the corners between start and end
@@ -1191,25 +818,14 @@ fn fill_segment(
     while current != start
     {
         let c = corners.get_ref(current);
-        if c.arc_inner()
-        {
-            curve.arc_line(c.end_inner(), c.center_inner(), c.start_inner());
-        }
-        else
-        {
-            curve.line(c.center_inner());
-        }
+        if c.arc_inner() { curve.arc_line(c.end_inner(), c.center_inner(), c.start_inner()); }
+        else { curve.line(c.center_inner()); }
         current = current.next_ccw();
     }
 
     curve.close();
 
-    Shape {
-        geometry: Geometry::Curve(curve),
-        stroke: None,
-        fill: Some(stroke.paint.clone()),
-        fill_rule: FillRule::default(),
-    }
+    Shape { geometry: Geometry::Curve(curve), stroke: None, fill: Some(stroke.paint.clone()), fill_rule: FillRule::default (), }
 }
 
 /// Helper to calculate different control points for the corners.
@@ -1231,133 +847,70 @@ fn fill_segment(
 ///      |--ri--|
 ///    |-------r--------|
 /// ```
-struct ControlPoints
-{
-    radius: Abs,
-    stroke_after: Option<Abs>,
-    stroke_before: Option<Abs>,
-    corner: Corner,
-    size: Size,
-    same: bool,
-}
+struct ControlPoints { radius: Abs, stroke_after: Option<Abs>, stroke_before: Option<Abs>, corner: Corner, size: Size, same: bool , }
 
 impl ControlPoints
 {
     /// Move and rotate the point from top-left to the required corner.
-    fn rotate(&self, point: Point) -> Point
+    fn rotate( & self, point: Point)->Point
     {
         match self.corner
         {
-            Corner::TopLeft => Point {
-                x: self.size.x.signum() * point.x,
-                y: self.size.y.signum() * point.y,
-            },
-            Corner::TopRight => Point {
-                x: self.size.x - self.size.x.signum() * point.y,
-                y: self.size.y.signum() * point.x,
-            },
-            Corner::BottomRight => Point {
-                x: self.size.x - self.size.x.signum() * point.x,
-                y: self.size.y - self.size.y.signum() * point.y,
-            },
-            Corner::BottomLeft => Point {
-                x: self.size.x.signum() * point.y,
-                y: self.size.y - self.size.y.signum() * point.x,
-            },
+            Corner::TopLeft => Point { x: self.size.x.signum() * point.x, y: self.size.y.signum() * point.y, },
+            Corner::TopRight => Point { x: self.size.x - self.size.x.signum() * point.y, y: self.size.y.signum() * point.x, },
+            Corner::BottomRight => Point { x: self.size.x - self.size.x.signum() * point.x, y: self.size.y - self.size.y.signum() * point.y, },
+            Corner::BottomLeft => Point { x: self.size.x.signum() * point.y, y: self.size.y - self.size.y.signum() * point.x, },
         }
     }
 
     /// Whether to use the [`Self::stroke_after`] if [`Self::stroke_before`] is
     /// missing to compute the control points. If the radius is too small, caps
     /// other than the [`LineCap::Butt`] might be misshaped.
-    fn reuse_stroke_after_for_cap(&self) -> Option<Abs>
-    {
-        self.stroke_after.filter(|s| 2.0 * *s < self.radius)
-    }
+    fn reuse_stroke_after_for_cap( & self)->Option<Abs> { self.stroke_after.filter( | s | 2.0 * * s < self.radius) }
 
     /// Either fall back to [`Self::reuse_stroke_after_for_cap`] or zero.
-    fn stroke_width_before(&self) -> Abs
-    {
-        self.stroke_before
-            .or(self.reuse_stroke_after_for_cap())
-            .unwrap_or(Abs::zero())
-    }
+    fn stroke_width_before( & self)->Abs { self.stroke_before.or(self.reuse_stroke_after_for_cap()).unwrap_or(Abs::zero()) }
 
     /// Whether to use the [`Self::stroke_before`] if [`Self::stroke_after`] is
     /// missing to compute the control points. If the radius is too small, caps
     /// other than the [`LineCap::Butt`] might be misshaped.
-    fn reuse_stroke_before_for_cap(&self) -> Option<Abs>
-    {
-        self.stroke_before.filter(|s| 2.0 * *s < self.radius)
-    }
+    fn reuse_stroke_before_for_cap( & self)->Option<Abs> { self.stroke_before.filter( | s | 2.0 * * s < self.radius) }
 
     /// Either fall back to [`Self::reuse_stroke_before_for_cap`] or zero.
-    fn stroke_width_after(&self) -> Abs
-    {
-        self.stroke_after
-            .or(self.reuse_stroke_before_for_cap())
-            .unwrap_or(Abs::zero())
-    }
+    fn stroke_width_after( & self)->Abs { self.stroke_after.or(self.reuse_stroke_before_for_cap()).unwrap_or(Abs::zero()) }
 
     /// Outside intersection of the sides.
-    pub fn outer(&self) -> Point
-    {
-        self.rotate(Point {
-            x: -self.stroke_width_before(),
-            y: -self.stroke_width_after(),
-        })
-    }
+    pub fn outer( & self)->Point { self.rotate(Point { x: - self.stroke_width_before(), y: - self.stroke_width_after(), }) }
 
     /// Center for the outer arc.
-    pub fn center_outer(&self) -> Point
+    pub fn center_outer( & self)->Point
     {
         let r = self.radius_outer();
-        self.rotate(Point {
-            x: r - self.stroke_width_before(),
-            y: r - self.stroke_width_after(),
-        })
+        self.rotate(Point { x: r - self.stroke_width_before(), y: r - self.stroke_width_after(), })
     }
 
     /// Center for the middle arc.
-    pub fn center(&self) -> Point
-    {
-        let r = self.radius();
-        self.rotate(Point { x: r, y: r })
-    }
+    pub fn center( & self)->Point { let r = self.radius(); self.rotate(Point { x: r, y: r }) }
 
     /// Center for the inner arc.
-    pub fn center_inner(&self) -> Point
+    pub fn center_inner( & self)->Point
     {
         let r = self.radius_inner();
 
-        self.rotate(Point {
-            x: self.stroke_width_before() + r,
-            y: self.stroke_width_after() + r,
-        })
+        self.rotate(Point { x: self.stroke_width_before() + r, y: self.stroke_width_after() + r, })
     }
 
     /// Radius of the outer arc.
-    pub fn radius_outer(&self) -> Abs
-    {
-        self.radius
-    }
+    pub fn radius_outer( & self)->Abs { self.radius }
 
     /// Radius of the middle arc.
-    pub fn radius(&self) -> Abs
-    {
-        (self.radius - self.stroke_width_before().min(self.stroke_width_after()))
-            .max(Abs::zero())
-    }
+    pub fn radius( & self)->Abs { (self.radius - self.stroke_width_before().min(self.stroke_width_after())).max(Abs::zero()) }
 
     /// Radius of the inner arc.
-    pub fn radius_inner(&self) -> Abs
-    {
-        (self.radius - 2.0 * self.stroke_width_before().max(self.stroke_width_after()))
-            .max(Abs::zero())
-    }
+    pub fn radius_inner( & self)->Abs { (self.radius - 2.0 * self.stroke_width_before().max(self.stroke_width_after())).max(Abs::zero()) }
 
     /// Middle of the corner on the outside of the stroke.
-    pub fn mid_outer(&self) -> Point
+    pub fn mid_outer( & self)->Point
     {
         let c_i = self.center_inner();
         let c_o = self.center_outer();
@@ -1368,15 +921,15 @@ impl ControlPoints
         // intersection between the line from inner center to outside and the outer arc
         let a = (o.x - c_i.x).scalar().powi(2) + (o.y - c_i.y).scalar().powi(2);
         let b = 2.0 * (o.x - c_i.x).scalar() * (c_i.x - c_o.x).scalar()
-            + 2.0 * (o.y - c_i.y).scalar() * (c_i.y - c_o.y).scalar();
+        + 2.0 * (o.y - c_i.y).scalar() * (c_i.y - c_o.y).scalar();
         let c = (c_i.x - c_o.x).scalar().powi(2) + (c_i.y - c_o.y).scalar().powi(2)
-            - r.scalar().powi(2);
-        let t = (-b + (b * b - 4.0 * a * c).max(0.0.into()).sqrt()) / (2.0 * a);
-        c_i + t.get() * (o - c_i)
+        - r.scalar().powi(2);
+        let t = ( - b + (b * b - 4.0 * a * c).max(0.0.into()).sqrt()) / (2.0 * a);
+        c_i + t. get() * (o - c_i)
     }
 
     /// Middle of the corner in the middle of the stroke.
-    pub fn mid(&self) -> Point
+    pub fn mid( & self)->Point
     {
         let center = self.center();
         let outer = self.outer();
@@ -1385,7 +938,7 @@ impl ControlPoints
     }
 
     /// Middle of the corner on the inside of the stroke.
-    pub fn mid_inner(&self) -> Point
+    pub fn mid_inner( & self)->Point
     {
         let center = self.center_inner();
         let outer = self.outer();
@@ -1394,81 +947,42 @@ impl ControlPoints
     }
 
     /// If an outer arc is required.
-    pub fn arc_outer(&self) -> bool
-    {
-        self.radius_outer() > Abs::zero()
-    }
+    pub fn arc_outer( & self)-> bool { self.radius_outer() > Abs::zero() }
 
-    pub fn arc(&self) -> bool
-    {
-        self.radius() > Abs::zero()
-    }
+    pub fn arc( & self)-> bool { self.radius() > Abs::zero() }
 
     /// If an inner arc is required.
-    pub fn arc_inner(&self) -> bool
-    {
-        self.radius_inner() > Abs::zero()
-    }
+    pub fn arc_inner( & self)-> bool { self.radius_inner() > Abs::zero() }
 
     /// Start of the corner on the outside of the stroke.
-    pub fn start_outer(&self) -> Point
-    {
-        self.rotate(Point {
-            x: -self.stroke_width_before(),
-            y: self.radius_outer() - self.stroke_width_after(),
-        })
-    }
+    pub fn start_outer( & self)->Point { self.rotate(Point { x: - self.stroke_width_before(), y: self.radius_outer() - self.stroke_width_after(), }) }
 
     /// Start of the corner in the center of the stroke.
-    pub fn start(&self) -> Point
-    {
-        self.rotate(Point::with_y(self.radius()))
-    }
+    pub fn start( & self)->Point { self.rotate(Point::with_y(self.radius())) }
 
     /// Start of the corner on the inside of the stroke.
-    pub fn start_inner(&self) -> Point
-    {
-        self.rotate(Point {
-            x: self.stroke_width_before(),
-            y: self.stroke_width_after() + self.radius_inner(),
-        })
-    }
+    pub fn start_inner( & self)->Point { self.rotate(Point { x: self.stroke_width_before(), y: self.stroke_width_after() + self.radius_inner(), }) }
 
     /// End of the corner on the outside of the stroke.
-    pub fn end_outer(&self) -> Point
-    {
-        self.rotate(Point {
-            x: self.radius_outer() - self.stroke_width_before(),
-            y: -self.stroke_width_after(),
-        })
-    }
+    pub fn end_outer( & self)->Point { self.rotate(Point { x: self.radius_outer() - self.stroke_width_before(), y: - self.stroke_width_after(), }) }
 
     /// End of the corner in the center of the stroke.
-    pub fn end(&self) -> Point
-    {
-        self.rotate(Point::with_x(self.radius()))
-    }
+    pub fn end( & self)->Point { self.rotate(Point::with_x(self.radius())) }
 
     /// End of the corner on the inside of the stroke.
-    pub fn end_inner(&self) -> Point
-    {
-        self.rotate(Point {
-            x: self.stroke_width_before() + self.radius_inner(),
-            y: self.stroke_width_after(),
-        })
-    }
+    pub fn end_inner( & self)->Point { self.rotate(Point { x: self.stroke_width_before() + self.radius_inner(), y: self.stroke_width_after(), }) }
 
     /// Draw the cap at the beginning of the segment.
     ///
     /// If this corner has a stroke before it,
     /// a default "butt" cap is used.
-    pub fn start_cap(&self, curve: &mut Curve, cap_type: LineCap)
+    pub fn start_cap( & self, curve: & mut Curve, cap_type: LineCap)
     {
         // Avoid misshaped caps on small radii.
         let small_radius = self.reuse_stroke_after_for_cap().is_none();
         if cap_type == LineCap::Butt
-            || self.stroke_before.is_some()
-            || self.radius != Abs::zero() && small_radius
+        || self.stroke_before.is_some()
+        || self.radius != Abs::zero() && small_radius
         {
             // Just the default cap.
             curve.line(self.mid_outer());
@@ -1492,7 +1006,7 @@ impl ControlPoints
             // half of the circle gets drawn. If it is perfectly centered
             // the `arc` function just degenerates into a line, which we
             // do not want in this case.
-            let offset_dir = -line_normal(arc_start, arc_end);
+            let offset_dir = - line_normal(arc_start, arc_end);
             let arc_center = (arc_start + arc_end) / 2.0 + offset_dir;
             curve.arc(arc_start, arc_center, arc_end);
         }
@@ -1502,13 +1016,13 @@ impl ControlPoints
     ///
     /// If this corner has a stroke before it,
     /// a default "butt" cap is used.
-    pub fn end_cap(&self, curve: &mut Curve, cap_type: LineCap)
+    pub fn end_cap( & self, curve: & mut Curve, cap_type: LineCap)
     {
         // Avoid misshaped caps on small radii.
         let small_radius = self.reuse_stroke_before_for_cap().is_none();
         if cap_type == LineCap::Butt
-            || self.stroke_after.is_some()
-            || self.radius != Abs::zero() && small_radius
+        || self.stroke_after.is_some()
+        || self.radius != Abs::zero() && small_radius
         {
             // Just the default cap.
             curve.line(self.mid_inner());
@@ -1532,7 +1046,7 @@ impl ControlPoints
             // half of the circle gets drawn. If it is perfectly centered
             // the `arc` function just degenerates into a line, which we
             // do not want in this case.
-            let arc_center_offset = -line_normal(arc_start, arc_end);
+            let arc_center_offset = - line_normal(arc_start, arc_end);
             let arc_center = (arc_start + arc_end) / 2.0 + arc_center_offset;
             curve.arc(arc_start, arc_center, arc_end);
         }
@@ -1540,44 +1054,33 @@ impl ControlPoints
 }
 
 /// Computes the normal vector towards the left of the line.
-fn line_normal(start: Point, end: Point) -> Point
-{
-    (end - start).rot90ccw().normalized()
-}
+fn line_normal(start: Point, end: Point)->Point { (end - start).rot90ccw().normalized() }
 
 /// Helper to draw arcs with Bézier curves.
 trait CurveExt
 {
-    fn arc(&mut self, start: Point, center: Point, end: Point);
-    fn arc_move(&mut self, start: Point, center: Point, end: Point);
-    fn arc_line(&mut self, start: Point, center: Point, end: Point);
+    fn arc( & mut self, start: Point, center: Point, end: Point);
+    fn arc_move( & mut self, start: Point, center: Point, end: Point);
+    fn arc_line( & mut self, start: Point, center: Point, end: Point);
 }
 
 impl CurveExt for Curve
 {
-    fn arc(&mut self, start: Point, center: Point, end: Point)
+    fn arc( & mut self, start: Point, center: Point, end: Point)
     {
         let arc = bezier_arc_control(start, center, end);
         self.cubic(arc[0], arc[1], end);
     }
 
-    fn arc_move(&mut self, start: Point, center: Point, end: Point)
-    {
-        self.move_(start);
-        self.arc(start, center, end);
-    }
+    fn arc_move( & mut self, start: Point, center: Point, end: Point) { self.move_(start); self.arc(start, center, end); }
 
-    fn arc_line(&mut self, start: Point, center: Point, end: Point)
-    {
-        self.line(start);
-        self.arc(start, center, end);
-    }
+    fn arc_line( & mut self, start: Point, center: Point, end: Point) { self.line(start); self.arc(start, center, end); }
 }
 
 /// Get the control points for a Bézier curve that approximates a circular arc for
 /// a start point, an end point and a center of the circle whose arc connects
 /// the two.
-fn bezier_arc_control(start: Point, center: Point, end: Point) -> [Point; 2]
+fn bezier_arc_control(start: Point, center: Point, end: Point)->[Point; 2]
 {
     // https://stackoverflow.com/a/44829356/1567835
     let a = start - center;
@@ -1586,10 +1089,9 @@ fn bezier_arc_control(start: Point, center: Point, end: Point) -> [Point; 2]
     let q1 = a.x.to_raw() * a.x.to_raw() + a.y.to_raw() * a.y.to_raw();
     let q2 = q1 + a.x.to_raw() * b.x.to_raw() + a.y.to_raw() * b.y.to_raw();
     let k2 = (4.0 / 3.0) * ((2.0 * q1 * q2).sqrt() - q2)
-        / (a.x.to_raw() * b.y.to_raw() - a.y.to_raw() * b.x.to_raw());
+    / (a.x.to_raw() * b.y.to_raw() - a.y.to_raw() * b.x.to_raw());
 
-    let control_1 = Point::new(center.x + a.x - k2 * a.y, center.y + a.y + k2 * a.x);
-    let control_2 = Point::new(center.x + b.x + k2 * b.y, center.y + b.y - k2 * b.x);
-
+    let control_1 = Point:: new (center.x + a.x - k2 * a.y, center.y + a.y + k2 * a.x);
+    let control_2 = Point:: new (center.x + b.x + k2 * b.y, center.y + b.y - k2 * b.x);
     [control_1, control_2]
 }

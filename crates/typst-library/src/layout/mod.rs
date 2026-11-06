@@ -34,42 +34,42 @@ mod spacing;
 mod stack;
 mod transform;
 
-pub use self::abs::*;
-pub use self::align::*;
-pub use self::angle::*;
-pub use self::axes::*;
-pub use self::columns::*;
-pub use self::container::*;
-pub use self::corners::*;
-pub use self::dir::*;
-pub use self::em::*;
-pub use self::fr::*;
-pub use self::fragment::*;
-pub use self::frame::*;
-pub use self::grid::*;
-pub use self::hide::*;
-pub use self::layout_::*;
-pub use self::length::*;
-pub use self::measure_::*;
-pub use self::pad::*;
-pub use self::page::*;
-pub use self::place::*;
-pub use self::point::*;
-pub use self::ratio::*;
-pub use self::rect::*;
-pub use self::regions::*;
-pub use self::rel::*;
-pub use self::repeat::*;
-pub use self::sides::*;
-pub use self::size::*;
-pub use self::spacing::*;
-pub use self::stack::*;
-pub use self::transform::*;
+pub use self::abs:: * ;
+pub use self::align:: * ;
+pub use self::angle:: * ;
+pub use self::axes:: * ;
+pub use self::columns:: * ;
+pub use self::container:: * ;
+pub use self::corners:: * ;
+pub use self::dir:: * ;
+pub use self::em:: * ;
+pub use self::fr:: * ;
+pub use self::fragment:: * ;
+pub use self::frame:: * ;
+pub use self::grid:: * ;
+pub use self::hide:: * ;
+pub use self::layout_:: * ;
+pub use self::length:: * ;
+pub use self::measure_:: * ;
+pub use self::pad:: * ;
+pub use self::page:: * ;
+pub use self::place:: * ;
+pub use self::point:: * ;
+pub use self::ratio:: * ;
+pub use self::rect:: * ;
+pub use self::regions:: * ;
+pub use self::rel:: * ;
+pub use self::repeat:: * ;
+pub use self::sides:: * ;
+pub use self::size:: * ;
+pub use self::spacing:: * ;
+pub use self::stack:: * ;
+pub use self::transform:: * ;
 
 use crate::foundations::Scope;
 
 /// Hook up all `layout` definitions.
-pub fn define(global: &mut Scope)
+pub fn define(global: & mut Scope)
 {
     global.start_category(crate::Category::Layout);
     global.define_type::<Length>();

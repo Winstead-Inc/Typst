@@ -1,38 +1,32 @@
 use std::ops::Deref;
 
 use ecow::EcoString;
-use typst::foundations::{ParamInfo, Value};
-use typst::syntax::{LinkedNode, SyntaxKind, ast};
+use typst::foundations:: { ParamInfo, Value };
+use typst::syntax:: { LinkedNode, SyntaxKind, ast };
 
 use crate::IdeWorld;
 
 /// Tries to find documentation for an arbitrary value.
-pub fn find_value_docs(world: &dyn IdeWorld, value: &Value) -> Option<Docs>
+pub fn find_value_docs(world: & dyn IdeWorld, value: & Value)->Option<Docs>
 {
-    if let Some(docs) = value.docs()
-    {
-        return Some(Docs::Native(docs));
-    }
+    if let Some(docs) = value.docs() { return Some(Docs::Native(docs)); }
 
     // Try to find doc comment before a function definition.
     if let Value::Func(func) = value
-        && let span = func.span()
-        && let Some(id) = span.id()
-        && let Ok(source) = world.source(id)
-        && let Some(node) = source.find(span)
-        && node.kind() == SyntaxKind::Closure
-        && let Some(parent) = node.parent()
-        && parent.kind() == SyntaxKind::LetBinding
-        && let Some(docs) = Docs::collect_doc_comment(parent.clone())
-    {
-        return Some(docs);
-    }
+    && let span = func.span()
+    && let Some(id) = span.id()
+    && let Ok(source) = world.source(id)
+    && let Some(node) = source.find(span)
+    && node.kind() == SyntaxKind::Closure
+    && let Some(parent) = node.parent()
+    && parent.kind() == SyntaxKind::LetBinding
+    && let Some(docs) = Docs::collect_doc_comment(parent.clone()) { return Some(docs); }
 
     None
 }
 
 /// Tries to determine documentation for a parameter.
-pub fn find_param_docs(world: &dyn IdeWorld, param: &ParamInfo) -> Option<Docs>
+pub fn find_param_docs(world: & dyn IdeWorld, param: & ParamInfo)->Option<Docs>
 {
     match param
     {
@@ -41,12 +35,9 @@ pub fn find_param_docs(world: &dyn IdeWorld, param: &ParamInfo) -> Option<Docs>
         {
             // Try to find doc comment before parameter.
             if let Some(id) = param.span.id()
-                && let Ok(source) = world.source(id)
-                && let Some(node) = source.find(param.span)
-                && let Some(docs) = Docs::collect_doc_comment(node.clone())
-            {
-                return Some(docs);
-            }
+            && let Ok(source) = world.source(id)
+            && let Some(node) = source.find(param.span)
+            && let Some(docs) = Docs::collect_doc_comment(node.clone()) { return Some(docs); }
             None
         }
         ParamInfo::Plugin => None,
@@ -54,11 +45,7 @@ pub fn find_param_docs(world: &dyn IdeWorld, param: &ParamInfo) -> Option<Docs>
 }
 
 /// Documentation for something.
-pub enum Docs
-{
-    Native(&'static str),
-    Comment(EcoString),
-}
+pub enum Docs { Native( & 'static str), Comment(EcoString), }
 
 impl Docs
 {
@@ -70,42 +57,28 @@ impl Docs
     ///
     /// The presence of this function in typst/typst has *zero* implications on
     /// standardization of any kind of doc comment format at the language level!
-    pub fn collect_doc_comment(node: LinkedNode) -> Option<Docs>
+    pub fn collect_doc_comment(node: LinkedNode)->Option<Docs>
     {
-        let mut lines = Vec::new();
+        let mut lines = Vec:: new ();
 
         let mut current = node;
         while let Some(prev) = current.prev_sibling_with_trivia()
         {
-            if let Some(comment) = prev.get().cast::<ast::LineComment>()
+            if let Some(comment) = prev. get().cast::<ast::LineComment>()
             {
                 // Triple slash doc comments are pretty common in the ecosystem, so
                 // we strip that extra slash.
                 let text = comment.text();
                 lines.push(text.strip_prefix('/').unwrap_or(text));
             }
-            else if let Some(comment) = prev.get().cast::<ast::BlockComment>()
-            {
-                lines.push(comment.text());
-            }
-            else if !matches!(
-                prev.kind(),
-                SyntaxKind::SpaceNoNewline
-                    | SyntaxKind::SpaceWithNewline
-                    | SyntaxKind::Hash
-            )
-            {
-                break;
-            }
+            else if let Some(comment) = prev. get().cast::<ast::BlockComment>() { lines.push(comment.text()); }
+            else if ! matches!(prev.kind(), SyntaxKind::SpaceNoNewline | SyntaxKind::SpaceWithNewline | SyntaxKind::Hash) { break ; }
             current = prev;
         }
 
-        if lines.is_empty()
-        {
-            return None;
-        }
+        if lines.is_empty() { return None; }
 
-        let mut output = EcoString::new();
+        let mut output = EcoString:: new ();
         for line in lines.iter().rev()
         {
             // Remove up to one leading space for each line.
@@ -122,11 +95,11 @@ impl Docs
     ///
     /// For doc comments, it's unclear whether they contain plain text,
     /// Markdown, or Typst, but this is okay-ish for now.
-    pub fn summary(&self) -> EcoString
+    pub fn summary( & self)->EcoString
     {
         let paragraph = self.split("\n\n").next().unwrap_or_default();
-        let mut s = unscanny::Scanner::new(paragraph);
-        let mut output = EcoString::new();
+        let mut s = unscanny::Scanner:: new (paragraph);
+        let mut output = EcoString:: new ();
         let mut link = false;
         while let Some(c) = s.eat()
         {
@@ -136,10 +109,7 @@ impl Docs
                 {
                     let mut raw = s.eat_until('`');
                     if (raw.starts_with('{') && raw.ends_with('}'))
-                        || (raw.starts_with('[') && raw.ends_with(']'))
-                    {
-                        raw = &raw[1..raw.len() - 1];
-                    }
+                    || (raw.starts_with('[') && raw.ends_with(']')) { raw = & raw[1..raw.len() - 1]; }
 
                     s.eat();
                     output.push('`');
@@ -149,28 +119,16 @@ impl Docs
                 '[' => link = true,
                 ']' if link =>
                 {
-                    if s.eat_if('(')
-                    {
-                        s.eat_until(')');
-                        s.eat();
-                    }
-                    else if s.eat_if('[')
-                    {
-                        s.eat_until(']');
-                        s.eat();
-                    }
+                    if s.eat_if('(') { s.eat_until(')'); s.eat(); }
+                    else if s.eat_if('[') { s.eat_until(']'); s.eat(); }
                     link = false;
                 }
-                '*' | '_' =>
-                {}
+                '*' | '_' => {}
                 '.' =>
                 {
                     output.push('.');
                     // Avoid stopping on things like `See foo.bar.` or `e.g.`.
-                    if (s.done() || s.at(char::is_whitespace)) && s.scout(-3) != Some('.')
-                    {
-                        break;
-                    }
+                    if (s.done() || s.at(char::is_whitespace)) && s.scout( - 3) != Some('.') { break ; }
                 }
                 _ => output.push(c),
             }
@@ -184,24 +142,10 @@ impl Deref for Docs
 {
     type Target = str;
 
-    fn deref(&self) -> &Self::Target
-    {
-        match self
-        {
-            Self::Native(s) => s,
-            Self::Comment(s) => s,
-        }
-    }
+    fn deref( & self)-> & Self::Target { match self { Self::Native(s) => s, Self::Comment(s) => s, } }
 }
 
 impl From<Docs> for EcoString
 {
-    fn from(docs: Docs) -> Self
-    {
-        match docs
-        {
-            Docs::Native(s) => s.into(),
-            Docs::Comment(s) => s,
-        }
-    }
+    fn from(docs: Docs)->Self { match docs { Docs::Native(s) => s.into(), Docs::Comment(s) => s, } }
 }

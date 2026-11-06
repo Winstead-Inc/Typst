@@ -1,6 +1,6 @@
-use krilla::tagging::{self as kt, Node, Tag, TagGroup};
+use krilla::tagging:: { self as kt, Node, Tag, TagGroup };
 
-use crate::tags::resolve::{ElementKind, element_kind};
+use crate::tags::resolve:: { ElementKind, element_kind };
 
 pub struct Accumulator
 {
@@ -15,27 +15,17 @@ pub struct Accumulator
 impl Accumulator
 {
     /// Create a new accumulator.
-    fn new(nesting: ElementKind) -> Self
-    {
-        Self { nesting, buf: Vec::new(), grouping_span: None }
-    }
+    fn new (nesting: ElementKind)->Self { Self { nesting, buf: Vec::new (), grouping_span: None } }
 
     /// Create a new accumulator.
-    pub fn root() -> Self
-    {
-        Self::new(ElementKind::Grouping)
-    }
+    pub fn root()->Self { Self::new (ElementKind::Grouping) }
 
     /// Create a new nested accumulator. This will flush any intermediate
     /// grouping span, to ensure correct ordering of nested groups.
-    pub fn nest(&mut self, nesting: ElementKind) -> Self
-    {
-        self.flush_grouping_span();
-        Self::new(nesting)
-    }
+    pub fn nest( & mut self, nesting: ElementKind)->Self { self.flush_grouping_span(); Self::new (nesting) }
 
     /// Flush any intermediate grouping span into the nodes array.
-    fn flush_grouping_span(&mut self)
+    fn flush_grouping_span( & mut self)
     {
         if let Some(span_nodes) = self.grouping_span.take()
         {
@@ -46,57 +36,37 @@ impl Accumulator
     }
 
     /// Push a node into this accumulator.
-    pub fn push(&mut self, mut node: Node)
+    pub fn push( & mut self, mut node: Node)
     {
         if self.nesting == ElementKind::Grouping
         {
-            match &mut node
+            match & mut node
             {
                 Node::Group(group) =>
                 {
                     self.flush_grouping_span();
 
                     // Ensure ILSE have block placement when inside grouping elements.
-                    if element_kind(&group.tag) == ElementKind::Inline
-                    {
-                        group.tag.set_placement(Some(kt::Placement::Block));
-                    }
+                    if element_kind( & group.tag) == ElementKind::Inline { group.tag.set_placement(Some(kt::Placement::Block)); }
 
                     self.buf.push(node);
                 }
-                Node::Leaf(_) =>
-                {
-                    let span_nodes = self.grouping_span.get_or_insert_default();
-                    span_nodes.push(node);
-                }
+                Node::Leaf(_) => { let span_nodes = self.grouping_span.get_or_insert_default(); span_nodes.push(node); }
             }
         }
-        else
-        {
-            self.buf.push(node);
-        }
+        else { self.buf.push(node); }
     }
 
     /// Reserve additional capacity inside the node buffer.
-    pub fn reserve(&mut self, additional: usize)
-    {
-        self.buf.reserve(additional);
-    }
+    pub fn reserve( & mut self, additional: usize) { self.buf.reserve(additional); }
 
     /// Push multiple nodes into this accumulator.
-    pub fn extend(&mut self, nodes: impl ExactSizeIterator<Item = Node>)
+    pub fn extend( & mut self, nodes: impl ExactSizeIterator<Item = Node>)
     {
         self.buf.reserve(nodes.len());
-        for node in nodes
-        {
-            self.push(node);
-        }
+        for node in nodes { self.push(node); }
     }
 
     // Finish accumulating and return the nodes.
-    pub fn finish(mut self) -> Vec<Node>
-    {
-        self.flush_grouping_span();
-        self.buf
-    }
+    pub fn finish(mut self)->Vec<Node> { self.flush_grouping_span(); self.buf }
 }

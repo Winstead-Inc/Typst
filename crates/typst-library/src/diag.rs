@@ -5,27 +5,25 @@
 // downstream crates to use the macros without needing to include `ecow` as a
 // direct dependency of the crate.
 #[doc(hidden)]
-pub use ecow::{EcoString, EcoVec, eco_format, eco_vec};
+pub use ecow:: { EcoString, EcoVec, eco_format, eco_vec };
 
-use std::backtrace::{Backtrace, BacktraceStatus};
-use std::fmt::{self, Display, Formatter, Write as _};
+use std::backtrace:: { Backtrace, BacktraceStatus };
+use std::fmt:: { self, Display, Formatter, Write as _ };
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path:: { Path, PathBuf };
 use std::str::Utf8Error;
 use std::string::FromUtf8Error;
 
 use az::SaturatingAs;
 use comemo::Tracked;
-use typst_syntax::package::{PackageSpec, PackageVersion};
-use typst_syntax::{
-    DiagSpan, Lines, RealizeError, Span, Spanned, SyntaxDiagnostic, VirtualRoot,
-};
+use typst_syntax::package:: { PackageSpec, PackageVersion };
+use typst_syntax:: { DiagSpan, Lines, RealizeError, Span, Spanned, SyntaxDiagnostic, VirtualRoot, };
 use utf8_iter::ErrorReportingUtf8Chars;
 
 use crate::engine::Engine;
-use crate::foundations::{Context, FromValue, Func, IntoArgs, NativeElement};
-use crate::loading::{LoadSource, Loaded};
-use crate::{World, WorldExt};
+use crate::foundations:: { Context, FromValue, Func, IntoArgs, NativeElement };
+use crate::loading:: { LoadSource, Loaded };
+use crate:: { World, WorldExt };
 
 /// Early-return with an error for common result types used in Typst. If you
 /// need to interact with the produced errors more, consider using `error!` or
@@ -51,29 +49,17 @@ use crate::{World, WorldExt};
 #[doc(hidden)]
 #[clippy::format_args]
 // See the comment below for why this is `__bail` and not `bail`.
-macro_rules! __bail {
+macro_rules! __bail
+{
     // If we don't have a span, forward to `error!` to create a `StrResult` or
     // `HintedStrResult`.
-    (
-        $fmt:literal $(, $arg:expr)* $(,)?
-        $(; hint: $hint:literal $(, $hint_arg:expr)*)*
-        $(;)?
-    ) => {
-        return Err($crate::diag::error!(
-            $fmt $(, $arg)*
-            $(; hint: $hint $(, $hint_arg)*)*
-        ))
-    };
+    ($fmt: literal $(, $arg: expr) * $(,)? $(; hint: $hint: literal $(, $hint_arg: expr) *) * $(;)?) => { return Err($crate::diag::error ! ($fmt $(, $arg) * $(; hint: $hint $(, $hint_arg) *) *)) };
 
     // Just early return for a `SourceResult`: `bail!(some_error)`.
-    ($error:expr) => {
-        return Err($crate::diag::eco_vec![$error])
-    };
+    ($error: expr) => { return Err($crate::diag::eco_vec ! [$error]) };
 
     // For `bail(span, ...)`, we reuse `error!` and produce a `SourceResult`.
-    ($($tts:tt)*) => {
-        return Err($crate::diag::eco_vec![$crate::diag::error!($($tts)*)])
-    };
+    ($($tts: tt) *) => { return Err($crate::diag::eco_vec ! [$crate::diag::error ! ($($tts) *)]) };
 }
 
 /// Construct an [`EcoString`], [`HintedString`] or [`SourceDiagnostic`] with
@@ -98,49 +84,34 @@ macro_rules! __bail {
 #[doc(hidden)]
 #[clippy::format_args]
 // See the comment below for why this is `__error` and not `error`.
-macro_rules! __error {
+macro_rules! __error
+{
     // For `error!("just a {}", "string")`.
-    ($fmt:literal $(, $arg:expr)* $(,)?) => {
-        $crate::diag::eco_format!($fmt $(, $arg)*).into()
-    };
+    ($fmt: literal $(, $arg: expr) * $(,)?) => { $crate::diag::eco_format ! ($fmt $(, $arg) *).into() };
 
     // For `error!("a hinted {}", "string"; hint: "some hint"; hint: "...")`
-    (
-        $fmt:literal $(, $arg:expr)* $(,)?
-        $(; hint: $hint:literal $(, $hint_arg:expr)*)*
-        $(;)?
-    ) => {
-        $crate::diag::HintedString::new(
-            $crate::diag::eco_format!($fmt $(, $arg)*)
-        ) $(.with_hint($crate::diag::eco_format!($hint $(, $hint_arg)*)))*
+    ($fmt: literal $(, $arg: expr) * $(,)? $(; hint: $hint: literal $(, $hint_arg: expr) *) * $(;)?) =>
+    {
+        $crate::diag::HintedString:: new ($crate::diag::eco_format ! ($fmt $(, $arg) *)) $(.with_hint($crate::diag::eco_format ! ($hint $(, $hint_arg) *))) *
     };
 
     // For `error!(span, ...)`
     // Hints may include a span inside brackets: `hint[span_expr]: "msg"`.
-    (
-        $span:expr, $fmt:literal $(, $arg:expr)* $(,)?
-        $(; hint $([$hint_span:expr])? : $hint:literal $(, $hint_arg:expr)*)*
-        $(;)?
-    ) => {{
-        #[allow(unused_mut)]
-        let mut err = $crate::diag::SourceDiagnostic::error(
-            $span,
-            $crate::diag::eco_format!($fmt $(, $arg)*)
-        );
+    ($span: expr, $fmt: literal $(, $arg: expr) * $(,)? $(; hint $([$hint_span: expr])?: $hint: literal $(, $hint_arg: expr) *) * $(;)?) =>
+    {{
+        # [allow(unused_mut)]
+        let mut err = $crate::diag::SourceDiagnostic::error($span, $crate::diag::eco_format ! ($fmt $(, $arg) *));
         // We use a recursive macro for hints to allow for optional spans.
-        $($crate::diag::error!(hint$([$hint_span])?: err, $hint $(, $hint_arg)*);)*
+        $($crate::diag::error ! (hint$([$hint_span])?: err, $hint $(, $hint_arg) *);) *
         err
     }};
 
     // Internal recursive macro for adding hints with/without spans. Note that
     // recursive macros must generate full expressions, so we can't use
     // `.with_hint()` or `.with_spanned_hint()`.
-    (hint: $err:ident, $hint:literal $(, $hint_arg:expr)*) => {
-        $err.hint($crate::diag::eco_format!($hint $(, $hint_arg)*))
-    };
-    (hint[$hint_span:expr]: $err:ident, $hint:literal $(, $hint_arg:expr)*) => {
-        $err.spanned_hint($crate::diag::eco_format!($hint $(, $hint_arg)*), $hint_span)
-    };
+    (hint: $err: ident, $hint: literal $(, $hint_arg: expr) *) => { $err.hint($crate::diag::eco_format ! ($hint $(, $hint_arg) *)) };
+
+    (hint[$hint_span: expr]: $err: ident, $hint: literal $(, $hint_arg: expr) *) => { $err.spanned_hint($crate::diag::eco_format ! ($hint $(, $hint_arg) *), $hint_span) };
 }
 
 /// Construct a [`SourceDiagnostic`] with severity `Warning`. To use the warning
@@ -167,32 +138,22 @@ macro_rules! __error {
 #[doc(hidden)]
 #[clippy::format_args]
 // See the comment below for why this is `__warning` and not `warning`.
-macro_rules! __warning {
+macro_rules! __warning
+{
     // For `warning!("a hinted {}", "string"; hint: "some hint"; hint: "...")`
-    (
-        $fmt:literal $(, $arg:expr)* $(,)?
-        $(; hint: $hint:literal $(, $hint_arg:expr)*)*
-        $(;)?
-    ) => {
-        $crate::diag::HintedString::new(
-            $crate::diag::eco_format!($fmt $(, $arg)*)
-        ) $(.with_hint($crate::diag::eco_format!($hint $(, $hint_arg)*)))*
+    ($fmt: literal $(, $arg: expr) * $(,)? $(; hint: $hint: literal $(, $hint_arg: expr) *) * $(;)?) =>
+    {
+        $crate::diag::HintedString:: new ($crate::diag::eco_format ! ($fmt $(, $arg) *)) $(.with_hint($crate::diag::eco_format ! ($hint $(, $hint_arg) *))) *
     };
 
     // For `warning!(span, ...)`
     // Hints may include a span inside brackets: `hint[span_expr]: "msg"`.
-    (
-        $span:expr, $fmt:literal $(, $arg:expr)* $(,)?
-        $(; hint $([$hint_span:expr])? : $hint:literal $(, $hint_arg:expr)*)*
-        $(;)?
-    ) => {{
-        #[allow(unused_mut)]
-        let mut warning = $crate::diag::SourceDiagnostic::warning(
-            $span,
-            $crate::diag::eco_format!($fmt $(, $arg)*)
-        );
+    ($span: expr, $fmt: literal $(, $arg: expr) * $(,)? $(; hint $([$hint_span: expr])?: $hint: literal $(, $hint_arg: expr) *) * $(;)?) =>
+    {{
+        # [allow(unused_mut)]
+        let mut warning = $crate::diag::SourceDiagnostic::warning($span, $crate::diag::eco_format ! ($fmt $(, $arg) *));
         // We use a recursive macro for hints to allow for optional spans.
-        $($crate::diag::error!(hint$([$hint_span])?: warning, $hint $(, $hint_arg)*);)*
+        $($crate::diag::error ! (hint$([$hint_span])?: warning, $hint $(, $hint_arg) *);) *
         warning
     }};
 }
@@ -215,52 +176,33 @@ macro_rules! __warning {
 // Note that the `disallowed_macros` lint does not handle re-exports like this.
 #[rustfmt::skip]
 #[doc(inline)]
-pub use {
-    __bail as bail,
-    __error as error,
-    __warning as warning,
-};
+pub use { __bail as bail, __error as error, __warning as warning, };
 
 /// A result that can carry multiple source errors. The recommended way to
 /// create an error for this type is with the `bail!` macro.
-pub type SourceResult<T> = Result<T, EcoVec<SourceDiagnostic>>;
+pub type SourceResult < T > = Result<T, EcoVec<SourceDiagnostic>>;
 
 /// Collects an iterator of [`SourceResult`]s into a result containg a collection
 /// or the accumulated errors.
 ///
 /// Unlike normal `FromIterator` for `Result`, this will combine all the errors.
 /// This is possible because a [`SourceResult`] can hold multiple errors.
-pub trait CollectCombinedResult
-{
-    type Item;
+pub trait CollectCombinedResult { type Item; fn collect_combined_result<B>(self)->SourceResult<B> where B: FromIterator<Self::Item>; }
 
-    fn collect_combined_result<B>(self) -> SourceResult<B>
-    where
-        B: FromIterator<Self::Item>;
-}
-
-impl<I, T> CollectCombinedResult for I
+impl <I, T> CollectCombinedResult for I
 where
-    I: Iterator<Item = SourceResult<T>>,
+I: Iterator<Item = SourceResult<T>>,
 {
     type Item = T;
 
-    fn collect_combined_result<B>(self) -> SourceResult<B>
+    fn collect_combined_result<B>(self)->SourceResult<B>
     where
-        B: FromIterator<Self::Item>,
+    B: FromIterator<Self::Item>,
     {
-        let mut errors = EcoVec::new();
+        let mut errors = EcoVec:: new ();
         let collected = self
-            .filter_map(|result| match result
-            {
-                Ok(item) => Some(item),
-                Err(errs) =>
-                {
-                    errors.extend(errs);
-                    None
-                }
-            })
-            .collect();
+        .filter_map( | result | match result { Ok(item) => Some(item), Err(errs) => { errors.extend(errs); None } })
+        .collect();
         if errors.is_empty() { Ok(collected) } else { Err(errors) }
     }
 }
@@ -268,25 +210,18 @@ where
 /// A variation of [`CollectCombinedResult`] for parallel rayon iterators.
 ///
 /// Needs to be a separate trait because we can't have two blanket impls.
-pub trait ParallelCollectCombinedResult
-{
-    type Item;
+pub trait ParallelCollectCombinedResult { type Item; fn collect_combined_result<B>(self)->SourceResult<B> where B: FromIterator<Self::Item>; }
 
-    fn collect_combined_result<B>(self) -> SourceResult<B>
-    where
-        B: FromIterator<Self::Item>;
-}
-
-impl<I, T> ParallelCollectCombinedResult for I
+impl <I, T> ParallelCollectCombinedResult for I
 where
-    I: rayon::iter::ParallelIterator<Item = SourceResult<T>>,
-    T: Send,
+I: rayon::iter::ParallelIterator<Item = SourceResult<T>>,
+T: Send,
 {
     type Item = T;
 
-    fn collect_combined_result<B>(self) -> SourceResult<B>
+    fn collect_combined_result<B>(self)->SourceResult<B>
     where
-        B: FromIterator<Self::Item>,
+    B: FromIterator<Self::Item>,
     {
         // A more efficient approach might be possible, but this is simpler and
         // pragmatic. The point of this trait is primarily to make the call-site
@@ -304,37 +239,33 @@ pub trait CollectCombinedWarnedResult
 {
     type Item;
 
-    fn collect_combined_warned_result<B>(self) -> Warned<SourceResult<B>>
+    fn collect_combined_warned_result<B>(self)->Warned<SourceResult<B>>
     where
-        B: FromIterator<Self::Item>;
+    B: FromIterator<Self::Item>;
 }
 
-impl<I, T> CollectCombinedWarnedResult for I
+impl <I, T> CollectCombinedWarnedResult for I
 where
-    I: Iterator<Item = Warned<SourceResult<T>>>,
+I: Iterator < Item = Warned < SourceResult < T >>> ,
 {
     type Item = T;
 
-    fn collect_combined_warned_result<B>(self) -> Warned<SourceResult<B>>
+    fn collect_combined_warned_result<B>(self)->Warned<SourceResult<B>>
     where
-        B: FromIterator<Self::Item>,
+    B: FromIterator<Self::Item>,
     {
-        let mut warnings = EcoVec::new();
-        let mut errors = EcoVec::new();
+        let mut warnings = EcoVec:: new ();
+        let mut errors = EcoVec:: new ();
         let collected = self
-            .filter_map(|result| {
+        .filter_map
+        (
+            | result |
+            {
                 warnings.extend(result.warnings);
-                match result.output
-                {
-                    Ok(item) => Some(item),
-                    Err(errs) =>
-                    {
-                        errors.extend(errs);
-                        None
-                    }
-                }
-            })
-            .collect();
+                match result.output { Ok(item) => Some(item), Err(errs) => { errors.extend(errs); None } }
+            }
+        )
+        .collect();
         let output = if errors.is_empty() { Ok(collected) } else { Err(errors) };
         Warned { output, warnings }
     }
@@ -347,21 +278,21 @@ pub trait ParallelCollectCombinedWarnedResult
 {
     type Item;
 
-    fn collect_combined_warned_result<B>(self) -> Warned<SourceResult<B>>
+    fn collect_combined_warned_result<B>(self)->Warned<SourceResult<B>>
     where
-        B: FromIterator<Self::Item>;
+    B: FromIterator<Self::Item>;
 }
 
-impl<I, T> ParallelCollectCombinedWarnedResult for I
+impl <I, T> ParallelCollectCombinedWarnedResult for I
 where
-    I: rayon::iter::ParallelIterator<Item = Warned<SourceResult<T>>>,
-    T: Send,
+I: rayon::iter::ParallelIterator < Item = Warned < SourceResult < T >>> ,
+T: Send,
 {
     type Item = T;
 
-    fn collect_combined_warned_result<B>(self) -> Warned<SourceResult<B>>
+    fn collect_combined_warned_result<B>(self)->Warned<SourceResult<B>>
     where
-        B: FromIterator<Self::Item>,
+    B: FromIterator<Self::Item>,
     {
         // A more efficient approach might be possible, but this is simpler and
         // pragmatic. The point of this trait is primarily to make the call-site
@@ -380,55 +311,37 @@ pub struct Warned<T, W = SourceDiagnostic>
     pub warnings: EcoVec<W>,
 }
 
-impl<T, E> Warned<Result<T, E>>
+impl <T, E> Warned<Result<T, E>>
 {
     /// Maps the output, keeping the same warnings.
-    pub fn map<R, F: FnOnce(T) -> R>(self, f: F) -> Warned<Result<R, E>>
-    {
-        Warned {
-            output: self.output.map(f),
-            warnings: self.warnings,
-        }
-    }
+    pub fn map<R, F: FnOnce(T)->R>(self, f: F)->Warned<Result<R, E>> { Warned { output: self.output.map(f), warnings: self.warnings, } }
 
     /// Maps the error, if the inner `Result` is `Err`, keeping the same
     /// warnings.
-    pub fn map_err<F, R>(self, f: F) -> Warned<Result<T, R>>
+    pub fn map_err<F, R>(self, f: F)->Warned<Result<T, R>>
     where
-        F: FnOnce(E) -> R,
-    {
-        Warned {
-            output: self.output.map_err(f),
-            warnings: self.warnings,
-        }
-    }
+    F: FnOnce(E)->R, { Warned { output: self.output.map_err(f), warnings: self.warnings, } }
 
     /// Maps the output, if the inner `Result` is `Ok`.
     ///
     /// If `f` returns a `Warned`, the additional warnings are added. If it just
     /// returns a bare result, the same warnings as before are kept.
-    pub fn and_then<R, F, W>(mut self, f: F) -> Warned<Result<R, E>>
+    pub fn and_then<R, F, W>(mut self, f: F)->Warned<Result<R, E>>
     where
-        F: FnOnce(T) -> W,
-        W: Into<Warned<Result<R, E>>>,
+    F: FnOnce(T)->W,
+    W: Into < Warned < Result < R, E >>> ,
     {
-        Warned {
-            output: self.output.and_then(|output| {
-                let Warned { output, warnings } = f(output).into();
-                self.warnings.extend(warnings);
-                output
-            }),
+        Warned
+        {
+            output: self.output.and_then( | output | { let Warned { output, warnings } = f(output).into(); self.warnings.extend(warnings); output }),
             warnings: self.warnings,
         }
     }
 }
 
-impl<T> From<T> for Warned<T>
+impl <T> From<T> for Warned<T>
 {
-    fn from(output: T) -> Self
-    {
-        Warned { output, warnings: EcoVec::new() }
-    }
+    fn from(output: T)->Self { Warned { output, warnings: EcoVec::new () } }
 }
 
 /// An error or warning in a source or text file. The recommended way to create
@@ -471,86 +384,44 @@ pub enum Severity
 impl SourceDiagnostic
 {
     /// Create a new, bare error.
-    pub fn error(span: impl Into<DiagSpan>, message: impl Into<EcoString>) -> Self
-    {
-        Self {
-            severity: Severity::Error,
-            span: span.into(),
-            trace: eco_vec![],
-            message: message.into(),
-            hints: eco_vec![],
-        }
-    }
+    pub fn error(span: impl Into<DiagSpan>, message: impl Into<EcoString>)->Self { Self { severity: Severity::Error, span: span.into(), trace: eco_vec ! [], message: message.into(), hints: eco_vec ! [], } }
 
     /// Create a new, bare warning.
-    pub fn warning(span: impl Into<DiagSpan>, message: impl Into<EcoString>) -> Self
+    pub fn warning(span: impl Into<DiagSpan>, message: impl Into<EcoString>)->Self { Self { severity: Severity::Warning, span: span.into(), trace: eco_vec ! [], message: message.into(), hints: eco_vec ! [], } }
+
+    /// Adds a single hint to the diagnostic.
+    pub fn hint( & mut self, hint: impl Into<EcoString>) { self.hints.push(Spanned::detached(hint.into())); }
+
+    /// Adds a single hint specific to a source code location to the diagnostic.
+    pub fn spanned_hint( & mut self, hint: impl Into<EcoString>, span: impl Into<DiagSpan>)
     {
-        Self {
-            severity: Severity::Warning,
-            span: span.into(),
-            trace: eco_vec![],
-            message: message.into(),
-            hints: eco_vec![],
-        }
+        self.hints.push(Spanned::new (hint.into(), span.into()));
     }
 
     /// Adds a single hint to the diagnostic.
-    pub fn hint(&mut self, hint: impl Into<EcoString>)
-    {
-        self.hints.push(Spanned::detached(hint.into()));
-    }
+    pub fn with_hint(mut self, hint: impl Into<EcoString>)->Self { self.hint(hint); self }
 
     /// Adds a single hint specific to a source code location to the diagnostic.
-    pub fn spanned_hint(&mut self, hint: impl Into<EcoString>, span: impl Into<DiagSpan>)
-    {
-        self.hints.push(Spanned::new(hint.into(), span.into()));
-    }
-
-    /// Adds a single hint to the diagnostic.
-    pub fn with_hint(mut self, hint: impl Into<EcoString>) -> Self
-    {
-        self.hint(hint);
-        self
-    }
-
-    /// Adds a single hint specific to a source code location to the diagnostic.
-    pub fn with_spanned_hint(
-        mut self,
-        hint: impl Into<EcoString>,
-        span: impl Into<DiagSpan>,
-    ) -> Self
-    {
-        self.spanned_hint(hint, span);
-        self
-    }
+    pub fn with_spanned_hint(mut self, hint: impl Into<EcoString>, span: impl Into<DiagSpan>,)->Self { self.spanned_hint(hint, span); self }
 
     /// Adds multiple user-facing hints to the diagnostic.
-    pub fn with_hints(mut self, hints: impl IntoIterator<Item = EcoString>) -> Self
+    pub fn with_hints(mut self, hints: impl IntoIterator<Item = EcoString>)->Self
     {
         self.hints.extend(hints.into_iter().map(Spanned::detached));
         self
     }
 
     /// Adds a single tracepoint to the diagnostic.
-    pub fn with_tracepoint(mut self, tracepoint: Tracepoint, span: Span) -> Self
-    {
-        self.trace.push(Spanned::new(tracepoint, span));
-        self
-    }
+    pub fn with_tracepoint(mut self, tracepoint: Tracepoint, span: Span)->Self { self.trace.push(Spanned::new (tracepoint, span)); self }
 }
 
 impl From<SyntaxDiagnostic> for SourceDiagnostic
 {
-    fn from(syntax_diag: SyntaxDiagnostic) -> Self
+    fn from(syntax_diag: SyntaxDiagnostic)->Self
     {
-        let SyntaxDiagnostic { is_error, span, message, hints } = syntax_diag;
-        Self {
-            severity: if is_error { Severity::Error } else { Severity::Warning },
-            span,
-            message,
-            trace: eco_vec![],
-            hints,
-        }
+        let SyntaxDiagnostic { is_error, span, message, hints }
+        = syntax_diag;
+        Self { severity: if is_error { Severity::Error } else { Severity::Warning }, span, message, trace: eco_vec ! [], hints, }
     }
 }
 
@@ -558,21 +429,12 @@ impl From<SyntaxDiagnostic> for SourceDiagnostic
 pub trait WarningSink
 {
     /// Emits the message as a warning.
-    fn emit(&mut self, message: HintedString);
+    fn emit( & mut self, message: HintedString);
 }
 
-impl<T: WarningSink> WarningSink for &mut T
-{
-    fn emit(&mut self, message: HintedString)
-    {
-        T::emit(self, message);
-    }
-}
+impl <T: WarningSink> WarningSink for & mut T { fn emit( & mut self, message: HintedString) { T::emit(self, message); } }
 
-impl WarningSink for ()
-{
-    fn emit(&mut self, _: HintedString) {}
-}
+impl WarningSink for () { fn emit( & mut self, _: HintedString) {} }
 
 /// A part of a diagnostic's [trace](SourceDiagnostic::trace).
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -581,7 +443,7 @@ pub enum Tracepoint
     /// A context expression.
     Context,
     /// A default show rule application or synthesis.
-    Process(&'static str),
+    Process( & 'static str),
     /// A function call.
     Call(Option<EcoString>),
     /// A show rule application.
@@ -594,20 +456,14 @@ pub enum Tracepoint
 
 impl Tracepoint
 {
-    pub fn process<T: NativeElement>() -> Self
-    {
-        Self::Process(T::ELEM.name())
-    }
+    pub fn process<T: NativeElement>()->Self { Self::Process(T::ELEM.name()) }
 
-    pub fn call<T: Into<EcoString>>(name: T) -> Self
-    {
-        Self::Call(Some(name.into()))
-    }
+    pub fn call<T: Into<EcoString>>(name: T)->Self { Self::Call(Some(name.into())) }
 }
 
 impl Display for Tracepoint
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         match self
         {
@@ -626,38 +482,36 @@ impl Display for Tracepoint
 pub trait Trace<T>
 {
     /// Add the tracepoint to all errors that lie outside the `span`.
-    fn trace<F>(self, world: Tracked<dyn World + '_>, make_point: F, span: Span) -> Self
+    fn trace<F>(self, world: Tracked<dyn World + '_>, make_point: F, span: Span)->Self
     where
-        F: Fn() -> Tracepoint;
+    F: Fn()->Tracepoint;
 }
 
-impl<T> Trace<T> for SourceResult<T>
+impl <T> Trace<T> for SourceResult<T>
 {
-    fn trace<F>(self, world: Tracked<dyn World + '_>, make_point: F, span: Span) -> Self
+    fn trace<F>(self, world: Tracked<dyn World + '_>, make_point: F, span: Span)->Self
     where
-        F: Fn() -> Tracepoint,
+    F: Fn()->Tracepoint,
     {
-        self.map_err(|mut errors| {
-            let Some(trace_range) = world.range(span)
-            else
+        self.map_err
+        (
+            | mut errors |
             {
-                return errors;
-            };
-            for error in errors.make_mut().iter_mut()
-            {
-                // Skip traces that surround the error.
-                if let Some(error_range) = world.range(error.span)
+                let Some(trace_range) = world.range(span)
+                else { return errors; };
+                for error in errors.make_mut().iter_mut()
+                {
+                    // Skip traces that surround the error.
+                    if let Some(error_range) = world.range(error.span)
                     && error.span.id() == span.id()
                     && trace_range.start <= error_range.start
-                    && trace_range.end >= error_range.end
-                {
-                    continue;
-                }
+                    && trace_range.end >= error_range.end { continue ; }
 
-                error.trace.push(Spanned::new(make_point(), span));
+                    error.trace.push(Spanned::new (make_point(), span));
+                }
+                errors
             }
-            errors
-        })
+        )
     }
 }
 
@@ -666,52 +520,33 @@ impl<T> Trace<T> for SourceResult<T>
 pub trait CallSpanned
 {
     /// Convenience wrapper method for calling [`Func::call`].
-    fn call<T: FromValue>(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        args: impl IntoArgs,
-    ) -> SourceResult<T>;
+    fn call<T: FromValue>( & self, engine: & mut Engine, context: Tracked<Context>, args: impl IntoArgs,)->SourceResult<T>;
 }
 
-impl<const SPAN_EQ: bool> CallSpanned for Spanned<Func, Span, SPAN_EQ>
+impl <const SPAN_EQ: bool> CallSpanned for Spanned<Func, Span, SPAN_EQ>
 {
-    fn call<T: FromValue>(
-        &self,
-        engine: &mut Engine,
-        context: Tracked<Context>,
-        args: impl IntoArgs,
-    ) -> SourceResult<T>
-    {
-        self.v.call(engine, context, args, self.span)
-    }
+    fn call<T: FromValue>( & self, engine: & mut Engine, context: Tracked<Context>, args: impl IntoArgs,)->SourceResult<T> { self.v.call(engine, context, args, self.span) }
 }
 
 /// A result type with a string error message. The recommended way to create an
 /// error for this type is with the [`bail!`] macro.
-pub type StrResult<T> = Result<T, EcoString>;
+pub type StrResult < T > = Result<T, EcoString>;
 
 /// Convert a [`StrResult`] or [`HintedStrResult`] to a [`SourceResult`] by
 /// adding span information.
 pub trait At<T>
 {
     /// Add the span information.
-    fn at(self, span: Span) -> SourceResult<T>;
+    fn at(self, span: Span)->SourceResult<T>;
 }
 
-impl<T, S> At<T> for Result<T, S>
+impl <T, S> At<T> for Result<T, S>
 where
-    S: Into<EcoString>,
-{
-    fn at(self, span: Span) -> SourceResult<T>
-    {
-        self.map_err(|message| eco_vec![SourceDiagnostic::error(span, message)])
-    }
-}
+S: Into<EcoString>, { fn at(self, span: Span)->SourceResult<T> { self.map_err( | message | eco_vec ! [SourceDiagnostic::error(span, message)]) } }
 
 /// A result type with a string error message and hints. The recommended way to
 /// create an error for this type is with the `bail!` macro.
-pub type HintedStrResult<T> = Result<T, HintedString>;
+pub type HintedStrResult < T > = Result<T, HintedString>;
 
 /// A string message with hints. The recommended way to create one is with the
 /// `error!` macro.
@@ -727,109 +562,68 @@ pub struct HintedString(EcoVec<EcoString>);
 impl HintedString
 {
     /// Creates a new hinted string with the given message.
-    pub fn new(message: EcoString) -> Self
-    {
-        Self(eco_vec![message])
-    }
+    pub fn new (message: EcoString)->Self { Self(eco_vec ! [message]) }
 
     /// A diagnostic message describing the problem.
-    pub fn message(&self) -> &EcoString
-    {
-        self.0.first().unwrap()
-    }
+    pub fn message( & self)-> & EcoString { self .0.first().unwrap() }
 
     /// Additional hints to the user, indicating how this error could be avoided
     /// or worked around.
-    pub fn hints(&self) -> &[EcoString]
-    {
-        self.0.get(1..).unwrap_or(&[])
-    }
+    pub fn hints( & self)-> & [EcoString] { self .0.get(1..).unwrap_or( & []) }
 
     /// Adds a single hint to the hinted string.
-    pub fn hint(&mut self, hint: impl Into<EcoString>)
-    {
-        self.0.push(hint.into());
-    }
+    pub fn hint( & mut self, hint: impl Into<EcoString>) { self .0.push(hint.into()); }
 
     /// Adds a single hint to the hinted string.
-    pub fn with_hint(mut self, hint: impl Into<EcoString>) -> Self
-    {
-        self.hint(hint);
-        self
-    }
+    pub fn with_hint(mut self, hint: impl Into<EcoString>)->Self { self.hint(hint); self }
 
     /// Adds user-facing hints to the hinted string.
-    pub fn with_hints(mut self, hints: impl IntoIterator<Item = EcoString>) -> Self
-    {
-        self.0.extend(hints);
-        self
-    }
+    pub fn with_hints(mut self, hints: impl IntoIterator<Item = EcoString>)->Self { self .0.extend(hints); self }
 
     /// Convert this hinted string into a spanned error.
-    pub fn into_error_at(self, span: Span) -> SourceDiagnostic
+    pub fn into_error_at(self, span: Span)->SourceDiagnostic
     {
-        let mut components = self.0.into_iter();
+        let mut components = self .0.into_iter();
         let message = components.next().unwrap();
         SourceDiagnostic::error(span, message).with_hints(components)
     }
 
     /// Convert this hinted string into a spanned warning.
-    pub fn into_warning_at(self, span: Span) -> SourceDiagnostic
+    pub fn into_warning_at(self, span: Span)->SourceDiagnostic
     {
-        let mut components = self.0.into_iter();
+        let mut components = self .0.into_iter();
         let message = components.next().unwrap();
         SourceDiagnostic::warning(span, message).with_hints(components)
     }
 }
 
-impl<S> From<S> for HintedString
+impl <S> From<S> for HintedString
 where
-    S: Into<EcoString>,
-{
-    fn from(value: S) -> Self
-    {
-        Self::new(value.into())
-    }
-}
+S: Into<EcoString>, { fn from(value: S)->Self { Self::new (value.into()) } }
 
-impl<T> At<T> for HintedStrResult<T>
-{
-    fn at(self, span: Span) -> SourceResult<T>
-    {
-        self.map_err(|err| eco_vec![err.into_error_at(span)])
-    }
-}
+impl <T> At<T> for HintedStrResult<T> { fn at(self, span: Span)->SourceResult<T> { self.map_err( | err | eco_vec ! [err.into_error_at(span)]) } }
 
 /// Enrich a [`StrResult`] or [`HintedStrResult`] with a hint.
 pub trait Hint<T>
 {
     /// Add the hint.
-    fn hint(self, hint: impl Into<EcoString>) -> HintedStrResult<T>;
+    fn hint(self, hint: impl Into<EcoString>)->HintedStrResult<T>;
 }
 
-impl<T, S> Hint<T> for Result<T, S>
+impl <T, S> Hint<T> for Result<T, S>
 where
-    S: Into<EcoString>,
+S: Into<EcoString>,
 {
-    fn hint(self, hint: impl Into<EcoString>) -> HintedStrResult<T>
-    {
-        self.map_err(|message| HintedString::new(message.into()).with_hint(hint))
-    }
+    fn hint(self, hint: impl Into<EcoString>)->HintedStrResult<T> { self.map_err( | message | HintedString::new (message.into()).with_hint(hint)) }
 }
 
-impl<T> Hint<T> for HintedStrResult<T>
+impl <T> Hint<T> for HintedStrResult<T>
 {
-    fn hint(self, hint: impl Into<EcoString>) -> HintedStrResult<T>
-    {
-        self.map_err(|mut error| {
-            error.hint(hint.into());
-            error
-        })
-    }
+    fn hint(self, hint: impl Into<EcoString>)->HintedStrResult<T> { self.map_err( | mut error | { error.hint(hint.into()); error }) }
 }
 
 /// A result type with a file-related error.
-pub type FileResult<T> = Result<T, FileError>;
+pub type FileResult < T > = Result<T, FileError>;
 
 /// An error that occurred while trying to load a file.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -859,18 +653,15 @@ pub enum FileError
 impl FileError
 {
     /// Create a file error from an I/O error.
-    pub fn from_io(err: io::Error, path: &Path) -> Self
+    pub fn from_io(err: io::Error, path: & Path)->Self
     {
         match err.kind()
         {
             io::ErrorKind::NotFound => Self::NotFound(path.into()),
             io::ErrorKind::PermissionDenied => Self::AccessDenied,
             io::ErrorKind::InvalidData
-                if err.to_string().contains("stream did not contain valid UTF-8") =>
-            {
-                Self::InvalidUtf8
-            }
-            _ => Self::Other(Some(eco_format!("{err}"))),
+            if err.to_string().contains("stream did not contain valid UTF-8") => { Self::InvalidUtf8 }
+            _ => Self::Other(Some(eco_format ! ("{err}"))),
         }
     }
 }
@@ -879,14 +670,11 @@ impl std::error::Error for FileError {}
 
 impl Display for FileError
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         match self
         {
-            Self::NotFound(path) =>
-            {
-                write!(f, "file not found (searched at {})", path.display())
-            }
+            Self::NotFound(path) => { write ! (f, "file not found (searched at {})", path.display()) }
             Self::AccessDenied => f.pad("failed to load file (access denied)"),
             Self::IsDirectory => f.pad("failed to load file (is a directory)"),
             Self::NotSource => f.pad("not a Typst source file"),
@@ -899,48 +687,18 @@ impl Display for FileError
     }
 }
 
-impl From<Utf8Error> for FileError
-{
-    fn from(_: Utf8Error) -> Self
-    {
-        Self::InvalidUtf8
-    }
-}
+impl From<Utf8Error> for FileError { fn from(_: Utf8Error)->Self { Self::InvalidUtf8 } }
 
-impl From<FromUtf8Error> for FileError
-{
-    fn from(_: FromUtf8Error) -> Self
-    {
-        Self::InvalidUtf8
-    }
-}
+impl From<FromUtf8Error> for FileError { fn from(_: FromUtf8Error)->Self { Self::InvalidUtf8 } }
 
-impl From<RealizeError> for FileError
-{
-    fn from(err: RealizeError) -> Self
-    {
-        Self::Realize(err)
-    }
-}
+impl From<RealizeError> for FileError { fn from(err: RealizeError)->Self { Self::Realize(err) } }
 
-impl From<PackageError> for FileError
-{
-    fn from(err: PackageError) -> Self
-    {
-        Self::Package(err)
-    }
-}
+impl From<PackageError> for FileError { fn from(err: PackageError)->Self { Self::Package(err) } }
 
-impl From<FileError> for EcoString
-{
-    fn from(err: FileError) -> Self
-    {
-        eco_format!("{err}")
-    }
-}
+impl From<FileError> for EcoString { fn from(err: FileError)->Self { eco_format ! ("{err}") } }
 
 /// A result type with a package-related error.
-pub type PackageResult<T> = Result<T, PackageError>;
+pub type PackageResult < T > = Result<T, PackageError>;
 
 /// An error that occurred while trying to load a package.
 ///
@@ -964,51 +722,26 @@ impl std::error::Error for PackageError {}
 
 impl Display for PackageError
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         match self
         {
-            Self::NotFound(spec) =>
-            {
-                write!(f, "package not found (searched for {spec})",)
-            }
-            Self::VersionNotFound(spec, latest) =>
-            {
-                write!(
-                    f,
-                    "package found, but version {} does not exist (latest is {})",
-                    spec.version, latest,
-                )
-            }
-            Self::NetworkFailed(Some(err)) =>
-            {
-                write!(f, "failed to download package ({err})")
-            }
+            Self::NotFound(spec) => { write ! (f, "package not found (searched for {spec})",) }
+            Self::VersionNotFound(spec, latest) => { write ! (f, "package found, but version {} does not exist (latest is {})", spec.version, latest,) }
+            Self::NetworkFailed(Some(err)) => { write ! (f, "failed to download package ({err})") }
             Self::NetworkFailed(None) => f.pad("failed to download package"),
-            Self::MalformedArchive(Some(err)) =>
-            {
-                write!(f, "failed to decompress package ({err})")
-            }
-            Self::MalformedArchive(None) =>
-            {
-                f.pad("failed to decompress package (archive malformed)")
-            }
+            Self::MalformedArchive(Some(err)) => { write ! (f, "failed to decompress package ({err})") }
+            Self::MalformedArchive(None) => { f.pad("failed to decompress package (archive malformed)") }
             Self::Other(Some(err)) => write!(f, "failed to load package ({err})"),
             Self::Other(None) => f.pad("failed to load package"),
         }
     }
 }
 
-impl From<PackageError> for EcoString
-{
-    fn from(err: PackageError) -> Self
-    {
-        eco_format!("{err}")
-    }
-}
+impl From<PackageError> for EcoString { fn from(err: PackageError)->Self { eco_format ! ("{err}") } }
 
 /// A result type with a data-loading-related error.
-pub type LoadResult<T> = Result<T, LoadError>;
+pub type LoadResult < T > = Result<T, LoadError>;
 
 /// A call site independent error that occurred during data loading. This avoids
 /// polluting the memoization with [`Span`]s and [`FileId`]s from source files.
@@ -1030,42 +763,22 @@ impl LoadError
 {
     /// Creates a new error from a position in a text file, a base message (e.g.
     /// `failed to parse JSON`) and a concrete error (e.g. `invalid number`)
-    pub fn text(
-        pos: impl Into<ReportTextPos>,
-        message: impl std::fmt::Display,
-        error: impl std::fmt::Display,
-    ) -> Self
-    {
-        Self {
-            text_pos: Some(pos.into()),
-            message: eco_format!("{message} ({error})"),
-        }
-    }
+    pub fn text(pos: impl Into<ReportTextPos>, message: impl std::fmt::Display, error: impl std::fmt::Display,)->Self { Self { text_pos: Some(pos.into()), message: eco_format ! ("{message} ({error})"), } }
 
     /// Creates a new error from a base message (e.g. `failed to parse PDF`) and
     /// a concrete error (e.g. `invalid number`). For use with binary sources,
     /// which do not have useful position information.
     pub fn binary(message: impl std::fmt::Display, error: impl std::fmt::Display)
-    -> Self
-    {
-        Self {
-            text_pos: None,
-            message: eco_format!("{message} ({error})"),
-        }
-    }
+   ->Self { Self { text_pos: None, message: eco_format ! ("{message} ({error})"), } }
 }
 
 impl From<Utf8Error> for LoadError
 {
-    fn from(err: Utf8Error) -> Self
+    fn from(err: Utf8Error)->Self
     {
         let start = err.valid_up_to();
         let end = start + err.error_len().unwrap_or(0);
-        LoadError::text(
-            start..end,
-            "failed to convert to string",
-            "file is not valid UTF-8",
-        )
+        LoadError::text(start..end, "failed to convert to string", "file is not valid UTF-8",)
     }
 }
 
@@ -1077,62 +790,47 @@ pub trait LoadedWithin
     type Output;
 
     /// Report an error, possibly in an external file.
-    fn within(self, loaded: &Loaded) -> Self::Output;
+    fn within(self, loaded: & Loaded)->Self::Output;
 }
 
-impl<E> LoadedWithin for E
+impl <E> LoadedWithin for E
 where
-    E: Into<LoadError>,
+E: Into<LoadError>,
 {
     type Output = SourceDiagnostic;
 
-    fn within(self, loaded: &Loaded) -> Self::Output
+    fn within(self, loaded: & Loaded)->Self::Output
     {
-        let LoadError { text_pos: pos, message } = self.into();
-        if let Some(pos) = pos
-        {
-            load_err_in_text(loaded, pos, message)
-        }
-        else
-        {
-            load_err_in_binary(loaded, None, message)
-        }
+        let LoadError { text_pos: pos, message }
+        = self.into();
+        if let Some(pos) = pos { load_err_in_text(loaded, pos, message) }
+        else { load_err_in_binary(loaded, None, message) }
     }
 }
 
-impl<T, E> LoadedWithin for Result<T, E>
+impl <T, E> LoadedWithin for Result<T, E>
 where
-    E: Into<LoadError>,
+E: Into<LoadError>,
 {
     type Output = SourceResult<T>;
 
-    fn within(self, loaded: &Loaded) -> Self::Output
-    {
-        self.map_err(|err| eco_vec![err.within(loaded)])
-    }
+    fn within(self, loaded: & Loaded)->Self::Output { self.map_err( | err | eco_vec ! [err.within(loaded)]) }
 }
 
 /// Report an error, possibly in an external file. This will delegate to
 /// [`load_err_in_binary`] if the data isn't valid UTF-8.
-fn load_err_in_text(
-    loaded: &Loaded,
-    pos: ReportTextPos,
-    mut message: EcoString,
-) -> SourceDiagnostic
+fn load_err_in_text(loaded: & Loaded, pos: ReportTextPos, mut message: EcoString,)->SourceDiagnostic
 {
     // This also does UTF-8 validation. Only report an error in an external
     // file if it is human readable (valid UTF-8), otherwise fall back to
     // `load_err_in_binary`.
     let Ok(lines) = loaded.data.lines()
-    else
-    {
-        return load_err_in_binary(loaded, Some(pos), message);
-    };
+    else { return load_err_in_binary(loaded, Some(pos), message); };
     match loaded.source.v
     {
         LoadSource::Path(file_id) =>
         {
-            if let Some(range) = pos.range(&lines)
+            if let Some(range) = pos.range( & lines)
             {
                 let span = DiagSpan::from_range(file_id, range);
                 return SourceDiagnostic::error(span, message);
@@ -1142,21 +840,21 @@ fn load_err_in_text(
             // from the line/column failed. If present report the possibly
             // wrong line/column in the error message anyway.
             let span = DiagSpan::from_range(file_id, 0..loaded.data.len());
-            if let Some(pair) = pos.line_col(&lines)
+            if let Some(pair) = pos.line_col( & lines)
             {
                 message.pop();
                 let (line, col) = pair.numbers();
-                write!(&mut message, " at {line}:{col})").ok();
+                write!( & mut message, " at {line}:{col})").ok();
             }
             SourceDiagnostic::error(span, message)
         }
         LoadSource::Bytes =>
         {
-            if let Some(pair) = pos.line_col(&lines)
+            if let Some(pair) = pos.line_col( & lines)
             {
                 message.pop();
                 let (line, col) = pair.numbers();
-                write!(&mut message, " at {line}:{col})").ok();
+                write!( & mut message, " at {line}:{col})").ok();
             }
             SourceDiagnostic::error(loaded.source.span, message)
         }
@@ -1164,15 +862,11 @@ fn load_err_in_text(
 }
 
 /// Report an error (possibly from an external file) that isn't valid UTF-8.
-fn load_err_in_binary(
-    loaded: &Loaded,
-    pos: Option<ReportTextPos>,
-    mut message: EcoString,
-) -> SourceDiagnostic
+fn load_err_in_binary(loaded: & Loaded, pos: Option<ReportTextPos>, mut message: EcoString,)->SourceDiagnostic
 {
     let line_col = pos
-        .and_then(|pos| pos.try_line_col(&loaded.data))
-        .map(|p| p.numbers());
+    .and_then( | pos | pos.try_line_col( & loaded.data))
+    .map( | p | p.numbers());
     match loaded.source.v
     {
         LoadSource::Path(file) =>
@@ -1180,34 +874,13 @@ fn load_err_in_binary(
             message.pop();
             match file.root()
             {
-                VirtualRoot::Project =>
-                {
-                    write!(&mut message, " in {}", file.vpath().get_without_slash()).ok();
-                }
-                VirtualRoot::Package(package) =>
-                {
-                    write!(
-                        &mut message,
-                        " in {package}{}",
-                        file.vpath().get_with_slash()
-                    )
-                    .ok();
-                }
+                VirtualRoot::Project => { write ! ( & mut message, " in {}", file.vpath().get_without_slash()).ok(); }
+                VirtualRoot::Package(package) => { write ! ( & mut message, " in {package}{}", file.vpath().get_with_slash()).ok(); }
             }
-            if let Some((line, col)) = line_col
-            {
-                write!(&mut message, ":{line}:{col}").ok();
-            }
+            if let Some((line, col)) = line_col { write ! ( & mut message, ":{line}:{col}").ok(); }
             message.push(')');
         }
-        LoadSource::Bytes =>
-        {
-            if let Some((line, col)) = line_col
-            {
-                message.pop();
-                write!(&mut message, " at {line}:{col})").ok();
-            }
-        }
+        LoadSource::Bytes => { if let Some((line, col)) = line_col { message.pop(); write ! ( & mut message, " at {line}:{col})").ok(); } }
     }
     SourceDiagnostic::error(loaded.source.span, message)
 }
@@ -1222,83 +895,60 @@ pub enum ReportTextPos
     Range(std::ops::Range<u32>),
     /// Contains a line/column pair.
     LineCol(LineCol),
-    #[default]
+    # [default]
     None,
 }
 
-impl From<std::ops::Range<usize>> for ReportTextPos
-{
-    fn from(value: std::ops::Range<usize>) -> Self
-    {
-        Self::Range(value.start.saturating_as()..value.end.saturating_as())
-    }
-}
+impl From<std::ops::Range<usize>> for ReportTextPos { fn from(value: std::ops::Range<usize>)->Self { Self::Range(value.start.saturating_as()..value.end.saturating_as()) } }
 
-impl From<LineCol> for ReportTextPos
-{
-    fn from(value: LineCol) -> Self
-    {
-        Self::LineCol(value)
-    }
-}
+impl From<LineCol> for ReportTextPos { fn from(value: LineCol)->Self { Self::LineCol(value) } }
 
 impl ReportTextPos
 {
     /// Creates a position from a pre-existing range and line-column pair.
-    pub fn full(range: std::ops::Range<usize>, pair: LineCol) -> Self
+    pub fn full(range: std::ops::Range<usize>, pair: LineCol)->Self
     {
         let range = range.start.saturating_as()..range.end.saturating_as();
         Self::Full(range, pair)
     }
 
     /// Tries to determine the byte range for this position.
-    fn range(&self, lines: &Lines<String>) -> Option<std::ops::Range<usize>>
+    fn range( & self, lines: & Lines<String>)->Option<std::ops::Range<usize>>
     {
         match self
         {
-            ReportTextPos::Full(range, _) =>
-            {
-                Some(range.start as usize..range.end as usize)
-            }
+            ReportTextPos::Full(range, _) => { Some(range.start as usize..range.end as usize) }
             ReportTextPos::Range(range) => Some(range.start as usize..range.end as usize),
-            &ReportTextPos::LineCol(pair) =>
-            {
-                let i =
-                    lines.line_column_to_byte(pair.line as usize, pair.col as usize)?;
-                Some(i..i)
-            }
+            & ReportTextPos::LineCol(pair) => { let i = lines.line_column_to_byte(pair.line as usize, pair.col as usize)?; Some(i..i) }
             ReportTextPos::None => None,
         }
     }
 
     /// Tries to determine the line/column for this position.
-    fn line_col(&self, lines: &Lines<String>) -> Option<LineCol>
+    fn line_col( & self, lines: & Lines<String>)->Option<LineCol>
     {
         match self
         {
-            &ReportTextPos::Full(_, pair) => Some(pair),
+            & ReportTextPos::Full(_, pair) => Some(pair),
             ReportTextPos::Range(range) =>
             {
                 let (line, col) = lines.byte_to_line_column(range.start as usize)?;
                 Some(LineCol::zero_based(line, col))
             }
-            &ReportTextPos::LineCol(pair) => Some(pair),
+            & ReportTextPos::LineCol(pair) => Some(pair),
             ReportTextPos::None => None,
         }
     }
 
     /// Either gets the line/column pair, or tries to compute it from possibly
     /// invalid UTF-8 data.
-    fn try_line_col(&self, bytes: &[u8]) -> Option<LineCol>
+    fn try_line_col( & self, bytes: & [u8])->Option<LineCol>
     {
         match self
         {
-            &ReportTextPos::Full(_, pair) => Some(pair),
-            ReportTextPos::Range(range) =>
-            {
-                LineCol::try_from_byte_pos(range.start as usize, bytes)
-            }
-            &ReportTextPos::LineCol(pair) => Some(pair),
+            & ReportTextPos::Full(_, pair) => Some(pair),
+            ReportTextPos::Range(range) => { LineCol::try_from_byte_pos(range.start as usize, bytes) }
+            & ReportTextPos::LineCol(pair) => Some(pair),
             ReportTextPos::None => None,
         }
     }
@@ -1317,72 +967,43 @@ pub struct LineCol
 impl LineCol
 {
     /// Constructs the line/column pair from 0-based indices.
-    pub fn zero_based(line: usize, col: usize) -> Self
-    {
-        Self {
-            line: line.saturating_as(),
-            col: col.saturating_as(),
-        }
-    }
+    pub fn zero_based(line: usize, col: usize)->Self { Self { line: line.saturating_as(), col: col.saturating_as(), } }
 
     /// Constructs the line/column pair from 1-based numbers.
-    pub fn one_based(line: usize, col: usize) -> Self
-    {
-        Self::zero_based(line.saturating_sub(1), col.saturating_sub(1))
-    }
+    pub fn one_based(line: usize, col: usize)->Self { Self::zero_based(line.saturating_sub(1), col.saturating_sub(1)) }
 
     /// Try to compute a line/column pair from possibly invalid UTF-8 data.
-    pub fn try_from_byte_pos(pos: usize, bytes: &[u8]) -> Option<Self>
+    pub fn try_from_byte_pos(pos: usize, bytes: & [u8])->Option<Self>
     {
-        let bytes = &bytes[..pos];
+        let bytes = & bytes[..pos];
         let mut line = 0;
         let line_start = memchr::memchr_iter(b'\n', bytes)
-            .inspect(|_| line += 1)
-            .last()
-            .map(|i| i + 1)
-            .unwrap_or(bytes.len());
+        .inspect( | _ | line += 1)
+        .last()
+        .map( | i | i + 1)
+        .unwrap_or(bytes.len());
 
-        let col = ErrorReportingUtf8Chars::new(&bytes[line_start..]).count();
+        let col = ErrorReportingUtf8Chars:: new ( & bytes[line_start..]).count();
         Some(LineCol::zero_based(line, col))
     }
 
     /// Returns the 0-based line/column indices.
-    pub fn indices(&self) -> (usize, usize)
-    {
-        (self.line as usize, self.col as usize)
-    }
+    pub fn indices( & self)->(usize, usize) { (self.line as usize, self.col as usize) }
 
     /// Returns the 1-based line/column numbers.
-    pub fn numbers(&self) -> (usize, usize)
-    {
-        (self.line as usize + 1, self.col as usize + 1)
-    }
+    pub fn numbers( & self)->(usize, usize) { (self.line as usize + 1, self.col as usize + 1) }
 }
 
 /// Format a user-facing error message for an XML-like file format.
-pub fn format_xml_like_error(format: &str, error: roxmltree::Error) -> LoadError
+pub fn format_xml_like_error(format: & str, error: roxmltree::Error)->LoadError
 {
     let pos = LineCol::one_based(error.pos().row as usize, error.pos().col as usize);
     let message = match error
     {
-        roxmltree::Error::UnexpectedCloseTag(expected, actual, _) =>
-        {
-            eco_format!(
-                "failed to parse {format} (found closing tag '{actual}' instead of '{expected}')"
-            )
-        }
-        roxmltree::Error::UnknownEntityReference(entity, _) =>
-        {
-            eco_format!("failed to parse {format} (unknown entity '{entity}')")
-        }
-        roxmltree::Error::DuplicatedAttribute(attr, _) =>
-        {
-            eco_format!("failed to parse {format} (duplicate attribute '{attr}')")
-        }
-        roxmltree::Error::NoRootNode =>
-        {
-            eco_format!("failed to parse {format} (missing root node)")
-        }
+        roxmltree::Error::UnexpectedCloseTag(expected, actual, _) => { eco_format ! ("failed to parse {format} (found closing tag '{actual}' instead of '{expected}')") }
+        roxmltree::Error::UnknownEntityReference(entity, _) => { eco_format ! ("failed to parse {format} (unknown entity '{entity}')") }
+        roxmltree::Error::DuplicatedAttribute(attr, _) => { eco_format ! ("failed to parse {format} (duplicate attribute '{attr}')") }
+        roxmltree::Error::NoRootNode => { eco_format ! ("failed to parse {format} (missing root node)") }
         err => eco_format!("failed to parse {format} ({err})"),
     };
 
@@ -1392,61 +1013,39 @@ pub fn format_xml_like_error(format: &str, error: roxmltree::Error) -> LoadError
 /// Asserts a condition, generating an internal compiler error with the provided
 /// message on failure.
 #[track_caller]
-pub fn assert_internal(cond: bool, msg: &str) -> HintedStrResult<()>
-{
-    if !cond { Err(internal_error(msg)) } else { Ok(()) }
-}
+pub fn assert_internal(cond: bool , msg: & str)->HintedStrResult<()> { if ! cond { Err(internal_error(msg)) } else { Ok(()) } }
 
 /// Generates an internal compiler error with the provided message.
 #[track_caller]
-pub fn panic_internal(msg: &str) -> HintedStrResult<()>
-{
-    Err(internal_error(msg))
-}
+pub fn panic_internal(msg: & str)->HintedStrResult<()> { Err(internal_error(msg)) }
 
 /// Adds a method analogous to [`Option::expect`] that raises an internal
 /// compiler error instead of panicking.
 pub trait ExpectInternal<T>
 {
     /// Extracts the value, producing an internal error if `self` is `None`.
-    fn expect_internal(self, msg: &str) -> HintedStrResult<T>;
+    fn expect_internal(self, msg: & str)->HintedStrResult<T>;
 }
 
-impl<T> ExpectInternal<T> for Option<T>
+impl <T> ExpectInternal<T> for Option<T>
 {
-    #[track_caller]
-    fn expect_internal(self, msg: &str) -> HintedStrResult<T>
-    {
-        match self
-        {
-            Some(val) => Ok(val),
-            None => Err(internal_error(msg)),
-        }
-    }
+    # [track_caller]
+    fn expect_internal(self, msg: & str)->HintedStrResult<T> { match self { Some(val) => Ok(val), None => Err(internal_error(msg)), } }
 }
 
 /// The shared internal implementation of [`assert_internal`],
 /// [`panic_internal`] and [`ExpectInternal::expect_internal`].
 #[track_caller]
-fn internal_error(msg: &str) -> HintedString
+fn internal_error(msg: & str)->HintedString
 {
     let loc = std::panic::Location::caller();
-    let mut error = error!(
-        "internal error: {msg} (occurred at {loc})";
-        hint: "please report this as a bug";
-    );
+    let mut error = error!("internal error: {msg} (occurred at {loc})"; hint: "please report this as a bug";);
 
     if cfg!(debug_assertions)
     {
         let backtrace = Backtrace::capture();
-        if backtrace.status() == BacktraceStatus::Captured
-        {
-            error.hint(eco_format!("compiler backtrace:\n{backtrace}"));
-        }
-        else
-        {
-            error.hint("set `RUST_BACKTRACE` to `1` or `full` to capture a backtrace");
-        }
+        if backtrace.status() == BacktraceStatus::Captured { error.hint(eco_format ! ("compiler backtrace:\n{backtrace}")); }
+        else { error.hint("set `RUST_BACKTRACE` to `1` or `full` to capture a backtrace"); }
     }
 
     error

@@ -1,6 +1,6 @@
 use typst_library::foundations::StyleChain;
-use typst_library::layout::{Abs, Fragment, Frame, FrameItem, HideElem, Point, Sides};
-use typst_library::model::{Destination, LinkElem, ParElem};
+use typst_library::layout:: { Abs, Fragment, Frame, FrameItem, HideElem, Point, Sides };
+use typst_library::model:: { Destination, LinkElem, ParElem };
 
 /// Frame-level modifications resulting from styles that do not impose any
 /// layout structure.
@@ -29,103 +29,63 @@ pub struct FrameModifiers
 impl FrameModifiers
 {
     /// Retrieve all modifications that should be applied per-frame.
-    pub fn get_in(styles: StyleChain) -> Self
-    {
-        Self {
-            dest: styles.get_cloned(LinkElem::current),
-            hidden: styles.get(HideElem::hidden),
-        }
-    }
+    pub fn get_in(styles: StyleChain)->Self { Self { dest: styles.get_cloned(LinkElem::current), hidden: styles.get (HideElem::hidden), } }
 }
 
 /// Applies [`FrameModifiers`].
 pub trait FrameModify
 {
     /// Apply the modifiers in-place.
-    fn modify(&mut self, modifiers: &FrameModifiers);
+    fn modify( & mut self, modifiers: & FrameModifiers);
 
     /// Apply the modifiers, and return the modified result.
-    fn modified(mut self, modifiers: &FrameModifiers) -> Self
+    fn modified(mut self, modifiers: & FrameModifiers)->Self
     where
-        Self: Sized,
-    {
-        self.modify(modifiers);
-        self
-    }
+    Self: Sized, { self.modify(modifiers); self }
 }
 
-impl FrameModify for Frame
-{
-    fn modify(&mut self, modifiers: &FrameModifiers)
-    {
-        modify_frame(self, modifiers, None);
-    }
-}
+impl FrameModify for Frame { fn modify( & mut self, modifiers: & FrameModifiers) { modify_frame(self, modifiers, None); } }
 
 impl FrameModify for Fragment
 {
-    fn modify(&mut self, modifiers: &FrameModifiers)
-    {
-        for frame in self.iter_mut()
-        {
-            frame.modify(modifiers);
-        }
-    }
+    fn modify( & mut self, modifiers: & FrameModifiers) { for frame in self.iter_mut() { frame.modify(modifiers); } }
 }
 
-impl<T, E> FrameModify for Result<T, E>
+impl <T, E> FrameModify for Result<T, E>
 where
-    T: FrameModify,
+T: FrameModify,
 {
-    fn modify(&mut self, props: &FrameModifiers)
-    {
-        if let Ok(inner) = self
-        {
-            inner.modify(props);
-        }
-    }
+    fn modify( & mut self, props: & FrameModifiers) { if let Ok(inner) = self { inner.modify(props); } }
 }
 
 pub trait FrameModifyText
 {
     /// Resolve and apply [`FrameModifiers`] for this text frame.
-    fn modify_text(&mut self, styles: StyleChain);
+    fn modify_text( & mut self, styles: StyleChain);
 }
 
 impl FrameModifyText for Frame
 {
-    fn modify_text(&mut self, styles: StyleChain)
+    fn modify_text( & mut self, styles: StyleChain)
     {
         let modifiers = FrameModifiers::get_in(styles);
         let expand_y = 0.5 * styles.resolve(ParElem::leading);
-        let outset = Sides::new(Abs::zero(), expand_y, Abs::zero(), expand_y);
-        modify_frame(self, &modifiers, Some(outset));
+        let outset = Sides:: new (Abs::zero(), expand_y, Abs::zero(), expand_y);
+        modify_frame(self, & modifiers, Some(outset));
     }
 }
 
-fn modify_frame(
-    frame: &mut Frame,
-    modifiers: &FrameModifiers,
-    link_box_outset: Option<Sides<Abs>>,
-)
+fn modify_frame(frame: & mut Frame, modifiers: & FrameModifiers, link_box_outset: Option<Sides<Abs>>,)
 {
-    if let Some(dest) = &modifiers.dest
+    if let Some(dest) = & modifiers.dest
     {
         let mut pos = Point::zero();
         let mut size = frame.size();
-        if let Some(outset) = link_box_outset
-        {
-            pos.y -= outset.top;
-            pos.x -= outset.left;
-            size += outset.sum_by_axis();
-        }
+        if let Some(outset) = link_box_outset { pos.y -= outset.top; pos.x -= outset.left; size += outset.sum_by_axis(); }
         frame.push(pos, FrameItem::Link(dest.clone(), size));
     }
 
-    if modifiers.hidden
-    {
-        frame.hide();
-    }
+    if modifiers.hidden { frame.hide(); }
 }
 
 /// Performs layout and modification in one step.
@@ -134,10 +94,10 @@ fn modify_frame(
 /// but with the additional step that redundant modifiers (which are already
 /// applied here) are removed from the `styles` passed to `layout`. This is used
 /// for the layout of containers like `block`.
-pub fn layout_and_modify<F, R>(styles: StyleChain, layout: F) -> R
+pub fn layout_and_modify<F, R>(styles: StyleChain, layout: F)->R
 where
-    F: FnOnce(StyleChain) -> R,
-    R: FrameModify,
+F: FnOnce(StyleChain)->R,
+R: FrameModify,
 {
     let modifiers = FrameModifiers::get_in(styles);
 
@@ -147,11 +107,7 @@ where
     let reset;
     let outer = styles;
     let mut styles = styles;
-    if modifiers.dest.is_some()
-    {
-        reset = LinkElem::current.set(None).wrap();
-        styles = outer.chain(&reset);
-    }
+    if modifiers.dest.is_some() { reset = LinkElem::current.set (None).wrap(); styles = outer.chain( & reset); }
 
-    layout(styles).modified(&modifiers)
+    layout(styles).modified( & modifiers)
 }

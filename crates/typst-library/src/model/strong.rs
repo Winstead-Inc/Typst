@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 
 /// Strongly emphasizes content by increasing the font weight.
 ///
@@ -27,10 +27,10 @@ pub struct StrongElem
     /// #set strong(delta: 0)
     /// No *effect!*
     /// ```
-    #[default(300)]
+    # [default (300)]
     pub delta: i64,
 
     /// The content to strongly emphasize.
-    #[required]
+    # [required]
     pub body: Content,
 }

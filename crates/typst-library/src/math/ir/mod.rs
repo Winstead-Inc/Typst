@@ -5,13 +5,13 @@ mod multiline;
 mod process;
 mod resolve;
 
-pub use self::item::*;
+pub use self::item:: * ;
 pub use self::multiline::AlignedRow;
 
 use self::resolve::MathResolver;
 use crate::diag::SourceResult;
 use crate::engine::Engine;
-use crate::foundations::{Packed, StyleChain};
+use crate::foundations:: { Packed, StyleChain };
 use crate::introspection::Locator;
 use crate::math::EquationElem;
 use crate::routines::Arenas;
@@ -20,14 +20,8 @@ use crate::routines::Arenas;
 ///
 /// The returned `MathItem` has the same lifetime as the provided arenas.
 #[typst_macros::time(name = "math ir creation")]
-pub fn resolve_equation<'a>(
-    elem: &'a Packed<EquationElem>,
-    engine: &mut Engine,
-    locator: Locator<'a>,
-    arenas: &'a Arenas,
-    styles: StyleChain<'a>,
-) -> SourceResult<MathItem<'a>>
+pub fn resolve_equation<'a>(elem: & 'a Packed<EquationElem>, engine: & mut Engine, locator: Locator<'a>, arenas: & 'a Arenas, styles: StyleChain<'a>,)->SourceResult<MathItem<'a>>
 {
-    let mut context = MathResolver::new(engine, locator, arenas);
-    context.resolve_into_item(&elem.body, styles)
+    let mut context = MathResolver:: new (engine, locator, arenas);
+    context.resolve_into_item( & elem.body, styles)
 }

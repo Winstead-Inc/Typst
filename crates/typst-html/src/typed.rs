@@ -4,180 +4,152 @@
 //! specification.
 
 use std::fmt::Write;
-use std::num::{NonZeroI64, NonZeroU64};
+use std::num:: { NonZeroI64, NonZeroU64 };
 use std::sync::LazyLock;
 
 use bumpalo::Bump;
 use comemo::Tracked;
-use ecow::{EcoString, eco_format, eco_vec};
+use ecow:: { EcoString, eco_format, eco_vec };
 use typst_assets::html as data;
-use typst_library::diag::{At, Hint, HintedStrResult, SourceResult, bail};
+use typst_library::diag:: { At, Hint, HintedStrResult, SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::foundations::{
+use typst_library::foundations::
+{
     Args, Array, AutoValue, CastInfo, Content, Context, Datetime, Dict, Duration,
     FromValue, IntoValue, NativeFuncData, NativeFuncPtr, NativeParamInfo, NoneValue,
     PositiveF64, Reflect, Scope, Since, Str, Type, Value,
 };
-use typst_library::layout::{Axes, Axis, Dir, Length};
+use typst_library::layout:: { Axes, Axis, Dir, Length };
 use typst_library::text::TextElem;
 use typst_library::visualize::Color;
 use typst_macros::cast;
 use typst_syntax::Spanned;
 
 use crate::css::ToCss;
-use crate::{HtmlAttr, HtmlAttrs, HtmlElem, HtmlTag, tag};
+use crate:: { HtmlAttr, HtmlAttrs, HtmlElem, HtmlTag, tag };
 
 /// Hook up all typed HTML definitions.
-pub(super) fn define(html: &mut Scope)
-{
-    for data in FUNCS.iter()
-    {
-        html.define_func_with_data(data);
-    }
-}
+pub (super) fn define(html: & mut Scope) { for data in FUNCS.iter() { html.define_func_with_data(data); } }
 
 /// Lazily created functions for all typed HTML constructors.
-static FUNCS: LazyLock<Vec<NativeFuncData>> = LazyLock::new(|| {
-    // Leaking is okay here. It's not meaningfully different from having
-    // memory-managed values as `FUNCS` is a static.
-    let bump = Box::leak(Box::new(Bump::new()));
-    data::ELEMS.iter().map(|info| create_func_data(info, bump)).collect()
-});
+static FUNCS: LazyLock < Vec<NativeFuncData> > = LazyLock:: new
+(
+    ||
+    {
+        // Leaking is okay here. It's not meaningfully different from having
+        // memory-managed values as `FUNCS` is a static.
+        let bump = Box::leak(Box::new (Bump::new ()));
+        data::ELEMS.iter().map( | info | create_func_data(info, bump)).collect()
+    }
+);
 
 /// Creates metadata for a native HTML element constructor function.
-fn create_func_data(
-    element: &'static data::ElemInfo,
-    bump: &'static Bump,
-) -> NativeFuncData
+fn create_func_data(element: & 'static data::ElemInfo, bump: & 'static Bump,)->NativeFuncData
 {
-    NativeFuncData {
-        function: NativeFuncPtr(bump.alloc(
-            move |_: &mut Engine, _: Tracked<Context>, args: &mut Args| {
-                construct(element, args)
-            },
-        )),
+    NativeFuncData
+    {
+        function: NativeFuncPtr(bump.alloc(move | _: & mut Engine, _: Tracked<Context>, args: & mut Args | { construct(element, args) },)),
         name: element.name,
-        title: {
-            let title = bump.alloc_str(element.name);
-            title[0..1].make_ascii_uppercase();
-            title
-        },
+        title: { let title = bump.alloc_str(element.name); title[0..1].make_ascii_uppercase(); title },
         since: Some(Since::Version([0, 14, 0])),
         docs: element.docs,
         def_site: None,
-        keywords: &["typed-html"],
+        keywords: & ["typed-html"],
         contextual: false,
-        scope: LazyLock::new(&|| Scope::new()),
-        params: LazyLock::new(bump.alloc(move || create_param_info(element))),
-        returns: LazyLock::new(&|| CastInfo::Type(Type::of::<Content>())),
+        scope: LazyLock:: new ( &|| Scope::new ()),
+        params: LazyLock:: new (bump.alloc(move || create_param_info(element))),
+        returns: LazyLock:: new ( &|| CastInfo::Type(Type::of::<Content>())),
     }
 }
 
 /// Creates parameter signature metadata for an element.
-fn create_param_info(element: &'static data::ElemInfo) -> Vec<NativeParamInfo>
+fn create_param_info(element: & 'static data::ElemInfo)->Vec<NativeParamInfo>
 {
     let mut params = vec![];
     for attr in element.attributes()
     {
-        params.push(NativeParamInfo {
-            name: attr.name,
-            docs: attr.docs,
-            def_site: None,
-            input: AttrType::convert(attr.ty).input(),
-            default: None,
-            positional: false,
-            named: true,
-            variadic: false,
-            required: false,
-            settable: false,
-        });
+        params.push
+        (
+            NativeParamInfo
+            {
+                name: attr.name,
+                docs: attr.docs,
+                def_site: None,
+                input: AttrType::convert(attr.ty).input(),
+                default: None,
+                positional: false,
+                named: true,
+                variadic: false,
+                required: false,
+                settable: false,
+            }
+        );
     }
     let tag = HtmlTag::constant(element.name);
-    if !tag::is_void(tag)
+    if ! tag::is_void(tag)
     {
         let raw = tag::is_raw(tag);
-        params.push(NativeParamInfo {
-            name: "body",
-            docs: if raw
+        params.push
+        (
+            NativeParamInfo
             {
-                "The text content of the HTML element."
+                name: "body",
+                docs: if raw { "The text content of the HTML element." }
+                else { "The contents of the HTML element." },
+                def_site: None,
+                input: CastInfo::Type(if raw { Type::of::<Str>() } else { Type::of::<Content>() },),
+                default: None,
+                positional: true,
+                named: false,
+                variadic: false,
+                required: false,
+                settable: false,
             }
-            else
-            {
-                "The contents of the HTML element."
-            },
-            def_site: None,
-            input: CastInfo::Type(
-                if raw { Type::of::<Str>() } else { Type::of::<Content>() },
-            ),
-            default: None,
-            positional: true,
-            named: false,
-            variadic: false,
-            required: false,
-            settable: false,
-        });
+        );
     }
     params
 }
 
 /// The native constructor function shared by all HTML elements.
-fn construct(element: &'static data::ElemInfo, args: &mut Args) -> SourceResult<Value>
+fn construct(element: & 'static data::ElemInfo, args: & mut Args)->SourceResult<Value>
 {
-    let mut attrs = HtmlAttrs::default();
+    let mut attrs = HtmlAttrs:: default();
     let mut errors = eco_vec![];
 
-    args.items.retain(|item| {
-        let Some(name) = &item.name
-        else
+    args.items.retain
+    (
+        | item |
         {
-            return true;
-        };
-        let Some(attr) = element.get_attr(name)
-        else
-        {
-            return true;
-        };
+            let Some(name) = & item.name
+            else { return true; };
+            let Some(attr) = element.get_attr(name)
+            else { return true; };
 
-        let span = item.value.span;
-        let value = std::mem::take(&mut item.value.v);
-        let ty = AttrType::convert(attr.ty);
-        match ty.cast(value).at(span)
-        {
-            Ok(Some(string)) => attrs.push(HtmlAttr::constant(attr.name), string),
-            Ok(None) =>
-            {}
-            Err(diags) => errors.extend(diags),
+            let span = item.value.span;
+            let value = std::mem::take( & mut item.value.v);
+            let ty = AttrType::convert(attr.ty);
+            match ty.cast(value).at(span) { Ok(Some(string)) => attrs.push(HtmlAttr::constant(attr.name), string), Ok(None) => {} Err(diags) => errors.extend(diags), }
+
+            false
         }
+    );
 
-        false
-    });
-
-    if !errors.is_empty()
-    {
-        return Err(errors);
-    }
+    if ! errors.is_empty() { return Err(errors); }
 
     let tag = HtmlTag::constant(element.name);
-    let mut elem = HtmlElem::new(tag);
-    if !attrs.0.is_empty()
-    {
-        elem.attrs.set(attrs);
-    }
+    let mut elem = HtmlElem:: new (tag);
+    if ! attrs .0.is_empty() { elem.attrs.set (attrs); }
 
-    if !tag::is_void(tag)
+    if ! tag::is_void(tag)
     {
         let body = if tag::is_raw(tag)
         {
             let str = args.eat::<Spanned<Str>>()?;
-            str.map(|Spanned { v, span }| TextElem::packed(v).spanned(span))
+            str.map( | Spanned { v, span } | TextElem::packed(v).spanned(span))
         }
-        else
-        {
-            args.eat::<Content>()?
-        };
+        else { args.eat::<Content>()? };
 
-        elem.body.set(body);
+        elem.body. set(body);
     }
 
     Ok(elem.into_value())
@@ -186,20 +158,13 @@ fn construct(element: &'static data::ElemInfo, args: &mut Args) -> SourceResult<
 /// A dynamic representation of an attribute's type.
 ///
 /// See the documentation of [`data::Type`] for more details on variants.
-enum AttrType
-{
-    Presence,
-    Native(NativeType),
-    Strings(StringsType),
-    Union(UnionType),
-    List(ListType),
-}
+enum AttrType { Presence, Native(NativeType), Strings(StringsType), Union(UnionType), List(ListType), }
 
 impl AttrType
 {
     /// Converts the type definition into a representation suitable for casting
     /// and reflection.
-    const fn convert(ty: data::Type) -> AttrType
+    const fn convert(ty: data::Type)->AttrType
     {
         use data::Type;
         match ty
@@ -228,22 +193,16 @@ impl AttrType
             Type::SourceSize => Self::of::<SourceSize>(),
             Type::Strings(start, end) => Self::Strings(StringsType { start, end }),
             Type::Union(variants) => Self::Union(UnionType(variants)),
-            Type::List(inner, separator, shorthand) =>
-            {
-                Self::List(ListType { inner, separator, shorthand })
-            }
+            Type::List(inner, separator, shorthand) => { Self::List(ListType { inner, separator, shorthand }) }
         }
     }
 
     /// Produces the dynamic representation of an attribute type backed by a
     /// native Rust type.
-    const fn of<T: IntoAttr>() -> Self
-    {
-        Self::Native(NativeType::of::<T>())
-    }
+    const fn of<T: IntoAttr>()->Self { Self::Native(NativeType::of::<T>()) }
 
     /// See [`Reflect::input`].
-    fn input(&self) -> CastInfo
+    fn input( & self)->CastInfo
     {
         match self
         {
@@ -256,7 +215,7 @@ impl AttrType
     }
 
     /// See [`Reflect::castable`].
-    fn castable(&self, value: &Value) -> bool
+    fn castable( & self, value: & Value)-> bool
     {
         match self
         {
@@ -270,11 +229,11 @@ impl AttrType
 
     /// Tries to cast the value into this attribute's type and serialize it into
     /// an HTML attribute string.
-    fn cast(&self, value: Value) -> HintedStrResult<Option<EcoString>>
+    fn cast( & self, value: Value)->HintedStrResult<Option<EcoString>>
     {
         match self
         {
-            Self::Presence => value.cast::<bool>().map(|b| b.then(EcoString::new)),
+            Self::Presence => value.cast::<bool>().map( | b | b.then(EcoString::new)),
             Self::Native(ty) => (ty.cast)(value),
             Self::Union(ty) => ty.cast(value),
             Self::Strings(ty) => ty.cast(value),
@@ -286,196 +245,94 @@ impl AttrType
 /// An enumeration with generated string variants.
 ///
 /// `start` and `end` are used to index into `data::ATTR_STRINGS`.
-struct StringsType
-{
-    start: usize,
-    end: usize,
-}
+struct StringsType { start: usize, end: usize, }
 
 impl StringsType
 {
-    fn input(&self) -> CastInfo
-    {
-        CastInfo::Union(
-            self.strings()
-                .iter()
-                .map(|(val, desc)| CastInfo::Value(val.into_value(), desc))
-                .collect(),
-        )
-    }
+    fn input( & self)->CastInfo { CastInfo::Union(self.strings().iter().map( | (val, desc) | CastInfo::Value(val.into_value(), desc)).collect(),) }
 
-    fn castable(&self, value: &Value) -> bool
-    {
-        match value
-        {
-            Value::Str(s) => self.strings().iter().any(|&(v, _)| v == s.as_str()),
-            _ => false,
-        }
-    }
+    fn castable( & self, value: & Value)-> bool { match value { Value::Str(s) => self.strings().iter().any( |& (v, _) | v == s.as_str()), _ => false, } }
 
-    fn cast(&self, value: Value) -> HintedStrResult<Option<EcoString>>
-    {
-        if self.castable(&value)
-        {
-            value.cast().map(Some)
-        }
-        else
-        {
-            Err(self.input().error(&value))
-        }
-    }
+    fn cast( & self, value: Value)->HintedStrResult<Option<EcoString>> { if self.castable( & value) { value.cast().map(Some) } else { Err(self.input().error( & value)) } }
 
-    fn strings(&self) -> &'static [(&'static str, &'static str)]
-    {
-        &data::ATTR_STRINGS[self.start..self.end]
-    }
+    fn strings( & self)-> & 'static[( & 'static str, & 'static str)] { & data::ATTR_STRINGS[self.start..self.end] }
 }
 
 /// A type that accepts any of the contained types.
-struct UnionType(&'static [data::Type]);
+struct UnionType( & 'static[data::Type]);
 
 impl UnionType
 {
-    fn input(&self) -> CastInfo
+    fn input( & self)->CastInfo { CastInfo::Union(self.iter().map( | ty | ty.input()).collect()) }
+
+    fn castable( & self, value: & Value)-> bool { self.iter().any( | ty | ty.castable(value)) }
+
+    fn cast( & self, value: Value)->HintedStrResult<Option<EcoString>>
     {
-        CastInfo::Union(self.iter().map(|ty| ty.input()).collect())
+        for item in self.iter() { if item.castable( & value) { return item.cast(value); } }
+        Err(self.input().error( & value))
     }
 
-    fn castable(&self, value: &Value) -> bool
-    {
-        self.iter().any(|ty| ty.castable(value))
-    }
-
-    fn cast(&self, value: Value) -> HintedStrResult<Option<EcoString>>
-    {
-        for item in self.iter()
-        {
-            if item.castable(&value)
-            {
-                return item.cast(value);
-            }
-        }
-        Err(self.input().error(&value))
-    }
-
-    fn iter(&self) -> impl Iterator<Item = AttrType>
-    {
-        self.0.iter().map(|&ty| AttrType::convert(ty))
-    }
+    fn iter( & self)-> impl Iterator<Item = AttrType> { self .0.iter().map( |& ty | AttrType::convert(ty)) }
 }
 
 /// A list of items separated by a specific separator char.
 ///
 /// - <https://html.spec.whatwg.org/#space-separated-tokens>
 /// - <https://html.spec.whatwg.org/#comma-separated-tokens>
-struct ListType
-{
-    inner: &'static data::Type,
-    separator: char,
-    shorthand: bool,
-}
+struct ListType { inner: & 'static data::Type, separator: char , shorthand: bool , }
 
 impl ListType
 {
-    fn input(&self) -> CastInfo
-    {
-        if self.shorthand
-        {
-            Array::input() + self.inner().input()
-        }
-        else
-        {
-            Array::input()
-        }
-    }
+    fn input( & self)->CastInfo { if self.shorthand { Array::input() + self.inner().input() } else { Array::input() } }
 
-    fn castable(&self, value: &Value) -> bool
-    {
-        Array::castable(value) || (self.shorthand && self.inner().castable(value))
-    }
+    fn castable( & self, value: & Value)-> bool { Array::castable(value) || (self.shorthand && self.inner().castable(value)) }
 
-    fn cast(&self, value: Value) -> HintedStrResult<Option<EcoString>>
+    fn cast( & self, value: Value)->HintedStrResult<Option<EcoString>>
     {
         let ty = self.inner();
-        if Array::castable(&value)
+        if Array::castable( & value)
         {
             let array = value.cast::<Array>()?;
-            let mut out = EcoString::new();
+            let mut out = EcoString:: new ();
             for (i, item) in array.into_iter().enumerate()
             {
                 let item = ty.cast(item)?.unwrap();
                 if item.as_str().contains(self.separator)
                 {
                     let buf;
-                    let name = match self.separator
-                    {
-                        ' ' => "space",
-                        ',' => "comma",
-                        _ =>
-                        {
-                            buf = eco_format!("'{}'", self.separator);
-                            buf.as_str()
-                        }
-                    };
-                    bail!(
+                    let name = match self.separator { ' ' => "space", ',' => "comma", _ => { buf = eco_format ! ("'{}'", self.separator); buf.as_str() } };
+                    bail!
+                    (
                         "array item may not contain a {name}";
                         hint: "the array attribute will be encoded as a \
                                {name}-separated string";
                     );
                 }
-                if i > 0
-                {
-                    out.push(self.separator);
-                    if self.separator == ','
-                    {
-                        out.push(' ');
-                    }
-                }
-                out.push_str(&item);
+                if i > 0 { out.push(self.separator); if self.separator == ',' { out.push(' '); } }
+                out.push_str( & item);
             }
             Ok(Some(out))
         }
-        else if self.shorthand && ty.castable(&value)
-        {
-            let item = ty.cast(value)?.unwrap();
-            Ok(Some(item))
-        }
-        else
-        {
-            Err(self.input().error(&value))
-        }
+        else if self.shorthand && ty.castable( & value) { let item = ty.cast(value)?.unwrap(); Ok(Some(item)) }
+        else { Err(self.input().error( & value)) }
     }
 
-    fn inner(&self) -> AttrType
-    {
-        AttrType::convert(*self.inner)
-    }
+    fn inner( & self)->AttrType { AttrType::convert( * self.inner) }
 }
 
 /// A dynamic representation of attribute backed by a native type implementing
 /// - the standard `Reflect` and `FromValue` traits for casting from a value,
 /// - the special `IntoAttr` trait for conversion into an attribute string.
 #[derive(Copy, Clone)]
-struct NativeType
-{
-    input: fn() -> CastInfo,
-    cast: fn(Value) -> HintedStrResult<Option<EcoString>>,
-    castable: fn(&Value) -> bool,
-}
+struct NativeType { input: fn ()->CastInfo, cast: fn (Value)->HintedStrResult<Option<EcoString>>, castable: fn ( & Value)->bool , }
 
 impl NativeType
 {
     /// Creates a dynamic native type from a native Rust type.
-    const fn of<T: IntoAttr>() -> Self
+    const fn of<T: IntoAttr>()->Self
     {
-        Self {
-            cast: |value| {
-                let this = value.cast::<T>()?;
-                Ok(Some(this.into_attr()))
-            },
-            input: T::input,
-            castable: T::castable,
-        }
+        Self { cast: | value | { let this = value.cast::<T>()?; Ok(Some(this.into_attr())) }, input: T::input, castable: T::castable, }
     }
 }
 
@@ -483,33 +340,21 @@ impl NativeType
 pub trait IntoAttr: FromValue
 {
     /// Turn the value into an attribute string.
-    fn into_attr(self) -> EcoString;
+    fn into_attr(self)->EcoString;
 }
 
-impl IntoAttr for Str
-{
-    fn into_attr(self) -> EcoString
-    {
-        self.into()
-    }
-}
+impl IntoAttr for Str { fn into_attr(self)->EcoString { self.into() } }
 
 /// A boolean that is encoded as a string:
 /// - `false` is encoded as `"false"`
 /// - `true` is encoded as `"true"`
 pub struct TrueFalseBool(pub bool);
 
-cast! {
-    TrueFalseBool,
-    v: bool => Self(v),
-}
+cast! { TrueFalseBool, v: bool => Self(v), }
 
 impl IntoAttr for TrueFalseBool
 {
-    fn into_attr(self) -> EcoString
-    {
-        if self.0 { "true" } else { "false" }.into()
-    }
+    fn into_attr(self)->EcoString { if self .0 { "true" } else { "false" }.into() }
 }
 
 /// A boolean that is encoded as a string:
@@ -517,17 +362,11 @@ impl IntoAttr for TrueFalseBool
 /// - `true` is encoded as `"yes"`
 pub struct YesNoBool(pub bool);
 
-cast! {
-    YesNoBool,
-    v: bool => Self(v),
-}
+cast! { YesNoBool, v: bool => Self(v), }
 
 impl IntoAttr for YesNoBool
 {
-    fn into_attr(self) -> EcoString
-    {
-        if self.0 { "yes" } else { "no" }.into()
-    }
+    fn into_attr(self)->EcoString { if self .0 { "yes" } else { "no" }.into() }
 }
 
 /// A boolean that is encoded as a string:
@@ -535,110 +374,44 @@ impl IntoAttr for YesNoBool
 /// - `true` is encoded as `"on"`
 pub struct OnOffBool(pub bool);
 
-cast! {
-    OnOffBool,
-    v: bool => Self(v),
-}
+cast! { OnOffBool, v: bool => Self(v), }
 
 impl IntoAttr for OnOffBool
 {
-    fn into_attr(self) -> EcoString
-    {
-        if self.0 { "on" } else { "off" }.into()
-    }
+    fn into_attr(self)->EcoString { if self .0 { "on" } else { "off" }.into() }
 }
 
-impl IntoAttr for AutoValue
-{
-    fn into_attr(self) -> EcoString
-    {
-        "auto".into()
-    }
-}
+impl IntoAttr for AutoValue { fn into_attr(self)->EcoString { "auto".into() } }
 
-impl IntoAttr for NoneValue
-{
-    fn into_attr(self) -> EcoString
-    {
-        "none".into()
-    }
-}
+impl IntoAttr for NoneValue { fn into_attr(self)->EcoString { "none".into() } }
 
 /// A `none` value that turns into an empty string attribute.
 struct NoneEmpty;
 
-cast! {
-    NoneEmpty,
-    _: NoneValue => NoneEmpty,
-}
+cast! { NoneEmpty, _: NoneValue => NoneEmpty, }
 
-impl IntoAttr for NoneEmpty
-{
-    fn into_attr(self) -> EcoString
-    {
-        "".into()
-    }
-}
+impl IntoAttr for NoneEmpty { fn into_attr(self)->EcoString { "".into() } }
 
 /// A `none` value that turns into the string `"undefined"`.
 struct NoneUndefined;
 
-cast! {
-    NoneUndefined,
-    _: NoneValue => NoneUndefined,
-}
+cast! { NoneUndefined, _: NoneValue => NoneUndefined, }
 
-impl IntoAttr for NoneUndefined
-{
-    fn into_attr(self) -> EcoString
-    {
-        "undefined".into()
-    }
-}
+impl IntoAttr for NoneUndefined { fn into_attr(self)->EcoString { "undefined".into() } }
 
-impl IntoAttr for char
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{self}")
-    }
-}
+impl IntoAttr for char { fn into_attr(self)->EcoString { eco_format ! ("{self}") } }
 
-impl IntoAttr for i64
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{self}")
-    }
-}
+impl IntoAttr for i64 { fn into_attr(self)->EcoString { eco_format ! ("{self}") } }
 
-impl IntoAttr for u64
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{self}")
-    }
-}
+impl IntoAttr for u64 { fn into_attr(self)->EcoString { eco_format ! ("{self}") } }
 
-impl IntoAttr for NonZeroI64
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{self}")
-    }
-}
+impl IntoAttr for NonZeroI64 { fn into_attr(self)->EcoString { eco_format ! ("{self}") } }
 
-impl IntoAttr for NonZeroU64
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{self}")
-    }
-}
+impl IntoAttr for NonZeroU64 { fn into_attr(self)->EcoString { eco_format ! ("{self}") } }
 
 impl IntoAttr for f64
 {
-    fn into_attr(self) -> EcoString
+    fn into_attr(self)->EcoString
     {
         // HTML float literal allows all the things that Rust's float `Display`
         // impl produces.
@@ -646,17 +419,11 @@ impl IntoAttr for f64
     }
 }
 
-impl IntoAttr for PositiveF64
-{
-    fn into_attr(self) -> EcoString
-    {
-        self.get().into_attr()
-    }
-}
+impl IntoAttr for PositiveF64 { fn into_attr(self)->EcoString { self.get ().into_attr() } }
 
 impl IntoAttr for Color
 {
-    fn into_attr(self) -> EcoString
+    fn into_attr(self)->EcoString
     {
         // TODO: Warnings are currently ignored.
         self.to_css(())
@@ -665,41 +432,21 @@ impl IntoAttr for Color
 
 impl IntoAttr for Duration
 {
-    fn into_attr(self) -> EcoString
+    fn into_attr(self)->EcoString
     {
         // https://html.spec.whatwg.org/#valid-duration-string
-        let mut out = EcoString::new();
-        macro_rules! part {
-            ($s:literal) => {
-                if !out.is_empty()
-                {
-                    out.push(' ');
-                }
-                write!(out, $s).unwrap();
-            };
+        let mut out = EcoString:: new ();
+        macro_rules! part
+        {
+            ($s: literal) => { if ! out.is_empty() { out.push(' '); } write ! (out, $s).unwrap(); };
         }
 
         let [weeks, days, hours, minutes, seconds] = self.decompose();
-        if weeks > 0
-        {
-            part!("{weeks}w");
-        }
-        if days > 0
-        {
-            part!("{days}d");
-        }
-        if hours > 0
-        {
-            part!("{hours}h");
-        }
-        if minutes > 0
-        {
-            part!("{minutes}m");
-        }
-        if seconds > 0 || out.is_empty()
-        {
-            part!("{seconds}s");
-        }
+        if weeks > 0 { part ! ("{weeks}w"); }
+        if days > 0 { part ! ("{days}d"); }
+        if hours > 0 { part ! ("{hours}h"); }
+        if minutes > 0 { part ! ("{minutes}m"); }
+        if seconds > 0 || out.is_empty() { part ! ("{seconds}s"); }
 
         out
     }
@@ -707,23 +454,26 @@ impl IntoAttr for Duration
 
 impl IntoAttr for Datetime
 {
-    fn into_attr(self) -> EcoString
+    fn into_attr(self)->EcoString
     {
-        let fmt = typst_utils::display(|f| match self
-        {
-            Self::Date(date) => datetime::date(f, date),
-            Self::Time(time) => datetime::time(f, time),
-            Self::Datetime(datetime) => datetime::datetime(f, datetime),
-        });
+        let fmt = typst_utils::display
+        (
+            | f | match self
+            {
+                Self::Date(date) => datetime::date(f, date),
+                Self::Time(time) => datetime::time(f, time),
+                Self::Datetime(datetime) => datetime::datetime(f, datetime),
+            }
+        );
         eco_format!("{fmt}")
     }
 }
 
 mod datetime
 {
-    use std::fmt::{self, Formatter, Write};
+    use std::fmt:: { self, Formatter, Write };
 
-    pub fn datetime(f: &mut Formatter, datetime: time::PrimitiveDateTime) -> fmt::Result
+    pub fn datetime(f: & mut Formatter, datetime: time::PrimitiveDateTime)->fmt::Result
     {
         // https://html.spec.whatwg.org/#valid-global-date-and-time-string
         date(f, datetime.date())?;
@@ -731,20 +481,17 @@ mod datetime
         time(f, datetime.time())
     }
 
-    pub fn date(f: &mut Formatter, date: time::Date) -> fmt::Result
+    pub fn date(f: & mut Formatter, date: time::Date)->fmt::Result
     {
         // https://html.spec.whatwg.org/#valid-date-string
         write!(f, "{:04}-{:02}-{:02}", date.year(), date.month() as u8, date.day())
     }
 
-    pub fn time(f: &mut Formatter, time: time::Time) -> fmt::Result
+    pub fn time(f: & mut Formatter, time: time::Time)->fmt::Result
     {
         // https://html.spec.whatwg.org/#valid-time-string
         write!(f, "{:02}:{:02}", time.hour(), time.minute())?;
-        if time.second() > 0
-        {
-            write!(f, ":{:02}", time.second())?;
-        }
+        if time.second() > 0 { write ! (f, ":{:02}", time.second())?; }
         Ok(())
     }
 }
@@ -752,132 +499,82 @@ mod datetime
 /// A direction on the X axis: `ltr` or `rtl`.
 pub struct HorizontalDir(Dir);
 
-cast! {
+cast!
+{
     HorizontalDir,
-    v: Dir => {
-        if v.axis() == Axis::Y {
-            bail!("direction must be horizontal");
-        }
-        Self(v)
-    },
+    v: Dir => { if v.axis() == Axis::Y { bail ! ("direction must be horizontal"); } Self(v) },
 }
 
-impl IntoAttr for HorizontalDir
-{
-    fn into_attr(self) -> EcoString
-    {
-        self.0.into_attr()
-    }
-}
+impl IntoAttr for HorizontalDir { fn into_attr(self)->EcoString { self .0.into_attr() } }
 
 impl IntoAttr for Dir
 {
-    fn into_attr(self) -> EcoString
-    {
-        match self
-        {
-            Self::LTR => "ltr".into(),
-            Self::RTL => "rtl".into(),
-            Self::TTB => "ttb".into(),
-            Self::BTT => "btt".into(),
-        }
-    }
+    fn into_attr(self)->EcoString { match self { Self::LTR => "ltr".into(), Self::RTL => "rtl".into(), Self::TTB => "ttb".into(), Self::BTT => "btt".into(), } }
 }
 
 /// A width/height pair for `<link rel="icon" sizes="..." />`.
 pub struct IconSize(Axes<u64>);
 
-cast! {
-    IconSize,
-    v: Axes<u64> => Self(v),
-}
+cast! { IconSize, v: Axes < u64 > => Self(v), }
 
-impl IntoAttr for IconSize
-{
-    fn into_attr(self) -> EcoString
-    {
-        eco_format!("{}x{}", self.0.x, self.0.y)
-    }
-}
+impl IntoAttr for IconSize { fn into_attr(self)->EcoString { eco_format ! ("{}x{}", self .0.x, self .0.y) } }
 
 /// <https://html.spec.whatwg.org/#image-candidate-string>
 pub struct ImageCandidate(EcoString);
 
-cast! {
+cast!
+{
     ImageCandidate,
-    mut v: Dict => {
+    mut v: Dict =>
+    {
         let src = v.take("src")?.cast::<EcoString>()?;
-        let width: Option<NonZeroU64> =
-            v.take("width").ok().map(Value::cast).transpose()?;
-        let density: Option<PositiveF64> =
-            v.take("density").ok().map(Value::cast).transpose()?;
-        v.finish(&["src", "width", "density"])?;
+        let width: Option < NonZeroU64 > =
+        v.take("width").ok().map(Value::cast).transpose()?;
+        let density: Option < PositiveF64 > =
+        v.take("density").ok().map(Value::cast).transpose()?;
+        v.finish( & ["src", "width", "density"])?;
 
-        if src.is_empty() {
-            bail!("`src` must not be empty");
-        } else if src.starts_with(',') || src.ends_with(',') {
-            bail!("`src` must not start or end with a comma");
-        }
+        if src.is_empty() { bail ! ("`src` must not be empty"); }
+        else if src.starts_with(',') || src.ends_with(',') { bail ! ("`src` must not start or end with a comma"); }
 
         let mut out = src;
-        match (width, density) {
+        match (width, density)
+        {
             (None, None) => {}
-            (Some(width), None) => write!(out, " {width}w").unwrap(),
-            (None, Some(density)) => write!(out, " {}d", density.get()).unwrap(),
-            (Some(_), Some(_)) => bail!("cannot specify both `width` and `density`"),
+            (Some(width), None) => write!(out, " {width}w").unwrap(),(None, Some(density)) => write!(out, " {}d", density.get ()).unwrap(),(Some(_), Some(_)) => bail!("cannot specify both `width` and `density`"),
         }
 
         Self(out)
     },
 }
 
-impl IntoAttr for ImageCandidate
-{
-    fn into_attr(self) -> EcoString
-    {
-        self.0
-    }
-}
+impl IntoAttr for ImageCandidate { fn into_attr(self)->EcoString { self .0 } }
 
 /// <https://html.spec.whatwg.org/multipage/images.html#valid-source-size-list>
 pub struct SourceSize(EcoString);
 
-cast! {
+cast!
+{
     SourceSize,
-    mut v: Dict => {
+    mut v: Dict =>
+    {
         let condition = v.take("condition")?.cast::<EcoString>()?;
         let size = v
-            .take("size")?
-            .cast::<Length>()
-            .hint("CSS lengths that are not expressible as Typst lengths are not yet supported")
-            .hint("you can use `html.elem` to create a raw attribute")?;
-        Self(eco_format!("({condition}) {}", size.to_css(())))
+        .take("size")?
+        .cast::<Length>()
+        .hint("CSS lengths that are not expressible as Typst lengths are not yet supported")
+        .hint("you can use `html.elem` to create a raw attribute")?;
+        Self(eco_format ! ("({condition}) {}", size.to_css(())))
     },
 }
 
-impl IntoAttr for SourceSize
-{
-    fn into_attr(self) -> EcoString
-    {
-        self.0
-    }
-}
+impl IntoAttr for SourceSize { fn into_attr(self)->EcoString { self .0 } }
 
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
-    fn test_tags_and_attr_const_internible()
-    {
-        for elem in data::ELEMS
-        {
-            let _ = HtmlTag::constant(elem.name);
-        }
-        for attr in data::ATTRS
-        {
-            let _ = HtmlAttr::constant(attr.name);
-        }
-    }
+    # [test]
+    fn test_tags_and_attr_const_internible() { for elem in data::ELEMS { let _ = HtmlTag::constant(elem.name); } for attr in data::ATTRS { let _ = HtmlAttr::constant(attr.name); } }
 }

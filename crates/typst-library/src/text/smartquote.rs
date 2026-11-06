@@ -2,13 +2,10 @@ use ecow::EcoString;
 use typst_syntax::is_newline;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::diag::{HintedStrResult, StrResult, bail};
-use crate::foundations::{
-    Array, Dict, FromValue, Packed, PlainText, Smart, Str, StyleChain, array, cast, dict,
-    elem,
-};
+use crate::diag:: { HintedStrResult, StrResult, bail };
+use crate::foundations:: { Array, Dict, FromValue, Packed, PlainText, Smart, Str, StyleChain, array, cast, dict, elem, };
 use crate::layout::Dir;
-use crate::text::{Lang, Region, TextElem};
+use crate::text:: { Lang, Region, TextElem };
 
 /// A language-aware quote that reacts to its context.
 ///
@@ -33,7 +30,7 @@ use crate::text::{Lang, Region, TextElem};
 pub struct SmartQuoteElem
 {
     /// Whether this should be a double quote.
-    #[default(true)]
+    # [default (true)]
     pub double: bool,
 
     /// Whether smart quotes are enabled.
@@ -46,7 +43,7 @@ pub struct SmartQuoteElem
     ///
     /// These are "dumb" quotes.
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub enabled: bool,
 
     /// Whether to use alternative quotes.
@@ -60,7 +57,7 @@ pub struct SmartQuoteElem
     ///
     /// "Das ist in anderen Anführungszeichen."
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub alternative: bool,
 
     /// The quotes to use.
@@ -90,13 +87,7 @@ pub struct SmartQuoteElem
     pub quotes: Smart<SmartQuoteDict>,
 }
 
-impl PlainText for Packed<SmartQuoteElem>
-{
-    fn plain_text(&self, text: &mut EcoString)
-    {
-        text.push_str(SmartQuotes::fallback(self.double.as_option().unwrap_or(true)));
-    }
-}
+impl PlainText for Packed<SmartQuoteElem> { fn plain_text( & self, text: & mut EcoString) { text.push_str(SmartQuotes::fallback(self.double.as_option().unwrap_or(true))); } }
 
 /// A smart quote substitutor with zero lookahead.
 #[derive(Debug, Clone)]
@@ -112,50 +103,32 @@ pub struct SmartQuoter
 impl SmartQuoter
 {
     /// Start quoting.
-    pub fn new() -> Self
-    {
-        Self { depth: 0, kinds: 0 }
-    }
+    pub fn new ()->Self { Self { depth: 0, kinds: 0 } }
 
     /// Determine which smart quote to substitute given this quoter's nesting
     /// state and the character immediately preceding the quote.
-    pub fn quote<'a>(
-        &mut self,
-        before: Option<char>,
-        quotes: &SmartQuotes<'a>,
-        double: bool,
-    ) -> &'a str
+    pub fn quote<'a>( & mut self, before: Option<char>, quotes: & SmartQuotes<'a>, double : bool ,)-> & 'a str
     {
         let opened = self.top();
         let before = before.unwrap_or(' ');
 
         // If we are after a number and haven't most recently opened a quote of
         // this kind, produce a prime. Otherwise, we prefer a closing quote.
-        if before.is_numeric() && opened != Some(double)
-        {
-            return if double { "″" } else { "′" };
-        }
+        if before.is_numeric() && opened != Some(double) { return if double { "″" } else { "′" }; }
 
         // If we have a single smart quote, didn't recently open a single
         // quotation, and are after an alphabetic char or an object (e.g. a
         // math equation), interpret this as an apostrophe.
-        if !double
-            && opened != Some(false)
-            && (before.is_alphabetic() || before == '\u{FFFC}')
-        {
-            return "’";
-        }
+        if ! double
+        && opened != Some(false)
+        && (before.is_alphabetic() || before == '\u{FFFC}') { return "’"; }
 
         // If the most recently opened quotation is of this kind and the
         // previous char does not indicate a nested quotation, close it.
         if opened == Some(double)
-            && !before.is_whitespace()
-            && !is_newline(before)
-            && !is_opening_bracket(before)
-        {
-            self.pop();
-            return quotes.close(double);
-        }
+        && ! before.is_whitespace()
+        && ! is_newline(before)
+        && ! is_opening_bracket(before) { self.pop(); return quotes.close(double); }
 
         // Otherwise, open a new the quotation.
         self.push(double);
@@ -164,66 +137,44 @@ impl SmartQuoter
 
     /// The top of our quotation stack. Returns `Some(double)` for the most
     /// recently opened quote or `None` if we didn't open one.
-    fn top(&self) -> Option<bool>
-    {
-        self.depth.checked_sub(1).map(|i| (self.kinds >> i) & 1 == 1)
-    }
+    fn top( & self)->Option<bool> { self.depth.checked_sub(1).map( | i | (self.kinds >> i) & 1 == 1) }
 
     /// Push onto the quotation stack.
-    fn push(&mut self, double: bool)
-    {
-        if self.depth < 32
-        {
-            self.kinds |= (double as u32) << self.depth;
-            self.depth += 1;
-        }
-    }
+    fn push( & mut self, double : bool) { if self.depth < 32 { self.kinds |= (double as u32) << self.depth; self.depth += 1; } }
 
     /// Pop from the quotation stack.
-    fn pop(&mut self)
-    {
-        self.depth -= 1;
-        self.kinds &= (1 << self.depth) - 1;
-    }
+    fn pop( & mut self) { self.depth -= 1; self.kinds &= (1 << self.depth) - 1; }
 }
 
-impl Default for SmartQuoter
-{
-    fn default() -> Self
-    {
-        Self::new()
-    }
-}
+impl Default for SmartQuoter { fn default ()->Self { Self::new () } }
 
 /// Whether the character is an opening bracket, parenthesis, or brace.
-fn is_opening_bracket(c: char) -> bool
-{
-    matches!(c, '(' | '{' | '[')
-}
+fn is_opening_bracket(c: char)-> bool { matches ! (c, '(' | '{' | '[') }
 
 /// Decides which quotes to substitute smart quotes with.
 pub struct SmartQuotes<'s>
 {
     /// The opening single quote.
-    pub single_open: &'s str,
+    pub single_open: & 's str,
     /// The closing single quote.
-    pub single_close: &'s str,
+    pub single_close: & 's str,
     /// The opening double quote.
-    pub double_open: &'s str,
+    pub double_open: & 's str,
     /// The closing double quote.
-    pub double_close: &'s str,
+    pub double_close: & 's str,
 }
 
-impl<'s> SmartQuotes<'s>
+impl <'s> SmartQuotes<'s>
 {
     /// Retrieve the smart quotes as configured by the current styles.
-    pub fn get_in(styles: StyleChain<'s>) -> Self
+    pub fn get_in(styles: StyleChain<'s>)->Self
     {
-        Self::get(
+        Self:: get
+        (
             styles.get_ref(SmartQuoteElem::quotes),
-            styles.get(TextElem::lang),
-            styles.get(TextElem::region),
-            styles.get(SmartQuoteElem::alternative),
+            styles. get(TextElem::lang),
+            styles. get(TextElem::region),
+            styles. get(SmartQuoteElem::alternative),
         )
     }
 
@@ -240,12 +191,7 @@ impl<'s> SmartQuotes<'s>
     /// Traditional Chinese, Russian, Norwegian, Hebrew, Galician and Croatian.
     ///
     /// For unknown languages, the English quotes are used as fallback.
-    pub fn get(
-        quotes: &'s Smart<SmartQuoteDict>,
-        lang: Lang,
-        region: Option<Region>,
-        alternative: bool,
-    ) -> Self
+    pub fn get(quotes: & 's Smart<SmartQuoteDict>, lang: Lang, region: Option<Region>, alternative: bool ,)->Self
     {
         let region = region.as_ref().map(Region::as_str);
 
@@ -254,25 +200,14 @@ impl<'s> SmartQuotes<'s>
 
         let (single_open, single_close, double_open, double_close) = match lang
         {
-            Lang::GERMAN if matches!(region, Some("CH" | "LI")) => match alternative
-            {
-                false => ("‹", "›", "«", "»"),
-                true => low_high,
-            },
-            Lang::FRENCH if matches!(region, Some("CH")) => match alternative
-            {
-                false => ("‹\u{202F}", "\u{202F}›", "«\u{202F}", "\u{202F}»"),
-                true => default,
-            },
+            Lang::GERMAN if matches!(region, Some("CH" | "LI")) => match alternative { false => ("‹", "›", "«", "»"), true => low_high, },
+            Lang::FRENCH if matches!(region, Some("CH")) => match alternative { false => ("‹\u{202F}", "\u{202F}›", "«\u{202F}", "\u{202F}»"), true => default , },
             Lang::CZECH
             | Lang::DANISH
             | Lang::GERMAN
             | Lang::SLOVAK
             | Lang::SLOVENIAN
-                if alternative =>
-            {
-                ("›", "‹", "»", "«")
-            }
+            if alternative => { ("›", "‹", "»", "«") }
             Lang::CZECH
             | Lang::GERMAN
             | Lang::ESTONIAN
@@ -293,96 +228,61 @@ impl<'s> SmartQuotes<'s>
             Lang::SPANISH if matches!(region, Some("ES") | None) => ("“", "”", "«", "»"),
             Lang::HUNGARIAN | Lang::POLISH | Lang::ROMANIAN => ("’", "’", "„", "”"),
             Lang::NORWEGIAN | Lang::NORWEGIAN_BOKMAL | Lang::NORWEGIAN_NYNORSK
-                if alternative =>
-            {
-                low_high
-            }
-            Lang::NORWEGIAN | Lang::NORWEGIAN_BOKMAL | Lang::NORWEGIAN_NYNORSK =>
-            {
-                ("’", "’", "«", "»")
-            }
+            if alternative => { low_high }
+            Lang::NORWEGIAN | Lang::NORWEGIAN_BOKMAL | Lang::NORWEGIAN_NYNORSK => { ("’", "’", "«", "»") }
             Lang::RUSSIAN => ("„", "“", "«", "»"),
             Lang::UKRAINIAN => ("“", "”", "«", "»"),
             Lang::GREEK => ("‘", "’", "«", "»"),
             Lang::HEBREW => ("’", "’", "”", "”"),
             Lang::CROATIAN => ("‘", "’", "„", "”"),
             Lang::BULGARIAN => ("’", "’", "„", "“"),
-            Lang::ARABIC if !alternative => ("’", "‘", "«", "»"),
+            Lang::ARABIC if ! alternative => ("’", "‘", "«", "»"),
             _ if lang.dir() == Dir::RTL => ("’", "‘", "”", "“"),
             _ => default,
         };
 
-        fn inner_or_default<'s>(
-            quotes: Smart<&'s SmartQuoteDict>,
-            f: impl FnOnce(&'s SmartQuoteDict) -> Smart<&'s SmartQuoteSet>,
-            default: [&'s str; 2],
-        ) -> [&'s str; 2]
+        fn inner_or_default<'s>(quotes: Smart <& 's SmartQuoteDict > , f: impl FnOnce( & 's SmartQuoteDict)->Smart <& 's SmartQuoteSet > , default: [ & 's str; 2],)->
+        [
+            & 's str;
+            2
+        ]
         {
-            match quotes.and_then(f)
-            {
-                Smart::Auto => default,
-                Smart::Custom(SmartQuoteSet { open, close }) =>
-                {
-                    [open, close].map(|s| s.as_str())
-                }
-            }
+            match quotes.and_then(f) { Smart::Auto => default , Smart::Custom(SmartQuoteSet { open, close }) => { [open, close].map( | s | s.as_str()) } }
         }
 
         let quotes = quotes.as_ref();
         let [single_open, single_close] =
-            inner_or_default(quotes, |q| q.single.as_ref(), [single_open, single_close]);
+        inner_or_default(quotes, | q | q.single.as_ref(),[single_open, single_close]);
         let [double_open, double_close] =
-            inner_or_default(quotes, |q| q.double.as_ref(), [double_open, double_close]);
+        inner_or_default(quotes, | q | q.double.as_ref(),[double_open, double_close]);
 
-        Self {
-            single_open,
-            single_close,
-            double_open,
-            double_close,
-        }
+        Self { single_open, single_close, double_open, double_close, }
     }
 
     /// The opening quote.
-    pub fn open(&self, double: bool) -> &'s str
-    {
-        if double { self.double_open } else { self.single_open }
-    }
+    pub fn open( & self, double : bool)-> & 's str { if double { self.double_open } else { self.single_open } }
 
     /// The closing quote.
-    pub fn close(&self, double: bool) -> &'s str
-    {
-        if double { self.double_close } else { self.single_close }
-    }
+    pub fn close( & self, double : bool)-> & 's str { if double { self.double_close } else { self.single_close } }
 
     /// Get the fallback "dumb" quotes for when smart quotes are disabled.
-    pub fn fallback(double: bool) -> &'static str
-    {
-        if double { "\"" } else { "'" }
-    }
+    pub fn fallback(double : bool)-> & 'static str { if double { "\"" } else { "'" } }
 }
 
 /// An opening and closing quote.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct SmartQuoteSet
-{
-    open: EcoString,
-    close: EcoString,
-}
+pub struct SmartQuoteSet { open: EcoString, close: EcoString, }
 
-cast! {
+cast!
+{
     SmartQuoteSet,
     self => array![self.open, self.close].into_value(),
-    value: Array => {
-        let [open, close] = array_to_set(value)?;
-        Self { open, close }
-    },
-    value: Str => {
-        let [open, close] = str_to_set(value.as_str())?;
-        Self { open, close }
-    },
+    value: Array => { let [open, close] = array_to_set(value)?; Self { open, close } },
+
+    value: Str => { let [open, close] = str_to_set(value.as_str())?; Self { open, close } },
 }
 
-fn str_to_set(value: &str) -> StrResult<[EcoString; 2]>
+fn str_to_set(value: & str)->StrResult < [EcoString; 2] >
 {
     let mut iter = value.graphemes(true);
     match (iter.next(), iter.next(), iter.next())
@@ -391,25 +291,15 @@ fn str_to_set(value: &str) -> StrResult<[EcoString; 2]>
         _ =>
         {
             let count = value.graphemes(true).count();
-            bail!(
-                "expected 2 characters, found {count} character{}",
-                if count > 1 { "s" } else { "" },
-            );
+            bail!("expected 2 characters, found {count} character{}", if count > 1 { "s" } else { "" },);
         }
     }
 }
 
-fn array_to_set(value: Array) -> HintedStrResult<[EcoString; 2]>
+fn array_to_set(value: Array)->HintedStrResult < [EcoString; 2] >
 {
     let value = value.as_slice();
-    if value.len() != 2
-    {
-        bail!(
-            "expected 2 quotes, found {} quote{}",
-            value.len(),
-            if value.len() > 1 { "s" } else { "" },
-        );
-    }
+    if value.len() != 2 { bail ! ("expected 2 quotes, found {} quote{}", value.len(), if value.len() > 1 { "s" } else { "" },); }
 
     let open: EcoString = value[0].clone().cast()?;
     let close: EcoString = value[1].clone().cast()?;
@@ -419,37 +309,34 @@ fn array_to_set(value: Array) -> HintedStrResult<[EcoString; 2]>
 
 /// A dict of single and double quotes.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct SmartQuoteDict
-{
-    double: Smart<SmartQuoteSet>,
-    single: Smart<SmartQuoteSet>,
-}
+pub struct SmartQuoteDict { double : Smart<SmartQuoteSet>, single: Smart<SmartQuoteSet>, }
 
-cast! {
+cast!
+{
     SmartQuoteDict,
-    self => dict! { "double" => self.double, "single" => self.single }.into_value(),
-    mut value: Dict => {
+    self => dict! { "double" => self.double , "single" => self.single }
+    .into_value(),
+    mut value: Dict =>
+    {
         let keys = ["double", "single"];
 
         let double = value
-            .take("double")
-            .ok()
-            .map(FromValue::from_value)
-            .transpose()?
-            .unwrap_or(Smart::Auto);
+        .take("double")
+        .ok()
+        .map(FromValue::from_value)
+        .transpose()?
+        .unwrap_or(Smart::Auto);
         let single = value
-            .take("single")
-            .ok()
-            .map(FromValue::from_value)
-            .transpose()?
-            .unwrap_or(Smart::Auto);
+        .take("single")
+        .ok()
+        .map(FromValue::from_value)
+        .transpose()?
+        .unwrap_or(Smart::Auto);
 
-        value.finish(&keys)?;
+        value.finish( & keys)?;
 
-        Self { double, single }
+        Self { double , single }
     },
-    value: SmartQuoteSet => Self {
-        double: Smart::Custom(value),
-        single: Smart::Auto,
-    },
+
+    value: SmartQuoteSet => Self { double : Smart::Custom(value), single: Smart::Auto, },
 }

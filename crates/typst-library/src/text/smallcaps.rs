@@ -1,4 +1,4 @@
-use crate::foundations::{Content, elem};
+use crate::foundations:: { Content, elem };
 
 /// Displays text in small capitals.
 ///
@@ -52,10 +52,10 @@ pub struct SmallcapsElem
     /// #smallcaps(all: true)[UNICEF] is an
     /// agency of #smallcaps(all: true)[UN].
     /// ```
-    #[default(false)]
+    # [default (false)]
     pub all: bool,
     /// The content to display in small capitals.
-    #[required]
+    # [required]
     pub body: Content,
 }
 

@@ -1,22 +1,22 @@
 use std::num::NonZeroU16;
 
 use ecow::EcoVec;
-use krilla::tagging::{self as kt, Node, Tag, TagKind};
-use krilla::tagging::{Identifier, TagTree};
+use krilla::tagging:: { self as kt, Node, Tag, TagKind };
+use krilla::tagging:: { Identifier, TagTree };
 use smallvec::SmallVec;
-use typst_library::diag::{At, SourceDiagnostic, SourceResult, error};
+use typst_library::diag:: { At, SourceDiagnostic, SourceResult, error };
 use typst_library::format::Complete;
 use typst_library::text::Locale;
 use typst_syntax::Span;
 
 use crate::PdfOptions;
-use crate::convert::{GlobalContext, to_span};
-use crate::tags::context::{self, Annotations, BBoxCtx, Ctx};
-use crate::tags::groups::{Group, GroupId, GroupKind, TagStorage};
+use crate::convert:: { GlobalContext, to_span };
+use crate::tags::context:: { self, Annotations, BBoxCtx, Ctx };
+use crate::tags::groups:: { Group, GroupId, GroupKind, TagStorage };
 use crate::tags::resolve::accumulator::Accumulator;
 use crate::tags::tree::ResolvedTextAttrs;
-use crate::tags::util::{self, IdVec, PropertyOptRef, PropertyValCopied};
-use crate::tags::{AnnotationId, disabled};
+use crate::tags::util:: { self, IdVec, PropertyOptRef, PropertyValCopied };
+use crate::tags:: { AnnotationId, disabled };
 use crate::util::ValidatorsExt;
 
 mod accumulator;
@@ -36,11 +36,11 @@ pub enum TagNode
 
 struct Resolver<'a>
 {
-    options: &'a PdfOptions<Complete>,
-    ctx: &'a Ctx,
-    groups: &'a IdVec<Group>,
-    tags: &'a mut TagStorage,
-    annotations: &'a mut Annotations,
+    options: & 'a PdfOptions<Complete>,
+    ctx: & 'a Ctx,
+    groups: & 'a IdVec<Group>,
+    tags: & 'a mut TagStorage,
+    annotations: & 'a mut Annotations,
     last_heading_level: Option<NonZeroU16>,
     flatten: bool,
     errors: EcoVec<SourceDiagnostic>,
@@ -48,7 +48,7 @@ struct Resolver<'a>
 
 impl Resolver<'_>
 {
-    fn with_flatten<T>(&mut self, flatten: bool, f: impl FnOnce(&mut Self) -> T) -> T
+    fn with_flatten<T>( & mut self, flatten: bool , f: impl FnOnce( & mut Self)->T)->T
     {
         let prev = self.flatten;
         self.flatten |= flatten;
@@ -58,50 +58,36 @@ impl Resolver<'_>
     }
 }
 
-pub fn resolve(gc: &mut GlobalContext) -> SourceResult<(Option<Locale>, TagTree)>
+pub fn resolve(gc: & mut GlobalContext)->SourceResult<(Option<Locale>, TagTree)>
 {
     gc.tags.tree.assert_finished_traversal().at(Span::detached())?;
 
-    if !disabled(gc)
-    {
-        context::finish(&mut gc.tags.tree);
-    }
+    if ! disabled(gc) { context::finish( & mut gc.tags.tree); }
 
-    let root = gc.tags.tree.groups.list.get(GroupId::ROOT);
+    let root = gc.tags.tree.groups.list. get(GroupId::ROOT);
     let GroupKind::Root(mut doc_lang) = root.kind
-    else
-    {
-        unreachable!()
-    };
+    else { unreachable ! () };
 
-    if disabled(gc)
-    {
-        return Ok((doc_lang, TagTree::new()));
-    }
+    if disabled(gc) { return Ok((doc_lang, TagTree::new ())); }
 
-    let mut resolver = Resolver {
+    let mut resolver = Resolver
+    {
         options: gc.options,
-        ctx: &gc.tags.tree.ctx,
-        groups: &gc.tags.tree.groups.list,
-        tags: &mut gc.tags.tree.groups.tags,
-        annotations: &mut gc.tags.annotations,
+        ctx: & gc.tags.tree.ctx,
+        groups: & gc.tags.tree.groups.list,
+        tags: & mut gc.tags.tree.groups.tags,
+        annotations: & mut gc.tags.annotations,
         last_heading_level: None,
         flatten: false,
-        errors: std::mem::take(&mut gc.tags.tree.errors),
+        errors: std::mem::take( & mut gc.tags.tree.errors),
     };
 
     let mut accum = Accumulator::root();
     accum.reserve(root.nodes().len());
 
-    for child in root.nodes()
-    {
-        resolve_node(&mut resolver, &mut doc_lang, &mut None, &mut accum, child);
-    }
+    for child in root.nodes() { resolve_node( & mut resolver, & mut doc_lang, & mut None, & mut accum, child); }
 
-    if !resolver.errors.is_empty()
-    {
-        return Err(resolver.errors);
-    }
+    if ! resolver.errors.is_empty() { return Err(resolver.errors); }
 
     let children = accum.finish();
 
@@ -109,118 +95,69 @@ pub fn resolve(gc: &mut GlobalContext) -> SourceResult<(Option<Locale>, TagTree)
 }
 
 /// Resolves nodes into an accumulator.
-fn resolve_node(
-    rs: &mut Resolver,
-    parent_lang: &mut Option<Locale>,
-    parent_bbox: &mut Option<BBoxCtx>,
-    accum: &mut Accumulator,
-    node: &TagNode,
-)
+fn resolve_node(rs: & mut Resolver, parent_lang: & mut Option<Locale>, parent_bbox: & mut Option<BBoxCtx>, accum: & mut Accumulator, node: & TagNode,)
 {
-    match &node
+    match & node
     {
-        TagNode::Group(id) =>
-        {
-            resolve_group_node(rs, parent_lang, parent_bbox, accum, *id);
-        }
-        TagNode::Leaf(identifier) =>
-        {
-            accum.push(Node::Leaf(*identifier));
-        }
-        TagNode::Annotation(id) =>
-        {
-            accum.push(rs.annotations.take(*id));
-        }
-        TagNode::Text(attrs, ids) =>
-        {
-            resolve_text(accum, attrs, ids);
-        }
+        TagNode::Group(id) => { resolve_group_node(rs, parent_lang, parent_bbox, accum, * id); }
+        TagNode::Leaf(identifier) => { accum.push(Node::Leaf( * identifier)); }
+        TagNode::Annotation(id) => { accum.push(rs.annotations.take( * id)); }
+        TagNode::Text(attrs, ids) => { resolve_text(accum, attrs, ids); }
     }
 }
 
-fn resolve_group_node(
-    rs: &mut Resolver,
-    parent_lang: &mut Option<Locale>,
-    parent_bbox: &mut Option<BBoxCtx>,
-    accum: &mut Accumulator,
-    id: GroupId,
-)
+fn resolve_group_node(rs: & mut Resolver, parent_lang: & mut Option<Locale>, parent_bbox: & mut Option<BBoxCtx>, accum: & mut Accumulator, id: GroupId,)
 {
-    let group = rs.groups.get(id);
+    let group = rs.groups. get(id);
 
     let tag = build_group_tag(rs, group);
-    let mut lang = group.kind.lang().filter(|_| tag.is_some());
-    let mut bbox = rs.ctx.bbox(&group.kind).cloned();
+    let mut lang = group.kind.lang().filter( | _ | tag.is_some());
+    let mut bbox = rs.ctx.bbox( & group.kind).cloned();
 
     // If this group doesn't produce a tag, don't create a nested accumulator
     // and push the children directly into the parent.
     let mut nested_children = None;
-    let children = if let Some(tag) = &tag
-    {
-        let nesting = element_kind(tag);
-        nested_children.insert(accum.nest(nesting))
-    }
-    else
-    {
-        &mut *accum
-    };
+    let children = if let Some(tag) = & tag { let nesting = element_kind(tag); nested_children.insert(accum.nest(nesting)) }
+    else { & mut * accum };
 
     // If a tag has an alternative description specified, flatten the children
     // tags, only retaining link tags, because they are required. The inner tags
     // won't be ingested by AT anyway, but would still have to comply with all
     // rules, which can be annoying.
-    let flatten = tag.as_ref().is_some_and(|t| t.alt_text().is_some());
-    rs.with_flatten(flatten, |rs| {
-        let lang = lang.as_mut().unwrap_or(parent_lang);
-        let bbox = if bbox.is_some() { &mut bbox } else { &mut *parent_bbox };
+    let flatten = tag.as_ref().is_some_and( | t | t.alt_text().is_some());
+    rs.with_flatten
+    (
+        flatten, | rs |
+        {
+            let lang = lang.as_mut().unwrap_or(parent_lang);
+            let bbox = if bbox.is_some() { & mut bbox } else { & mut * parent_bbox };
 
-        // In PDF 1.7, don't include artifacts in the tag tree. In PDF 2.0
-        // this might become an `Artifact` tag.
-        if group.kind.is_artifact()
-        {
-            for child in group.nodes()
-            {
-                resolve_artifact_node(rs, bbox, child);
-            }
+            // In PDF 1.7, don't include artifacts in the tag tree. In PDF 2.0
+            // this might become an `Artifact` tag.
+            if group.kind.is_artifact() { for child in group.nodes() { resolve_artifact_node(rs, bbox, child); } }
+            else { children.reserve(group.nodes().len()); for child in group.nodes() { resolve_node(rs, lang, bbox, children, child); } }
         }
-        else
-        {
-            children.reserve(group.nodes().len());
-            for child in group.nodes()
-            {
-                resolve_node(rs, lang, bbox, children, child);
-            }
-        }
-    });
+    );
 
     // Try to propagate the group's language to the parent tag.
     let lang = util::propagate_lang(parent_lang, lang.flatten());
 
     // Update the parent bbox.
-    if let Some((parent, child)) = parent_bbox.as_mut().zip(bbox.as_ref())
-    {
-        parent.expand_page(child);
-    }
+    if let Some((parent, child)) = parent_bbox.as_mut().zip(bbox.as_ref()) { parent.expand_page(child); }
 
     // If this isn't a tagged group the children have already been inserted
     // directly into the parent
     let Some((mut tag, nested_children)) = tag.zip(nested_children)
-    else
-    {
-        return;
-    };
+    else { return ; };
 
     // Omit the weak group if it is empty.
     let nodes = nested_children.finish();
-    if group.weak && nodes.is_empty()
-    {
-        return;
-    }
+    if group.weak && nodes.is_empty() { return ; }
 
-    tag.set_lang(lang.map(|l| l.rfc_3066().to_string()));
+    tag.set_lang(lang.map( | l | l.rfc_3066().to_string()));
     if let Some(bbox) = bbox
     {
-        match &mut tag
+        match & mut tag
         {
             TagKind::Table(tag) => tag.set_bbox(bbox.to_krilla()),
             TagKind::Figure(tag) => tag.set_bbox(bbox.to_krilla()),
@@ -229,35 +166,20 @@ fn resolve_group_node(
         }
     }
 
-    if rs.options.validators().accessibility().is_some()
-    {
-        validate_children(rs, &tag, &nodes);
-    }
+    if rs.options.validators().accessibility().is_some() { validate_children(rs, & tag, & nodes); }
 
     accum.push(Node::Group(kt::TagGroup::with_children(tag, nodes)));
 }
 
-fn resolve_text(
-    accum: &mut Accumulator,
-    attrs: &ResolvedTextAttrs,
-    children: &[kt::Identifier],
-)
+fn resolve_text(accum: & mut Accumulator, attrs: & ResolvedTextAttrs, children: & [kt::Identifier],)
 {
-    enum Prev<'a>
-    {
-        Children(&'a [kt::Identifier]),
-        Group(kt::TagGroup),
-    }
+    enum Prev<'a> { Children( & 'a[kt::Identifier]), Group(kt::TagGroup), }
 
     impl Prev<'_>
     {
-        fn into_nodes(self) -> Vec<Node>
+        fn into_nodes(self)->Vec<Node>
         {
-            match self
-            {
-                Prev::Children(ids) => ids.iter().map(|id| Node::Leaf(*id)).collect(),
-                Prev::Group(group) => vec![Node::Group(group)],
-            }
+            match self { Prev::Children(ids) => ids.iter().map( | id | Node::Leaf( * id)).collect(), Prev::Group(group) => vec ! [Node::Group(group)], }
         }
     }
 
@@ -265,61 +187,42 @@ fn resolve_text(
     if attrs.script.is_some() || attrs.background.is_some() || attrs.deco.is_some()
     {
         let tag = Tag::Span
-            .with_line_height(attrs.script.map(|s| s.lineheight))
-            .with_baseline_shift(attrs.script.map(|s| s.baseline_shift))
-            .with_background_color(attrs.background.flatten())
-            .with_text_decoration_type(attrs.deco.map(|d| d.kind.to_krilla()))
-            .with_text_decoration_color(attrs.deco.and_then(|d| d.color))
-            .with_text_decoration_thickness(attrs.deco.and_then(|d| d.thickness));
+        .with_line_height(attrs.script.map( | s | s.lineheight))
+        .with_baseline_shift(attrs.script.map( | s | s.baseline_shift))
+        .with_background_color(attrs.background.flatten())
+        .with_text_decoration_type(attrs.deco.map( | d | d.kind.to_krilla()))
+        .with_text_decoration_color(attrs.deco.and_then( | d | d.color))
+        .with_text_decoration_thickness(attrs.deco.and_then( | d | d.thickness));
 
         let group = kt::TagGroup::with_children(tag, prev.into_nodes());
         prev = Prev::Group(group);
     }
-    if attrs.strong == Some(true)
-    {
-        let group = kt::TagGroup::with_children(Tag::Strong, prev.into_nodes());
-        prev = Prev::Group(group);
-    }
-    if attrs.emph == Some(true)
-    {
-        let group = kt::TagGroup::with_children(Tag::Em, prev.into_nodes());
-        prev = Prev::Group(group);
-    }
+    if attrs.strong == Some(true) { let group = kt::TagGroup::with_children(Tag::Strong, prev.into_nodes()); prev = Prev::Group(group); }
+    if attrs.emph == Some(true) { let group = kt::TagGroup::with_children(Tag::Em, prev.into_nodes()); prev = Prev::Group(group); }
 
     match prev
     {
         Prev::Group(group) => accum.push(Node::Group(group)),
-        Prev::Children(ids) => accum.extend(ids.iter().map(|id| Node::Leaf(*id))),
+        Prev::Children(ids) => accum.extend(ids.iter().map( | id | Node::Leaf( * id))),
     }
 }
 
 /// Currently only done to resolve bounding boxes.
-fn resolve_artifact_node(
-    rs: &mut Resolver,
-    parent_bbox: &mut Option<BBoxCtx>,
-    node: &TagNode,
-)
+fn resolve_artifact_node(rs: & mut Resolver, parent_bbox: & mut Option<BBoxCtx>, node: & TagNode,)
 {
-    match &node
+    match & node
     {
         TagNode::Group(id) =>
         {
-            let group = rs.groups.get(*id);
-            let mut bbox = rs.ctx.bbox(&group.kind).cloned();
-
+            let group = rs.groups. get( * id);
+            let mut bbox = rs.ctx.bbox( & group.kind).cloned();
             {
-                let bbox = if bbox.is_some() { &mut bbox } else { &mut *parent_bbox };
-                for child in group.nodes()
-                {
-                    resolve_artifact_node(rs, bbox, child);
-                }
+                let bbox = if bbox.is_some() { & mut bbox } else { & mut * parent_bbox };
+                for child in group.nodes() { resolve_artifact_node(rs, bbox, child); }
             }
 
             // Update the parent bbox.
-            if let Some((parent, child)) = parent_bbox.as_mut().zip(bbox.as_ref())
-            {
-                parent.expand_page(child);
-            }
+            if let Some((parent, child)) = parent_bbox.as_mut().zip(bbox.as_ref()) { parent.expand_page(child); }
         }
         TagNode::Leaf(..) => (),
         TagNode::Annotation(..) => (),
@@ -327,9 +230,9 @@ fn resolve_artifact_node(
     }
 }
 
-fn build_group_tag(rs: &mut Resolver, group: &Group) -> Option<TagKind>
+fn build_group_tag(rs: & mut Resolver, group: & Group)->Option<TagKind>
 {
-    let tag = match &group.kind
+    let tag = match & group.kind
     {
         GroupKind::Root(_) => unreachable!(),
         GroupKind::Artifact(_) => return None,
@@ -337,18 +240,18 @@ fn build_group_tag(rs: &mut Resolver, group: &Group) -> Option<TagKind>
         GroupKind::LogicalChild(_, _) => return None,
         GroupKind::Outline(_, _) => Tag::TOC.into(),
         GroupKind::OutlineEntry(_, _) => Tag::TOCI.into(),
-        GroupKind::Table(id, _, _) => rs.ctx.tables.get(*id).build_tag(),
-        GroupKind::TableCell(_, tag, _) => rs.tags.take(*tag),
+        GroupKind::Table(id, _, _) => rs.ctx.tables. get( * id).build_tag(),
+        GroupKind::TableCell(_, tag, _) => rs.tags.take( * tag),
         GroupKind::Grid(_, _) => Tag::Div.into(),
         GroupKind::GridCell(_, _) => Tag::Div.into(),
-        GroupKind::List(_, numbering, _) => Tag::L(*numbering).into(),
+        GroupKind::List(_, numbering, _) => Tag::L( * numbering).into(),
         GroupKind::ListItemLabel(_) => Tag::Lbl.into(),
         GroupKind::ListItemBody(_) => Tag::LBody.into(),
         GroupKind::TermsItemLabel(_) => Tag::Lbl.into(),
         GroupKind::TermsItemBody(_, _) => Tag::LBody.into(),
         GroupKind::BibEntry(_) => Tag::BibEntry.into(),
-        GroupKind::FigureWrapper(id) => rs.ctx.figures.get(*id).build_wrapper_tag()?,
-        GroupKind::Figure(id, _, _) => rs.ctx.figures.get(*id).build_tag()?,
+        GroupKind::FigureWrapper(id) => rs.ctx.figures. get( * id).build_wrapper_tag()?,
+        GroupKind::Figure(id, _, _) => rs.ctx.figures. get( * id).build_tag()?,
         GroupKind::FigureCaption(_, _) => Tag::Caption.into(),
         GroupKind::Image(image, _, _) =>
         {
@@ -362,49 +265,41 @@ fn build_group_tag(rs: &mut Resolver, group: &Group) -> Option<TagKind>
             Tag::Formula(alt).with_placement(placement).into()
         }
         GroupKind::Link(_, _) => Tag::Link.into(),
-        GroupKind::CodeBlock(_) =>
-        {
-            Tag::Code.with_placement(Some(kt::Placement::Block)).into()
-        }
+        GroupKind::CodeBlock(_) => { Tag::Code.with_placement(Some(kt::Placement::Block)).into() }
         GroupKind::CodeBlockLine(_) => Tag::P.into(),
         GroupKind::Par(_) => Tag::P.into(),
         GroupKind::TextAttr(_) => return None,
         GroupKind::Transparent => return None,
-        GroupKind::Standard(tag, _) => rs.tags.take(*tag),
+        GroupKind::Standard(tag, _) => rs.tags.take( * tag),
     };
 
     let tag = tag.with_location(Some(group.span.into_raw()));
 
-    if rs.flatten && !group.kind.is_link()
-    {
-        return None;
-    }
+    if rs.flatten && ! group.kind.is_link() { return None; }
 
     // Check that no heading levels were skipped.
-    if let TagKind::Hn(tag) = &tag
+    if let TagKind::Hn(tag) = & tag
     {
-        let prev_level = rs.last_heading_level.map_or(0, |l| l.get());
+        let prev_level = rs.last_heading_level.map_or(0, | l | l.get ());
         let next_level = tag.level();
         if let Some(accessibility) = rs.options.validators().accessibility()
-            && next_level.get().saturating_sub(prev_level) > 1
+        && next_level. get().saturating_sub(prev_level) > 1
         {
             let span = to_span(tag.as_any().location);
             let validator = accessibility.as_str();
-            if rs.last_heading_level.is_none()
-            {
-                rs.errors.push(error!(
-                    span,
-                    "{validator} error: the first heading must be of level 1",
-                ));
-            }
+            if rs.last_heading_level.is_none() { rs.errors.push(error ! (span, "{validator} error: the first heading must be of level 1",)); }
             else
             {
-                rs.errors.push(error!(
-                    span,
-                    "{validator} error: skipped from heading level \
+                rs.errors.push
+                (
+                    error!
+                    (
+                        span,
+                        "{validator} error: skipped from heading level \
                      {prev_level} to {next_level}";
-                    hint: "heading levels must be consecutive";
-                ));
+                        hint: "heading levels must be consecutive";
+                    )
+                );
             }
         }
 
@@ -415,15 +310,9 @@ fn build_group_tag(rs: &mut Resolver, group: &Group) -> Option<TagKind>
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
-enum ElementKind
-{
-    Grouping,
-    Block,
-    Table,
-    Inline,
-}
+enum ElementKind { Grouping, Block, Table, Inline, }
 
-fn element_kind(tag: &TagKind) -> ElementKind
+fn element_kind(tag: & TagKind)->ElementKind
 {
     match tag
     {
@@ -472,129 +361,99 @@ fn element_kind(tag: &TagKind) -> ElementKind
     }
 }
 
-fn validate_children(rs: &mut Resolver, tag: &TagKind, children: &[Node])
+fn validate_children(rs: & mut Resolver, tag: & TagKind, children: & [Node])
 {
     match tag
     {
-        TagKind::TOC(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(child, TagKind::TOC(_) | TagKind::TOCI(_))
-        }),
-        TagKind::TOCI(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(
-                child,
-                TagKind::TOC(_)
-                    | TagKind::Reference(_)
-                    | TagKind::NonStruct(_)
-                    | TagKind::P(_)
-                    | TagKind::Lbl(_)
-            )
-        }),
-        TagKind::L(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(child, TagKind::Caption(_) | TagKind::L(_) | TagKind::LI(_))
-        }),
-        TagKind::LI(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(child, TagKind::Lbl(_) | TagKind::LBody(_))
-        }),
-        TagKind::Table(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(
-                child,
-                TagKind::Caption(_)
-                    | TagKind::THead(_)
-                    | TagKind::TBody(_)
-                    | TagKind::TFoot(_)
-                    | TagKind::TR(_)
-            )
-        }),
+        TagKind::TOC(_) => validate_children_groups(rs, tag, children, | child | { matches ! (child, TagKind::TOC(_) | TagKind::TOCI(_)) }),
+        TagKind::TOCI(_) => validate_children_groups
+        (
+            rs, tag, children, | child | { matches ! (child, TagKind::TOC(_) | TagKind::Reference(_) | TagKind::NonStruct(_) | TagKind::P(_) | TagKind::Lbl(_)) }
+        ),
+        TagKind::L(_) => validate_children_groups(rs, tag, children, | child | { matches ! (child, TagKind::Caption(_) | TagKind::L(_) | TagKind::LI(_)) }),
+        TagKind::LI(_) => validate_children_groups(rs, tag, children, | child | { matches ! (child, TagKind::Lbl(_) | TagKind::LBody(_)) }),
+        TagKind::Table(_) => validate_children_groups
+        (
+            rs, tag, children, | child | { matches ! (child, TagKind::Caption(_) | TagKind::THead(_) | TagKind::TBody(_) | TagKind::TFoot(_) | TagKind::TR(_)) }
+        ),
         TagKind::THead(_) | TagKind::TBody(_) | TagKind::TFoot(_) =>
         {
-            validate_children_groups(rs, tag, children, |child| {
-                matches!(child, TagKind::TR(_))
-            });
+            validate_children_groups(rs, tag, children, | child | { matches ! (child, TagKind::TR(_)) });
         }
-        TagKind::TR(_) => validate_children_groups(rs, tag, children, |child| {
-            matches!(child, TagKind::TD(_) | TagKind::TH(_))
-        }),
+        TagKind::TR(_) => validate_children_groups(rs, tag, children, | child | { matches ! (child, TagKind::TD(_) | TagKind::TH(_)) }),
         _ => (),
     }
 }
 
-fn validate_children_groups(
-    rs: &mut Resolver,
-    parent: &TagKind,
-    children: &[Node],
-    mut is_valid: impl FnMut(&TagKind) -> bool,
-)
+fn validate_children_groups(rs: & mut Resolver, parent: & TagKind, children: & [Node], mut is_valid: impl FnMut( & TagKind)->bool ,)
 {
     let parent_span = to_span(parent.location());
 
-    let mut caption_spans = SmallVec::<[_; 3]>::new();
+    let mut caption_spans = SmallVec:: < [_; 3] >:: new ();
     let mut contains_leaf_nodes = false;
     for node in children
     {
         let Node::Group(child) = node
-        else
-        {
-            contains_leaf_nodes = true;
-            continue;
-        };
+        else { contains_leaf_nodes = true; continue ; };
 
-        if !is_valid(&child.tag)
+        if ! is_valid( & child.tag)
         {
             let validator = rs.options.validators().to_comma_list();
             let span = to_span(child.tag.location()).or(parent_span);
             let parent = tag_name(parent);
-            let child = tag_name(&child.tag);
-            rs.errors.push(error!(
-                span,
-                "{validator} error: invalid {parent} structure";
-                hint: "{parent} may not contain {child}";
-                hint: "this is probably caused by a show rule";
-            ));
+            let child = tag_name( & child.tag);
+            rs.errors.push
+            (
+                error!
+                (
+                    span,
+                    "{validator} error: invalid {parent} structure";
+                    hint: "{parent} may not contain {child}";
+                    hint: "this is probably caused by a show rule";
+                )
+            );
         }
-        else if matches!(&child.tag, TagKind::Caption(_))
-        {
-            caption_spans.push(to_span(child.tag.location()));
-        }
+        else if matches!( & child.tag, TagKind::Caption(_)) { caption_spans.push(to_span(child.tag.location())); }
     }
 
     if caption_spans.len() > 1
     {
         let validator = rs.options.validators().to_comma_list();
         let parent = tag_name(parent);
-        let child = tag_name(&Tag::Caption.into());
+        let child = tag_name( & Tag::Caption.into());
 
-        let caption_error = |span| {
-            error!(
+        let caption_error = | span |
+        {
+            error!
+            (
                 span,
                 "{validator} error: invalid {parent} structure";
                 hint: "{parent} may not contain multiple {child} tags";
                 hint: "avoid manually calling `figure.caption`";
             )
         };
-        if caption_spans.iter().all(|s| !s.is_detached())
-        {
-            rs.errors.extend(caption_spans.into_iter().map(caption_error));
-        }
-        else
-        {
-            rs.errors.push(caption_error(parent_span));
-        }
+        if caption_spans.iter().all( | s | ! s.is_detached()) { rs.errors.extend(caption_spans.into_iter().map(caption_error)); }
+        else { rs.errors.push(caption_error(parent_span)); }
     }
 
     if contains_leaf_nodes
     {
         let validator = rs.options.validators().to_comma_list();
         let parent = tag_name(parent);
-        rs.errors.push(error!(
-            parent_span,
-            "{validator} error: invalid {parent} structure";
-            hint: "{parent} may not contain marked content directly";
-            hint: "this is probably caused by a show rule";
-        ));
+        rs.errors.push
+        (
+            error!
+            (
+                parent_span,
+                "{validator} error: invalid {parent} structure";
+                hint: "{parent} may not contain marked content directly";
+                hint: "this is probably caused by a show rule";
+            )
+        );
     }
 }
 
-fn tag_name(tag: &TagKind) -> &'static str
+fn tag_name(tag: & TagKind)-> & 'static str
 {
     match tag
     {

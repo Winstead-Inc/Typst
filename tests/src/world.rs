@@ -7,26 +7,27 @@ use std::sync::Arc;
 use comemo::Tracked;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use typst::diag::{At, FileError, FileResult, SourceResult, StrResult, bail};
+use typst::diag:: { At, FileError, FileResult, SourceResult, StrResult, bail };
 use typst::engine::Engine;
-use typst::foundations::{
+use typst::foundations::
+{
     Array, Bytes, Content, Context, Datetime, Deprecation, Duration, IntoValue, Module,
     NativeElement, NoneValue, Packed, Repr, Scope, Smart, StyleChain, Value, elem, func,
     scope,
 };
 use typst::introspection::Locator;
-use typst::layout::{Abs, BlockElem, Fragment, Margin, PageElem, Regions};
-use typst::model::{Numbering, NumberingPattern};
-use typst::syntax::{FileId, Source, Span};
-use typst::text::{Font, FontBook, TextElem, TextSize};
-use typst::utils::{LazyHash, singleton};
+use typst::layout:: { Abs, BlockElem, Fragment, Margin, PageElem, Regions };
+use typst::model:: { Numbering, NumberingPattern };
+use typst::syntax:: { FileId, Source, Span };
+use typst::text:: { Font, FontBook, TextElem, TextSize };
+use typst::utils:: { LazyHash, singleton };
 use typst::visualize::Color;
-use typst::{Feature, Features, Library, LibraryExt, World};
+use typst:: { Feature, Features, Library, LibraryExt, World };
 use typst_kit::datetime::Time;
-use typst_kit::files::{FileLoader, FileStore};
+use typst_kit::files:: { FileLoader, FileStore };
 use typst_layout::layout_fragment;
 use typst_syntax::package::PackageSpec;
-use typst_syntax::{RootedPath, VirtualPath, VirtualRoot};
+use typst_syntax:: { RootedPath, VirtualPath, VirtualRoot };
 use unscanny::Scanner;
 
 /// A world that provides access to the tests environment.
@@ -36,7 +37,7 @@ pub struct TestWorld
     main: Source,
     /// The library that should be used with this test world.
     library: Arc<LazyHash<Library>>,
-    base: &'static TestBase,
+    base: & 'static TestBase,
 }
 
 impl TestWorld
@@ -45,9 +46,9 @@ impl TestWorld
     ///
     /// This is cheap because the shared base for all test runs is lazily
     /// initialized just once.
-    pub fn new(source: Source, features: Option<Features>) -> Self
+    pub fn new (source: Source, features: Option<Features>)->Self
     {
-        let base = singleton!(TestBase, TestBase::default());
+        let base = singleton!(TestBase, TestBase::default ());
         let library = base.lib.with_features(features);
         Self { main: source, library, base }
     }
@@ -55,51 +56,19 @@ impl TestWorld
 
 impl World for TestWorld
 {
-    fn library(&self) -> &LazyHash<Library>
-    {
-        &self.library
-    }
+    fn library( & self)-> & LazyHash<Library> { & self.library }
 
-    fn book(&self) -> &LazyHash<FontBook>
-    {
-        &self.base.book
-    }
+    fn book( & self)-> & LazyHash<FontBook> { & self.base.book }
 
-    fn main(&self) -> FileId
-    {
-        self.main.id()
-    }
+    fn main( & self)->FileId { self.main.id() }
 
-    fn source(&self, id: FileId) -> FileResult<Source>
-    {
-        if id == self.main.id()
-        {
-            Ok(self.main.clone())
-        }
-        else
-        {
-            self.base.files.source(id)
-        }
-    }
+    fn source( & self, id: FileId)->FileResult<Source> { if id == self.main.id() { Ok(self.main.clone()) } else { self.base.files.source(id) } }
 
-    fn file(&self, id: FileId) -> FileResult<Bytes>
-    {
-        if id == self.main.id()
-        {
-            Ok(Bytes::from_string(self.main.clone()))
-        }
-        else
-        {
-            self.base.files.file(id)
-        }
-    }
+    fn file( & self, id: FileId)->FileResult<Bytes> { if id == self.main.id() { Ok(Bytes::from_string(self.main.clone())) } else { self.base.files.file(id) } }
 
-    fn font(&self, index: usize) -> Option<Font>
-    {
-        self.base.fonts.get(index).cloned()
-    }
+    fn font( & self, index: usize)->Option<Font> { self.base.fonts.get (index).cloned() }
 
-    fn today(&self, offset: Option<Duration>) -> Option<Datetime>
+    fn today( & self, offset: Option<Duration>)->Option<Datetime>
     {
         let datetime = Datetime::from_ymd_hms(1970, 1, 1, 12, 0, 0).unwrap();
         Time::fixed(datetime).unwrap().today(offset)
@@ -107,29 +76,18 @@ impl World for TestWorld
 }
 
 /// Shared foundation of all test worlds.
-struct TestBase
-{
-    lib: Libraries,
-    book: LazyHash<FontBook>,
-    fonts: Vec<Font>,
-    files: FileStore<TestFiles>,
-}
+struct TestBase { lib: Libraries, book: LazyHash<FontBook>, fonts: Vec<Font>, files: FileStore<TestFiles>, }
 
 impl Default for TestBase
 {
-    fn default() -> Self
+    fn default()->Self
     {
-        let fonts: Vec<_> = typst_assets::fonts()
-            .chain(typst_dev_assets::fonts())
-            .flat_map(|data| Font::iter(Bytes::new(data)))
-            .collect();
+        let fonts: Vec < _ > = typst_assets::fonts()
+        .chain(typst_dev_assets::fonts())
+        .flat_map( | data | Font::iter(Bytes::new (data)))
+        .collect();
 
-        Self {
-            lib: Libraries::new(library()),
-            book: LazyHash::new(FontBook::from_fonts(&fonts)),
-            fonts,
-            files: FileStore::new(TestFiles),
-        }
+        Self { lib: Libraries::new (library()), book: LazyHash::new (FontBook::from_fonts( & fonts)), fonts, files: FileStore::new (TestFiles), }
     }
 }
 
@@ -139,38 +97,25 @@ struct Libraries
     /// The default base library.
     base: Arc<LazyHash<Library>>,
     /// Interned libraries that only have a subset of features enabled.
-    overrides: Mutex<FxHashMap<Features, Arc<LazyHash<Library>>>>,
+    overrides: Mutex < FxHashMap < Features, Arc < LazyHash < Library >>>> ,
 }
 
 impl Libraries
 {
-    fn new(base: Library) -> Self
-    {
-        Self {
-            base: Arc::new(LazyHash::new(base)),
-            overrides: Mutex::new(FxHashMap::default()),
-        }
-    }
+    fn new (base: Library)->Self { Self { base: Arc::new (LazyHash::new (base)), overrides: Mutex::new (FxHashMap::default ()), } }
 }
 
 impl Libraries
 {
     /// Retrieve a library with the specific set of features enabled.
     /// If `features` is `None` the default base library is returned.
-    fn with_features(&self, features: Option<Features>) -> Arc<LazyHash<Library>>
+    fn with_features( & self, features: Option<Features>)->Arc<LazyHash<Library>>
     {
         let Some(features) = features
-        else
-        {
-            return Arc::clone(&self.base);
-        };
+        else { return Arc::clone( & self.base); };
 
         let mut overrides = self.overrides.lock();
-        let lib = overrides.entry(features.clone()).or_insert_with(|| {
-            let mut lib = Library::clone(&*self.base);
-            lib.features = features;
-            Arc::new(LazyHash::new(lib))
-        });
+        let lib = overrides.entry(features.clone()).or_insert_with( || { let mut lib = Library::clone( &* self.base); lib.features = features; Arc::new (LazyHash::new (lib)) });
         Arc::clone(lib)
     }
 }
@@ -182,84 +127,65 @@ pub struct TestFiles;
 impl TestFiles
 {
     /// Resolves the file system path for a file ID.
-    pub fn resolve(&self, id: FileId) -> FileResult<PathBuf>
+    pub fn resolve( & self, id: FileId)->FileResult<PathBuf>
     {
         let root = match id.root()
         {
-            VirtualRoot::Project => PathBuf::new(),
+            VirtualRoot::Project => PathBuf:: new (),
             VirtualRoot::Package(spec) =>
             {
-                assert_eq!(spec.namespace, "test");
+                assert_eq!(spec.namespace , "test");
                 format!("tests/packages/{}-{}", spec.name, spec.version).into()
             }
         };
-        id.vpath().realize(&root).map_err(Into::into)
+        id.vpath().realize( & root).map_err(Into::into)
     }
 
     /// Get the rooted path for a loaded file.
-    pub fn rooted_path(path: &str) -> RootedPath
+    pub fn rooted_path(path: & str)->RootedPath
     {
-        let mut s = Scanner::new(path);
+        let mut s = Scanner:: new (path);
         let root = if s.eat_if("tests/packages/")
         {
             let name = s.eat_until('-');
             s.expect('-');
             let version = s.eat_until('/');
             s.expect('/');
-            VirtualRoot::Package(PackageSpec {
-                namespace: "test".into(),
-                name: name.into(),
-                version: version.parse().unwrap(),
-            })
+            VirtualRoot::Package(PackageSpec { namespace : "test".into(), name: name.into(), version: version.parse().unwrap(), })
         }
-        else
-        {
-            VirtualRoot::Project
-        };
-        let vpath = VirtualPath::new(s.after()).unwrap();
-        RootedPath::new(root, vpath)
+        else { VirtualRoot::Project };
+        let vpath = VirtualPath:: new (s.after()).unwrap();
+        RootedPath:: new (root, vpath)
     }
 }
 
 impl FileLoader for TestFiles
 {
-    fn load(&self, id: FileId) -> FileResult<Bytes>
+    fn load( & self, id: FileId)->FileResult<Bytes>
     {
         let path = self.resolve(id)?;
 
         // Resolve asset.
         if let Ok(suffix) = path.strip_prefix("assets/")
         {
-            return typst_dev_assets::get(&suffix.to_string_lossy())
-                .map(Bytes::new)
-                .ok_or_else(|| FileError::NotFound(path));
+            return typst_dev_assets:: get( & suffix.to_string_lossy())
+            .map(Bytes::new)
+            .ok_or_else( || FileError::NotFound(path));
         }
 
-        let f = |e| FileError::from_io(e, &path);
-        if fs::metadata(&path).map_err(f)?.is_dir()
-        {
-            Err(FileError::IsDirectory)
-        }
-        else
-        {
-            fs::read(&path).map(Bytes::new).map_err(f)
-        }
+        let f = | e | FileError::from_io(e, & path);
+        if fs::metadata( & path).map_err(f)?.is_dir() { Err(FileError::IsDirectory) }
+        else { fs::read( & path).map(Bytes::new).map_err(f) }
     }
 }
 
 /// The extended standard library for testing.
-fn library() -> Library
+fn library()->Library
 {
     // Set page width to 120pt with 10pt margins, so that the inner page is
     // exactly 100pt wide. Page height is unbounded and font size is 10pt so
     // that it multiplies to nice round numbers.
-    let mut lib = Library::builder([
-        typst_html::FORMAT,
-        typst_pdf::FORMAT,
-        typst_svg::FORMAT,
-        typst_render::FORMAT,
-        typst_bundle::FORMAT,
-    ])
+    let mut lib = Library::builder([typst_html::FORMAT, typst_pdf::FORMAT, typst_svg::FORMAT, typst_render::FORMAT, typst_bundle::FORMAT,])
     .with_features(Features::all())
     .build();
 
@@ -271,137 +197,91 @@ fn library() -> Library
     lib.global.scope_mut().define_func::<lines>();
     lib.global.scope_mut().define_func::<bounds>();
     lib.global
-        .scope_mut()
-        .define("conifer", Color::from_u8(0x9f, 0xEB, 0x52, 0xFF));
+    .scope_mut()
+    .define("conifer", Color::from_u8(0x9f, 0xEB, 0x52, 0xFF));
     lib.global
-        .scope_mut()
-        .define("forest", Color::from_u8(0x43, 0xA1, 0x27, 0xFF));
+    .scope_mut()
+    .define("forest", Color::from_u8(0x43, 0xA1, 0x27, 0xFF));
 
     // Hook up default styles.
-    lib.styles.set(PageElem::width, Smart::Custom(Abs::pt(120.0).into()));
-    lib.styles.set(PageElem::height, Smart::Auto);
-    lib.styles.set(
-        PageElem::margin,
-        Smart::Custom(Margin::splat(Some(Smart::Custom(Abs::pt(10.0).into())))),
-    );
-    lib.styles.set(TextElem::size, TextSize(Abs::pt(10.0).into()));
+    lib.styles. set(PageElem::width, Smart::Custom(Abs::pt(120.0).into()));
+    lib.styles. set(PageElem::height, Smart::Auto);
+    lib.styles. set(PageElem::margin, Smart::Custom(Margin::splat(Some(Smart::Custom(Abs::pt(10.0).into())))),);
+    lib.styles. set(TextElem::size, TextSize(Abs::pt(10.0).into()));
 
     lib
 }
 
-fn check_module() -> Module
+fn check_module()->Module
 {
-    let mut check = Scope::new();
+    let mut check = Scope:: new ();
     check
-        .define("deprecated", Value::None)
-        .with_deprecation(Deprecation::new().with_message("this value is useless"));
+    .define("deprecated", Value::None)
+    .with_deprecation(Deprecation::new ().with_message("this value is useless"));
     check.define("gated", Value::None).with_feature(Feature::Html);
     check.define("red", Color::RED);
-    Module::new("check", check)
+    Module:: new ("check", check)
 }
 
 #[func(scope)]
-fn test(lhs: Value, rhs: Value) -> StrResult<NoneValue>
-{
-    if lhs != rhs
-    {
-        bail!("Assertion failed: {} != {}", lhs.repr(), rhs.repr());
-    }
-    Ok(NoneValue)
-}
+fn test(lhs: Value, rhs: Value)->StrResult<NoneValue> { if lhs != rhs { bail ! ("Assertion failed: {} != {}", lhs.repr(), rhs.repr()); } Ok(NoneValue) }
 
 #[scope]
 impl test
 {
-    #[func]
-    #[deprecated(message = "this function is useless")]
-    fn deprecated() -> StrResult<Value>
-    {
-        Ok(Value::None)
-    }
+    # [func]
+    # [deprecated(message = "this function is useless")]
+    fn deprecated()->StrResult<Value> { Ok(Value::None) }
 
-    #[func]
-    #[feature = Html]
-    fn gated() -> StrResult<Value>
-    {
-        Ok(Value::None)
-    }
+    # [func]
+    # [feature = Html]
+    fn gated()->StrResult<Value> { Ok(Value::None) }
 }
 
 #[func]
-fn test_repr(lhs: Value, rhs: Value) -> StrResult<NoneValue>
-{
-    if lhs.repr() != rhs.repr()
-    {
-        bail!("Assertion failed: {} != {}", lhs.repr(), rhs.repr());
-    }
-    Ok(NoneValue)
-}
+fn test_repr(lhs: Value, rhs: Value)->StrResult<NoneValue> { if lhs.repr() != rhs.repr() { bail ! ("Assertion failed: {} != {}", lhs.repr(), rhs.repr()); } Ok(NoneValue) }
 
 #[func]
-fn print(#[variadic] values: Vec<Value>) -> NoneValue
+fn print( # [variadic] values: Vec<Value>)->NoneValue
 {
     let mut out = std::io::stdout().lock();
     write!(out, "> ").unwrap();
-    for (i, value) in values.into_iter().enumerate()
-    {
-        if i > 0
-        {
-            write!(out, ", ").unwrap();
-        }
-        write!(out, "{value:?}").unwrap();
-    }
+    for (i, value) in values.into_iter().enumerate() { if i > 0 { write ! (out, ", ").unwrap(); } write ! (out, "{value:?}").unwrap(); }
     writeln!(out).unwrap();
     NoneValue
 }
 
 /// Generates `count` lines of text based on the numbering.
 #[func]
-fn lines(
-    engine: &mut Engine,
+fn lines
+(
+    engine: & mut Engine,
     context: Tracked<Context>,
     span: Span,
     count: u64,
-    #[default(Numbering::Pattern(NumberingPattern::from_str("A").unwrap()))]
+    # [default (Numbering::Pattern(NumberingPattern::from_str("A").unwrap()))]
     numbering: Numbering,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
-    (1..=count)
-        .map(|n| numbering.apply(engine, context, span, &[n]))
-        .collect::<SourceResult<Array>>()?
-        .join(Some('\n'.into_value()), None, None)
-        .at(span)
+    (1.. = count)
+    .map( | n | numbering.apply(engine, context, span, & [n]))
+    .collect::<SourceResult<Array>>()?
+    .join(Some('\n'.into_value()), None, None)
+    .at(span)
 }
 
 /// Display boundaries and the baseline around some content's frames.
 #[func]
-fn bounds(content: Content) -> SourceResult<Content>
-{
-    Ok(BlockElem::multi_layouter(Packed::new(BoundsElem::new(content)), layout_bounds)
-        .pack())
-}
+fn bounds(content: Content)->SourceResult<Content> { Ok(BlockElem::multi_layouter(Packed::new (BoundsElem::new (content)), layout_bounds).pack()) }
 
 #[elem]
-struct BoundsElem
-{
-    #[positional]
-    #[required]
-    body: Content,
-}
+struct BoundsElem { # [positional] # [required] body: Content, }
 
-fn layout_bounds(
-    elem: &Packed<BoundsElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Fragment>
+fn layout_bounds(elem: & Packed<BoundsElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>
 {
-    let mut fragment = layout_fragment(engine, &elem.body, locator, styles, regions)?;
-    for frame in &mut fragment
-    {
-        frame.mark_box_in_place();
-    }
+    let mut fragment = layout_fragment(engine, & elem.body, locator, styles, regions)?;
+    for frame in & mut fragment { frame.mark_box_in_place(); }
 
     Ok(fragment)
 }

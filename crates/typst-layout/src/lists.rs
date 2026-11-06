@@ -1,130 +1,96 @@
 use comemo::Track;
 use smallvec::smallvec;
-use typst_library::diag::{SourceResult, Trace, Tracepoint};
+use typst_library::diag:: { SourceResult, Trace, Tracepoint };
 use typst_library::engine::Engine;
-use typst_library::foundations::{Content, Context, Depth, Packed, Resolve, StyleChain};
+use typst_library::foundations:: { Content, Context, Depth, Packed, Resolve, StyleChain };
 use typst_library::introspection::Locator;
-use typst_library::layout::{
-    Abs, Axes, Dir, Fragment, Frame, FrameItem, Length, Point, Region, Regions, Size,
-};
-use typst_library::model::{
-    EnumElem, ListElem, Numbering, ParElem, ParbreakElem, PdfMarkerTag,
-};
+use typst_library::layout:: { Abs, Axes, Dir, Fragment, Frame, FrameItem, Length, Point, Region, Regions, Size, };
+use typst_library::model:: { EnumElem, ListElem, Numbering, ParElem, ParbreakElem, PdfMarkerTag, };
 use typst_library::text::TextElem;
 use typst_syntax::Span;
 
-use crate::stack::{StackLayoutChild, layout_stack_internal};
+use crate::stack:: { StackLayoutChild, layout_stack_internal };
 
 /// Layout the list.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_list(
-    elem: &Packed<ListElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Fragment>
+pub fn layout_list(elem: & Packed<ListElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>
 {
-    let indent = elem.indent.get(styles);
-    let body_indent = elem.body_indent.get(styles);
-    let tight = elem.tight.get(styles);
-    let gutter = elem.spacing.get(styles).unwrap_or_else(|| {
-        if tight { styles.get(ParElem::leading) } else { styles.get(ParElem::spacing) }
-    });
-    let is_rtl = styles.get(TextElem::dir).resolve(styles) == Dir::RTL;
+    let indent = elem.indent. get(styles);
+    let body_indent = elem.body_indent. get(styles);
+    let tight = elem.tight. get(styles);
+    let gutter = elem.spacing. get(styles).unwrap_or_else( || { if tight { styles.get (ParElem::leading) } else { styles.get (ParElem::spacing) } });
+    let is_rtl = styles. get(TextElem::dir).resolve(styles) == Dir::RTL;
 
-    let Depth(depth) = styles.get(ListElem::depth);
+    let Depth(depth) = styles. get(ListElem::depth);
 
     // Use the user's preferred vertical alignment. Among other things, it
     // avoids '#set align' interference with the list.
-    let marker_align = elem.marker_align.get(styles);
+    let marker_align = elem.marker_align. get(styles);
     let baseline_align = marker_align.y().is_none();
     let marker = elem.marker.get_ref(styles);
     let marker = marker
-        .v
-        .resolve(engine, styles, depth, marker.span)
-        .trace(engine.world, Tracepoint::process::<ListElem>, elem.span())?
-        .aligned(marker_align);
+    .v
+    .resolve(engine, styles, depth, marker.span)
+    .trace(engine.world, Tracepoint::process::<ListElem>, elem.span())?
+    .aligned(marker_align);
 
     let mut items = vec![];
-    for item in &elem.children
+    for item in & elem.children
     {
         // Text in wide lists shall always turn into paragraphs.
         let mut body = item.body.clone();
-        if !tight
-        {
-            body += ParbreakElem::shared();
-        }
-        let body = body.set(ListElem::depth, Depth(1));
+        if ! tight { body += ParbreakElem::shared(); }
+        let body = body. set(ListElem::depth, Depth(1));
 
-        let item = ItemContent {
-            marker: PdfMarkerTag::ListItemLabel(marker.clone()),
-            body: PdfMarkerTag::ListItemBody(body),
-        };
+        let item = ItemContent { marker: PdfMarkerTag::ListItemLabel(marker.clone()), body: PdfMarkerTag::ListItemBody(body), };
 
         items.push(item);
     }
 
-    let layouter = ListLayouter::new(
-        gutter,
-        elem.span(),
-        indent,
-        body_indent,
-        baseline_align,
-        is_rtl,
-        styles,
-    );
+    let layouter = ListLayouter:: new (gutter, elem.span(), indent, body_indent, baseline_align, is_rtl, styles,);
 
     layout_items(layouter, items, engine, locator, styles, regions)
 }
 
 /// Layout the enumeration.
 #[typst_macros::time(span = elem.span())]
-pub fn layout_enum(
-    elem: &Packed<EnumElem>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Fragment>
+pub fn layout_enum(elem: & Packed<EnumElem>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>
 {
     let numbering = elem.numbering.get_ref(styles);
-    let reversed = elem.reversed.get(styles);
-    let indent = elem.indent.get(styles);
-    let body_indent = elem.body_indent.get(styles);
-    let tight = elem.tight.get(styles);
-    let gutter = elem.spacing.get(styles).unwrap_or_else(|| {
-        if tight { styles.get(ParElem::leading) } else { styles.get(ParElem::spacing) }
-    });
-    let is_rtl = styles.get(TextElem::dir).resolve(styles) == Dir::RTL;
+    let reversed = elem.reversed. get(styles);
+    let indent = elem.indent. get(styles);
+    let body_indent = elem.body_indent. get(styles);
+    let tight = elem.tight. get(styles);
+    let gutter = elem.spacing. get(styles).unwrap_or_else( || { if tight { styles.get (ParElem::leading) } else { styles.get (ParElem::spacing) } });
+    let is_rtl = styles. get(TextElem::dir).resolve(styles) == Dir::RTL;
 
     let mut items = vec![];
     let mut number = elem
-        .start
-        .get(styles)
-        .unwrap_or_else(|| if reversed { elem.children.len() as u64 } else { 1 });
+    .start
+    . get(styles)
+    .unwrap_or_else( || if reversed { elem.children.len() as u64 } else { 1 });
     let mut parents = styles.get_cloned(EnumElem::parents);
 
-    let full = elem.full.get(styles);
+    let full = elem.full. get(styles);
 
     // Horizontally align based on the given respective parameter.
     // Vertically align to the top to avoid inheriting `horizon` or `bottom`
     // alignment from the context and having the number be displaced in
     // relation to the item it refers to.
-    let number_align = elem.number_align.get(styles);
+    let number_align = elem.number_align. get(styles);
     let baseline_align = number_align.y().is_none();
 
-    for item in &elem.children
+    for item in & elem.children
     {
-        number = item.number.get(styles).unwrap_or(number);
+        number = item.number. get(styles).unwrap_or(number);
 
-        let context = Context::new(None, Some(styles));
+        let context = Context:: new (None, Some(styles));
         let resolved = if full
         {
             parents.push(number);
             let content = numbering
-                .apply(engine, context.track(), item.span(), &parents)?
-                .display();
+            .apply(engine, context.track(), item.span(), & parents)?
+            .display();
             parents.pop();
             content
         }
@@ -132,50 +98,31 @@ pub fn layout_enum(
         {
             match numbering
             {
-                Numbering::Pattern(pattern) => TextElem::packed(pattern.apply_kth(
-                    engine,
-                    item.span(),
-                    parents.len(),
-                    number,
-                )),
+                Numbering::Pattern(pattern) => TextElem::packed(pattern.apply_kth(engine, item.span(), parents.len(), number,)),
                 Numbering::Func(_) => numbering
-                    .apply(engine, context.track(), item.span(), &[number])?
-                    .display(),
+                .apply(engine, context.track(), item.span(), & [number])?
+                .display(),
             }
         };
 
         // Disable overhang as a workaround to end-aligned dots glitching
         // and decreasing spacing between numbers and items.
-        let resolved = resolved.aligned(number_align).set(TextElem::overhang, false);
+        let resolved = resolved.aligned(number_align). set(TextElem::overhang, false);
 
         // Text in wide enums shall always turn into paragraphs.
         let mut body = item.body.clone();
-        if !tight
-        {
-            body += ParbreakElem::shared();
-        }
+        if ! tight { body += ParbreakElem::shared(); }
 
-        let body = body.set(EnumElem::parents, smallvec![number]);
+        let body = body. set(EnumElem::parents, smallvec ! [number]);
 
-        let item = ItemContent {
-            marker: PdfMarkerTag::ListItemLabel(resolved),
-            body: PdfMarkerTag::ListItemBody(body),
-        };
+        let item = ItemContent { marker: PdfMarkerTag::ListItemLabel(resolved), body: PdfMarkerTag::ListItemBody(body), };
 
         items.push(item);
         number =
-            if reversed { number.saturating_sub(1) } else { number.saturating_add(1) };
+        if reversed { number.saturating_sub(1) } else { number.saturating_add(1) };
     }
 
-    let layouter = ListLayouter::new(
-        gutter,
-        elem.span(),
-        indent,
-        body_indent,
-        baseline_align,
-        is_rtl,
-        styles,
-    );
+    let layouter = ListLayouter:: new (gutter, elem.span(), indent, body_indent, baseline_align, is_rtl, styles,);
 
     layout_items(layouter, items, engine, locator, styles, regions)
 }
@@ -218,20 +165,13 @@ impl ListLayouter
 {
     /// Create a new list layouter with defaults for values that will be
     /// calculated later.
-    fn new(
-        gutter: Length,
-        span: Span,
-        indent: Length,
-        body_indent: Length,
-        baseline_align: bool,
-        is_rtl: bool,
-        styles: StyleChain,
-    ) -> Self
+    fn new (gutter: Length, span: Span, indent: Length, body_indent: Length, baseline_align: bool , is_rtl: bool , styles: StyleChain,)->Self
     {
         let indent = indent.resolve(styles);
         let body_indent = body_indent.resolve(styles);
 
-        Self {
+        Self
+        {
             gutter,
             span,
             indent,
@@ -259,77 +199,71 @@ impl ListLayouter
 ///    possible for them to expand to the full available width, allowing for center
 ///    or right alignment to work within the item body.
 #[typst_macros::time(span = layouter.span)]
-fn layout_items(
-    mut layouter: ListLayouter,
-    items: Vec<ItemContent>,
-    engine: &mut Engine,
-    locator: Locator,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Fragment>
+fn layout_items(mut layouter: ListLayouter, items: Vec<ItemContent>, engine: & mut Engine, locator: Locator, styles: StyleChain, regions: Regions,)->SourceResult<Fragment>
 {
     // Store locators used during measuring to ensure the same locators will be
     // used later when laying out. This is needed to make introspection work
     // properly.
     let mut locator = locator.split();
-    let locators: Vec<_> = items
-        .iter()
-        .map(|item| {
-            let marker_locator = locator.next(&item.marker.span());
-            let body_locator = locator.next(&item.body.span());
+    let locators: Vec < _ > = items
+    .iter()
+    .map
+    (
+        | item |
+        {
+            let marker_locator = locator.next( & item.marker.span());
+            let body_locator = locator.next( & item.body.span());
             (marker_locator, body_locator)
-        })
-        .collect();
+        }
+    )
+    .collect();
 
     layouter.marker_width =
-        measure_markers(&layouter, &items, &locators, engine, styles, regions)?;
+    measure_markers( & layouter, & items, & locators, engine, styles, regions)?;
 
-    if regions.size.x.to_raw().is_infinite() || !regions.expand.x
+    if regions.size.x.to_raw().is_infinite() || ! regions.expand.x
     {
         layouter.body_width =
-            Some(measure_bodies(&layouter, &items, &locators, engine, styles, regions)?);
+        Some(measure_bodies( & layouter, & items, & locators, engine, styles, regions)?);
     }
 
     let cells =
-        items
-            .iter()
-            .zip(&locators)
-            .map(|(item, (marker_locator, body_locator))| {
-                StackLayoutChild::CustomLayouter(|engine, styles, regions| {
-                    layout_item(
-                        item,
-                        &layouter,
-                        engine,
-                        marker_locator,
-                        body_locator,
-                        styles,
-                        regions,
-                    )
-                })
-            });
+    items
+    .iter()
+    .zip( & locators)
+    .map
+    (
+        | (item, (marker_locator, body_locator)) |
+        {
+            StackLayoutChild::CustomLayouter( | engine, styles, regions | { layout_item(item, & layouter, engine, marker_locator, body_locator, styles, regions,) })
+        }
+    );
 
-    layout_stack_internal(
+    layout_stack_internal
+    (
         cells,
         layouter.span,
         Some(layouter.gutter.into()),
         Dir::TTB,
         engine,
         // This locator should not be used by cells.
-        locator.next(&()),
+        locator.next( & ()),
         styles,
         regions,
     )
 }
 
 /// Measure marker.
-fn measure_markers<'a>(
-    list: &ListLayouter,
-    items: &[ItemContent],
-    locators: &[(Locator<'a>, Locator<'a>)],
-    engine: &mut Engine,
+fn measure_markers<'a>
+(
+    list: & ListLayouter,
+    items: & [ItemContent],
+    locators: & [(Locator<'a>, Locator<'a>)],
+    engine: & mut Engine,
     styles: StyleChain,
     regions: Regions,
-) -> SourceResult<Abs>
+)
+->SourceResult<Abs>
 {
     let available_width = regions.size.x - list.indent - list.body_indent;
 
@@ -338,13 +272,7 @@ fn measure_markers<'a>(
     let mut marker_width = Abs::zero();
     for (item, (marker_locator, _)) in items.iter().zip(locators)
     {
-        let marker = crate::layout_frame(
-            engine,
-            &item.marker,
-            marker_locator.relayout(),
-            styles,
-            Region::new(Axes::new(available_width, Abs::inf()), Axes::splat(false)),
-        )?;
+        let marker = crate::layout_frame(engine, & item.marker, marker_locator.relayout(), styles, Region::new (Axes::new (available_width, Abs::inf()), Axes::splat(false)),)?;
         marker_width.set_max(marker.width());
     }
 
@@ -360,26 +288,13 @@ fn measure_markers<'a>(
 /// expanding to fit, breaking alignment. Therefore, restrict the list size to
 /// the size of the largest item, prompting list items to align between
 /// themselves instead of relative to the full page width.
-fn measure_bodies(
-    list: &ListLayouter,
-    items: &[ItemContent],
-    locators: &[(Locator, Locator)],
-    engine: &mut Engine,
-    styles: StyleChain,
-    regions: Regions,
-) -> SourceResult<Abs>
+fn measure_bodies(list: & ListLayouter, items: & [ItemContent], locators: & [(Locator, Locator)], engine: & mut Engine, styles: StyleChain, regions: Regions,)->SourceResult<Abs>
 {
     let available_width = regions.size.x - list.indent - list.body_indent;
     let mut measured_body_width = Abs::zero();
     for (item, (_, body_locator)) in items.iter().zip(locators)
     {
-        let body = crate::layout_frame(
-            engine,
-            &item.body,
-            body_locator.relayout(),
-            styles,
-            Region::new(Axes::new(available_width, Abs::inf()), Axes::splat(false)),
-        )?;
+        let body = crate::layout_frame(engine, & item.body, body_locator.relayout(), styles, Region::new (Axes::new (available_width, Abs::inf()), Axes::splat(false)),)?;
         measured_body_width.set_max(body.width());
     }
 
@@ -393,37 +308,27 @@ fn measure_bodies(
 
 /// Layout the item, with support for vertical marker alignment.
 #[typst_macros::time(span = item.body.span())]
-fn layout_item(
-    item: &ItemContent,
-    list: &ListLayouter,
-    engine: &mut Engine,
-    marker_locator: &Locator,
-    body_locator: &Locator,
+fn layout_item
+(
+    item: & ItemContent,
+    list: & ListLayouter,
+    engine: & mut Engine,
+    marker_locator: & Locator,
+    body_locator: & Locator,
     styles: StyleChain,
     regions: Regions,
-) -> SourceResult<Fragment>
+)
+->SourceResult<Fragment>
 {
     let mut layouter =
-        ItemLayouter::new(item, list, marker_locator, body_locator, styles, regions);
+    ItemLayouter:: new (item, list, marker_locator, body_locator, styles, regions);
 
-    let mut marker = layouter.layout_marker(
-        Region::new(
-            Axes::new(list.marker_width, regions.base().y),
-            Axes::new(true, false),
-        ),
-        engine,
-    )?;
+    let mut marker = layouter.layout_marker(Region::new (Axes::new (list.marker_width, regions.base().y), Axes::new (true, false),), engine,)?;
 
     let mut body = layouter.layout_body(layouter.body_regions, engine)?;
 
-    if layouter.list.baseline_align
-    {
-        layouter.baseline_align(&marker, &mut body, engine)?;
-    }
-    else
-    {
-        layouter.vertical_align(&mut marker, &body, engine)?;
-    }
+    if layouter.list.baseline_align { layouter.baseline_align( & marker, & mut body, engine)?; }
+    else { layouter.vertical_align( & mut marker, & body, engine)?; }
 
     layouter.finish(marker, body)
 }
@@ -435,15 +340,15 @@ fn layout_item(
 struct ItemLayouter<'a>
 {
     /// Item content to layout.
-    item: &'a ItemContent,
+    item: & 'a ItemContent,
     /// List-wide layout data.
-    list: &'a ListLayouter,
+    list: & 'a ListLayouter,
     /// Locator used to measure and layout the marker (must be the same to avoid
     /// introspection bugs).
-    marker_locator: &'a Locator<'a>,
+    marker_locator: & 'a Locator<'a>,
     /// Locator used to measure and layout the body (must be the same to avoid
     /// introspection bugs).
-    body_locator: &'a Locator<'a>,
+    body_locator: & 'a Locator<'a>,
     /// Stylechain at this item's location.
     styles: StyleChain<'a>,
     /// The first body's non-empty frame.
@@ -462,33 +367,29 @@ struct ItemLayouter<'a>
     marker_offset: Point,
 }
 
-impl<'a> ItemLayouter<'a>
+impl <'a> ItemLayouter<'a>
 {
     /// Begin item layout by resolving default values of attributes.
-    fn new(
-        item: &'a ItemContent,
-        list: &'a ListLayouter,
-        marker_locator: &'a Locator<'a>,
-        body_locator: &'a Locator<'a>,
+    fn new
+    (
+        item: & 'a ItemContent,
+        list: & 'a ListLayouter,
+        marker_locator: & 'a Locator<'a>,
+        body_locator: & 'a Locator<'a>,
         styles: StyleChain<'a>,
         regions: Regions<'a>,
-    ) -> Self
+    )
+   ->Self
     {
         let total_body_indent = list.indent + list.marker_width + list.body_indent;
 
         // Restrict the body to the available space.
         let mut body_regions = regions;
-        if let Some(body_width) = list.body_width
-        {
-            body_regions.size.x = body_width;
-            body_regions.expand.x = true;
-        }
-        else
-        {
-            body_regions.size.x -= total_body_indent;
-        }
+        if let Some(body_width) = list.body_width { body_regions.size.x = body_width; body_regions.expand.x = true; }
+        else { body_regions.size.x -= total_body_indent; }
 
-        Self {
+        Self
+        {
             item,
             list,
             marker_locator,
@@ -502,39 +403,17 @@ impl<'a> ItemLayouter<'a>
     }
 
     /// Layout the list marker with the given region data.
-    fn layout_marker(&self, region: Region, engine: &mut Engine) -> SourceResult<Frame>
-    {
-        crate::layout_frame(
-            engine,
-            &self.item.marker,
-            self.marker_locator.relayout(),
-            self.styles,
-            region,
-        )
-    }
+    fn layout_marker( & self, region: Region, engine: & mut Engine)->SourceResult<Frame> { crate::layout_frame(engine, & self.item.marker, self.marker_locator.relayout(), self.styles, region,) }
 
     /// Layout the list body with the given region data.
-    fn layout_body(
-        &mut self,
-        regions: Regions,
-        engine: &mut Engine,
-    ) -> SourceResult<Fragment>
+    fn layout_body( & mut self, regions: Regions, engine: & mut Engine,)->SourceResult<Fragment>
     {
-        let fragment = crate::layout_fragment(
-            engine,
-            &self.item.body,
-            self.body_locator.relayout(),
-            self.styles,
-            regions,
-        )?;
+        let fragment = crate::layout_fragment(engine, & self.item.body, self.body_locator.relayout(), self.styles, regions,)?;
 
         // Update the first non-empty frame (ignoring a frame with only tags due
         // to a forced region break). If the first frame is not virtually empty,
         // then keep the default of 0.
-        if should_skip_first_frame(&fragment)
-        {
-            self.first_frame = 1;
-        }
+        if should_skip_first_frame( & fragment) { self.first_frame = 1; }
 
         Ok(fragment)
     }
@@ -543,23 +422,15 @@ impl<'a> ItemLayouter<'a>
     /// if the marker is above the body and should thus be moved down, or by both
     /// increasing the body's offset and relayouting it with less space, if the
     /// body is above the marker.
-    fn baseline_align(
-        &mut self,
-        marker: &Frame,
-        body_fragment: &mut Fragment,
-        engine: &mut Engine,
-    ) -> SourceResult<()>
+    fn baseline_align( & mut self, marker: & Frame, body_fragment: & mut Fragment, engine: & mut Engine,)->SourceResult<()>
     {
         // Difference between marker and body baselines, for alignment. A
         // positive 'diff' means that the marker is above and must move down,
         // whereas a negative 'diff' means that the marker is below, so the body
         // must be moved down instead.
         let diff = if marker.has_baseline()
-            && let Some(first) = body_fragment.as_slice().get(self.first_frame)
-            && first.has_baseline()
-        {
-            first.baseline() - marker.baseline()
-        }
+        && let Some(first) = body_fragment.as_slice(). get(self.first_frame)
+        && first.has_baseline() { first.baseline() - marker.baseline() }
         else
         {
             // One of the frames has no natural baseline, so baseline alignment
@@ -587,9 +458,9 @@ impl<'a> ItemLayouter<'a>
             // iterations.
             let mut regions = self.body_regions;
             regions.size.y += diff;
-            *body_fragment = self.layout_body(regions, engine)?;
+            * body_fragment = self.layout_body(regions, engine)?;
 
-            self.body_offset.y = -diff;
+            self.body_offset.y = - diff;
         }
 
         Ok(())
@@ -598,15 +469,10 @@ impl<'a> ItemLayouter<'a>
     /// Called when explicit marker alignment was specified. Re-layout the
     /// marker with the same height as the body's first frame so it may align
     /// itself vertically with the body.
-    fn vertical_align(
-        &mut self,
-        marker: &mut Frame,
-        body: &Fragment,
-        engine: &mut Engine,
-    ) -> SourceResult<()>
+    fn vertical_align( & mut self, marker: & mut Frame, body: & Fragment, engine: & mut Engine,)->SourceResult<()>
     {
         // 'Measuring' the height of an 'auto row'.
-        let height = if let Some(body_first) = body.as_slice().get(self.first_frame)
+        let height = if let Some(body_first) = body.as_slice(). get(self.first_frame)
         {
             // Don't align if the body is too short.
             body_first.height().max(marker.height())
@@ -618,15 +484,15 @@ impl<'a> ItemLayouter<'a>
         };
 
         let region =
-            Region::new(Axes::new(self.list.marker_width, height), Axes::splat(true));
+        Region:: new (Axes::new (self.list.marker_width, height), Axes::splat(true));
 
-        *marker = self.layout_marker(region, engine)?;
+        * marker = self.layout_marker(region, engine)?;
         Ok(())
     }
 
     /// Finish list item layout by indenting the body's frames and add the
     /// marker to the first non-empty frame.
-    fn finish(&self, marker: Frame, body_fragment: Fragment) -> SourceResult<Fragment>
+    fn finish( & self, marker: Frame, body_fragment: Fragment)->SourceResult<Fragment>
     {
         // Collect the item's frames. Here, we add the marker to the first
         // non-empty frame, and additionally indent the whole body so it appears
@@ -644,7 +510,7 @@ impl<'a> ItemLayouter<'a>
                 height.set_max(marker.height() + self.marker_offset.y);
             }
 
-            let mut frame = Frame::soft(Size::new(width, height));
+            let mut frame = Frame::soft(Size::new (width, height));
 
             let mut body_pos = self.body_offset;
             if self.list.is_rtl
@@ -668,10 +534,7 @@ impl<'a> ItemLayouter<'a>
             if i == self.first_frame
             {
                 let mut marker_pos = self.marker_offset;
-                if self.list.is_rtl
-                {
-                    marker_pos.x = width - (self.list.marker_width + marker_pos.x);
-                }
+                if self.list.is_rtl { marker_pos.x = width - (self.list.marker_width + marker_pos.x); }
                 frame.push_frame(marker_pos, marker.clone());
             }
 
@@ -685,19 +548,11 @@ impl<'a> ItemLayouter<'a>
 
 /// Check whether the first frame is essentially empty (only contains tags).
 /// This usually indicates a forced region break, which we should ignore.
-fn should_skip_first_frame(fragment: &Fragment) -> bool
-{
-    fragment.len() > 1
-        && is_empty_frame(&fragment.as_slice()[0])
-        && fragment.iter().skip(1).any(|f| !is_empty_frame(f))
-}
+fn should_skip_first_frame(fragment: & Fragment)-> bool { fragment.len() > 1 && is_empty_frame( & fragment.as_slice()[0]) && fragment.iter().skip(1).any( | f | ! is_empty_frame(f)) }
 
 /// Check if a frame is empty (taken from grid layouting).
 ///
 /// HACK: Also consider frames empty if they only contain tags. Table
 /// and grid cells need to be locatable for pdf accessibility, but
 /// the introspection tags interfere with the layouting.
-fn is_empty_frame(frame: &Frame) -> bool
-{
-    frame.items().all(|(_, item)| matches!(item, FrameItem::Tag(_)))
-}
+fn is_empty_frame(frame: & Frame)-> bool { frame.items().all( | (_, item) | matches ! (item, FrameItem::Tag(_))) }

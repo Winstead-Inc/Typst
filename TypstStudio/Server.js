@@ -105,6 +105,7 @@ const WORKSPACE_CONFIG_FILE = Path.resolve(__dirname, ".workspace_config.json");
 let ActiveCompileProcess = null;
 let ActiveJobDir = null;
 let LastActiveSpanMap = {};
+let LastActiveSyncMap = [];
 
 if (!FS.existsSync(TEMP_DIR))
 {
@@ -282,8 +283,12 @@ function NormalizeMathFunctionCalls(Source)
     // In Typst math mode ($ ... $), function calls formatted with detached delimiters
     // (e.g., 'mat\n  (' or 'vec\n  (' or 'cases\n  (') must have the opening delimiter attached to the identifier
     // so the Typst math parser recognizes them as MathCall rather than literal text spill.
+    // Crucially, we preserve the EXACT line count so Synctex line numbers and compiler diagnostics
+    // remain 100% synchronized with the user's Monaco editor lines: 'mat\n  (' -> 'mat(\n   '.
     return Source.replace(/\$(?:[^$]|\\\$)+\$/g, (MathBlock) => {
-        return MathBlock.replace(/([a-zA-Z_][a-zA-Z0-9_.]*)\s*\n\s*([\(\[\{])/g, "$1$2");
+        return MathBlock.replace(/([a-zA-Z_][a-zA-Z0-9_.]*)[^\S\r\n]*(\r?\n)(\s*)([\(\[\{])/g, (Match, Ident, Newline, Indent, Delim) => {
+            return `${Ident}${Delim}${Newline}${Indent} `;
+        });
     });
 }
 
@@ -1339,20 +1344,30 @@ async function HandleCompile(Request, Response)
             Pages.push(SvgContent);
         }
 
-        let SpanMap = {};
-        const SpanMapPath = Path.join(JobDir, "span-map.json");
-        if (FS.existsSync(SpanMapPath))
+        let SyncMap = [];
+        const SynctexPath = Path.join(JobDir, "synctex.json");
+        if (FS.existsSync(SynctexPath))
         {
             try
             {
-                const RawMap = await FSPromises.readFile(SpanMapPath, "utf-8");
-                SpanMap = JSON.parse(RawMap);
-                LastActiveSpanMap = SpanMap;
+                const RawSync = await FSPromises.readFile(SynctexPath, "utf-8");
+                SyncMap = JSON.parse(RawSync);
+                LastActiveSyncMap = SyncMap;
             }
             catch (Ignored)
             {
             }
         }
+
+        let SpanMap = {};
+        for (const Elem of SyncMap)
+        {
+            if (Elem.span && !SpanMap[Elem.span])
+            {
+                SpanMap[Elem.span] = Elem;
+            }
+        }
+        LastActiveSpanMap = SpanMap;
 
         await FSPromises.rm(JobDir, { recursive: true, force: true }).catch(() => {});
         ActiveJobDir = null;
@@ -1365,6 +1380,7 @@ async function HandleCompile(Request, Response)
                 Success: true,
                 Pages: Pages,
                 PageCount: Pages.length,
+                SyncMap: SyncMap,
                 SpanMap: SpanMap,
                 DurationMs: DurationMs
             })
@@ -1383,6 +1399,169 @@ async function HandleCompile(Request, Response)
                 DurationMs: DurationMs
             })
         );
+    }
+}
+
+async function HandleResolveClick(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody);
+        const Page = parseInt(Payload.Page, 10) || 1;
+        const X = parseFloat(Payload.X);
+        const Y = parseFloat(Payload.Y);
+
+        if (isNaN(X) || isNaN(Y))
+        {
+            Response.writeHead(400, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Error: "Valid X and Y coordinates are required." }));
+            return;
+        }
+
+        let BestElem = null;
+        let MinDist = Infinity;
+
+        for (const Elem of LastActiveSyncMap)
+        {
+            if (Elem.page !== Page)
+            {
+                continue;
+            }
+
+            const InX = X >= Elem.x && X <= (Elem.x + Elem.width);
+            const InY = Y >= Elem.y && Y <= (Elem.y + Elem.height);
+
+            if (InX && InY)
+            {
+                BestElem = Elem;
+                break;
+            }
+
+            const CenterX = Elem.x + (Elem.width / 2);
+            const CenterY = Elem.y + (Elem.height / 2);
+            const Dx = X - CenterX;
+            const Dy = (Y - CenterY) * 3;
+            const DistSq = (Dx * Dx) + (Dy * Dy);
+
+            if (DistSq < MinDist)
+            {
+                MinDist = DistSq;
+                BestElem = Elem;
+            }
+        }
+
+        if (BestElem)
+        {
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end
+            (
+                JSON.stringify
+                ({
+                    Success: true,
+                    Line: BestElem.line,
+                    Column: BestElem.col,
+                    EndLine: BestElem.end_line,
+                    EndColumn: BestElem.end_col,
+                    Start: BestElem.start,
+                    End: BestElem.end,
+                    Span: BestElem.span
+                })
+            );
+        }
+        else
+        {
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Found: false, Error: "No matching source location found." }));
+        }
+    }
+    catch (Err)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+    }
+}
+
+async function HandleResolveCursor(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody);
+        const Line = parseInt(Payload.Line, 10);
+        const Col = parseInt(Payload.Column || Payload.Col, 10);
+
+        if (!Line || !Col)
+        {
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Found: false, Error: "Line and Column parameters required." }));
+            return;
+        }
+
+        let BestElem = null;
+        let SmallestRange = Infinity;
+
+        for (const Elem of LastActiveSyncMap)
+        {
+            const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
+            const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
+
+            if (StartsBefore && EndsAfter)
+            {
+                const RangeLen = Elem.end - Elem.start;
+                if (RangeLen < SmallestRange)
+                {
+                    SmallestRange = RangeLen;
+                    BestElem = Elem;
+                }
+            }
+        }
+
+        if (!BestElem)
+        {
+            let MinColDist = Infinity;
+            for (const Elem of LastActiveSyncMap)
+            {
+                if (Elem.line === Line)
+                {
+                    const Dist = Math.abs(Elem.col - Col);
+                    if (Dist < MinColDist)
+                    {
+                        MinColDist = Dist;
+                        BestElem = Elem;
+                    }
+                }
+            }
+        }
+
+        if (BestElem)
+        {
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end
+            (
+                JSON.stringify
+                ({
+                    Success: true,
+                    Found: true,
+                    Page: BestElem.page,
+                    X: BestElem.x,
+                    Y: BestElem.y,
+                    Width: BestElem.width,
+                    Height: BestElem.height,
+                    Span: BestElem.span
+                })
+            );
+        }
+        else
+        {
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Found: false, Error: "No matching preview element found." }));
+        }
+    }
+    catch (Err)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: false, Error: Err.message }));
     }
 }
 
@@ -2929,6 +3108,18 @@ const Server = HTTP.createServer
         if (Request.method === "POST" && Pathname === "/api/compile")
         {
             await HandleCompile(Request, Response);
+            return;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/sync/click")
+        {
+            await HandleResolveClick(Request, Response);
+            return;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/sync/cursor")
+        {
+            await HandleResolveCursor(Request, Response);
             return;
         }
 

@@ -1,73 +1,51 @@
-use std::fmt::{self, Display, Formatter};
+use std::fmt:: { self, Display, Formatter };
 use std::io::IsTerminal;
-use std::path::{Path, PathBuf};
+use std::path:: { Path, PathBuf };
 use std::str::FromStr;
-use std::sync::{Arc, LazyLock};
+use std::sync:: { Arc, LazyLock };
 
-use bitflags::{Flags, bitflags};
+use bitflags:: { Flags, bitflags };
 use ecow::EcoString;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash:: { FxHashMap, FxHashSet };
 use typst::foundations::Target;
-use typst::{Feature, Features};
-use typst_syntax::{is_id_continue, is_ident, is_newline};
+use typst:: { Feature, Features };
+use typst_syntax:: { is_id_continue, is_ident, is_newline };
 use unscanny::Scanner;
 
-use crate::notes::{TestBody, parse_test_body};
-use crate::output::{self, HashOutputType, HashStore, HashedRef, HashedRefs};
-use crate::{ARGS, REF_PATH, STORE_PATH, SUITE_PATH};
+use crate::notes:: { TestBody, parse_test_body };
+use crate::output:: { self, HashOutputType, HashStore, HashedRef, HashedRefs };
+use crate:: { ARGS, REF_PATH, STORE_PATH, SUITE_PATH };
 
 /// Collects all tests from all files.
 ///
 /// Returns:
 /// - the tests and the number of skipped tests in the success case.
 /// - parsing errors in the failure case.
-pub fn collect() -> Result<(HashStore, Vec<Test>, usize), Vec<TestParseError>>
-{
-    Collector::new().collect()
-}
+pub fn collect()->Result<(HashStore, Vec<Test>, usize), Vec<TestParseError>> { Collector::new ().collect() }
 
 /// A single test.
-pub struct Test
-{
-    pub name: EcoString,
-    pub attrs: Attrs,
-    pub body: TestBody,
-}
+pub struct Test { pub name: EcoString, pub attrs: Attrs, pub body: TestBody, }
 
 impl Test
 {
     /// Whether this test output should be compared and saved, this is true for
     /// stages that are explicitly specified and those that are
     /// [implied](TestStages::with_implied).
-    pub fn should_check(&self, output: TestOutput) -> bool
-    {
-        ARGS.required_stages()
-            .intersects(self.attrs.implied_stages() & output.into())
-    }
+    pub fn should_check( & self, output: TestOutput)-> bool { ARGS.required_stages().intersects(self.attrs.implied_stages() & output.into()) }
 
     /// Whether this test stage should be run, test stages that are
     /// [required](TestStages::with_required) by another stage mus be run, even
     /// if they aren't explicitly specified.
-    pub fn should_run(&self, stage: impl TestStage) -> bool
-    {
-        ARGS.required_stages()
-            .intersects(self.attrs.implied_stages().with_required() & stage.into())
-    }
+    pub fn should_run( & self, stage: impl TestStage)-> bool { ARGS.required_stages().intersects(self.attrs.implied_stages().with_required() & stage.into()) }
 }
 
 impl Display for Test
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         // underline path
-        if std::io::stdout().is_terminal()
-        {
-            write!(f, "{} (\x1B[4m{}\x1B[0m)", self.name, self.body.pos)
-        }
-        else
-        {
-            write!(f, "{} ({})", self.name, self.body.pos)
-        }
+        if std::io::stdout().is_terminal() { write ! (f, "{} (\x1B[4m{}\x1B[0m)", self.name, self.body.pos) }
+        else { write ! (f, "{} ({})", self.name, self.body.pos) }
     }
 }
 
@@ -84,27 +62,14 @@ pub struct FilePos
 
 impl Display for FilePos
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        if self.line > 0
-        {
-            write!(f, "{}:{}", self.path.display(), self.line)
-        }
-        else
-        {
-            write!(f, "{}", self.path.display())
-        }
-    }
+    fn fmt( & self, f: & mut Formatter)->fmt::Result { if self.line > 0 { write ! (f, "{}:{}", self.path.display(), self.line) } else { write ! (f, "{}", self.path.display()) } }
 }
 
-bitflags! {
+bitflags!
+{
     /// Just used for parsing attribute flags.
-    #[derive(Copy, Clone)]
-    struct AttrFlags: u16 {
-        const LARGE = 1 << 0;
-        const EMPTY = 1 << 1;
-        const TRACE = 1 << 2;
-    }
+    # [derive(Copy, Clone)]
+    struct AttrFlags: u16 { const LARGE = 1 << 0; const EMPTY = 1 << 1; const TRACE = 1 << 2; }
 }
 
 /// The parsed and evaluated test attributes specified in the test header.
@@ -130,21 +95,16 @@ pub struct Attrs
 impl Attrs
 {
     /// The stages, the way they were parsed.
-    pub fn parsed_stages(&self) -> TestStages
-    {
-        self.stages
-    }
+    pub fn parsed_stages( & self)->TestStages { self.stages }
 
     /// The stages that were parsed and the ones that are implied.
-    pub fn implied_stages(&self) -> TestStages
-    {
-        self.stages.with_implied()
-    }
+    pub fn implied_stages( & self)->TestStages { self.stages.with_implied() }
 }
 
-pub trait TestStage: Into<TestStages> + Display + Copy {}
+pub trait TestStage: Into < TestStages > + Display + Copy {}
 
-bitflags! {
+bitflags!
+{
     /// The stages a test in ran through. This combines both compilation targets
     /// and output formats.
     ///
@@ -156,8 +116,9 @@ bitflags! {
     ///       ├─> html -───> html
     ///       ╰─> bundle ──> bundle
     /// ```
-    #[derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
-    pub struct TestStages: u8 {
+    # [derive(Debug, Default, Copy, Clone, Eq, PartialEq)]
+    pub struct TestStages: u8
+    {
         const EVAL = 1 << 0;
         const PAGED = 1 << 1;
         const RENDER = 1 << 2;
@@ -174,22 +135,26 @@ impl TestStages
     /// The union of the supplied stages and their implied stages.
     ///
     /// The `paged` target will test `render`, `pdf`, and `svg` by default.
-    pub fn with_implied(self) -> TestStages
+    pub fn with_implied(self)->TestStages
     {
         let mut res = self;
         for flag in self.iter()
         {
-            res |= bitflags::bitflags_match!(flag, {
-                TestStages::EVAL => TestStages::empty(),
-                TestStages::PAGED => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
-                TestStages::RENDER => TestStages::empty(),
-                TestStages::PDF => TestStages::empty(),
-                TestStages::PDFTAGS => TestStages::empty(),
-                TestStages::SVG => TestStages::empty(),
-                TestStages::HTML => TestStages::empty(),
-                TestStages::BUNDLE => TestStages::empty(),
-                _ => unreachable!(),
-            });
+            res |= bitflags::bitflags_match!
+            (
+                flag,
+                {
+                    TestStages::EVAL => TestStages::empty(),
+                    TestStages::PAGED => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
+                    TestStages::RENDER => TestStages::empty(),
+                    TestStages::PDF => TestStages::empty(),
+                    TestStages::PDFTAGS => TestStages::empty(),
+                    TestStages::SVG => TestStages::empty(),
+                    TestStages::HTML => TestStages::empty(),
+                    TestStages::BUNDLE => TestStages::empty(),
+                    _ => unreachable!(),
+                }
+            );
         }
         res
     }
@@ -198,22 +163,26 @@ impl TestStages
     ///
     /// For example, the `pdf` output requires the `paged` target.
     /// And the `pdftags` output requires both `pdf` and `paged`.
-    pub fn with_required(self) -> TestStages
+    pub fn with_required(self)->TestStages
     {
         let mut res = self;
         for flag in self.iter()
         {
-            res |= bitflags::bitflags_match!(flag, {
-                TestStages::EVAL => TestStages::empty(),
-                TestStages::PAGED => TestStages::EVAL,
-                TestStages::RENDER => TestStages::EVAL | TestStages::PAGED,
-                TestStages::PDF => TestStages::EVAL | TestStages::PAGED,
-                TestStages::PDFTAGS => TestStages::EVAL | TestStages::PAGED | TestStages::PDF,
-                TestStages::SVG => TestStages::EVAL | TestStages::PAGED,
-                TestStages::HTML => TestStages::EVAL,
-                TestStages::BUNDLE => TestStages::EVAL,
-                _ => unreachable!(),
-            });
+            res |= bitflags::bitflags_match!
+            (
+                flag,
+                {
+                    TestStages::EVAL => TestStages::empty(),
+                    TestStages::PAGED => TestStages::EVAL,
+                    TestStages::RENDER => TestStages::EVAL | TestStages::PAGED,
+                    TestStages::PDF => TestStages::EVAL | TestStages::PAGED,
+                    TestStages::PDFTAGS => TestStages::EVAL | TestStages::PAGED | TestStages::PDF,
+                    TestStages::SVG => TestStages::EVAL | TestStages::PAGED,
+                    TestStages::HTML => TestStages::EVAL,
+                    TestStages::BUNDLE => TestStages::EVAL,
+                    _ => unreachable!(),
+                }
+            );
         }
         res
     }
@@ -221,23 +190,27 @@ impl TestStages
     /// The union of the supplied stages and their sibling stages.
     ///
     /// See the tree in [`TestStages`].
-    pub fn with_siblings(self) -> TestStages
+    pub fn with_siblings(self)->TestStages
     {
         let mut res = self;
         for flag in self.iter()
         {
-            res |= bitflags::bitflags_match!(flag, {
-                TestStages::PAGED => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
-                TestStages::HTML => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
-                TestStages::BUNDLE => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
+            res |= bitflags::bitflags_match!
+            (
+                flag,
+                {
+                    TestStages::PAGED => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
+                    TestStages::HTML => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
+                    TestStages::BUNDLE => TestStages::PAGED | TestStages::HTML | TestStages::BUNDLE,
 
-                TestStages::RENDER => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
-                TestStages::PDF => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
-                TestStages::SVG => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
+                    TestStages::RENDER => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
+                    TestStages::PDF => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
+                    TestStages::SVG => TestStages::RENDER | TestStages::PDF | TestStages::SVG,
 
-                TestStages::PDFTAGS => TestStages::PDFTAGS,
-                _ => unreachable!("{flag}"),
-            });
+                    TestStages::PDFTAGS => TestStages::PDFTAGS,
+                    _ => unreachable!("{flag}"),
+                }
+            );
         }
         res
     }
@@ -245,25 +218,27 @@ impl TestStages
 
 impl Display for TestStages
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result
     {
         for (i, flag) in self.iter().enumerate()
         {
-            if i != 0
-            {
-                f.write_str(", ")?;
-            }
-            bitflags::bitflags_match!(flag, {
-                TestStages::EVAL => Display::fmt(&TestEval, f),
-                TestStages::PAGED => Display::fmt(&TestTarget::Paged, f),
-                TestStages::RENDER => Display::fmt(&TestOutput::Render, f),
-                TestStages::PDF => Display::fmt(&TestOutput::Pdf, f),
-                TestStages::PDFTAGS => Display::fmt(&TestOutput::Pdftags, f),
-                TestStages::SVG => Display::fmt(&TestOutput::Svg, f),
-                TestStages::HTML => Display::fmt(&TestTarget::Html, f),
-                TestStages::BUNDLE => Display::fmt(&TestTarget::Bundle, f),
-                _ => unreachable!(),
-            })?;
+            if i != 0 { f.write_str(", ")?; }
+            bitflags::bitflags_match!
+            (
+                flag,
+                {
+                    TestStages::EVAL => Display::fmt( & TestEval, f),
+                    TestStages::PAGED => Display::fmt( & TestTarget::Paged, f),
+                    TestStages::RENDER => Display::fmt( & TestOutput::Render, f),
+                    TestStages::PDF => Display::fmt( & TestOutput::Pdf, f),
+                    TestStages::PDFTAGS => Display::fmt( & TestOutput::Pdftags, f),
+                    TestStages::SVG => Display::fmt( & TestOutput::Svg, f),
+                    TestStages::HTML => Display::fmt( & TestTarget::Html, f),
+                    TestStages::BUNDLE => Display::fmt( & TestTarget::Bundle, f),
+                    _ => unreachable!(),
+                }
+            )
+            ?;
         }
         Ok(())
     }
@@ -274,82 +249,34 @@ pub struct TestEval;
 
 impl TestStage for TestEval {}
 
-impl From<TestEval> for TestStages
-{
-    fn from(_: TestEval) -> Self
-    {
-        TestStages::EVAL
-    }
-}
+impl From<TestEval> for TestStages { fn from(_: TestEval)->Self { TestStages::EVAL } }
 
-impl Display for TestEval
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        f.write_str("eval")
-    }
-}
+impl Display for TestEval { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { f.write_str("eval") } }
 
 /// A compilation target, analog to [`typst::Target`].
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
-pub enum TestTarget
-{
-    Paged = TestStages::PAGED.bits(),
-    Html = TestStages::HTML.bits(),
-    Bundle = TestStages::BUNDLE.bits(),
-}
+pub enum TestTarget { Paged = TestStages::PAGED.bits(), Html = TestStages::HTML.bits(), Bundle = TestStages::BUNDLE.bits(), }
 
 impl TestStage for TestTarget {}
 
-impl From<TestTarget> for TestStages
-{
-    fn from(value: TestTarget) -> Self
-    {
-        TestStages::from_bits(value as u8).unwrap()
-    }
-}
+impl From<TestTarget> for TestStages { fn from(value: TestTarget)->Self { TestStages::from_bits(value as u8).unwrap() } }
 
 impl FromStr for TestTarget
 {
     type Err = ();
 
-    fn from_str(s: &str) -> Result<Self, Self::Err>
-    {
-        match s
-        {
-            "paged" => Ok(Self::Paged),
-            "html" => Ok(Self::Html),
-            "bundle" => Ok(Self::Bundle),
-            _ => Err(()),
-        }
-    }
+    fn from_str(s: & str)->Result<Self, Self::Err> { match s { "paged" => Ok(Self::Paged),"html" => Ok(Self::Html),"bundle" => Ok(Self::Bundle), _ => Err(()), } }
 }
 
 impl Display for TestTarget
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        f.write_str(match self
-        {
-            TestTarget::Paged => "paged",
-            TestTarget::Html => "html",
-            TestTarget::Bundle => "bundle",
-        })
-    }
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { f.write_str(match self { TestTarget::Paged => "paged", TestTarget::Html => "html", TestTarget::Bundle => "bundle", }) }
 }
 
 impl From<Target> for TestTarget
 {
-    fn from(target: Target) -> Self
-    {
-        match target
-        {
-            Target::Paged => TestTarget::Paged,
-            Target::Html => TestTarget::Html,
-            Target::Bundle => TestTarget::Bundle,
-        }
-    }
+    fn from(target: Target)->Self { match target { Target::Paged => TestTarget::Paged, Target::Html => TestTarget::Html, Target::Bundle => TestTarget::Bundle, } }
 }
 
 /// A test output format.
@@ -367,16 +294,12 @@ pub enum TestOutput
 
 impl TestOutput
 {
-    pub const ALL: [Self; 6] =
-        [Self::Render, Self::Svg, Self::Pdf, Self::Pdftags, Self::Html, Self::Bundle];
+    pub const ALL: [Self; 6] = [Self::Render, Self::Svg, Self::Pdf, Self::Pdftags, Self::Html, Self::Bundle];
 
-    fn from_sub_dir(dir: &str) -> Option<Self>
-    {
-        Self::ALL.into_iter().find(|o| o.sub_dir() == dir)
-    }
+    fn from_sub_dir(dir: & str)->Option<Self> { Self::ALL.into_iter().find( | o | o.sub_dir() == dir) }
 
     /// The sub directory inside the [`REF_PATH`] and [`STORE_PATH`].
-    pub const fn sub_dir(self) -> &'static str
+    pub const fn sub_dir(self)-> & 'static str
     {
         match self
         {
@@ -390,64 +313,45 @@ impl TestOutput
     }
 
     /// The file extension used for live output.
-    pub const fn live_extension(self) -> &'static str
+    pub const fn live_extension(self)-> & 'static str
     {
-        match self
-        {
-            Self::Render => "png",
-            Self::Pdf => "pdf",
-            Self::Pdftags => "yml",
-            Self::Svg => "svg",
-            Self::Html => "html",
-            Self::Bundle => "tar",
-        }
+        match self { Self::Render => "png", Self::Pdf => "pdf", Self::Pdftags => "yml", Self::Svg => "svg", Self::Html => "html", Self::Bundle => "tar", }
     }
 
     /// The file extension used for file references.
-    pub const fn ref_extension(self) -> &'static str
-    {
-        match self
-        {
-            Self::Bundle => "txt",
-            _ => self.live_extension(),
-        }
-    }
+    pub const fn ref_extension(self)-> & 'static str { match self { Self::Bundle => "txt", _ => self.live_extension(), } }
 
     /// The path at which the live output will be stored.
-    pub fn hash_path(self, hash: HashedRef, name: &str) -> PathBuf
+    pub fn hash_path(self, hash: HashedRef, name: & str)->PathBuf
     {
         let ext = self.live_extension();
-        [STORE_PATH, "by-hash", format!("{hash}_{name}.{ext}").as_ref()]
-            .iter()
-            .collect()
+        [STORE_PATH, "by-hash", format ! ("{hash}_{name}.{ext}").as_ref()]
+        .iter()
+        .collect()
     }
 
     /// The path at which a symlink to the [`Self::hash_path`] will be created
     /// for inspection.
-    pub fn live_path(self, name: &str) -> PathBuf
+    pub fn live_path(self, name: & str)->PathBuf
     {
         let dir = self.sub_dir();
         let ext = self.live_extension();
-        PathBuf::from(format!("{STORE_PATH}/{dir}/{name}.{ext}"))
+        PathBuf::from(format ! ("{STORE_PATH}/{dir}/{name}.{ext}"))
     }
 
     /// The path at which file references will be saved.
-    pub fn file_ref_path(self, name: &str) -> PathBuf
+    pub fn file_ref_path(self, name: & str)->PathBuf
     {
         let dir = self.sub_dir();
         let ext = self.ref_extension();
-        PathBuf::from(format!("{REF_PATH}/{dir}/{name}.{ext}"))
+        PathBuf::from(format ! ("{REF_PATH}/{dir}/{name}.{ext}"))
     }
 
     /// The path at which hashed references will be saved.
-    pub fn hash_refs_path(self) -> PathBuf
-    {
-        let dir = self.sub_dir();
-        PathBuf::from(format!("{REF_PATH}/{dir}/hashes.txt"))
-    }
+    pub fn hash_refs_path(self)->PathBuf { let dir = self.sub_dir(); PathBuf::from(format ! ("{REF_PATH}/{dir}/hashes.txt")) }
 
     /// The output kind.
-    pub fn kind(self) -> TestOutputKind
+    pub fn kind(self)->TestOutputKind
     {
         match self
         {
@@ -462,227 +366,119 @@ impl TestOutput
 
 impl TestStage for TestOutput {}
 
-impl From<TestOutput> for TestStages
-{
-    fn from(value: TestOutput) -> Self
-    {
-        TestStages::from_bits(value as u8).unwrap()
-    }
-}
+impl From<TestOutput> for TestStages { fn from(value: TestOutput)->Self { TestStages::from_bits(value as u8).unwrap() } }
 
-impl Display for TestOutput
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        f.write_str(self.sub_dir())
-    }
-}
+impl Display for TestOutput { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { f.write_str(self.sub_dir()) } }
 
 /// Whether the output format produces hashed or file references.
-pub enum TestOutputKind
-{
-    Hash(usize),
-    File,
-}
+pub enum TestOutputKind { Hash(usize), File, }
 
 /// The size of a file.
 pub struct FileSize(pub usize);
 
-impl Display for FileSize
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        write!(f, "{:.2} KiB", (self.0 as f64) / 1024.0)
-    }
-}
+impl Display for FileSize { fn fmt( & self, f: & mut Formatter)->fmt::Result { write ! (f, "{:.2} KiB", (self .0 as f64) / 1024.0) } }
 
 /// Collects all tests from all files.
-struct Collector
-{
-    hashes: HashStore,
-    tests: Vec<Test>,
-    errors: Vec<TestParseError>,
-    seen: FxHashMap<EcoString, (FilePos, Attrs)>,
-    skipped: usize,
-}
+struct Collector { hashes: HashStore, tests: Vec<Test>, errors: Vec<TestParseError>, seen: FxHashMap<EcoString, (FilePos, Attrs)>, skipped: usize, }
 
 impl Collector
 {
     /// Creates a new test collector.
-    fn new() -> Self
-    {
-        Self {
-            hashes: HashStore::default(),
-            tests: vec![],
-            errors: vec![],
-            seen: FxHashMap::default(),
-            skipped: 0,
-        }
-    }
+    fn new ()->Self { Self { hashes: HashStore::default (), tests: vec ! [], errors: vec ! [], seen: FxHashMap::default (), skipped: 0, } }
 
     /// Collects tests from all files.
-    fn collect(mut self) -> Result<(HashStore, Vec<Test>, usize), Vec<TestParseError>>
+    fn collect(mut self)->Result<(HashStore, Vec<Test>, usize), Vec<TestParseError>>
     {
         self.walk_files();
         self.walk_references();
 
-        if self.errors.is_empty()
-        {
-            Ok((self.hashes, self.tests, self.skipped))
-        }
-        else
-        {
-            Err(self.errors)
-        }
+        if self.errors.is_empty() { Ok((self.hashes, self.tests, self.skipped)) }
+        else { Err(self.errors) }
     }
 
     /// Walks through all test files and collects the tests.
-    fn walk_files(&mut self)
+    fn walk_files( & mut self)
     {
-        for entry in walkdir::WalkDir::new(SUITE_PATH).sort_by_file_name()
+        for entry in walkdir::WalkDir:: new (SUITE_PATH).sort_by_file_name()
         {
             let entry = entry.unwrap();
             let path = entry.path();
-            if path.extension().is_none_or(|ext| ext != "typ")
-            {
-                continue;
-            }
+            if path.extension().is_none_or( | ext | ext != "typ") { continue ; }
 
             let text = std::fs::read_to_string(path).unwrap();
-            if text.starts_with("// SKIP")
-            {
-                continue;
-            }
+            if text.starts_with("// SKIP") { continue ; }
 
-            Parser::new(self, path, &text).parse();
+            Parser:: new (self, path, & text).parse();
         }
     }
 
     /// Walks through all reference outputs and ensures that a matching test
     /// exists.
-    fn walk_references(&mut self)
+    fn walk_references( & mut self)
     {
-        for entry in walkdir::WalkDir::new(REF_PATH).sort_by_file_name()
+        for entry in walkdir::WalkDir:: new (REF_PATH).sort_by_file_name()
         {
             let entry = entry.unwrap();
-            if entry.file_type().is_dir()
-            {
-                continue;
-            }
+            if entry.file_type().is_dir() { continue ; }
 
             let path = entry.path();
             let output = (path.strip_prefix(REF_PATH).ok())
-                .and_then(|sub_path| sub_path.components().next())
-                .and_then(|sub_dir| sub_dir.as_os_str().to_str())
-                .and_then(TestOutput::from_sub_dir);
+            .and_then( | sub_path | sub_path.components().next())
+            .and_then( | sub_dir | sub_dir.as_os_str().to_str())
+            .and_then(TestOutput::from_sub_dir);
             let Some(output) = output
-            else
-            {
-                continue;
-            };
+            else { continue ; };
 
             match output.kind()
             {
                 TestOutputKind::File => self.check_dangling_file_references(path, output),
-                TestOutputKind::Hash(idx) =>
-                {
-                    if let Some(hashed_refs) =
-                        self.check_dangling_hashed_references(path, output)
-                    {
-                        self.hashes[idx] = hashed_refs;
-                    }
-                }
+                TestOutputKind::Hash(idx) => { if let Some(hashed_refs) = self.check_dangling_hashed_references(path, output) { self.hashes[idx] = hashed_refs; } }
             }
         }
     }
 
-    fn check_dangling_file_references(&mut self, path: &Path, output: TestOutput)
+    fn check_dangling_file_references( & mut self, path: & Path, output: TestOutput)
     {
         let stem = path.file_stem().unwrap().to_string_lossy();
-        let name = &*stem;
+        let name = &* stem;
 
-        let Some((pos, attrs)) = self.seen.get(name)
-        else
-        {
-            self.errors.push(TestParseError::new(
-                TestParseErrorKind::DanglingFile,
-                path,
-                0,
-            ));
-            return;
-        };
+        let Some((pos, attrs)) = self.seen. get(name)
+        else { self.errors.push(TestParseError::new (TestParseErrorKind::DanglingFile, path, 0,)); return ; };
 
-        if !attrs.implied_stages().contains(output.into()) || attrs.empty
+        if ! attrs.implied_stages().contains(output.into()) || attrs.empty
         {
-            self.errors.push(TestParseError::new(
-                TestParseErrorKind::DanglingFile,
-                path,
-                0,
-            ));
+            self.errors.push(TestParseError::new (TestParseErrorKind::DanglingFile, path, 0,));
         }
 
         let len = path.metadata().unwrap().len() as usize;
-        if !attrs.large && len > crate::REF_LIMIT
+        if ! attrs.large && len > crate::REF_LIMIT
         {
-            let message = format!(
-                "reference output size exceeds {}, but the test is not marked as `large`",
-                FileSize(crate::REF_LIMIT),
-            );
+            let message = format!("reference output size exceeds {}, but the test is not marked as `large`", FileSize(crate::REF_LIMIT),);
             self.errors
-                .push(TestParseError { pos: pos.clone(), kind: message.into() });
+            .push(TestParseError { pos: pos.clone(), kind: message.into() });
         }
     }
 
-    fn check_dangling_hashed_references(
-        &mut self,
-        path: &Path,
-        output: TestOutput,
-    ) -> Option<HashedRefs>
+    fn check_dangling_hashed_references( & mut self, path: & Path, output: TestOutput,)->Option<HashedRefs>
     {
         let path = path.to_str().unwrap().replace('\\', "/");
-        let path = Path::new(&path);
+        let path = Path:: new ( & path);
 
-        if output.hash_refs_path() != path
-        {
-            self.errors.push(TestParseError::new(
-                TestParseErrorKind::DanglingFile,
-                path,
-                0,
-            ));
-            return None;
-        }
+        if output.hash_refs_path() != path { self.errors.push(TestParseError::new (TestParseErrorKind::DanglingFile, path, 0,)); return None; }
 
         let string = std::fs::read_to_string(path).unwrap_or_default();
-        let hashed_refs = HashedRefs::from_str(&string)
-            .inspect_err(|err| {
-                self.errors.push(TestParseError::new(
-                    format!("error parsing reference hash file: {err}"),
-                    path,
-                    0,
-                ));
-            })
-            .ok()?;
+        let hashed_refs = HashedRefs::from_str( & string)
+        .inspect_err( | err | { self.errors.push(TestParseError::new (format ! ("error parsing reference hash file: {err}"), path, 0,)); })
+        .ok()?;
 
         for (name, line) in hashed_refs.names().zip(1..)
         {
-            let Some((_, attrs)) = self.seen.get(name)
-            else
-            {
-                self.errors.push(TestParseError::new(
-                    TestParseErrorKind::DanglingHash(name.clone()),
-                    path,
-                    line,
-                ));
-                continue;
-            };
+            let Some((_, attrs)) = self.seen. get(name)
+            else { self.errors.push(TestParseError::new (TestParseErrorKind::DanglingHash(name.clone()), path, line,)); continue ; };
 
-            if !attrs.implied_stages().contains(output.into()) || attrs.empty
+            if ! attrs.implied_stages().contains(output.into()) || attrs.empty
             {
-                self.errors.push(TestParseError::new(
-                    TestParseErrorKind::DanglingHash(name.clone()),
-                    path,
-                    line,
-                ));
+                self.errors.push(TestParseError::new (TestParseErrorKind::DanglingHash(name.clone()), path, line,));
             }
         }
 
@@ -691,24 +487,18 @@ impl Collector
 }
 
 /// Parses a single test file.
-struct Parser<'a>
-{
-    collector: &'a mut Collector,
-    path: Arc<Path>,
-    s: Scanner<'a>,
-    test_start_line: usize,
-    line: usize,
-}
+struct Parser<'a> { collector: & 'a mut Collector, path: Arc<Path>, s: Scanner<'a>, test_start_line: usize, line: usize, }
 
-impl<'a> Parser<'a>
+impl <'a> Parser<'a>
 {
     /// Creates a new parser for a file.
-    fn new(collector: &'a mut Collector, path: &'a Path, source: &'a str) -> Self
+    fn new (collector: & 'a mut Collector, path: & 'a Path, source: & 'a str)->Self
     {
-        Self {
+        Self
+        {
             collector,
             path: path.into(),
-            s: Scanner::new(source),
+            s: Scanner:: new (source),
             // Lines in files are 1-indexed.
             test_start_line: 1,
             line: 1,
@@ -716,200 +506,126 @@ impl<'a> Parser<'a>
     }
 
     /// Parses an individual file.
-    fn parse(&mut self)
+    fn parse( & mut self)
     {
         self.skip_preamble();
 
-        while !self.s.done()
+        while ! self.s.done()
         {
-            let mut name = EcoString::new();
-            let mut attrs = Attrs::default();
+            let mut name = EcoString:: new ();
+            let mut attrs = Attrs:: default();
             if self.s.eat_if("---")
             {
                 self.s.eat_while(' ');
                 name = self.s.eat_until(char::is_whitespace).into();
                 self.s.eat_while(' ');
 
-                if name.is_empty()
-                {
-                    self.error("expected test name");
-                }
-                else if !is_ident(&name)
-                {
-                    self.error(format!("test name `{name}` is not a valid identifier"));
-                }
-                else
-                {
-                    attrs = self.parse_attrs();
-                }
+                if name.is_empty() { self.error("expected test name"); }
+                else if ! is_ident( & name) { self.error(format ! ("test name `{name}` is not a valid identifier")); }
+                else { attrs = self.parse_attrs(); }
             }
-            else
-            {
-                self.error("expected opening ---");
-            }
+            else { self.error("expected opening ---"); }
 
-            if self.collector.seen.contains_key(&name)
-            {
-                self.error(format!("duplicate test {name}"));
-            }
+            if self.collector.seen.contains_key( & name) { self.error(format ! ("duplicate test {name}")); }
 
-            if self.s.eat_newline()
-            {
-                self.line += 1;
-            }
+            if self.s.eat_newline() { self.line += 1; }
 
             let start = self.s.cursor();
             self.test_start_line = self.line;
 
-            let pos = FilePos {
-                path: self.path.clone(),
-                line: self.test_start_line,
-            };
-            self.collector.seen.insert(name.clone(), (pos.clone(), attrs.clone()));
+            let pos = FilePos { path: self.path.clone(), line: self.test_start_line, };
+            self.collector.seen.insert(name.clone(),(pos.clone(), attrs.clone()));
 
-            while !self.s.done() && !self.s.at("---")
-            {
-                self.s.eat_until(is_newline);
-                if self.s.eat_newline()
-                {
-                    self.line += 1;
-                }
-            }
+            while ! self.s.done() && ! self.s.at("---") { self.s.eat_until(is_newline); if self.s.eat_newline() { self.line += 1; } }
 
-            if !ARGS.implied_stages().intersects(attrs.implied_stages())
-                || !selected(&name, self.path.canonicalize().unwrap())
-            {
-                self.collector.skipped += 1;
-                continue;
-            }
+            if ! ARGS.implied_stages().intersects(attrs.implied_stages())
+            || ! selected( & name, self.path.canonicalize().unwrap()) { self.collector.skipped += 1; continue ; }
 
             let body = self.s.from(start);
-            let body = parse_test_body(pos, &attrs, body, &mut self.collector.errors);
+            let body = parse_test_body(pos, & attrs, body, & mut self.collector.errors);
 
             self.collector.tests.push(Test { name, attrs, body });
         }
     }
 
     /// Skips the preamble of a test file.
-    fn skip_preamble(&mut self)
+    fn skip_preamble( & mut self)
     {
         let mut errored = false;
-        while !self.s.done() && !self.s.at("---")
+        while ! self.s.done() && ! self.s.at("---")
         {
             let line = self.s.eat_until(is_newline).trim();
-            if !errored && !line.is_empty() && !line.starts_with("//")
+            if ! errored && ! line.is_empty() && ! line.starts_with("//")
             {
                 self.error("test preamble may only contain comments and blank lines");
                 errored = true;
             }
-            if self.s.eat_newline()
-            {
-                self.line += 1;
-            }
+            if self.s.eat_newline() { self.line += 1; }
         }
     }
 
     /// Parse the test attributes inside a test header.
-    fn parse_attrs(&mut self) -> Attrs
+    fn parse_attrs( & mut self)->Attrs
     {
         let mut stages = TestStages::empty();
         let mut flags = AttrFlags::empty();
         let mut features = None;
         let mut tolerance = None;
-        while !self.s.eat_if("---")
+        while ! self.s.eat_if("---")
         {
             let attr_name = self.s.eat_while(is_id_continue);
             let mut attr_params = None;
             if self.s.eat_if('(')
             {
                 attr_params = Some(self.s.eat_until(')'));
-                if !self.s.eat_if(')')
-                {
-                    self.error("expected closing parenthesis");
-                }
+                if ! self.s.eat_if(')') { self.error("expected closing parenthesis"); }
             }
-            if !self.s.at(' ')
-            {
-                self.error("expected a space after an attribute");
-            }
+            if ! self.s.at(' ') { self.error("expected a space after an attribute"); }
 
             match attr_name
             {
-                "eval" => self.set_attr(attr_name, &mut stages, TestStages::EVAL),
-                "paged" => self.set_attr(attr_name, &mut stages, TestStages::PAGED),
-                "pdf" => self.set_attr(attr_name, &mut stages, TestStages::PDF),
-                "pdftags" => self.set_attr(attr_name, &mut stages, TestStages::PDFTAGS),
+                "eval" => self.set_attr(attr_name, & mut stages, TestStages::EVAL),
+                "paged" => self.set_attr(attr_name, & mut stages, TestStages::PAGED),
+                "pdf" => self.set_attr(attr_name, & mut stages, TestStages::PDF),
+                "pdftags" => self.set_attr(attr_name, & mut stages, TestStages::PDFTAGS),
                 "tolerance" =>
                 {
                     let Some(param) = attr_params.take()
-                    else
-                    {
-                        self.error("expected parameter for `tolerance`");
-                        continue;
-                    };
-                    match param.parse::<u8>()
-                    {
-                        Ok(value) => tolerance = Some(value),
-                        _ => self.error("expected integer for `tolerance`"),
-                    }
+                    else { self.error("expected parameter for `tolerance`"); continue ; };
+                    match param.parse::<u8>() { Ok(value) => tolerance = Some(value), _ => self.error("expected integer for `tolerance`"), }
                 }
-                "html" => self.set_attr(attr_name, &mut stages, TestStages::HTML),
-                "bundle" => self.set_attr(attr_name, &mut stages, TestStages::BUNDLE),
-                "large" => self.set_attr(attr_name, &mut flags, AttrFlags::LARGE),
-                "empty" => self.set_attr(attr_name, &mut flags, AttrFlags::EMPTY),
-                "trace" => self.set_attr(attr_name, &mut flags, AttrFlags::TRACE),
+                "html" => self.set_attr(attr_name, & mut stages, TestStages::HTML),
+                "bundle" => self.set_attr(attr_name, & mut stages, TestStages::BUNDLE),
+                "large" => self.set_attr(attr_name, & mut flags, AttrFlags::LARGE),
+                "empty" => self.set_attr(attr_name, & mut flags, AttrFlags::EMPTY),
+                "trace" => self.set_attr(attr_name, & mut flags, AttrFlags::TRACE),
                 "features" =>
                 {
                     let Some(params) = attr_params.take()
-                    else
-                    {
-                        self.error("expected parameter for `features`");
-                        continue;
-                    };
+                    else { self.error("expected parameter for `features`"); continue ; };
                     // Allow specifying an empty parameter list.
-                    features = Some(self.parse_attr_param_list(params, "feature", |s| {
-                        Feature::from_str(s).map_err(|()| "")
-                    }));
+                    features = Some(self.parse_attr_param_list(params, "feature", | s | { Feature::from_str(s).map_err( | () | "") }));
                 }
 
-                found =>
-                {
-                    self.error(format!(
-                        "expected attribute or closing ---, found `{found}`"
-                    ));
-                    break;
-                }
+                found => { self.error(format ! ("expected attribute or closing ---, found `{found}`")); break ; }
             }
 
-            if attr_params.is_some()
-            {
-                self.error("unexpected attribute parameters");
-            }
+            if attr_params.is_some() { self.error("unexpected attribute parameters"); }
 
             self.s.eat_while(' ');
         }
 
-        if stages.is_empty()
-        {
-            self.error("tests must specify at least one target or output");
-        }
+        if stages.is_empty() { self.error("tests must specify at least one target or output"); }
 
         if stages.contains(TestStages::EVAL)
         {
             let others = stages.difference(TestStages::EVAL);
-            if !others.is_empty()
-            {
-                self.error(format!(
-                    "`eval` must be the only test stage, consider removing [{others}]"
-                ));
-            }
-            else if flags.contains(AttrFlags::EMPTY)
-            {
-                self.error("specifying `empty` on an `eval` test is redundant");
-            }
+            if ! others.is_empty() { self.error(format ! ("`eval` must be the only test stage, consider removing [{others}]")); }
+            else if flags.contains(AttrFlags::EMPTY) { self.error("specifying `empty` on an `eval` test is redundant"); }
         }
 
-        Attrs {
+        Attrs
+        {
             large: flags.contains(AttrFlags::LARGE),
             empty: flags.contains(AttrFlags::EMPTY),
             trace: flags.contains(AttrFlags::TRACE),
@@ -920,155 +636,93 @@ impl<'a> Parser<'a>
     }
 
     /// Parse a comma-separated attribute parameter list.
-    fn parse_attr_param_list<T, I, F, E>(
-        &mut self,
-        params: &str,
-        what: &str,
-        parse: F,
-    ) -> T
+    fn parse_attr_param_list<T, I, F, E>( & mut self, params: & str, what: & str, parse: F,)->T
     where
-        T: FromIterator<I> + Default,
-        F: Fn(&str) -> Result<I, E>,
-        E: Display,
+    T: FromIterator < I > + Default,
+    F: Fn( & str)->Result<I, E>,
+    E: Display,
     {
         // Allow specifying an empty parameter list.
-        if params.trim().is_empty()
-        {
-            return T::default();
-        }
+        if params.trim().is_empty() { return T::default (); }
 
         params
-            .split(',')
-            .map(str::trim)
-            .filter_map(|p| {
-                parse(p)
-                    .inspect_err(|e| self.error(format!("unknown {what} `{p}`: {e}")))
-                    .ok()
-            })
-            .collect()
+        .split(',')
+        .map(str::trim)
+        .filter_map( | p | { parse(p).inspect_err( | e | self.error(format ! ("unknown {what} `{p}`: {e}"))).ok() })
+        .collect()
     }
 
     /// Set an attribute flag and check for duplicates.
-    fn set_attr<F: Flags + Copy>(&mut self, attr: &str, flags: &mut F, flag: F)
+    fn set_attr<F: Flags + Copy>( & mut self, attr: & str, flags: & mut F, flag: F)
     {
-        if flags.contains(flag)
-        {
-            self.error(format!("duplicate attribute `{attr}`"));
-        }
+        if flags.contains(flag) { self.error(format ! ("duplicate attribute `{attr}`")); }
         flags.insert(flag);
     }
 
     /// Stores a test parsing error.
-    fn error(&mut self, message: impl Into<String>)
-    {
-        self.collector
-            .errors
-            .push(TestParseError::new(message, &self.path, self.line));
-    }
+    fn error( & mut self, message: impl Into<String>) { self.collector.errors.push(TestParseError::new (message, & self.path, self.line)); }
 }
 
 /// Whether a test is within the selected set to run.
-fn selected(name: &str, abs: PathBuf) -> bool
+fn selected(name: & str, abs: PathBuf)-> bool
 {
-    static SKIPPED: LazyLock<FxHashSet<&'static str>> = LazyLock::new(|| {
-        String::leak(std::fs::read_to_string(crate::SKIP_PATH).unwrap())
+    static SKIPPED: LazyLock<FxHashSet <& 'static str> > = LazyLock:: new
+    (
+        ||
+        {
+            String::leak(std::fs::read_to_string(crate::SKIP_PATH).unwrap())
             .lines()
-            .map(|line| line.trim())
-            .filter(|line| !line.is_empty() && !line.starts_with("//"))
+            .map( | line | line.trim())
+            .filter( | line | ! line.is_empty() && ! line.starts_with("//"))
             .collect()
-    });
+        }
+    );
 
-    if SKIPPED.contains(name)
-    {
-        return false;
-    }
+    if SKIPPED.contains(name) { return false; }
 
-    let paths = &ARGS.path;
-    if !paths.is_empty() && !paths.iter().any(|path| abs.starts_with(path))
-    {
-        return false;
-    }
+    let paths = & ARGS.path;
+    if ! paths.is_empty() && ! paths.iter().any( | path | abs.starts_with(path)) { return false; }
 
     let exact = ARGS.exact;
-    let patterns = &ARGS.pattern;
+    let patterns = & ARGS.pattern;
     patterns.is_empty()
-        || patterns.iter().any(|pattern: &regex::Regex| {
-            if exact { name == pattern.as_str() } else { pattern.is_match(name) }
-        })
+    || patterns.iter().any( | pattern: & regex::Regex | { if exact { name == pattern.as_str() } else { pattern.is_match(name) } })
 }
 
 /// An error in a test file.
-pub struct TestParseError
-{
-    pub pos: FilePos,
-    pub kind: TestParseErrorKind,
-}
+pub struct TestParseError { pub pos: FilePos, pub kind: TestParseErrorKind, }
 
 impl TestParseError
 {
-    pub fn new(kind: impl Into<TestParseErrorKind>, path: &Path, line: usize) -> Self
+    pub fn new (kind: impl Into<TestParseErrorKind>, path: & Path, line: usize)->Self
     {
-        Self {
-            pos: FilePos { path: path.into(), line },
-            kind: kind.into(),
-        }
+        Self { pos: FilePos { path: path.into(), line }, kind: kind.into(), }
     }
 }
 
-impl Display for TestParseError
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        write!(f, "{} ({})", self.kind, self.pos)
-    }
-}
+impl Display for TestParseError { fn fmt( & self, f: & mut Formatter)->fmt::Result { write ! (f, "{} ({})", self.kind, self.pos) } }
 
 /// The kind of error that occurred when collecting tests.
-pub enum TestParseErrorKind
-{
-    DanglingFile,
-    DanglingHash(EcoString),
-    Other(String),
-}
+pub enum TestParseErrorKind { DanglingFile, DanglingHash(EcoString), Other(String), }
 
-impl<S: Into<String>> From<S> for TestParseErrorKind
-{
-    fn from(v: S) -> Self
-    {
-        Self::Other(v.into())
-    }
-}
+impl <S: Into<String>> From<S> for TestParseErrorKind { fn from(v: S)->Self { Self::Other(v.into()) } }
 
 impl Display for TestParseErrorKind
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
         match self
         {
             TestParseErrorKind::DanglingFile => f.write_str("dangling reference file"),
-            TestParseErrorKind::DanglingHash(name) =>
-            {
-                write!(f, "dangling reference hash ({name})")
-            }
+            TestParseErrorKind::DanglingHash(name) => { write ! (f, "dangling reference hash ({name})") }
             TestParseErrorKind::Other(message) => f.write_str(message),
         }
     }
 }
 
-trait ScannerExt
-{
-    fn eat_newline(&mut self) -> bool;
-}
+trait ScannerExt { fn eat_newline( & mut self)->bool ; }
 
 impl ScannerExt for Scanner<'_>
 {
-    fn eat_newline(&mut self) -> bool
-    {
-        let ate = self.eat_if(is_newline);
-        if ate && self.before().ends_with('\r')
-        {
-            self.eat_if('\n');
-        }
-        ate
-    }
+    fn eat_newline( & mut self)-> bool { let ate = self.eat_if(is_newline); if ate && self.before().ends_with('\r') { self.eat_if('\n'); } ate }
 }

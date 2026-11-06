@@ -101,12 +101,12 @@ use syn::DeriveInput;
 ///
 /// These should always come after `self`, in the order specified.
 #[proc_macro_attribute]
-pub fn func(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
+pub fn func(stream: BoundaryStream, item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as syn::ItemFn);
-    func::func(stream.into(), &item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    func::func(stream.into(), & item)
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }
 
 /// Makes a native Rust type usable as a Typst type.
@@ -135,12 +135,12 @@ pub fn func(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
 /// - `title`: The type's title case name (e.g. `String`). Defaults to the
 ///   normal name in title case.
 #[proc_macro_attribute]
-pub fn ty(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
+pub fn ty(stream: BoundaryStream, item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as syn::Item);
     ty::ty(stream.into(), item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }
 
 /// Makes a native Rust type usable as a Typst element.
@@ -212,12 +212,12 @@ pub fn ty(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
 ///   any ghost fields, then you cannot auto-generate `Construct` for it, and
 ///   you must implement `Construct` manually.
 #[proc_macro_attribute]
-pub fn elem(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
+pub fn elem(stream: BoundaryStream, item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as syn::ItemStruct);
     elem::elem(stream.into(), item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }
 
 /// Provides an associated scope to a native function, type, or element.
@@ -262,12 +262,12 @@ pub fn elem(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
 /// struct NiceElem {}
 /// ```
 #[proc_macro_attribute]
-pub fn scope(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
+pub fn scope(stream: BoundaryStream, item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as syn::Item);
     scope::scope(stream.into(), item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }
 
 /// Implements `Reflect`, `FromValue`, and `IntoValue` for a type.
@@ -299,12 +299,7 @@ pub fn scope(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
 /// }
 /// ```
 #[proc_macro]
-pub fn cast(stream: BoundaryStream) -> BoundaryStream
-{
-    cast::cast(stream.into())
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
-}
+pub fn cast(stream: BoundaryStream)->BoundaryStream { cast::cast(stream.into()).unwrap_or_else( | err | err.to_compile_error()).into() }
 
 /// Implements `Reflect`, `FromValue`, and `IntoValue` for an enum.
 ///
@@ -326,12 +321,12 @@ pub fn cast(stream: BoundaryStream) -> BoundaryStream
 /// }
 /// ```
 #[proc_macro_derive(Cast, attributes(string))]
-pub fn derive_cast(item: BoundaryStream) -> BoundaryStream
+pub fn derive_cast(item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as DeriveInput);
     cast::derive_cast(item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }
 
 /// Times function invocations.
@@ -367,10 +362,10 @@ pub fn derive_cast(item: BoundaryStream) -> BoundaryStream
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn time(stream: BoundaryStream, item: BoundaryStream) -> BoundaryStream
+pub fn time(stream: BoundaryStream, item: BoundaryStream)->BoundaryStream
 {
     let item = syn::parse_macro_input!(item as syn::ItemFn);
     time::time(stream.into(), item)
-        .unwrap_or_else(|err| err.to_compile_error())
-        .into()
+    .unwrap_or_else( | err | err.to_compile_error())
+    .into()
 }

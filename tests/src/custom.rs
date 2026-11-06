@@ -9,6 +9,7 @@ use typst_layout::PagedDocument;
 
 use crate::collect::Test;
 use crate::world::TestWorld;
+
 /// We don't want to panic when there is a failure.
 macro_rules! test_eq
 {
@@ -42,8 +43,10 @@ pub fn check(test: & Test, world: & TestWorld, doc: Option <& PagedDocument >)->
     }
     sink
 }
+
 /// Extract the document information.
 fn info(doc: Option <& PagedDocument >)->DocumentInfo { doc.map( | doc | doc.info().clone()).unwrap_or_default() }
+
 /// Naive check for whether tags are balanced in the document.
 ///
 /// This is kept minimal for now: It does not handle groups with parents and

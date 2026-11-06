@@ -1,24 +1,23 @@
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num:: { NonZeroU32, NonZeroUsize };
 use std::sync::Arc;
 
 use ecow::EcoString;
 use typst_macros::Cast;
-use typst_syntax::{LooselySpanned, Spanned};
+use typst_syntax:: { LooselySpanned, Spanned };
 use typst_utils::NonZeroExt;
 
-use crate::diag::{HintedStrResult, HintedString, SourceResult, bail};
+use crate::diag:: { HintedStrResult, HintedString, SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
-    Content, Packed, Smart, StyleChain, Synthesize, cast, elem, scope,
-};
-use crate::layout::resolve::{CellGrid, GridStroke, table_to_cellgrid};
-use crate::layout::{
+use crate::foundations:: { Content, Packed, Smart, StyleChain, Synthesize, cast, elem, scope, };
+use crate::layout::resolve:: { CellGrid, GridStroke, table_to_cellgrid };
+use crate::layout::
+{
     Abs, Alignment, Celled, GridCell, GridFooter, GridHLine, GridHeader, GridVLine,
     Length, OuterHAlignment, OuterVAlignment, Rel, Sides, TrackSizings,
 };
 use crate::model::Figurable;
 use crate::text::LocalName;
-use crate::visualize::{Paint, Stroke};
+use crate::visualize:: { Paint, Stroke };
 
 /// A table of items.
 ///
@@ -148,20 +147,17 @@ pub struct TableElem
     /// The gaps between rows and columns. This is a shorthand for setting
     /// `column-gutter` and `row-gutter` to the same value. See the
     /// @grid.gutter[grid documentation] for more information on gutters.
-    #[external]
+    # [external]
     pub gutter: TrackSizings,
 
     /// The gaps between columns. Takes precedence over `gutter`. See the
     /// @grid.gutter[grid documentation] for more information on gutters.
-    #[parse(
-        let gutter = args.named("gutter")?;
-        args.named("column-gutter")?.or_else(|| gutter.clone())
-    )]
+    # [parse(let gutter = args.named("gutter")?; args.named("column-gutter")?.or_else( || gutter.clone()))]
     pub column_gutter: TrackSizings,
 
     /// The gaps between rows. Takes precedence over `gutter`. See the
     /// @grid.gutter[grid documentation] for more information on gutters.
-    #[parse(args.named("row-gutter")?.or_else(|| gutter.clone()))]
+    # [parse(args.named("row-gutter")?.or_else( || gutter.clone()))]
     pub row_gutter: TrackSizings,
 
     /// How much to pad the cells' content.
@@ -193,9 +189,9 @@ pub struct TableElem
     ///   [World],
     /// )
     /// ```
-    #[fold]
-    #[default(Spanned::detached(Celled::Value(Sides::splat(Some(Abs::pt(5.0).into())))))]
-    pub inset: LooselySpanned<Celled<Sides<Option<Rel<Length>>>>>,
+    # [fold]
+    # [default (Spanned::detached(Celled::Value(Sides::splat(Some(Abs::pt(5.0).into())))))]
+    pub inset: LooselySpanned < Celled < Sides < Option < Rel < Length >>>>> ,
 
     /// How to align the cells' content.
     ///
@@ -217,7 +213,7 @@ pub struct TableElem
     ///   [A], [B], [C],
     /// )
     /// ```
-    pub align: LooselySpanned<Celled<Smart<Alignment>>>,
+    pub align: LooselySpanned < Celled < Smart < Alignment >>> ,
 
     /// How to fill the cells.
     ///
@@ -245,7 +241,7 @@ pub struct TableElem
     ///   [Profit:], [500 €], [1000 €], [1500 €],
     /// )
     /// ```
-    pub fill: LooselySpanned<Celled<Option<Paint>>>,
+    pub fill: LooselySpanned < Celled < Option < Paint >>> ,
 
     /// How to @stroke[stroke] the cells.
     ///
@@ -266,196 +262,121 @@ pub struct TableElem
     /// - use a function that maps a cell's position to its stroke
     ///
     /// See the @guides:tables:strokes[Table Guide] for more details.
-    #[fold]
-    #[default(Spanned::detached(Celled::Value(Sides::splat(Some(Some(
-        Arc::new(Stroke::default())
-    ))))))]
-    pub stroke: LooselySpanned<Celled<Sides<GridStroke>>>,
+    # [fold]
+    # [default (Spanned::detached(Celled::Value(Sides::splat(Some(Some(Arc::new (Stroke::default ())))))))]
+    pub stroke: LooselySpanned < Celled < Sides < GridStroke >>> ,
 
     /// A summary of the purpose and structure of complex tables.
     ///
     /// See the @crate::pdf::accessibility::table_summary function for more
     /// information.
-    #[internal]
-    #[parse(None)]
+    # [internal]
+    # [parse(None)]
     pub summary: Option<EcoString>,
 
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub grid: Arc<CellGrid>,
 
     /// The contents of the table cells, plus any extra table lines specified
     /// with the @table.hline and @table.vline elements.
-    #[variadic]
+    # [variadic]
     pub children: Vec<TableChild>,
 }
 
 #[scope]
 impl TableElem
 {
-    #[elem]
+    # [elem]
     type TableCell;
 
-    #[elem]
+    # [elem]
     type TableHLine;
 
-    #[elem]
+    # [elem]
     type TableVLine;
 
-    #[elem]
+    # [elem]
     type TableHeader;
 
-    #[elem]
+    # [elem]
     type TableFooter;
 }
 
 impl Synthesize for Packed<TableElem>
 {
-    fn synthesize(&mut self, engine: &mut Engine, styles: StyleChain)
-    -> SourceResult<()>
-    {
-        let grid = table_to_cellgrid(self, engine, styles)?;
-        self.grid = Some(Arc::new(grid));
-        Ok(())
-    }
+    fn synthesize( & mut self, engine: & mut Engine, styles: StyleChain)
+   ->SourceResult<()> { let grid = table_to_cellgrid(self, engine, styles)?; self.grid = Some(Arc::new (grid)); Ok(()) }
 }
 
-impl LocalName for Packed<TableElem>
-{
-    const KEY: &'static str = "table";
-}
+impl LocalName for Packed<TableElem> { const KEY: & 'static str = "table"; }
 
 impl Figurable for Packed<TableElem> {}
 
-cast! {
-    TableElem,
-    v: Content => v.unpack::<Self>().map_err(|_| "expected table")?,
-}
+cast! { TableElem, v: Content => v.unpack::<Self>().map_err( | _ | "expected table")?, }
 
 /// Any child of a table element.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum TableChild
-{
-    Header(Packed<TableHeader>),
-    Footer(Packed<TableFooter>),
-    Item(TableItem),
-}
+pub enum TableChild { Header(Packed<TableHeader>), Footer(Packed<TableFooter>), Item(TableItem), }
 
-cast! {
+cast!
+{
     TableChild,
-    self => match self {
-        Self::Header(header) => header.into_value(),
-        Self::Footer(footer) => footer.into_value(),
-        Self::Item(item) => item.into_value(),
-    },
-    v: Content => {
-        v.try_into()?
-    },
+    self => match self { Self::Header(header) => header.into_value(), Self::Footer(footer) => footer.into_value(), Self::Item(item) => item.into_value(), },
+    v: Content => { v.try_into()? },
 }
 
 impl TryFrom<Content> for TableChild
 {
     type Error = HintedString;
 
-    fn try_from(value: Content) -> HintedStrResult<Self>
+    fn try_from(value: Content)->HintedStrResult<Self>
     {
-        if value.is::<GridHeader>()
-        {
-            bail!(
-                "cannot use `grid.header` as a table header";
-                hint: "use `table.header` instead";
-            )
-        }
-        if value.is::<GridFooter>()
-        {
-            bail!(
-                "cannot use `grid.footer` as a table footer";
-                hint: "use `table.footer` instead";
-            )
-        }
+        if value.is::<GridHeader>() { bail ! ("cannot use `grid.header` as a table header"; hint: "use `table.header` instead";) }
+        if value.is::<GridFooter>() { bail ! ("cannot use `grid.footer` as a table footer"; hint: "use `table.footer` instead";) }
 
         value
-            .into_packed::<TableHeader>()
-            .map(Self::Header)
-            .or_else(|value| value.into_packed::<TableFooter>().map(Self::Footer))
-            .or_else(|value| TableItem::try_from(value).map(Self::Item))
+        .into_packed::<TableHeader>()
+        .map(Self::Header)
+        .or_else( | value | value.into_packed::<TableFooter>().map(Self::Footer))
+        .or_else( | value | TableItem::try_from(value).map(Self::Item))
     }
 }
 
 /// A table item, which is the basic unit of table specification.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum TableItem
-{
-    HLine(Packed<TableHLine>),
-    VLine(Packed<TableVLine>),
-    Cell(Packed<TableCell>),
-}
+pub enum TableItem { HLine(Packed<TableHLine>), VLine(Packed<TableVLine>), Cell(Packed<TableCell>), }
 
-cast! {
+cast!
+{
     TableItem,
-    self => match self {
-        Self::HLine(hline) => hline.into_value(),
-        Self::VLine(vline) => vline.into_value(),
-        Self::Cell(cell) => cell.into_value(),
-    },
-    v: Content => {
-        v.try_into()?
-    },
+    self => match self { Self::HLine(hline) => hline.into_value(), Self::VLine(vline) => vline.into_value(), Self::Cell(cell) => cell.into_value(), },
+    v: Content => { v.try_into()? },
 }
 
 impl TryFrom<Content> for TableItem
 {
     type Error = HintedString;
 
-    fn try_from(value: Content) -> HintedStrResult<Self>
+    fn try_from(value: Content)->HintedStrResult<Self>
     {
-        if value.is::<GridHeader>()
-        {
-            bail!("cannot place a grid header within another header or footer");
-        }
-        if value.is::<TableHeader>()
-        {
-            bail!("cannot place a table header within another header or footer");
-        }
-        if value.is::<GridFooter>()
-        {
-            bail!("cannot place a grid footer within another footer or header");
-        }
-        if value.is::<TableFooter>()
-        {
-            bail!("cannot place a table footer within another footer or header");
-        }
-        if value.is::<GridCell>()
-        {
-            bail!(
-                "cannot use `grid.cell` as a table cell";
-                hint: "use `table.cell` instead";
-            );
-        }
-        if value.is::<GridHLine>()
-        {
-            bail!(
-                "cannot use `grid.hline` as a table line";
-                hint: "use `table.hline` instead";
-            );
-        }
-        if value.is::<GridVLine>()
-        {
-            bail!(
-                "cannot use `grid.vline` as a table line";
-                hint: "use `table.vline` instead";
-            );
-        }
+        if value.is::<GridHeader>() { bail ! ("cannot place a grid header within another header or footer"); }
+        if value.is::<TableHeader>() { bail ! ("cannot place a table header within another header or footer"); }
+        if value.is::<GridFooter>() { bail ! ("cannot place a grid footer within another footer or header"); }
+        if value.is::<TableFooter>() { bail ! ("cannot place a table footer within another footer or header"); }
+        if value.is::<GridCell>() { bail ! ("cannot use `grid.cell` as a table cell"; hint: "use `table.cell` instead";); }
+        if value.is::<GridHLine>() { bail ! ("cannot use `grid.hline` as a table line"; hint: "use `table.hline` instead";); }
+        if value.is::<GridVLine>() { bail ! ("cannot use `grid.vline` as a table line"; hint: "use `table.vline` instead";); }
 
-        Ok(value
+        Ok
+        (
+            value
             .into_packed::<TableHLine>()
             .map(Self::HLine)
-            .or_else(|value| value.into_packed::<TableVLine>().map(Self::VLine))
-            .or_else(|value| value.into_packed::<TableCell>().map(Self::Cell))
-            .unwrap_or_else(|value| {
-                let span = value.span();
-                Self::Cell(Packed::new(TableCell::new(value)).spanned(span))
-            }))
+            .or_else( | value | value.into_packed::<TableVLine>().map(Self::VLine))
+            .or_else( | value | value.into_packed::<TableCell>().map(Self::Cell))
+            .unwrap_or_else( | value | { let span = value.span(); Self::Cell(Packed::new (TableCell::new (value)).spanned(span)) })
+        )
     }
 }
 
@@ -515,7 +436,7 @@ impl TryFrom<Content> for TableItem
 pub struct TableHeader
 {
     /// Whether this header should be repeated across pages.
-    #[default(true)]
+    # [default (true)]
     pub repeat: bool,
 
     /// The level of the header. Must not be zero.
@@ -526,11 +447,11 @@ pub struct TableHeader
     /// Notably, when a header with a lower level starts repeating, all higher
     /// or equal level headers stop repeating (they are "replaced" by the new
     /// header).
-    #[default(NonZeroU32::ONE)]
+    # [default (NonZeroU32::ONE)]
     pub level: NonZeroU32,
 
     /// The cells and lines within the header.
-    #[variadic]
+    # [variadic]
     pub children: Vec<TableItem>,
 }
 
@@ -546,11 +467,11 @@ pub struct TableHeader
 pub struct TableFooter
 {
     /// Whether this footer should be repeated across pages.
-    #[default(true)]
+    # [default (true)]
     pub repeat: bool,
 
     /// The cells and lines within the footer.
-    #[variadic]
+    # [variadic]
     pub children: Vec<TableItem>,
 }
 
@@ -605,8 +526,8 @@ pub struct TableHLine
     ///
     /// Specifying `{none}` removes any lines previously placed across this
     /// line's range, including hlines or per-cell stroke below it.
-    #[fold]
-    #[default(Some(Arc::new(Stroke::default())))]
+    # [fold]
+    # [default (Some(Arc::new (Stroke::default ())))]
     pub stroke: Option<Arc<Stroke>>,
 
     /// The position at which the line is placed, given its row (`y`) - either
@@ -616,7 +537,7 @@ pub struct TableHLine
     /// be used otherwise - prefer just increasing the `y` field by one
     /// instead), since then the position below a row becomes different from the
     /// position above the next row due to the spacing between both.
-    #[default(OuterVAlignment::Top)]
+    # [default (OuterVAlignment::Top)]
     pub position: OuterVAlignment,
 }
 
@@ -650,8 +571,8 @@ pub struct TableVLine
     ///
     /// Specifying `{none}` removes any lines previously placed across this
     /// line's range, including vlines or per-cell stroke below it.
-    #[fold]
-    #[default(Some(Arc::new(Stroke::default())))]
+    # [fold]
+    # [default (Some(Arc::new (Stroke::default ())))]
     pub stroke: Option<Arc<Stroke>>,
 
     /// The position at which the line is placed, given its column (`x`) -
@@ -666,7 +587,7 @@ pub struct TableVLine
     /// one instead), since then the position after a column becomes different
     /// from the position before the next column due to the spacing between
     /// both.
-    #[default(OuterHAlignment::Start)]
+    # [default (OuterHAlignment::Start)]
     pub position: OuterHAlignment,
 }
 
@@ -757,7 +678,7 @@ pub struct TableVLine
 pub struct TableCell
 {
     /// The cell's body.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The cell's column (zero-indexed). Functions identically to the `x` field
@@ -769,15 +690,15 @@ pub struct TableCell
     pub y: Smart<usize>,
 
     /// The amount of columns spanned by this cell.
-    #[default(NonZeroUsize::ONE)]
+    # [default (NonZeroUsize::ONE)]
     pub colspan: NonZeroUsize,
 
     /// The amount of rows spanned by this cell.
-    #[default(NonZeroUsize::ONE)]
+    # [default (NonZeroUsize::ONE)]
     pub rowspan: NonZeroUsize,
 
     /// The cell's @table.inset[inset] override.
-    pub inset: Smart<Sides<Option<Rel<Length>>>>,
+    pub inset: Smart < Sides < Option < Rel < Length >>>> ,
 
     /// The cell's @table.align[alignment] override.
     pub align: Smart<Alignment>,
@@ -786,7 +707,7 @@ pub struct TableCell
     pub fill: Smart<Option<Paint>>,
 
     /// The cell's @table.stroke[stroke] override.
-    #[fold]
+    # [fold]
     pub stroke: Sides<GridStroke>,
 
     /// Whether rows spanned by this cell can be placed in different pages. When
@@ -794,55 +715,41 @@ pub struct TableCell
     /// while a cell spanning at least one `{auto}`-sized row is breakable.
     pub breakable: Smart<bool>,
 
-    #[internal]
-    #[parse(Some(Smart::Auto))]
+    # [internal]
+    # [parse(Some(Smart::Auto))]
     pub kind: Smart<TableCellKind>,
 
-    #[internal]
-    #[parse(Some(false))]
+    # [internal]
+    # [parse(Some(false))]
     pub is_repeated: bool,
 }
 
-cast! {
-    TableCell,
-    v: Content => v.into(),
-}
+cast! { TableCell, v: Content => v.into(), }
 
 impl Default for Packed<TableCell>
 {
-    fn default() -> Self
+    fn default()->Self
     {
-        Packed::new(
+        Packed:: new
+        (
             // Explicitly set colspan and rowspan to ensure they won't be
             // overridden by set rules (default cells are created after
             // colspans and rowspans are processed in the resolver)
-            TableCell::new(Content::default())
-                .with_colspan(NonZeroUsize::ONE)
-                .with_rowspan(NonZeroUsize::ONE),
+            TableCell:: new (Content::default ())
+            .with_colspan(NonZeroUsize::ONE)
+            .with_rowspan(NonZeroUsize::ONE),
         )
     }
 }
 
-impl From<Content> for TableCell
-{
-    fn from(value: Content) -> Self
-    {
-        value.unpack::<Self>().unwrap_or_else(Self::new)
-    }
-}
+impl From<Content> for TableCell { fn from(value: Content)->Self { value.unpack::<Self>().unwrap_or_else(Self::new) } }
 
 /// Describes what kind of table cell this is.
 ///
 /// The full Typst table model only supports header and footer rows, this is
 /// currently only used for PDF export.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum TableCellKind
-{
-    Header(NonZeroU32, TableHeaderScope),
-    Footer,
-    #[default]
-    Data,
-}
+pub enum TableCellKind { Header(NonZeroU32, TableHeaderScope), Footer, # [default] Data, }
 
 /// Which table track a header cell labels.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash, Cast)]
@@ -851,7 +758,7 @@ pub enum TableHeaderScope
     /// The header cell refers to both the row and the column.
     Both,
     /// The header cell refers to the column.
-    #[default]
+    # [default]
     Column,
     /// The header cell refers to the row.
     Row,
@@ -859,23 +766,7 @@ pub enum TableHeaderScope
 
 impl TableHeaderScope
 {
-    pub fn refers_to_column(&self) -> bool
-    {
-        match self
-        {
-            TableHeaderScope::Both => true,
-            TableHeaderScope::Column => true,
-            TableHeaderScope::Row => false,
-        }
-    }
+    pub fn refers_to_column( & self)-> bool { match self { TableHeaderScope::Both => true, TableHeaderScope::Column => true, TableHeaderScope::Row => false, } }
 
-    pub fn refers_to_row(&self) -> bool
-    {
-        match self
-        {
-            TableHeaderScope::Both => true,
-            TableHeaderScope::Column => false,
-            TableHeaderScope::Row => true,
-        }
-    }
+    pub fn refers_to_row( & self)-> bool { match self { TableHeaderScope::Both => true, TableHeaderScope::Column => false, TableHeaderScope::Row => true, } }
 }

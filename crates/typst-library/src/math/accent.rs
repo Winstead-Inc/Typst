@@ -7,15 +7,16 @@ use icu_properties::CodePointMapDataBorrowed;
 use icu_properties::props::CanonicalCombiningClass;
 
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Args, CastInfo, Content, Context, Func, IntoValue, NativeElement, NativeFuncData,
     NativeFuncPtr, NativeParamInfo, Reflect, Scope, Str, SymbolElem, Type, cast, elem,
 };
-use crate::layout::{Em, Length, Rel};
+use crate::layout:: { Em, Length, Rel };
 use crate::math::Mathy;
 
 /// How much the accent can be shorter than the base.
-pub const ACCENT_SHORT_FALL: Em = Em::new(0.5);
+pub const ACCENT_SHORT_FALL: Em = Em:: new (0.5);
 
 /// Attaches an accent to a base.
 ///
@@ -38,7 +39,7 @@ pub struct AccentElem
     /// ```example
     /// $arrow(A B C)$
     /// ```
-    #[required]
+    # [required]
     pub base: Content,
 
     /// The accent to apply to the base.
@@ -124,7 +125,7 @@ pub struct AccentElem
     ///   [`harpoon.lt`],
     ///   [`↼`],
     /// )
-    #[required]
+    # [required]
     pub accent: Accent,
 
     /// The size of the accent, relative to the width of the base.
@@ -156,7 +157,7 @@ pub struct AccentElem
     ///   }
     ///   ```
     /// )
-    #[default(Rel::one())]
+    # [default (Rel::one())]
     pub size: Rel<Length>,
 
     /// Whether to remove the dot on top of lowercase i and j when adding a top
@@ -167,7 +168,7 @@ pub struct AccentElem
     /// ```example
     /// $hat(dotless: #false, i)$
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub dotless: bool,
 }
 
@@ -182,123 +183,103 @@ impl Accent
     ///
     /// Returns `None` if there isn't one and the string has more than one
     /// character.
-    pub fn normalize(s: &str) -> Option<Self>
-    {
-        Self::combining(s).or_else(|| s.parse::<char>().ok().map(Self))
-    }
+    pub fn normalize(s: & str)->Option<Self> { Self::combining(s).or_else( || s.parse::<char>().ok().map(Self)) }
 
     /// Tries to select a well-known combining accent that matches for the
     /// value.
-    pub fn combining(value: &str) -> Option<Self>
+    pub fn combining(value: & str)->Option<Self>
     {
         let c = value.parse::<char>().ok();
         ACCENTS
-            .iter()
-            .copied()
-            .find(|&(accent, names)| Some(accent) == c || names.contains(&value))
-            .map(|(accent, _)| Self(accent))
+        .iter()
+        .copied()
+        .find( |& (accent, names) | Some(accent) == c || names.contains( & value))
+        .map( | (accent, _) | Self(accent))
     }
 
     /// Whether this accent is a bottom accent or not.
-    pub fn is_bottom(&self) -> bool
+    pub fn is_bottom( & self)-> bool
     {
-        if matches!(self.0, '⏟' | '⎵' | '⏝' | '⏡')
-        {
-            return true;
-        }
+        if matches!(self .0, '⏟' | '⎵' | '⏝' | '⏡') { return true; }
 
-        const COMBINING_CLASS_DATA: CodePointMapDataBorrowed<CanonicalCombiningClass> =
-            CodePointMapDataBorrowed::new();
+        const COMBINING_CLASS_DATA: CodePointMapDataBorrowed < CanonicalCombiningClass > =
+        CodePointMapDataBorrowed:: new ();
 
-        matches!(COMBINING_CLASS_DATA.get(self.0), CanonicalCombiningClass::Below)
+        matches!(COMBINING_CLASS_DATA.get (self .0), CanonicalCombiningClass::Below)
     }
 }
 
 /// Gets the accent function corresponding to a symbol value, if any.
-pub fn get_accent_func(value: &str) -> Option<Func>
-{
-    Accent::combining(value).map(|accent| (&FUNCS[&accent]).into())
-}
+pub fn get_accent_func(value: & str)->Option<Func> { Accent::combining(value).map( | accent | ( & FUNCS[ & accent]).into()) }
 
 // Keep it synced with the documenting table above and the
 // `math-accent-sym-call` test.`
 /// A list of accents, each with a list of alternative names.
-const ACCENTS: &[(char, &[&str])] = &[
+const ACCENTS: & [(char , & [ & str])] = &
+[
     // Note: Symbols that can have a text presentation must explicitly have that
     // alternative listed here.
-    ('\u{0300}', &["`"]),
-    ('\u{0301}', &["´"]),
-    ('\u{0302}', &["^", "ˆ"]),
-    ('\u{0303}', &["~", "∼", "˜"]),
-    ('\u{0304}', &["¯"]),
-    ('\u{0305}', &["-", "–", "‾", "−"]),
-    ('\u{0306}', &["˘"]),
-    ('\u{0307}', &[".", "˙", "⋅"]),
-    ('\u{0308}', &["¨"]),
-    ('\u{20db}', &[]),
-    ('\u{20dc}', &[]),
-    ('\u{030a}', &["∘", "○"]),
-    ('\u{030b}', &["˝"]),
-    ('\u{030c}', &["ˇ"]),
-    ('\u{20d6}', &["←"]),
-    ('\u{20d7}', &["→", "⟶"]),
-    ('\u{20e1}', &["↔", "↔\u{fe0e}", "⟷"]),
-    ('\u{20d0}', &["↼"]),
-    ('\u{20d1}', &["⇀"]),
+    ('\u{0300}', & ["`"]),('\u{0301}', & ["´"]),('\u{0302}', & ["^", "ˆ"]),('\u{0303}', & ["~", "∼", "˜"]),('\u{0304}', & ["¯"]),('\u{0305}', & ["-", "–", "‾", "−"]),('\u{0306}', & ["˘"]),('\u{0307}', & [".", "˙", "⋅"]),('\u{0308}', & ["¨"]),('\u{20db}', & []),('\u{20dc}', & []),('\u{030a}', & ["∘", "○"]),('\u{030b}', & ["˝"]),('\u{030c}', & ["ˇ"]),('\u{20d6}', & ["←"]),('\u{20d7}', & ["→", "⟶"]),('\u{20e1}', & ["↔", "↔\u{fe0e}", "⟷"]),('\u{20d0}', & ["↼"]),('\u{20d1}', & ["⇀"]),
 ];
 
 /// Lazily created accent functions.
-static FUNCS: LazyLock<HashMap<Accent, NativeFuncData>> = LazyLock::new(|| {
-    let bump = Box::leak(Box::new(Bump::new()));
-    ACCENTS
+static FUNCS: LazyLock < HashMap<Accent, NativeFuncData> > = LazyLock:: new
+(
+    ||
+    {
+        let bump = Box::leak(Box::new (Bump::new ()));
+        ACCENTS
         .iter()
         .copied()
-        .map(|(accent, _)| (Accent(accent), create_accent_func_data(accent, bump)))
+        .map( | (accent, _) | (Accent(accent), create_accent_func_data(accent, bump)))
         .collect()
-});
+    }
+);
 
 /// Creates metadata for an accent wrapper function.
-fn create_accent_func_data(accent: char, bump: &'static Bump) -> NativeFuncData
+fn create_accent_func_data(accent: char , bump: & 'static Bump)->NativeFuncData
 {
     let title = bumpalo::format!(in bump, "Accent ({})", accent).into_bump_str();
     let docs = bumpalo::format!(in bump, "Adds the accent {} on an expression.", accent)
-        .into_bump_str();
-    NativeFuncData {
-        function: NativeFuncPtr(bump.alloc(
-            move |_: &mut Engine, _: Tracked<Context>, args: &mut Args| {
-                let base = args.expect("base")?;
-                let size = args.named("size")?;
-                let dotless = args.named("dotless")?;
-                let mut elem = AccentElem::new(base, Accent(accent));
-                if let Some(size) = size
+    .into_bump_str();
+    NativeFuncData
+    {
+        function: NativeFuncPtr
+        (
+            bump.alloc
+            (
+                move | _: & mut Engine, _: Tracked<Context>, args: & mut Args |
                 {
-                    elem = elem.with_size(size);
-                }
-                if let Some(dotless) = dotless
-                {
-                    elem = elem.with_dotless(dotless);
-                }
-                Ok(elem.pack().into_value())
-            },
-        )),
+                    let base = args.expect("base")?;
+                    let size = args.named("size")?;
+                    let dotless = args.named("dotless")?;
+                    let mut elem = AccentElem:: new (base, Accent(accent));
+                    if let Some(size) = size { elem = elem.with_size(size); }
+                    if let Some(dotless) = dotless { elem = elem.with_dotless(dotless); }
+                    Ok(elem.pack().into_value())
+                },
+            )
+        ),
         name: "(..) => ..",
         title,
         since: None,
         docs,
         def_site: None,
-        keywords: &[],
+        keywords: & [],
         contextual: false,
-        scope: LazyLock::new(&|| Scope::new()),
-        params: LazyLock::new(&|| create_accent_param_info()),
-        returns: LazyLock::new(&|| CastInfo::Type(Type::of::<Content>())),
+        scope: LazyLock:: new ( &|| Scope::new ()),
+        params: LazyLock:: new ( &|| create_accent_param_info()),
+        returns: LazyLock:: new ( &|| CastInfo::Type(Type::of::<Content>())),
     }
 }
 
 /// Creates parameter signature metadata for an accent function.
-fn create_accent_param_info() -> Vec<NativeParamInfo>
+fn create_accent_param_info()->Vec<NativeParamInfo>
 {
-    vec![
-        NativeParamInfo {
+    vec!
+    [
+        NativeParamInfo
+        {
             name: "base",
             docs: "The base to which the accent is applied.",
             def_site: None,
@@ -310,11 +291,12 @@ fn create_accent_param_info() -> Vec<NativeParamInfo>
             required: true,
             settable: false,
         },
-        NativeParamInfo {
+        NativeParamInfo
+        {
             name: "size",
             docs: "The size of the accent, relative to the width of the base.",
             def_site: None,
-            input: Rel::<Length>::input(),
+            input: Rel:: < Length >:: input(),
             default: None,
             positional: false,
             named: true,
@@ -322,7 +304,8 @@ fn create_accent_param_info() -> Vec<NativeParamInfo>
             required: false,
             settable: false,
         },
-        NativeParamInfo {
+        NativeParamInfo
+        {
             name: "dotless",
             docs: "Whether to remove the dot on top of lowercase i and j when adding a top accent.",
             def_site: None,
@@ -337,16 +320,17 @@ fn create_accent_param_info() -> Vec<NativeParamInfo>
     ]
 }
 
-cast! {
+cast!
+{
     Accent,
-    self => self.0.into_value(),
+    self => self .0.into_value(),
     // The string cast handles
     // - strings: `accent(a, "↔")`
     // - symbol values: `accent(a, <->)`
     // - shorthands: `accent(a, arrow.l.r)`
-    v: Str => Self::normalize(&v).ok_or("expected exactly one character")?,
+    v: Str => Self::normalize( & v).ok_or("expected exactly one character")?,
     // The content cast is for accent uses like `accent(a, ↔)`
     v: Content => v.to_packed::<SymbolElem>()
-        .and_then(|elem| Accent::normalize(&elem.text))
-        .ok_or("expected a single-codepoint symbol")?,
+    .and_then( | elem | Accent::normalize( & elem.text))
+    .ok_or("expected a single-codepoint symbol")?,
 }

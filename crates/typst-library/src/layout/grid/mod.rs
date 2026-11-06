@@ -1,25 +1,24 @@
 pub mod resolve;
 
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num:: { NonZeroU32, NonZeroUsize };
 use std::sync::Arc;
 
 use comemo::Track;
-use smallvec::{SmallVec, smallvec};
-use typst_syntax::{LooselySpanned, Span};
+use smallvec:: { SmallVec, smallvec };
+use typst_syntax:: { LooselySpanned, Span };
 use typst_utils::NonZeroExt;
 
-use crate::diag::{HintedStrResult, HintedString, SourceResult, bail};
+use crate::diag:: { HintedStrResult, HintedString, SourceResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{
+use crate::foundations::
+{
     Array, CastInfo, Content, Context, Fold, FromValue, Func, IntoValue, Packed, Reflect,
     Resolve, Smart, StyleChain, Synthesize, Value, cast, elem, scope,
 };
-use crate::layout::resolve::{CellGrid, GridStroke, grid_to_cellgrid};
-use crate::layout::{
-    Alignment, Length, OuterHAlignment, OuterVAlignment, Rel, Sides, Sizing,
-};
-use crate::model::{TableCell, TableFooter, TableHLine, TableHeader, TableVLine};
-use crate::visualize::{Paint, Stroke};
+use crate::layout::resolve:: { CellGrid, GridStroke, grid_to_cellgrid };
+use crate::layout:: { Alignment, Length, OuterHAlignment, OuterVAlignment, Rel, Sides, Sizing, };
+use crate::model:: { TableCell, TableFooter, TableHLine, TableHeader, TableVLine };
+use crate::visualize:: { Paint, Stroke };
 
 /// Arranges content in a grid.
 ///
@@ -207,18 +206,15 @@ pub struct GridElem
     /// repeated.
     ///
     /// See the @grid:track-size[track size section] above for more details.
-    #[external]
+    # [external]
     pub gutter: TrackSizings,
 
     /// The gaps between columns.
-    #[parse(
-        let gutter = args.named("gutter")?;
-        args.named("column-gutter")?.or_else(|| gutter.clone())
-    )]
+    # [parse(let gutter = args.named("gutter")?; args.named("column-gutter")?.or_else( || gutter.clone()))]
     pub column_gutter: TrackSizings,
 
     /// The gaps between rows.
-    #[parse(args.named("row-gutter")?.or_else(|| gutter.clone()))]
+    # [parse(args.named("row-gutter")?.or_else( || gutter.clone()))]
     pub row_gutter: TrackSizings,
 
     /// How much to pad the cells' content.
@@ -235,8 +231,8 @@ pub struct GridElem
     /// See the @grid:styling[styling section] above for more details.
     ///
     /// In addition, you can find an example at the @table.inset parameter.
-    #[fold]
-    pub inset: LooselySpanned<Celled<Sides<Option<Rel<Length>>>>>,
+    # [fold]
+    pub inset: LooselySpanned < Celled < Sides < Option < Rel < Length >>>>> ,
 
     /// How to align the cells' content.
     ///
@@ -250,7 +246,7 @@ pub struct GridElem
     /// See the @grid:styling[styling section] above for details.
     ///
     /// In addition, you can find an example at the @table.align parameter.
-    pub align: LooselySpanned<Celled<Smart<Alignment>>>,
+    pub align: LooselySpanned < Celled < Smart < Alignment >>> ,
 
     /// How to fill the cells.
     ///
@@ -276,7 +272,7 @@ pub struct GridElem
     ///   [O], [X], [O], [X],
     /// )
     /// ```
-    pub fill: LooselySpanned<Celled<Option<Paint>>>,
+    pub fill: LooselySpanned < Celled < Option < Paint >>> ,
 
     /// How to @stroke[stroke] the cells.
     ///
@@ -406,185 +402,119 @@ pub struct GridElem
     ///   )
     ///   ```
     /// )
-    #[fold]
-    pub stroke: LooselySpanned<Celled<Sides<GridStroke>>>,
+    # [fold]
+    pub stroke: LooselySpanned < Celled < Sides < GridStroke >>> ,
 
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub grid: Arc<CellGrid>,
 
     /// The contents of the grid cells, plus any extra grid lines specified with
     /// the @grid.hline and @grid.vline elements.
     ///
     /// The cells are populated in row-major order.
-    #[variadic]
+    # [variadic]
     pub children: Vec<GridChild>,
 }
 
 #[scope]
 impl GridElem
 {
-    #[elem]
+    # [elem]
     type GridCell;
 
-    #[elem]
+    # [elem]
     type GridHLine;
 
-    #[elem]
+    # [elem]
     type GridVLine;
 
-    #[elem]
+    # [elem]
     type GridHeader;
 
-    #[elem]
+    # [elem]
     type GridFooter;
 }
 
 impl Synthesize for Packed<GridElem>
 {
-    fn synthesize(&mut self, engine: &mut Engine, styles: StyleChain)
-    -> SourceResult<()>
-    {
-        let grid = grid_to_cellgrid(self, engine, styles)?;
-        self.grid = Some(Arc::new(grid));
-        Ok(())
-    }
+    fn synthesize( & mut self, engine: & mut Engine, styles: StyleChain)
+   ->SourceResult<()> { let grid = grid_to_cellgrid(self, engine, styles)?; self.grid = Some(Arc::new (grid)); Ok(()) }
 }
 
 /// Track sizing definitions.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-pub struct TrackSizings(pub SmallVec<[Sizing; 4]>);
+pub struct TrackSizings(pub SmallVec < [Sizing; 4] >);
 
-cast! {
+cast!
+{
     TrackSizings,
-    self => self.0.into_value(),
-    sizing: Sizing => Self(smallvec![sizing]),
-    count: NonZeroUsize => Self(smallvec![Sizing::Auto; count.get()]),
+    self => self .0.into_value(),
+    sizing: Sizing => Self(smallvec ! [sizing]),
+    count: NonZeroUsize => Self(smallvec ! [Sizing::Auto; count.get ()]),
     values: Array => Self(values.into_iter().map(Value::cast).collect::<HintedStrResult<_>>()?),
 }
 
 /// Any child of a grid element.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum GridChild
-{
-    Header(Packed<GridHeader>),
-    Footer(Packed<GridFooter>),
-    Item(GridItem),
-}
+pub enum GridChild { Header(Packed<GridHeader>), Footer(Packed<GridFooter>), Item(GridItem), }
 
-cast! {
+cast!
+{
     GridChild,
-    self => match self {
-        Self::Header(header) => header.into_value(),
-        Self::Footer(footer) => footer.into_value(),
-        Self::Item(item) => item.into_value(),
-    },
-    v: Content => {
-        v.try_into()?
-    },
+    self => match self { Self::Header(header) => header.into_value(), Self::Footer(footer) => footer.into_value(), Self::Item(item) => item.into_value(), },
+    v: Content => { v.try_into()? },
 }
 
 impl TryFrom<Content> for GridChild
 {
     type Error = HintedString;
-    fn try_from(value: Content) -> HintedStrResult<Self>
+    fn try_from(value: Content)->HintedStrResult<Self>
     {
-        if value.is::<TableHeader>()
-        {
-            bail!(
-                "cannot use `table.header` as a grid header";
-                hint: "use `grid.header` instead";
-            )
-        }
-        if value.is::<TableFooter>()
-        {
-            bail!(
-                "cannot use `table.footer` as a grid footer";
-                hint: "use `grid.footer` instead";
-            )
-        }
+        if value.is::<TableHeader>() { bail ! ("cannot use `table.header` as a grid header"; hint: "use `grid.header` instead";) }
+        if value.is::<TableFooter>() { bail ! ("cannot use `table.footer` as a grid footer"; hint: "use `grid.footer` instead";) }
 
         value
-            .into_packed::<GridHeader>()
-            .map(Self::Header)
-            .or_else(|value| value.into_packed::<GridFooter>().map(Self::Footer))
-            .or_else(|value| GridItem::try_from(value).map(Self::Item))
+        .into_packed::<GridHeader>()
+        .map(Self::Header)
+        .or_else( | value | value.into_packed::<GridFooter>().map(Self::Footer))
+        .or_else( | value | GridItem::try_from(value).map(Self::Item))
     }
 }
 
 /// A grid item, which is the basic unit of grid specification.
 #[derive(Debug, Clone, PartialEq, Hash)]
-pub enum GridItem
-{
-    HLine(Packed<GridHLine>),
-    VLine(Packed<GridVLine>),
-    Cell(Packed<GridCell>),
-}
+pub enum GridItem { HLine(Packed<GridHLine>), VLine(Packed<GridVLine>), Cell(Packed<GridCell>), }
 
-cast! {
+cast!
+{
     GridItem,
-    self => match self {
-        Self::HLine(hline) => hline.into_value(),
-        Self::VLine(vline) => vline.into_value(),
-        Self::Cell(cell) => cell.into_value(),
-    },
-    v: Content => {
-        v.try_into()?
-    }
+    self => match self { Self::HLine(hline) => hline.into_value(), Self::VLine(vline) => vline.into_value(), Self::Cell(cell) => cell.into_value(), },
+    v: Content => { v.try_into()? }
 }
 
 impl TryFrom<Content> for GridItem
 {
     type Error = HintedString;
-    fn try_from(value: Content) -> HintedStrResult<Self>
+    fn try_from(value: Content)->HintedStrResult<Self>
     {
-        if value.is::<GridHeader>()
-        {
-            bail!("cannot place a grid header within another header or footer");
-        }
-        if value.is::<TableHeader>()
-        {
-            bail!("cannot place a table header within another header or footer");
-        }
-        if value.is::<GridFooter>()
-        {
-            bail!("cannot place a grid footer within another footer or header");
-        }
-        if value.is::<TableFooter>()
-        {
-            bail!("cannot place a table footer within another footer or header");
-        }
-        if value.is::<TableCell>()
-        {
-            bail!(
-                "cannot use `table.cell` as a grid cell";
-                hint: "use `grid.cell` instead";
-            );
-        }
-        if value.is::<TableHLine>()
-        {
-            bail!(
-                "cannot use `table.hline` as a grid line";
-                hint: "use `grid.hline` instead";
-            );
-        }
-        if value.is::<TableVLine>()
-        {
-            bail!(
-                "cannot use `table.vline` as a grid line";
-                hint: "use `grid.vline` instead";
-            );
-        }
+        if value.is::<GridHeader>() { bail ! ("cannot place a grid header within another header or footer"); }
+        if value.is::<TableHeader>() { bail ! ("cannot place a table header within another header or footer"); }
+        if value.is::<GridFooter>() { bail ! ("cannot place a grid footer within another footer or header"); }
+        if value.is::<TableFooter>() { bail ! ("cannot place a table footer within another footer or header"); }
+        if value.is::<TableCell>() { bail ! ("cannot use `table.cell` as a grid cell"; hint: "use `grid.cell` instead";); }
+        if value.is::<TableHLine>() { bail ! ("cannot use `table.hline` as a grid line"; hint: "use `grid.hline` instead";); }
+        if value.is::<TableVLine>() { bail ! ("cannot use `table.vline` as a grid line"; hint: "use `grid.vline` instead";); }
 
-        Ok(value
+        Ok
+        (
+            value
             .into_packed::<GridHLine>()
             .map(Self::HLine)
-            .or_else(|value| value.into_packed::<GridVLine>().map(Self::VLine))
-            .or_else(|value| value.into_packed::<GridCell>().map(Self::Cell))
-            .unwrap_or_else(|value| {
-                let span = value.span();
-                Self::Cell(Packed::new(GridCell::new(value)).spanned(span))
-            }))
+            .or_else( | value | value.into_packed::<GridVLine>().map(Self::VLine))
+            .or_else( | value | value.into_packed::<GridCell>().map(Self::Cell))
+            .unwrap_or_else( | value | { let span = value.span(); Self::Cell(Packed::new (GridCell::new (value)).spanned(span)) })
+        )
     }
 }
 
@@ -597,7 +527,7 @@ impl TryFrom<Content> for GridItem
 pub struct GridHeader
 {
     /// Whether this header should be repeated across pages.
-    #[default(true)]
+    # [default (true)]
     pub repeat: bool,
 
     /// The level of the header. Must not be zero.
@@ -608,11 +538,11 @@ pub struct GridHeader
     /// Notably, when a header with a lower level starts repeating, all higher
     /// or equal level headers stop repeating (they are "replaced" by the new
     /// header).
-    #[default(NonZeroU32::ONE)]
+    # [default (NonZeroU32::ONE)]
     pub level: NonZeroU32,
 
     /// The cells and lines within the header.
-    #[variadic]
+    # [variadic]
     pub children: Vec<GridItem>,
 }
 
@@ -626,11 +556,11 @@ pub struct GridHeader
 pub struct GridFooter
 {
     /// Whether this footer should be repeated across pages.
-    #[default(true)]
+    # [default (true)]
     pub repeat: bool,
 
     /// The cells and lines within the footer.
-    #[variadic]
+    # [variadic]
     pub children: Vec<GridItem>,
 }
 
@@ -673,8 +603,8 @@ pub struct GridHLine
     ///
     /// Specifying `{none}` removes any lines previously placed across this
     /// line's range, including hlines or per-cell stroke below it.
-    #[fold]
-    #[default(Some(Arc::new(Stroke::default())))]
+    # [fold]
+    # [default (Some(Arc::new (Stroke::default ())))]
     pub stroke: Option<Arc<Stroke>>,
 
     /// The position at which the line is placed, given its row (`y`) - either
@@ -684,7 +614,7 @@ pub struct GridHLine
     /// be used otherwise - prefer just increasing the `y` field by one
     /// instead), since then the position below a row becomes different from the
     /// position above the next row due to the spacing between both.
-    #[default(OuterVAlignment::Top)]
+    # [default (OuterVAlignment::Top)]
     pub position: OuterVAlignment,
 }
 
@@ -726,8 +656,8 @@ pub struct GridVLine
     ///
     /// Specifying `{none}` removes any lines previously placed across this
     /// line's range, including vlines or per-cell stroke below it.
-    #[fold]
-    #[default(Some(Arc::new(Stroke::default())))]
+    # [fold]
+    # [default (Some(Arc::new (Stroke::default ())))]
     pub stroke: Option<Arc<Stroke>>,
 
     /// The position at which the line is placed, given its column (`x`) --
@@ -742,7 +672,7 @@ pub struct GridVLine
     /// one instead), since then the position after a column becomes different
     /// from the position before the next column due to the spacing between
     /// both.
-    #[default(OuterHAlignment::Start)]
+    # [default (OuterHAlignment::Start)]
     pub position: OuterHAlignment,
 }
 
@@ -789,7 +719,7 @@ pub struct GridVLine
 pub struct GridCell
 {
     /// The cell's body.
-    #[required]
+    # [required]
     pub body: Content,
 
     /// The cell's column (zero-indexed). This field may be used in show rules
@@ -853,15 +783,15 @@ pub struct GridCell
     pub y: Smart<usize>,
 
     /// The amount of columns spanned by this cell.
-    #[default(NonZeroUsize::ONE)]
+    # [default (NonZeroUsize::ONE)]
     pub colspan: NonZeroUsize,
 
     /// The amount of rows spanned by this cell.
-    #[default(NonZeroUsize::ONE)]
+    # [default (NonZeroUsize::ONE)]
     pub rowspan: NonZeroUsize,
 
     /// The cell's @grid.inset[inset] override.
-    pub inset: Smart<Sides<Option<Rel<Length>>>>,
+    pub inset: Smart < Sides < Option < Rel < Length >>>> ,
 
     /// The cell's @grid.align[alignment] override.
     pub align: Smart<Alignment>,
@@ -870,11 +800,11 @@ pub struct GridCell
     pub fill: Smart<Option<Paint>>,
 
     /// The cell's @grid.stroke[stroke] override.
-    #[fold]
+    # [fold]
     pub stroke: Sides<GridStroke>,
 
-    #[internal]
-    #[parse(Some(false))]
+    # [internal]
+    # [parse(Some(false))]
     pub is_repeated: bool,
 
     /// Whether rows spanned by this cell can be placed in different pages. When
@@ -883,33 +813,25 @@ pub struct GridCell
     pub breakable: Smart<bool>,
 }
 
-cast! {
-    GridCell,
-    v: Content => v.into(),
-}
+cast! { GridCell, v: Content => v.into(), }
 
 impl Default for Packed<GridCell>
 {
-    fn default() -> Self
+    fn default()->Self
     {
-        Packed::new(
+        Packed:: new
+        (
             // Explicitly set colspan and rowspan to ensure they won't be
             // overridden by set rules (default cells are created after
             // colspans and rowspans are processed in the resolver)
-            GridCell::new(Content::default())
-                .with_colspan(NonZeroUsize::ONE)
-                .with_rowspan(NonZeroUsize::ONE),
+            GridCell:: new (Content::default ())
+            .with_colspan(NonZeroUsize::ONE)
+            .with_rowspan(NonZeroUsize::ONE),
         )
     }
 }
 
-impl From<Content> for GridCell
-{
-    fn from(value: Content) -> Self
-    {
-        value.unpack::<Self>().unwrap_or_else(Self::new)
-    }
-}
+impl From<Content> for GridCell { fn from(value: Content)->Self { value.unpack::<Self>().unwrap_or_else(Self::new) } }
 
 /// A value that can be configured per cell.
 #[derive(Debug, Clone, PartialEq, Hash)]
@@ -924,114 +846,73 @@ pub enum Celled<T>
     Array(Vec<T>),
 }
 
-impl<T: Default + Clone + FromValue> Celled<T>
+impl <T: Default + Clone + FromValue> Celled<T>
 {
     /// Resolve the value based on the cell position.
-    pub fn resolve(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-        x: usize,
-        y: usize,
-        span: Span,
-    ) -> SourceResult<T>
+    pub fn resolve( & self, engine: & mut Engine, styles: StyleChain, x: usize, y: usize, span: Span,)->SourceResult<T>
     {
-        Ok(match self
-        {
-            Self::Value(value) => value.clone(),
-            Self::Func(func) =>
+        Ok
+        (
+            match self
             {
-                func.call(engine, Context::new(None, Some(styles)).track(), [x, y], span)?
-            }
-            Self::Array(array) => x
+                Self::Value(value) => value.clone(),
+                Self::Func(func) => { func.call(engine, Context::new (None, Some(styles)).track(),[x, y], span)? }
+                Self::Array(array) => x
                 .checked_rem(array.len())
-                .and_then(|i| array.get(i))
+                .and_then( | i | array.get (i))
                 .cloned()
                 .unwrap_or_default(),
-        })
+            }
+        )
     }
 }
 
-impl<T: Default> Default for Celled<T>
+impl <T: Default> Default for Celled<T> { fn default ()->Self { Self::Value(T::default ()) } }
+
+impl <T: Reflect> Reflect for Celled<T>
 {
-    fn default() -> Self
-    {
-        Self::Value(T::default())
-    }
+    fn input()->CastInfo { T::input() + Array::input() + Func::input() }
+
+    fn output()->CastInfo { T::output() + Array::output() + Func::output() }
+
+    fn castable(value: & Value)-> bool { Array::castable(value) || Func::castable(value) || T::castable(value) }
 }
 
-impl<T: Reflect> Reflect for Celled<T>
+impl <T: IntoValue> IntoValue for Celled<T>
 {
-    fn input() -> CastInfo
-    {
-        T::input() + Array::input() + Func::input()
-    }
-
-    fn output() -> CastInfo
-    {
-        T::output() + Array::output() + Func::output()
-    }
-
-    fn castable(value: &Value) -> bool
-    {
-        Array::castable(value) || Func::castable(value) || T::castable(value)
-    }
+    fn into_value(self)->Value { match self { Self::Value(value) => value.into_value(), Self::Func(func) => func.into_value(), Self::Array(arr) => arr.into_value(), } }
 }
 
-impl<T: IntoValue> IntoValue for Celled<T>
+impl <T: FromValue> FromValue for Celled<T>
 {
-    fn into_value(self) -> Value
-    {
-        match self
-        {
-            Self::Value(value) => value.into_value(),
-            Self::Func(func) => func.into_value(),
-            Self::Array(arr) => arr.into_value(),
-        }
-    }
-}
-
-impl<T: FromValue> FromValue for Celled<T>
-{
-    fn from_value(value: Value) -> HintedStrResult<Self>
+    fn from_value(value: Value)->HintedStrResult<Self>
     {
         match value
         {
             Value::Func(v) => Ok(Self::Func(v)),
-            Value::Array(array) => Ok(Self::Array(
-                array.into_iter().map(T::from_value).collect::<HintedStrResult<_>>()?,
-            )),
-            v if T::castable(&v) => Ok(Self::Value(T::from_value(v)?)),
-            v => Err(Self::error(&v)),
+            Value::Array(array) => Ok(Self::Array(array.into_iter().map(T::from_value).collect::<HintedStrResult<_>>()?,)),
+            v if T::castable( & v) => Ok(Self::Value(T::from_value(v)?)),
+            v => Err(Self::error( & v)),
         }
     }
 }
 
-impl<T: Fold> Fold for Celled<T>
+impl <T: Fold> Fold for Celled<T>
 {
-    fn fold(self, outer: Self) -> Self
-    {
-        match (self, outer)
-        {
-            (Self::Value(inner), Self::Value(outer)) => Self::Value(inner.fold(outer)),
-            (self_, _) => self_,
-        }
-    }
+    fn fold(self, outer: Self)->Self { match (self, outer) { (Self::Value(inner), Self::Value(outer)) => Self::Value(inner.fold(outer)),(self_, _) => self_, } }
 }
 
-impl<T: Resolve> Resolve for Celled<T>
+impl <T: Resolve> Resolve for Celled<T>
 {
     type Output = ResolvedCelled<T>;
 
-    fn resolve(self, styles: StyleChain) -> Self::Output
+    fn resolve(self, styles: StyleChain)->Self::Output
     {
         match self
         {
             Self::Value(value) => ResolvedCelled(Celled::Value(value.resolve(styles))),
             Self::Func(func) => ResolvedCelled(Celled::Func(func)),
-            Self::Array(values) => ResolvedCelled(Celled::Array(
-                values.into_iter().map(|value| value.resolve(styles)).collect(),
-            )),
+            Self::Array(values) => ResolvedCelled(Celled::Array(values.into_iter().map( | value | value.resolve(styles)).collect(),)),
         }
     }
 }
@@ -1043,37 +924,28 @@ impl<T: Resolve> Resolve for Celled<T>
 #[derive(Default, Clone)]
 pub struct ResolvedCelled<T: Resolve>(Celled<T::Output>);
 
-impl<T> ResolvedCelled<T>
+impl <T> ResolvedCelled<T>
 where
-    T: FromValue + Resolve,
-    <T as Resolve>::Output: Default + Clone,
+T: FromValue + Resolve,
+< T as Resolve >:: Output: Default + Clone,
 {
     /// Resolve the value based on the cell position.
-    pub fn resolve(
-        &self,
-        engine: &mut Engine,
-        styles: StyleChain,
-        x: usize,
-        y: usize,
-        span: Span,
-    ) -> SourceResult<T::Output>
+    pub fn resolve( & self, engine: & mut Engine, styles: StyleChain, x: usize, y: usize, span: Span,)->SourceResult<T::Output>
     {
-        Ok(match &self.0
-        {
-            Celled::Value(value) => value.clone(),
-            Celled::Func(func) => func
-                .call::<T>(
-                    engine,
-                    Context::new(None, Some(styles)).track(),
-                    [x, y],
-                    span,
-                )?
+        Ok
+        (
+            match & self .0
+            {
+                Celled::Value(value) => value.clone(),
+                Celled::Func(func) => func
+                .call::<T>(engine, Context::new (None, Some(styles)).track(),[x, y], span,)?
                 .resolve(styles),
-            Celled::Array(array) => x
+                Celled::Array(array) => x
                 .checked_rem(array.len())
-                .and_then(|i| array.get(i))
+                .and_then( | i | array.get (i))
                 .cloned()
                 .unwrap_or_default(),
-        })
+            }
+        )
     }
 }

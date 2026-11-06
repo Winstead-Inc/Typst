@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use serde::Serialize;
-use typst::diag::{At, Hint, HintedStrResult, SourceResult, bail};
-use typst::foundations::{Dict, Label, Selector, Value, cast};
-use typst::introspection::{Introspector, Location, MetadataElem, Tag};
+use typst::diag:: { At, Hint, HintedStrResult, SourceResult, bail };
+use typst::foundations:: { Dict, Label, Selector, Value, cast };
+use typst::introspection:: { Introspector, Location, MetadataElem, Tag };
 use typst::syntax::VirtualPath;
-use typst_bundle::{Bundle, BundleDocument, BundleFile};
-use typst_html::{HtmlElement, HtmlNode};
+use typst_bundle:: { Bundle, BundleDocument, BundleFile };
+use typst_html:: { HtmlElement, HtmlNode };
 use typst_utils::PicoStr;
 
 /// A search index that is encoded as `search.json`, emitted as an asset, and
@@ -49,19 +49,21 @@ pub struct IndexItem
     /// The title-case name of the item. Shown as the match.
     pub title: EcoString,
     /// The canonical path for this item, if any. Shown below the match.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    # [serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<EcoString>,
     /// The full route to the matching page. May include a fragment.
     pub route: EcoString,
     /// Keywords with which the page can be found. The keywords are stored in
     /// the item to aid with ranking.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    # [serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<EcoString>,
 }
 
-cast! {
+cast!
+{
     IndexItem,
-    mut v: Dict => Self {
+    mut v: Dict => Self
+    {
         kind: v.take("kind")?.cast()?,
         title: v.take("title")?.cast()?,
         path: v.take("path")?.cast()?,
@@ -73,17 +75,14 @@ cast! {
 /// Walks through the bundle and indexes all text and items in it. Items
 /// are `metadata` elements labelled `<metadata-index-item>`. Text in between
 /// items is considered belonging to the preceding item.
-pub fn build_search_index(bundle: &Bundle) -> SourceResult<SearchIndex>
+pub fn build_search_index(bundle: & Bundle)->SourceResult<SearchIndex>
 {
-    let mut indexer = Indexer::new();
+    let mut indexer = Indexer:: new ();
     for file in bundle.files.values()
     {
         let BundleFile::Document(BundleDocument::Html(doc)) = file
-        else
-        {
-            continue;
-        };
-        walk_html(&mut indexer, doc.root(), bundle.introspector.as_ref())?;
+        else { continue ; };
+        walk_html( & mut indexer, doc.root(), bundle.introspector.as_ref())?;
     }
     Ok(indexer.finish())
 }
@@ -92,54 +91,44 @@ pub fn build_search_index(bundle: &Bundle) -> SourceResult<SearchIndex>
 /// bit roundabout because we can't contextually access the
 /// `stdx.config.asset-base` configuration from the top level. So we do it in
 /// Typst code instead and leave the result in `metadata`.
-pub fn index_path(bundle: &Bundle) -> HintedStrResult<VirtualPath>
+pub fn index_path(bundle: & Bundle)->HintedStrResult<VirtualPath>
 {
     let path = bundle
-        .introspector
-        .query_unique(&Selector::Label(
-            Label::new(PicoStr::intern("search-index-path")).unwrap(),
-        ))?
-        .to_packed::<MetadataElem>()
-        .ok_or("expected metadata element")?
-        .value
-        .clone()
-        .cast::<EcoString>()?;
+    .introspector
+    .query_unique( & Selector::Label(Label::new (PicoStr::intern("search-index-path")).unwrap(),))?
+    .to_packed::<MetadataElem>()
+    .ok_or("expected metadata element")?
+    .value
+    .clone()
+    .cast::<EcoString>()?;
 
-    VirtualPath::new(&path).map_err(|_| "invalid path".into())
+    VirtualPath:: new ( & path).map_err( | _ | "invalid path".into())
 }
 
 /// Indexes the contents of a single HTML element, recursively.
-fn walk_html(
-    indexer: &mut Indexer,
-    elem: &HtmlElement,
-    introspector: &dyn Introspector,
-) -> SourceResult<()>
+fn walk_html(indexer: & mut Indexer, elem: & HtmlElement, introspector: & dyn Introspector,)->SourceResult<()>
 {
-    for node in &elem.children
+    for node in & elem.children
     {
         match node
         {
             HtmlNode::Tag(tag) =>
             {
                 if let Tag::Start(it, _) = tag
-                    && it.label() == Some(indexer.item_label)
-                    && let Some(metadata) = it.to_packed::<MetadataElem>()
+                && it.label() == Some(indexer.item_label)
+                && let Some(metadata) = it.to_packed::<MetadataElem>()
                 {
                     let item = parse_item_metadata(metadata.value.clone(), introspector)
-                        .hint("search index metadata is not well-formed")
-                        .at(metadata.span())?;
+                    .hint("search index metadata is not well-formed")
+                    .at(metadata.span())?;
                     indexer.enter(item.clone());
-                    indexer.index_str(&item.title);
-                    for keyword in &item.keywords
-                    {
-                        indexer.index_str(keyword);
-                    }
+                    indexer.index_str( & item.title);
+                    for keyword in & item.keywords { indexer.index_str(keyword); }
                 }
             }
             HtmlNode::Text(text, _) => indexer.index_str(text),
             HtmlNode::Element(elem) => walk_html(indexer, elem, introspector)?,
-            HtmlNode::Frame(_) =>
-            {}
+            HtmlNode::Frame(_) => {}
         }
     }
     Ok(())
@@ -147,10 +136,7 @@ fn walk_html(
 
 /// Takes a search index metadata element's dynamic value and turns it into
 /// strongly typed index item.
-fn parse_item_metadata(
-    value: Value,
-    introspector: &dyn Introspector,
-) -> HintedStrResult<IndexItem>
+fn parse_item_metadata(value: Value, introspector: & dyn Introspector,)->HintedStrResult<IndexItem>
 {
     let mut dict = value.cast::<Dict>()?;
     let kind = dict.take("kind")?.cast()?;
@@ -160,25 +146,18 @@ fn parse_item_metadata(
     let keywords = dict.take("keywords")?.cast()?;
     let route = match dest
     {
-        ItemDestination::Route(route) =>
-        {
-            if !route.ends_with('/')
-            {
-                bail!("routes should end with a slash: {route:?}");
-            }
-            route
-        }
+        ItemDestination::Route(route) => { if ! route.ends_with('/') { bail ! ("routes should end with a slash: {route:?}"); } route }
         ItemDestination::Location(loc) =>
         {
             let path = introspector.path(loc).ok_or("found no path for index item")?;
             let path = path
-                .get_with_slash()
-                .strip_suffix("index.html")
-                .ok_or("expected consistent usage of index.html")?;
+            .get_with_slash()
+            .strip_suffix("index.html")
+            .ok_or("expected consistent usage of index.html")?;
             let anchor = introspector
-                .anchor(loc)
-                .ok_or("found no HTML anchor for index item")?;
-            if anchor.is_empty() { path.into() } else { eco_format!("{path}#{anchor}") }
+            .anchor(loc)
+            .ok_or("found no HTML anchor for index item")?;
+            if anchor.is_empty() { path.into() } else { eco_format ! ("{path}#{anchor}") }
         }
     };
     Ok(IndexItem { kind, title, path, route, keywords })
@@ -194,66 +173,37 @@ enum ItemDestination
     Location(Location),
 }
 
-cast! {
-   ItemDestination,
-   v: EcoString => Self::Route(v),
-   v: Location => Self::Location(v),
-}
+cast! { ItemDestination, v: EcoString => Self::Route(v), v: Location => Self::Location(v), }
 
 /// Associates text with index items.
-struct Indexer
-{
-    words: BTreeMap<String, Vec<usize>>,
-    items: Vec<IndexItem>,
-    item_label: Label,
-}
+struct Indexer { words: BTreeMap<String, Vec<usize>>, items: Vec<IndexItem>, item_label: Label, }
 
 impl Indexer
 {
-    fn new() -> Self
-    {
-        Self {
-            words: BTreeMap::new(),
-            items: vec![],
-            item_label: Label::new(PicoStr::intern("metadata-index-item")).unwrap(),
-        }
-    }
+    fn new ()->Self { Self { words: BTreeMap::new (), items: vec ! [], item_label: Label::new (PicoStr::intern("metadata-index-item")).unwrap(), } }
 
-    fn finish(self) -> SearchIndex
+    fn finish(self)->SearchIndex
     {
         let mut words = vec![];
         let mut hits = vec![];
-        for (word, word_hits) in self.words
-        {
-            words.push(word);
-            hits.push(word_hits);
-        }
+        for (word, word_hits) in self.words { words.push(word); hits.push(word_hits); }
         SearchIndex { items: self.items, words, hits }
     }
 
-    fn enter(&mut self, item: IndexItem)
-    {
-        self.items.push(item);
-    }
+    fn enter( & mut self, item: IndexItem) { self.items.push(item); }
 
-    fn index_str(&mut self, s: &str)
+    fn index_str( & mut self, s: & str)
     {
-        if self.items.is_empty()
-        {
-            return;
-        }
+        if self.items.is_empty() { return ; }
         let n = self.items.len() - 1;
         for word in s
-            .to_lowercase()
-            .split(|c: char| c.is_ascii_whitespace() || c.is_ascii_punctuation())
-            .filter(|w| !w.is_empty())
-            .filter(|w| STOP_WORDS.binary_search(w).is_err())
+        .to_lowercase()
+        .split( | c: char | c.is_ascii_whitespace() || c.is_ascii_punctuation())
+        .filter( | w | ! w.is_empty())
+        .filter( | w | STOP_WORDS.binary_search(w).is_err())
         {
             let vec = self.words.entry(word.into()).or_default();
-            if !vec.contains(&n)
-            {
-                vec.push(n);
-            }
+            if ! vec.contains( & n) { vec.push(n); }
         }
     }
 }
@@ -261,7 +211,8 @@ impl Indexer
 /// These words are ignored. Taken from
 /// <https://gist.github.com/sebleier/554280>.
 #[rustfmt::skip]
-const STOP_WORDS: &[&str] = &[
+const STOP_WORDS: & [ & str] = &
+[
     "a", "about", "am", "an", "and", "are", "as", "at", "be", "because", "been",
     "being", "but", "by", "can", "did", "do", "does", "doing", "don", "few",
     "from", "had", "has", "have", "he", "her", "hers", "herself", "him",

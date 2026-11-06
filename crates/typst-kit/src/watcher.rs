@@ -7,11 +7,11 @@
 use std::iter;
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
-use std::time::{Duration, Instant};
+use std::time:: { Duration, Instant };
 
 use ecow::eco_format;
-use notify::{Event, RecommendedWatcher, RecursiveMode, Watcher as _};
-use rustc_hash::{FxHashMap, FxHashSet};
+use notify:: { Event, RecommendedWatcher, RecursiveMode, Watcher as _ };
+use rustc_hash:: { FxHashMap, FxHashSet };
 use same_file::is_same_file;
 use typst_library::diag::StrResult;
 
@@ -49,7 +49,7 @@ impl Watcher
     /// Create a new, blank watcher.
     ///
     /// All writes to the `output` path will be ignored.
-    pub fn new(output: Option<PathBuf>) -> StrResult<Self>
+    pub fn new (output: Option<PathBuf>)->StrResult<Self>
     {
         // Set up file watching.
         let (tx, rx) = std::sync::mpsc::channel();
@@ -59,32 +59,23 @@ impl Watcher
         // Depending on feedback, some tuning might still be in order. Note that
         // this only affects a tiny number of systems. Most do not use the
         // [`notify::PollWatcher`].
-        let config = notify::Config::default().with_poll_interval(Self::POLL_INTERVAL);
-        let watcher = RecommendedWatcher::new(tx, config)
-            .map_err(|err| eco_format!("failed to setup file watching ({err})"))?;
+        let config = notify::Config:: default().with_poll_interval(Self::POLL_INTERVAL);
+        let watcher = RecommendedWatcher:: new (tx, config)
+        .map_err( | err | eco_format ! ("failed to setup file watching ({err})"))?;
 
-        Ok(Self {
-            output,
-            rx,
-            watcher,
-            watched: FxHashMap::default(),
-            missing: FxHashSet::default(),
-        })
+        Ok(Self { output, rx, watcher, watched: FxHashMap::default (), missing: FxHashSet::default (), })
     }
 
     /// Update the watching to watch exactly the listed files.
     ///
     /// Files that are not yet watched will be watched. Files that are already
     /// watched, but don't need to be watched anymore, will be unwatched.
-    pub fn update(&mut self, iter: impl IntoIterator<Item = PathBuf>) -> StrResult<()>
+    pub fn update( & mut self, iter: impl IntoIterator<Item = PathBuf>)->StrResult<()>
     {
         // Mark all files as not "seen" so that we may unwatch them if they
         // aren't in the dependency list.
-        #[expect(clippy::iter_over_hash_type, reason = "order does not matter")]
-        for seen in self.watched.values_mut()
-        {
-            *seen = false;
-        }
+        # [expect(clippy::iter_over_hash_type, reason = "order does not matter")]
+        for seen in self.watched.values_mut() { * seen = false; }
 
         // Reset which files are missing.
         self.missing.clear();
@@ -96,18 +87,14 @@ impl Watcher
             // We can't watch paths that don't exist with notify-rs. Instead, we
             // add those to a `missing` set and fall back to manual poll
             // watching.
-            if !path.exists()
-            {
-                self.missing.insert(path);
-                continue;
-            }
+            if ! path.exists() { self.missing.insert(path); continue ; }
 
             // Watch the path if it's not already watched.
-            if !self.watched.contains_key(&path)
+            if ! self.watched.contains_key( & path)
             {
                 self.watcher
-                    .watch(&path, RecursiveMode::NonRecursive)
-                    .map_err(|err| eco_format!("failed to watch {path:?} ({err})"))?;
+                .watch( & path, RecursiveMode::NonRecursive)
+                .map_err( | err | eco_format ! ("failed to watch {path:?} ({err})"))?;
             }
 
             // Mark the file as "seen" so that we don't unwatch it.
@@ -115,28 +102,20 @@ impl Watcher
         }
 
         // Unwatch old paths that don't need to be watched anymore.
-        self.watched.retain(|path, &mut seen| {
-            if !seen
-            {
-                self.watcher.unwatch(path).ok();
-            }
-            seen
-        });
+        self.watched.retain( | path, & mut seen | { if ! seen { self.watcher.unwatch(path).ok(); } seen });
 
         Ok(())
     }
 
     /// Wait until there is a change to a watched path.
-    pub fn wait(&mut self) -> StrResult<()>
+    pub fn wait( & mut self)->StrResult<()>
     {
         loop
         {
             // Wait for an initial event. If there are missing files, we need to
             // poll those regularly to check whether they are created, so we
             // wait with a smaller timeout.
-            let first = self.rx.recv_timeout(
-                if self.missing.is_empty() { Duration::MAX } else { Self::POLL_INTERVAL },
-            );
+            let first = self.rx.recv_timeout(if self.missing.is_empty() { Duration::MAX } else { Self::POLL_INTERVAL },);
 
             // Watch for file system events. If multiple events happen
             // consecutively all within a certain duration, then they are
@@ -147,32 +126,28 @@ impl Watcher
             let mut relevant = false;
             let batch_start = Instant::now();
             for event in first
-                .into_iter()
-                .chain(iter::from_fn(|| self.rx.recv_timeout(Self::BATCH_TIMEOUT).ok()))
-                .take_while(|_| batch_start.elapsed() <= Self::STARVE_TIMEOUT)
+            .into_iter()
+            .chain(iter::from_fn( || self.rx.recv_timeout(Self::BATCH_TIMEOUT).ok()))
+            .take_while( | _ | batch_start.elapsed() <= Self::STARVE_TIMEOUT)
             {
                 let event = event
-                    .map_err(|err| eco_format!("failed to watch dependencies ({err})"))?;
+                .map_err( | err | eco_format ! ("failed to watch dependencies ({err})"))?;
 
-                if !is_relevant_event_kind(event.kind)
-                {
-                    continue;
-                }
+                if ! is_relevant_event_kind(event.kind) { continue ; }
 
                 // Workaround for notify-rs' implicit unwatch on remove/rename
                 // (triggered by some editors when saving files) with the
                 // inotify backend. By keeping track of the potentially
                 // unwatched files, we can allow those we still depend on to be
                 // watched again later on.
-                if matches!(
+                if matches!
+                (
                     event.kind,
                     notify::EventKind::Remove(notify::event::RemoveKind::File)
-                        | notify::EventKind::Modify(notify::event::ModifyKind::Name(
-                            notify::event::RenameMode::From
-                        ))
+                    | notify::EventKind::Modify(notify::event::ModifyKind::Name(notify::event::RenameMode::From))
                 )
                 {
-                    for path in &event.paths
+                    for path in & event.paths
                     {
                         // Remove affected path from the watched map to restart
                         // watching on it later again.
@@ -183,30 +158,24 @@ impl Watcher
 
                 // Don't recompile because the output file changed.
                 // FIXME: This doesn't work properly for multifile image export.
-                if let Some(output) = &self.output
-                    && event
-                        .paths
-                        .iter()
-                        .all(|path| is_same_file(path, output).unwrap_or(false))
-                {
-                    continue;
-                }
+                if let Some(output) = & self.output
+                && event
+                .paths
+                .iter()
+                .all( | path | is_same_file(path, output).unwrap_or(false)) { continue ; }
 
                 relevant = true;
             }
 
             // If we found a relevant event or if any of the missing files now
             // exists, stop waiting.
-            if relevant || self.missing.iter().any(|path| path.exists())
-            {
-                return Ok(());
-            }
+            if relevant || self.missing.iter().any( | path | path.exists()) { return Ok(()); }
         }
     }
 }
 
 /// Whether a kind of watch event is relevant for compilation.
-fn is_relevant_event_kind(kind: notify::EventKind) -> bool
+fn is_relevant_event_kind(kind: notify::EventKind)-> bool
 {
     match kind
     {

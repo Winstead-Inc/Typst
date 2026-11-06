@@ -3,7 +3,7 @@ use unicode_math_class::MathClass;
 /// Returns the default math class of a character in Typst, if it has one.
 ///
 /// This is determined by the Unicode math class, with some manual overrides.
-pub fn default_math_class(c: char) -> Option<MathClass>
+pub fn default_math_class(c: char)->Option<MathClass>
 {
     match c
     {
@@ -42,6 +42,6 @@ pub fn default_math_class(c: char) -> Option<MathClass>
         // https://github.com/latex3/unicode-math/pull/633#issuecomment-2028936135
         '،' => Some(MathClass::Punctuation),
 
-        c => unicode_math_class::class(c),
+        c => unicode_math_class:: class (c),
     }
 }

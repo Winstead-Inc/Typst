@@ -1,17 +1,17 @@
 use ecow::EcoString;
 use typst_library::Feature;
-use typst_library::diag::{SourceResult, bail};
+use typst_library::diag:: { SourceResult, bail };
 use typst_library::engine::Engine;
-use typst_library::format::{Complete, Fields, Format, FormatElement, Partial, Populate};
-use typst_library::foundations::{Args, Construct, Content, Scope, StyleChain};
+use typst_library::format:: { Complete, Fields, Format, FormatElement, Partial, Populate };
+use typst_library::foundations:: { Args, Construct, Content, Scope, StyleChain };
 use typst_library::introspection::Location;
-use typst_macros::{elem, scope};
+use typst_macros:: { elem, scope };
 use typst_syntax::Spanned;
 
-use crate::{HtmlAttr, HtmlAttrs, HtmlTag, css};
+use crate:: { HtmlAttr, HtmlAttrs, HtmlTag, css };
 
 /// The format element for registering the HTML format.
-pub const FORMAT: Format = Format::new::<HtmlFormat>().with_feature(Feature::Html);
+pub const FORMAT: Format = Format:: new::<HtmlFormat>().with_feature(Feature::Html);
 
 /// Typst's HTML export format (experimental).
 ///
@@ -131,49 +131,24 @@ pub struct HtmlFormat
     ///
     /// This formats the output in a more human-readable, but less
     /// space-efficient way.
-    #[default(false)]
+    # [default (false)]
     pub pretty: bool,
 }
 
-impl Construct for HtmlFormat
-{
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
-    {
-        bail!(args.span, "cannot be constructed manually")
-    }
-}
+impl Construct for HtmlFormat { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
 
-impl FormatElement for HtmlFormat
-{
-    type Options = HtmlFormatOptions;
-}
+impl FormatElement for HtmlFormat { type Options = HtmlFormatOptions; }
 
 #[scope(category = Html)]
-impl HtmlFormat
-{
-    #[elem]
-    type HtmlElem;
-
-    #[elem]
-    type FrameElem;
-
-    #[defs]
-    fn definitions(scope: &mut Scope)
-    {
-        crate::typed::define(scope);
-    }
-}
+impl HtmlFormat { # [elem] type HtmlElem; # [elem] type FrameElem; # [defs] fn definitions(scope: & mut Scope) { crate::typed::define(scope); } }
 
 /// Document settings for HTML export.
 #[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-pub struct HtmlFormatOptions<F: Fields = Complete>
-{
-    pub pretty: F::Value<HtmlFormat, { HtmlFormat::pretty.index() }>,
-}
+pub struct HtmlFormatOptions<F: Fields = Complete> { pub pretty: F::Value < HtmlFormat, { HtmlFormat::pretty.index() } > , }
 
 impl Populate for HtmlFormatOptions
 {
-    fn populate(&mut self, styles: Spanned<StyleChain>)
+    fn populate( & mut self, styles: Spanned<StyleChain>)
     {
         // VOLATILE: This must be updated when adding more fields.
         self.pretty.populate(styles);
@@ -183,12 +158,7 @@ impl Populate for HtmlFormatOptions
 impl HtmlFormatOptions<Partial>
 {
     /// Resolves the [`Partial`] options to [`Complete`] ones, given defaults.
-    pub fn resolve(&self, default: &HtmlFormatOptions) -> HtmlFormatOptions
-    {
-        HtmlFormatOptions {
-            pretty: Partial::resolve(self.pretty, default.pretty),
-        }
-    }
+    pub fn resolve( & self, default: & HtmlFormatOptions)->HtmlFormatOptions { HtmlFormatOptions { pretty: Partial::resolve(self.pretty, default.pretty), } }
 }
 
 /// An HTML element that can contain Typst content.
@@ -216,27 +186,27 @@ impl HtmlFormatOptions<Partial>
 pub struct HtmlElem
 {
     /// The element's tag.
-    #[required]
+    # [required]
     pub tag: HtmlTag,
 
     /// The element's HTML attributes.
-    #[fold]
+    # [fold]
     pub attrs: HtmlAttrs,
 
     /// The element's CSS properties. Currently only used for generated styles.
-    #[internal]
-    #[parse(Some(css::Properties::default()))]
+    # [internal]
+    # [parse(Some(css::Properties::default ()))]
     pub css: css::Properties,
 
     /// The contents of the HTML element.
     ///
     /// The body can be arbitrary Typst content.
-    #[positional]
+    # [positional]
     pub body: Option<Content>,
 
     /// The element's logical parent, if any.
-    #[internal]
-    #[synthesized]
+    # [internal]
+    # [synthesized]
     pub parent: Location,
 
     /// A role that should be applied to the top-level styled HTML element, but
@@ -250,32 +220,25 @@ pub struct HtmlElem
     /// element instead of attaching to that element. This is a bit of a hack,
     /// but good enough for now as the `role` property is purely internal and we
     /// control what it is used for.
-    #[internal]
-    #[ghost]
+    # [internal]
+    # [ghost]
     pub role: Option<EcoString>,
 }
 
 impl HtmlElem
 {
     /// Add an attribute to the element.
-    pub fn with_attr(mut self, attr: HtmlAttr, value: impl Into<EcoString>) -> Self
+    pub fn with_attr(mut self, attr: HtmlAttr, value: impl Into<EcoString>)->Self
     {
         self.attrs
-            .as_option_mut()
-            .get_or_insert_with(Default::default)
-            .push(attr, value);
+        .as_option_mut()
+        .get_or_insert_with(Default::default)
+        .push(attr, value);
         self
     }
 
     /// Adds the attribute to the element if value is not `None`.
-    pub fn with_optional_attr(
-        self,
-        attr: HtmlAttr,
-        value: Option<impl Into<EcoString>>,
-    ) -> Self
-    {
-        if let Some(value) = value { self.with_attr(attr, value) } else { self }
-    }
+    pub fn with_optional_attr(self, attr: HtmlAttr, value: Option<impl Into<EcoString>>,)->Self { if let Some(value) = value { self.with_attr(attr, value) } else { self } }
 }
 
 /// An element that lays out its content as an inline SVG.
@@ -292,7 +255,7 @@ impl HtmlElem
 pub struct FrameElem
 {
     /// The content that shall be laid out.
-    #[positional]
-    #[required]
+    # [positional]
+    # [required]
     pub body: Content,
 }

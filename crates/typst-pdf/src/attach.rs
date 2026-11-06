@@ -1,43 +1,36 @@
 use std::sync::Arc;
 
 use krilla::Document;
-use krilla::embed::{AssociationKind, EmbeddedFile, MimeType};
-use typst_library::diag::{SourceResult, bail};
-use typst_library::foundations::{NativeElement, Smart, StyleChain};
+use krilla::embed:: { AssociationKind, EmbeddedFile, MimeType };
+use typst_library::diag:: { SourceResult, bail };
+use typst_library::foundations:: { NativeElement, Smart, StyleChain };
 use typst_library::introspection::Introspector;
 
 use crate::convert::GlobalContext;
-use crate::{AttachElem, AttachedFileRelationship, metadata};
+use crate:: { AttachElem, AttachedFileRelationship, metadata };
 
-pub(crate) fn attach_files(
-    gc: &GlobalContext,
-    document: &mut Document,
-) -> SourceResult<()>
+pub (crate) fn attach_files(gc: & GlobalContext, document: & mut Document,)->SourceResult<()>
 {
-    let elements = gc.document.introspector().query(&AttachElem::ELEM.select());
+    let elements = gc.document.introspector().query( & AttachElem::ELEM.select());
 
-    for elem in &elements
+    for elem in & elements
     {
         let elem = elem.to_packed::<AttachElem>().unwrap();
         let span = elem.span();
-        let derived_path = &elem.path.derived;
+        let derived_path = & elem.path.derived;
         let path = derived_path.to_string();
         let mime_type = elem
-            .mime_type
-            .get_ref(StyleChain::default())
-            .as_ref()
-            .map(|s| match MimeType::new(s)
-            {
-                Some(mime_type) => Ok(mime_type),
-                None => bail!(elem.span(), "invalid mime type"),
-            })
-            .transpose()?;
+        .mime_type
+        .get_ref(StyleChain::default ())
+        .as_ref()
+        .map( | s | match MimeType::new (s) { Some(mime_type) => Ok(mime_type), None => bail ! (elem.span(),"invalid mime type"), })
+        .transpose()?;
         let description = elem
-            .description
-            .get_ref(StyleChain::default())
-            .as_ref()
-            .map(Into::into);
-        let association_kind = match elem.relationship.get(StyleChain::default())
+        .description
+        .get_ref(StyleChain::default ())
+        .as_ref()
+        .map(Into::into);
+        let association_kind = match elem.relationship. get(StyleChain::default ())
         {
             None => AssociationKind::Unspecified,
             Some(e) => match e
@@ -48,10 +41,11 @@ pub(crate) fn attach_files(
                 AttachedFileRelationship::Supplement => AssociationKind::Supplement,
             },
         };
-        let data: Arc<dyn AsRef<[u8]> + Send + Sync> = Arc::new(elem.data.clone());
-        let compress = should_compress(&elem.data);
+        let data: Arc < dyn AsRef < [u8] > + Send + Sync > = Arc:: new (elem.data.clone());
+        let compress = should_compress( & elem.data);
 
-        let file = EmbeddedFile {
+        let file = EmbeddedFile
+        {
             path,
             mime_type,
             description,
@@ -62,28 +56,22 @@ pub(crate) fn attach_files(
             modification_date: metadata::creation_date(gc),
         };
 
-        if document.embed_file(file).is_none()
-        {
-            bail!(span, "attempted to attach file {derived_path} twice");
-        }
+        if document.embed_file(file).is_none() { bail ! (span, "attempted to attach file {derived_path} twice"); }
     }
 
     Ok(())
 }
 
-fn should_compress(data: &[u8]) -> Smart<bool>
+fn should_compress(data: & [u8])->Smart<bool>
 {
-    let Some(ty) = infer::get(data)
-    else
-    {
-        return Smart::Auto;
-    };
+    let Some(ty) = infer:: get(data)
+    else { return Smart::Auto; };
     match ty.matcher_type()
     {
         infer::MatcherType::App => Smart::Auto,
         infer::MatcherType::Archive => match ty.mime_type()
         {
-            #[rustfmt::skip]
+            # [rustfmt::skip]
             "application/zip"
             | "application/vnd.rar"
             | "application/gzip"
@@ -103,7 +91,7 @@ fn should_compress(data: &[u8]) -> Smart<bool>
         },
         infer::MatcherType::Audio => match ty.mime_type()
         {
-            #[rustfmt::skip]
+            # [rustfmt::skip]
             "audio/mpeg"
             | "audio/m4a"
             | "audio/opus"
@@ -119,7 +107,7 @@ fn should_compress(data: &[u8]) -> Smart<bool>
         infer::MatcherType::Font => Smart::Auto,
         infer::MatcherType::Image => match ty.mime_type()
         {
-            #[rustfmt::skip]
+            # [rustfmt::skip]
             "image/jpeg"
             | "image/jp2"
             | "image/png"
@@ -134,7 +122,7 @@ fn should_compress(data: &[u8]) -> Smart<bool>
         infer::MatcherType::Text => Smart::Auto,
         infer::MatcherType::Video => match ty.mime_type()
         {
-            #[rustfmt::skip]
+            # [rustfmt::skip]
             "video/mp4"
             | "video/x-m4v"
             | "video/x-matroska"

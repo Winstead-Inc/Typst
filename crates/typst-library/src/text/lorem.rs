@@ -1,9 +1,9 @@
 use std::sync::LazyLock;
 
 use ecow::EcoString;
-use lipsum::{LIBER_PRIMUS, LOREM_IPSUM, MarkovChain};
+use lipsum:: { LIBER_PRIMUS, LOREM_IPSUM, MarkovChain };
 
-use crate::foundations::{Str, func};
+use crate::foundations:: { Str, func };
 
 /// Creates blind text.
 ///
@@ -21,13 +21,12 @@ use crate::foundations::{Str, func};
 /// #lorem(15)
 /// ```
 #[func(since = "forever", keywords = ["Blind Text"])]
-pub fn lorem(
+pub fn lorem
+(
     /// The length of the blind text in words.
     words: usize,
-) -> Str
-{
-    lorem_impl(words).into()
-}
+)
+->Str { lorem_impl(words).into() }
 
 /// Generates `n` words of Lorem Ipsum text, treating `--` as a non-word
 /// separator that is replaced with an en-dash (`–`).
@@ -35,78 +34,53 @@ pub fn lorem(
 /// This reimplements the joining logic from lipsum's private `join_words`
 /// function, but skips `--` entries in the Markov chain output without
 /// counting them toward the requested word count.
-fn lorem_impl(n: usize) -> EcoString
+fn lorem_impl(n: usize)->EcoString
 {
     // Based on the `lipsum` crate (MIT).
     // Copyright (c) 2017 Martin Geisler.
     // See NOTICE for full attribution.
-    if n == 0
-    {
-        return EcoString::new();
-    }
+    if n == 0 { return EcoString::new (); }
 
-    static LOREM_CHAIN: LazyLock<MarkovChain<'static>> = LazyLock::new(|| {
-        let mut chain = MarkovChain::new();
-        chain.learn(LOREM_IPSUM);
-        chain.learn(LIBER_PRIMUS);
-        chain
-    });
+    static LOREM_CHAIN: LazyLock < MarkovChain<'static> > = LazyLock:: new ( || { let mut chain = MarkovChain::new (); chain.learn(LOREM_IPSUM); chain.learn(LIBER_PRIMUS); chain });
 
-    let chain = &*LOREM_CHAIN;
+    let chain = &* LOREM_CHAIN;
     let mut iter = chain.iter_from(("Lorem", "ipsum"));
 
     // Punctuation characters which end a sentence.
-    const PUNCTUATION: [char; 3] = ['.', '!', '?'];
+    const PUNCTUATION: [char ; 3] = ['.', '!', '?'];
 
-    let mut sentence = EcoString::new();
+    let mut sentence = EcoString:: new ();
     let mut word_count = 0;
     let mut needs_cap = false;
 
     while word_count < n
     {
         let Some(word) = iter.next()
-        else
-        {
-            break;
-        };
+        else { break ; };
 
-        if word_count > 0
-        {
-            sentence.push(' ');
-        }
+        if word_count > 0 { sentence.push(' '); }
 
         // Skip `--` without counting it as a word; append an en-dash
         // to the output instead.
-        if word == "--"
-        {
-            sentence.push('\u{2013}');
-            continue;
-        }
+        if word == "--" { sentence.push('\u{2013}'); continue ; }
 
         if needs_cap
         {
             // Capitalize the first character of the word.
-            if let Some(c) = word.chars().next()
-            {
-                sentence.extend(c.to_uppercase());
-                sentence.push_str(&word[c.len_utf8()..]);
-            }
+            if let Some(c) = word.chars().next() { sentence.extend(c.to_uppercase()); sentence.push_str( & word[c.len_utf8()..]); }
         }
-        else
-        {
-            sentence.push_str(word);
-        }
+        else { sentence.push_str(word); }
 
         needs_cap = sentence.ends_with(PUNCTUATION);
         word_count += 1;
     }
 
     // Ensure the sentence ends with either one of ".!?".
-    if !sentence.ends_with(PUNCTUATION)
+    if ! sentence.ends_with(PUNCTUATION)
     {
         // Trim all trailing punctuation characters to avoid
         // adding '.' after a ',' or similar.
-        let idx = sentence.trim_end_matches(|c: char| c.is_ascii_punctuation()).len();
+        let idx = sentence.trim_end_matches( | c: char | c.is_ascii_punctuation()).len();
         sentence.truncate(idx);
         sentence.push('.');
     }

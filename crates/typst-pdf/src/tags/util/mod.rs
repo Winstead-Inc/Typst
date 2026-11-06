@@ -1,38 +1,31 @@
 use krilla::tagging as kt;
-use krilla::tagging::{ArtifactType, NaiveRgbColor};
-use typst_library::model::{ArtifactKind, TableHeaderScope};
+use krilla::tagging:: { ArtifactType, NaiveRgbColor };
+use typst_library::model:: { ArtifactKind, TableHeaderScope };
 use typst_library::text::Locale;
 use typst_library::visualize::Paint;
 
 mod idvec;
 mod prop;
 
-pub use idvec::*;
-pub use prop::*;
+pub use idvec:: * ;
+pub use prop:: * ;
 
 // Best effort fallible conversion.
-pub fn paint_to_color(paint: &Paint) -> Option<NaiveRgbColor>
+pub fn paint_to_color(paint: & Paint)->Option<NaiveRgbColor>
 {
     match paint
     {
-        Paint::Solid(color) =>
-        {
-            let c = color.to_rgb();
-            Some(NaiveRgbColor::new_f32(c.red, c.green, c.blue))
-        }
+        Paint::Solid(color) => { let c = color.to_rgb(); Some(NaiveRgbColor::new_f32(c.red, c.green, c.blue)) }
         Paint::Gradient(_) => None,
         Paint::Tiling(_) => None,
     }
 }
 
-pub trait ArtifactKindExt
-{
-    fn to_krilla(self) -> ArtifactType;
-}
+pub trait ArtifactKindExt { fn to_krilla(self)->ArtifactType; }
 
 impl ArtifactKindExt for ArtifactKind
 {
-    fn to_krilla(self) -> ArtifactType
+    fn to_krilla(self)->ArtifactType
     {
         match self
         {
@@ -52,21 +45,13 @@ impl ArtifactKindExt for ArtifactKind
     }
 }
 
-pub trait TableHeaderScopeExt
-{
-    fn to_krilla(self) -> kt::TableHeaderScope;
-}
+pub trait TableHeaderScopeExt { fn to_krilla(self)->kt::TableHeaderScope; }
 
 impl TableHeaderScopeExt for TableHeaderScope
 {
-    fn to_krilla(self) -> kt::TableHeaderScope
+    fn to_krilla(self)->kt::TableHeaderScope
     {
-        match self
-        {
-            Self::Both => kt::TableHeaderScope::Both,
-            Self::Column => kt::TableHeaderScope::Column,
-            Self::Row => kt::TableHeaderScope::Row,
-        }
+        match self { Self::Both => kt::TableHeaderScope::Both, Self::Column => kt::TableHeaderScope::Column, Self::Row => kt::TableHeaderScope::Row, }
     }
 }
 
@@ -75,14 +60,4 @@ impl TableHeaderScopeExt for TableHeaderScope
 /// this function will return `None`, and the language is written to the parent.
 /// Otherwise this function will return `Some`, and the language should be
 /// specified for the child.
-pub fn propagate_lang(
-    parent: &mut Option<Locale>,
-    mut child: Option<Locale>,
-) -> Option<Locale>
-{
-    if let Some(child) = child.take_if(|c| parent.is_none_or(|p| p == *c))
-    {
-        *parent = Some(child);
-    }
-    child
-}
+pub fn propagate_lang(parent: & mut Option<Locale>, mut child: Option<Locale>,)->Option<Locale> { if let Some(child) = child.take_if( | c | parent.is_none_or( | p | p == * c)) { * parent = Some(child); } child }

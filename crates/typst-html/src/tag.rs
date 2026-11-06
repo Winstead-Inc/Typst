@@ -3,7 +3,7 @@
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
 
-use crate::{HtmlTag, property};
+use crate:: { HtmlTag, property };
 
 pub const a: HtmlTag = HtmlTag::constant("a");
 pub const abbr: HtmlTag = HtmlTag::constant("abbr");
@@ -122,367 +122,336 @@ pub const wbr: HtmlTag = HtmlTag::constant("wbr");
 
 /// Whether this is a void tag whose associated element may not have
 /// children.
-pub fn is_void(tag: HtmlTag) -> bool
+pub fn is_void(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::area
-            | self::base
-            | self::br
-            | self::col
-            | self::embed
-            | self::hr
-            | self::img
-            | self::input
-            | self::link
-            | self::meta
-            | self::source
-            | self::track
-            | self::wbr
+        | self::base
+        | self::br
+        | self::col
+        | self::embed
+        | self::hr
+        | self::img
+        | self::input
+        | self::link
+        | self::meta
+        | self::source
+        | self::track
+        | self::wbr
     )
 }
 
 /// Whether this is a tag containing raw text.
-pub fn is_raw(tag: HtmlTag) -> bool
-{
-    matches!(tag, self::script | self::style)
-}
+pub fn is_raw(tag: HtmlTag)-> bool { matches ! (tag, self::script | self::style) }
 
 /// Whether this is a tag containing escapable raw text.
-pub fn is_escapable_raw(tag: HtmlTag) -> bool
-{
-    matches!(tag, self::textarea | self::title)
-}
+pub fn is_escapable_raw(tag: HtmlTag)-> bool { matches ! (tag, self::textarea | self::title) }
 
 /// Whether this is a foreign tag whose associated element is from another
 /// namespace.
 ///
 /// Currently includes MathML tags, but could be extended to SVG.
-pub fn is_foreign(tag: HtmlTag) -> bool
-{
-    self::mathml::is_mathml(tag)
-}
+pub fn is_foreign(tag: HtmlTag)-> bool { self::mathml::is_mathml(tag) }
 
 /// Whether this is a foreign element whose tag is self-closing.
-pub fn is_foreign_self_closing(tag: HtmlTag) -> bool
-{
-    matches!(tag, self::mathml::mprescripts | self::mathml::mspace)
-}
+pub fn is_foreign_self_closing(tag: HtmlTag)-> bool { matches ! (tag, self::mathml::mprescripts | self::mathml::mspace) }
 
 // HTML spec § 3.2.5.2 Kinds of content
 
 /// Whether an element is considered metadata content.
-pub fn is_metadata_content(tag: HtmlTag) -> bool
-{
-    matches!(
-        tag,
-        self::base
-            | self::link
-            | self::meta
-            | self::noscript
-            | self::script
-            | self::style
-            | self::template
-            | self::title
-    )
-}
+pub fn is_metadata_content(tag: HtmlTag)-> bool { matches ! (tag, self::base | self::link | self::meta | self::noscript | self::script | self::style | self::template | self::title) }
 
 /// Wether an element is considered flow content.
-pub fn is_flow_content(tag: HtmlTag) -> bool
+pub fn is_flow_content(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::a
-            | self::abbr
-            | self::address
-            | self::area
-            | self::article
-            | self::aside
-            | self::audio
-            | self::b
-            | self::bdi
-            | self::bdo
-            | self::blockquote
-            | self::br
-            | self::button
-            | self::canvas
-            | self::cite
-            | self::code
-            | self::data
-            | self::datalist
-            | self::del
-            | self::details
-            | self::dfn
-            | self::dialog
-            | self::div
-            | self::dl
-            | self::em
-            | self::embed
-            | self::fieldset
-            | self::figure
-            | self::footer
-            | self::form
-            | self::h1
-            | self::h2
-            | self::h3
-            | self::h4
-            | self::h5
-            | self::h6
-            | self::header
-            | self::hgroup
-            | self::hr
-            | self::i
-            | self::iframe
-            | self::img
-            | self::input
-            | self::ins
-            | self::kbd
-            | self::label
-            | self::link
-            | self::main
-            | self::map
-            | self::mark
-            | self::mathml::math
-            | self::menu
-            | self::meta
-            | self::meter
-            | self::nav
-            | self::noscript
-            | self::object
-            | self::ol
-            | self::output
-            | self::p
-            | self::picture
-            | self::pre
-            | self::progress
-            | self::q
-            | self::ruby
-            | self::s
-            | self::samp
-            | self::script
-            | self::search
-            | self::section
-            | self::select
-            | self::slot
-            | self::small
-            | self::span
-            | self::strong
-            | self::sub
-            | self::sup
-            | self::table
-            | self::template
-            | self::textarea
-            | self::time
-            | self::u
-            | self::ul
-            | self::var
-            | self::video
-            | self::wbr
+        | self::abbr
+        | self::address
+        | self::area
+        | self::article
+        | self::aside
+        | self::audio
+        | self::b
+        | self::bdi
+        | self::bdo
+        | self::blockquote
+        | self::br
+        | self::button
+        | self::canvas
+        | self::cite
+        | self::code
+        | self::data
+        | self::datalist
+        | self::del
+        | self::details
+        | self::dfn
+        | self::dialog
+        | self::div
+        | self::dl
+        | self::em
+        | self::embed
+        | self::fieldset
+        | self::figure
+        | self::footer
+        | self::form
+        | self::h1
+        | self::h2
+        | self::h3
+        | self::h4
+        | self::h5
+        | self::h6
+        | self::header
+        | self::hgroup
+        | self::hr
+        | self::i
+        | self::iframe
+        | self::img
+        | self::input
+        | self::ins
+        | self::kbd
+        | self::label
+        | self::link
+        | self::main
+        | self::map
+        | self::mark
+        | self::mathml::math
+        | self::menu
+        | self::meta
+        | self::meter
+        | self::nav
+        | self::noscript
+        | self::object
+        | self::ol
+        | self::output
+        | self::p
+        | self::picture
+        | self::pre
+        | self::progress
+        | self::q
+        | self::ruby
+        | self::s
+        | self::samp
+        | self::script
+        | self::search
+        | self::section
+        | self::select
+        | self::slot
+        | self::small
+        | self::span
+        | self::strong
+        | self::sub
+        | self::sup
+        | self::table
+        | self:: template
+        | self::textarea
+        | self::time
+        | self::u
+        | self::ul
+        | self:: var
+        | self::video
+        | self::wbr
     )
 }
 
 /// Whether an element is considered sectioning content.
-pub fn is_sectioning_content(tag: HtmlTag) -> bool
-{
-    matches!(tag, self::article | self::aside | self::nav | self::section)
-}
+pub fn is_sectioning_content(tag: HtmlTag)-> bool { matches ! (tag, self::article | self::aside | self::nav | self::section) }
 
 /// Whether an element is considered heading content.
-pub fn is_heading_content(tag: HtmlTag) -> bool
-{
-    matches!(
-        tag,
-        self::h1 | self::h2 | self::h3 | self::h4 | self::h5 | self::h6 | self::hgroup
-    )
-}
+pub fn is_heading_content(tag: HtmlTag)-> bool { matches ! (tag, self::h1 | self::h2 | self::h3 | self::h4 | self::h5 | self::h6 | self::hgroup) }
 
 /// Whether an element is considered phrasing content.
-pub fn is_phrasing_content(tag: HtmlTag) -> bool
+pub fn is_phrasing_content(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::a
-            | self::abbr
-            | self::area
-            | self::audio
-            | self::b
-            | self::bdi
-            | self::bdo
-            | self::br
-            | self::button
-            | self::canvas
-            | self::cite
-            | self::code
-            | self::data
-            | self::datalist
-            | self::del
-            | self::dfn
-            | self::em
-            | self::embed
-            | self::i
-            | self::iframe
-            | self::img
-            | self::input
-            | self::ins
-            | self::kbd
-            | self::label
-            | self::link
-            | self::map
-            | self::mark
-            | self::mathml::math
-            | self::meta
-            | self::meter
-            | self::noscript
-            | self::object
-            | self::output
-            | self::picture
-            | self::progress
-            | self::q
-            | self::ruby
-            | self::s
-            | self::samp
-            | self::script
-            | self::select
-            | self::slot
-            | self::small
-            | self::span
-            | self::strong
-            | self::sub
-            | self::sup
-            | self::template
-            | self::textarea
-            | self::time
-            | self::u
-            | self::var
-            | self::video
-            | self::wbr
+        | self::abbr
+        | self::area
+        | self::audio
+        | self::b
+        | self::bdi
+        | self::bdo
+        | self::br
+        | self::button
+        | self::canvas
+        | self::cite
+        | self::code
+        | self::data
+        | self::datalist
+        | self::del
+        | self::dfn
+        | self::em
+        | self::embed
+        | self::i
+        | self::iframe
+        | self::img
+        | self::input
+        | self::ins
+        | self::kbd
+        | self::label
+        | self::link
+        | self::map
+        | self::mark
+        | self::mathml::math
+        | self::meta
+        | self::meter
+        | self::noscript
+        | self::object
+        | self::output
+        | self::picture
+        | self::progress
+        | self::q
+        | self::ruby
+        | self::s
+        | self::samp
+        | self::script
+        | self::select
+        | self::slot
+        | self::small
+        | self::span
+        | self::strong
+        | self::sub
+        | self::sup
+        | self:: template
+        | self::textarea
+        | self::time
+        | self::u
+        | self:: var
+        | self::video
+        | self::wbr
     )
 }
 
 /// Whether an element is considered embedded content.
-pub fn is_embedded_content(tag: HtmlTag) -> bool
+pub fn is_embedded_content(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::audio
-            | self::canvas
-            | self::embed
-            | self::iframe
-            | self::img
-            | self::mathml::math
-            | self::object
-            | self::picture
-            | self::video
+        | self::canvas
+        | self::embed
+        | self::iframe
+        | self::img
+        | self::mathml::math
+        | self::object
+        | self::picture
+        | self::video
     )
 }
 
 /// Whether an element is considered interactive content.
-pub fn is_interactive_content(tag: HtmlTag) -> bool
+pub fn is_interactive_content(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::a
-            | self::audio
-            | self::button
-            | self::details
-            | self::embed
-            | self::iframe
-            | self::img
-            | self::input
-            | self::label
-            | self::select
-            | self::textarea
-            | self::video
+        | self::audio
+        | self::button
+        | self::details
+        | self::embed
+        | self::iframe
+        | self::img
+        | self::input
+        | self::label
+        | self::select
+        | self::textarea
+        | self::video
     )
 }
 
 /// Whether an element is considered palpable content.
-pub fn is_palpable_content(tag: HtmlTag) -> bool
+pub fn is_palpable_content(tag: HtmlTag)-> bool
 {
-    matches!(
+    matches!
+    (
         tag,
         self::a
-            | self::abbr
-            | self::address
-            | self::article
-            | self::aside
-            | self::audio
-            | self::b
-            | self::bdi
-            | self::bdo
-            | self::blockquote
-            | self::button
-            | self::canvas
-            | self::cite
-            | self::code
-            | self::data
-            | self::del
-            | self::details
-            | self::dfn
-            | self::div
-            | self::dl
-            | self::em
-            | self::embed
-            | self::fieldset
-            | self::figure
-            | self::footer
-            | self::form
-            | self::h1
-            | self::h2
-            | self::h3
-            | self::h4
-            | self::h5
-            | self::h6
-            | self::header
-            | self::hgroup
-            | self::i
-            | self::iframe
-            | self::img
-            | self::input
-            | self::ins
-            | self::kbd
-            | self::label
-            | self::main
-            | self::map
-            | self::mark
-            | self::mathml::math
-            | self::menu
-            | self::meter
-            | self::nav
-            | self::object
-            | self::ol
-            | self::output
-            | self::p
-            | self::picture
-            | self::pre
-            | self::progress
-            | self::q
-            | self::ruby
-            | self::s
-            | self::samp
-            | self::search
-            | self::section
-            | self::select
-            | self::small
-            | self::span
-            | self::strong
-            | self::sub
-            | self::sup
-            | self::table
-            | self::textarea
-            | self::time
-            | self::u
-            | self::ul
-            | self::var
-            | self::video
+        | self::abbr
+        | self::address
+        | self::article
+        | self::aside
+        | self::audio
+        | self::b
+        | self::bdi
+        | self::bdo
+        | self::blockquote
+        | self::button
+        | self::canvas
+        | self::cite
+        | self::code
+        | self::data
+        | self::del
+        | self::details
+        | self::dfn
+        | self::div
+        | self::dl
+        | self::em
+        | self::embed
+        | self::fieldset
+        | self::figure
+        | self::footer
+        | self::form
+        | self::h1
+        | self::h2
+        | self::h3
+        | self::h4
+        | self::h5
+        | self::h6
+        | self::header
+        | self::hgroup
+        | self::i
+        | self::iframe
+        | self::img
+        | self::input
+        | self::ins
+        | self::kbd
+        | self::label
+        | self::main
+        | self::map
+        | self::mark
+        | self::mathml::math
+        | self::menu
+        | self::meter
+        | self::nav
+        | self::object
+        | self::ol
+        | self::output
+        | self::p
+        | self::picture
+        | self::pre
+        | self::progress
+        | self::q
+        | self::ruby
+        | self::s
+        | self::samp
+        | self::search
+        | self::section
+        | self::select
+        | self::small
+        | self::span
+        | self::strong
+        | self::sub
+        | self::sup
+        | self::table
+        | self::textarea
+        | self::time
+        | self::u
+        | self::ul
+        | self:: var
+        | self::video
     )
 }
 
 /// Whether an element is considered a script-supporting element.
-pub fn is_script_supporting_element(tag: HtmlTag) -> bool
-{
-    matches!(tag, self::script | self::template)
-}
+pub fn is_script_supporting_element(tag: HtmlTag)-> bool { matches ! (tag, self::script | self::template) }
 
 // § 15.4 Replaced elements
 
@@ -491,30 +460,17 @@ pub fn is_script_supporting_element(tag: HtmlTag) -> bool
 /// See:
 /// - § 15.4 Replaced elements
 /// - <https://www.w3.org/TR/css-display-3/#replaced-element>
-pub fn is_replaced(tag: HtmlTag) -> bool
-{
-    matches!(
-        tag,
-        self::audio
-            | self::canvas
-            | self::embed
-            | self::iframe
-            | self::img
-            | self::input
-            | self::object
-            | self::video
-    )
-}
+pub fn is_replaced(tag: HtmlTag)-> bool { matches ! (tag, self::audio | self::canvas | self::embed | self::iframe | self::img | self::input | self::object | self::video) }
 
 // Non-standard sets.
 
 /// Whether HTML whitespace next to an element with this tag will be collapsed
 /// (assuming normal user agent styles).
-pub fn is_whitespace_collapsing(tag: HtmlTag) -> bool
+pub fn is_whitespace_collapsing(tag: HtmlTag)-> bool
 {
     // TODO: Reconsider this check. What about e.g. tables?
     property::Display::default_for(tag) == Some(property::Display::Block)
-        || tag == self::br
+    || tag == self::br
 }
 
 /// Whether we group this kind of HTML element into paragraphs _if_ paragraphs
@@ -556,11 +512,7 @@ pub fn is_whitespace_collapsing(tag: HtmlTag) -> bool
 /// block-level by default. Instead the built-in `image` show rule wraps the
 /// produced `<img>` in a Typst `block`. With `box` and `block`, it's always
 /// possible to override the default defined by this function.
-pub fn should_group_into_pars(tag: HtmlTag) -> bool
-{
-    is_phrasing_content(tag)
-        && property::Display::default_for(tag) != Some(property::Display::None)
-}
+pub fn should_group_into_pars(tag: HtmlTag)-> bool { is_phrasing_content(tag) && property::Display::default_for(tag) != Some(property::Display::None) }
 
 /// Elements in the MathML namespace.
 ///
@@ -601,49 +553,44 @@ pub mod mathml
     pub const semantics: HtmlTag = HtmlTag::constant("semantics");
 
     /// Whether this is a MathML token element.
-    pub fn is_token(tag: HtmlTag) -> bool
-    {
-        matches!(
-            tag,
-            self::mtext | self::mi | self::mn | self::mo | self::mspace | self::ms
-        )
-    }
+    pub fn is_token(tag: HtmlTag)-> bool { matches ! (tag, self::mtext | self::mi | self::mn | self::mo | self::mspace | self::ms) }
 
     /// Whether this tag is an element in the MathML namespace.
-    pub fn is_mathml(tag: HtmlTag) -> bool
+    pub fn is_mathml(tag: HtmlTag)-> bool
     {
-        matches!(
+        matches!
+        (
             tag,
             self::annotation
-                | self::annotation_xml
-                | self::maction
-                | self::math
-                | self::merror
-                | self::mfrac
-                | self::mi
-                | self::mmultiscripts
-                | self::mn
-                | self::mo
-                | self::mover
-                | self::mpadded
-                | self::mphantom
-                | self::mprescripts
-                | self::mroot
-                | self::mrow
-                | self::ms
-                | self::mspace
-                | self::msqrt
-                | self::mstyle
-                | self::msub
-                | self::msubsup
-                | self::msup
-                | self::mtable
-                | self::mtd
-                | self::mtext
-                | self::mtr
-                | self::munder
-                | self::munderover
-                | self::semantics
+            | self::annotation_xml
+            | self::maction
+            | self::math
+            | self::merror
+            | self::mfrac
+            | self::mi
+            | self::mmultiscripts
+            | self::mn
+            | self::mo
+            | self::mover
+            | self::mpadded
+            | self::mphantom
+            | self::mprescripts
+            | self::mroot
+            | self::mrow
+            | self::ms
+            | self::mspace
+            | self::msqrt
+            | self::mstyle
+            | self::msub
+            | self::msubsup
+            | self::msup
+            | self::mtable
+            | self::mtd
+            | self::mtext
+            | self::mtr
+            | self::munder
+            | self::munderover
+            | self::semantics
         )
     }
 }

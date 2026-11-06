@@ -1,13 +1,10 @@
 use krilla::tagging::Tag;
 
-use crate::tags::groups::{GroupId, GroupKind, Groups};
+use crate::tags::groups:: { GroupId, GroupKind, Groups };
 use crate::tags::resolve::TagNode;
 
 #[derive(Debug, Clone)]
-pub struct ListCtx
-{
-    last_item: Option<ListItem>,
-}
+pub struct ListCtx { last_item: Option<ListItem>, }
 
 #[derive(Debug, Clone)]
 struct ListItem
@@ -18,17 +15,11 @@ struct ListItem
 
 impl ListCtx
 {
-    pub fn new() -> Self
-    {
-        Self { last_item: None }
-    }
+    pub fn new ()->Self { Self { last_item: None } }
 
-    pub fn push_label(&mut self, groups: &mut Groups, list: GroupId, label: GroupId)
+    pub fn push_label( & mut self, groups: & mut Groups, list: GroupId, label: GroupId)
     {
-        if let Some(item) = self.last_item.take()
-        {
-            groups.push_tag(item.id, Tag::LBody);
-        }
+        if let Some(item) = self.last_item.take() { groups.push_tag(item.id, Tag::LBody); }
 
         let parent = groups.push_tag(list, Tag::LI);
         groups.push_group(parent, label);
@@ -36,21 +27,13 @@ impl ListCtx
         self.last_item = Some(ListItem { id: parent });
     }
 
-    fn ensure_within_item(&mut self, groups: &mut Groups, list: GroupId) -> GroupId
+    fn ensure_within_item( & mut self, groups: & mut Groups, list: GroupId)->GroupId
     {
-        if let Some(item) = self.last_item.take()
-        {
-            item.id
-        }
-        else
-        {
-            let item = groups.push_tag(list, Tag::LI);
-            groups.push_tag(item, Tag::Lbl);
-            item
-        }
+        if let Some(item) = self.last_item.take() { item.id }
+        else { let item = groups.push_tag(list, Tag::LI); groups.push_tag(item, Tag::Lbl); item }
     }
 
-    pub fn push_body(&mut self, groups: &mut Groups, list: GroupId, body: GroupId)
+    pub fn push_body( & mut self, groups: & mut Groups, list: GroupId, body: GroupId)
     {
         let item = self.ensure_within_item(groups, list);
         groups.push_group(item, body);
@@ -88,8 +71,8 @@ impl ListCtx
         // ```
         //
         // So move the nested list out of the list item.
-        if let &[.., TagNode::Group(id)] = groups.get(body).nodes()
-            && let GroupKind::List(..) = groups.get_mut(id).kind
+        if let & [.., TagNode::Group(id)] = groups. get(body).nodes()
+        && let GroupKind::List(..) = groups.get_mut(id).kind
         {
             groups.get_mut(body).pop_node();
             groups.get_mut(id).parent = list;
@@ -97,12 +80,7 @@ impl ListCtx
         }
     }
 
-    pub fn push_bib_entry(
-        &mut self,
-        groups: &mut Groups,
-        list: GroupId,
-        bib_entry: GroupId,
-    )
+    pub fn push_bib_entry( & mut self, groups: & mut Groups, list: GroupId, bib_entry: GroupId,)
     {
         // Bibliography lists are always flat, so there is no need to check for
         // an inner list. If they do contain a list it is semantically unrelated

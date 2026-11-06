@@ -1,15 +1,11 @@
-use std::num::{
-    IntErrorKind, NonZeroI64, NonZeroIsize, NonZeroU32, NonZeroU64, NonZeroUsize,
-};
+use std::num:: { IntErrorKind, NonZeroI64, NonZeroIsize, NonZeroU32, NonZeroU64, NonZeroUsize, };
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use smallvec::SmallVec;
-use typst_syntax::{Span, Spanned};
+use typst_syntax:: { Span, Spanned };
 
-use crate::diag::{At, HintedString, SourceResult, StrResult, bail, error};
-use crate::foundations::{
-    Base, Bytes, Cast, Decimal, Repr, Str, Value, cast, func, repr, scope, ty,
-};
+use crate::diag:: { At, HintedString, SourceResult, StrResult, bail, error };
+use crate::foundations:: { Base, Bytes, Cast, Decimal, Repr, Str, Value, cast, func, repr, scope, ty, };
 
 /// An integer: a positive whole number, a negative whole number, or zero.
 ///
@@ -75,7 +71,7 @@ impl i64
     /// // In hexadecimal:
     /// #0x7FFFFFFFFFFFFFFF
     /// ```
-    #[constant(title = "Maximum integer", since = "forever")]
+    # [constant(title = "Maximum integer", since = "forever")]
     const MAX: i64 = i64::MAX;
 
     /// The minimum value that can be represented as a Typst integer: $-2^63$.
@@ -87,7 +83,7 @@ impl i64
     /// ```example
     /// #int.min
     /// ```
-    #[constant(title = "Minimum integer", since = "forever")]
+    # [constant(title = "Minimum integer", since = "forever")]
     const MIN: i64 = i64::MIN;
 
     /// Converts a value to an integer. Raises an error if there is an attempt
@@ -107,62 +103,55 @@ impl i64
     /// #(int("27") + int("4")) \
     /// #int("beef", base: 16)
     /// ```
-    #[func(constructor, since = "forever")]
-    pub fn construct(
+    # [func(constructor, since = "forever")]
+    pub fn construct
+    (
         /// The value that should be converted to an integer.
         value: Spanned<ToInt>,
         /// The base (radix) for parsing strings, between 2 and 36.
         ///
         /// Above base 10, Typst accepts the letters a--z or A--Z for the values
         /// 10--35.
-        #[named]
-        #[default(Spanned::new(Base::Default, Span::detached()))]
+        # [named]
+        # [default (Spanned::new (Base::Default, Span::detached()))]
         base: Spanned<Base>,
-    ) -> SourceResult<i64>
+    )
+   ->SourceResult<i64>
     {
-        Ok(match value.v
-        {
-            ToInt::Int(n) => match base.v
+        Ok
+        (
+            match value.v
             {
-                Base::User(_) => bail!(base.span, "base is only supported for strings"),
-                Base::Default => n,
-            },
-            ToInt::Str(s) =>
-            {
-                let base_value = base.v.value();
-                let radix: u32 = match base_value
+                ToInt::Int(n) => match base.v { Base::User(_) => bail ! (base.span, "base is only supported for strings"), Base::Default => n, },
+                ToInt::Str(s) =>
                 {
-                    2..=36 => base_value as u32,
-                    _ => bail!(base.span, "base must be between 2 and 36"),
-                };
+                    let base_value = base.v.value();
+                    let radix: u32 = match base_value { 2.. = 36 => base_value as u32, _ => bail ! (base.span, "base must be between 2 and 36"), };
 
-                match s.strip_prefix('-').or_else(|| s.strip_prefix(repr::MINUS_SIGN))
-                {
-                    // Negative (without minus)
-                    Some(s) =>
+                    match s.strip_prefix('-').or_else( || s.strip_prefix(repr::MINUS_SIGN))
                     {
-                        // Parse the digits part into u64
-                        //  => abs(i64::MIN) fits into u64
-                        let bigger = u64::from_str_radix(s, radix)
-                            .map_err(|e| parse_str_error(*e.kind(), base))
+                        // Negative (without minus)
+                        Some(s) =>
+                        {
+                            // Parse the digits part into u64
+                            //  => abs(i64::MIN) fits into u64
+                            let bigger = u64::from_str_radix(s, radix)
+                            .map_err( | e | parse_str_error( * e.kind(), base))
                             .at(value.span)?;
 
-                        // Number wouldn't fit into i64
-                        if bigger > i64::MIN.unsigned_abs()
-                        {
-                            return Err(parse_str_error(IntErrorKind::NegOverflow, base))
-                                .at(value.span);
-                        }
+                            // Number wouldn't fit into i64
+                            if bigger > i64::MIN.unsigned_abs() { return Err(parse_str_error(IntErrorKind::NegOverflow, base)).at(value.span); }
 
-                        bigger.wrapping_neg() as i64
-                    }
-                    // Positive
-                    None => i64::from_str_radix(&s, radix)
-                        .map_err(|e| parse_str_error(*e.kind(), base))
+                            bigger.wrapping_neg() as i64
+                        }
+                        // Positive
+                        None => i64::from_str_radix( & s, radix)
+                        .map_err( | e | parse_str_error( * e.kind(), base))
                         .at(value.span)?,
+                    }
                 }
             }
-        })
+        )
     }
 
     /// Calculates the sign of an integer.
@@ -176,11 +165,8 @@ impl i64
     /// #(-5).signum() \
     /// #(0).signum()
     /// ```
-    #[func(since = "0.11.0")]
-    pub fn signum(self) -> i64
-    {
-        i64::signum(self)
-    }
+    # [func(since = "0.11.0")]
+    pub fn signum(self)->i64 { i64::signum(self) }
 
     /// Calculates the bitwise NOT of an integer.
     ///
@@ -191,11 +177,8 @@ impl i64
     /// #4.bit-not() \
     /// #(-1).bit-not()
     /// ```
-    #[func(title = "Bitwise NOT", since = "0.11.0")]
-    pub fn bit_not(self) -> i64
-    {
-        !self
-    }
+    # [func(title = "Bitwise NOT", since = "0.11.0")]
+    pub fn bit_not(self)->i64 { ! self }
 
     /// Calculates the bitwise AND between two integers.
     ///
@@ -205,15 +188,14 @@ impl i64
     /// ```example
     /// #128.bit-and(192)
     /// ```
-    #[func(title = "Bitwise AND", since = "0.11.0")]
-    pub fn bit_and(
+    # [func(title = "Bitwise AND", since = "0.11.0")]
+    pub fn bit_and
+    (
         self,
         /// The right-hand operand of the bitwise AND.
         rhs: i64,
-    ) -> i64
-    {
-        self & rhs
-    }
+    )
+   ->i64 { self & rhs }
 
     /// Calculates the bitwise OR between two integers.
     ///
@@ -223,15 +205,14 @@ impl i64
     /// ```example
     /// #64.bit-or(32)
     /// ```
-    #[func(title = "Bitwise OR", since = "0.11.0")]
-    pub fn bit_or(
+    # [func(title = "Bitwise OR", since = "0.11.0")]
+    pub fn bit_or
+    (
         self,
         /// The right-hand operand of the bitwise OR.
         rhs: i64,
-    ) -> i64
-    {
-        self | rhs
-    }
+    )
+   ->i64 { self | rhs }
 
     /// Calculates the bitwise XOR between two integers.
     ///
@@ -241,15 +222,14 @@ impl i64
     /// ```example
     /// #64.bit-xor(96)
     /// ```
-    #[func(title = "Bitwise XOR", since = "0.11.0")]
-    pub fn bit_xor(
+    # [func(title = "Bitwise XOR", since = "0.11.0")]
+    pub fn bit_xor
+    (
         self,
         /// The right-hand operand of the bitwise XOR.
         rhs: i64,
-    ) -> i64
-    {
-        self ^ rhs
-    }
+    )
+   ->i64 { self ^ rhs }
 
     /// Shifts the operand's bits to the left by the specified amount.
     ///
@@ -261,15 +241,14 @@ impl i64
     /// #33.bit-lshift(2) \
     /// #(-1).bit-lshift(3)
     /// ```
-    #[func(title = "Bitwise Left Shift", since = "0.11.0")]
-    pub fn bit_lshift(
+    # [func(title = "Bitwise Left Shift", since = "0.11.0")]
+    pub fn bit_lshift
+    (
         self,
         /// The amount of bits to shift. Must not be negative.
         shift: u32,
-    ) -> StrResult<i64>
-    {
-        Ok(self.checked_shl(shift).ok_or("the result is too large")?)
-    }
+    )
+   ->StrResult<i64> { Ok(self.checked_shl(shift).ok_or("the result is too large")?) }
 
     /// Shifts the operand's bits to the right by the specified amount. Performs
     /// an arithmetic shift by default (extends the sign bit to the left, such
@@ -284,8 +263,9 @@ impl i64
     /// #(-8).bit-rshift(2) \
     /// #(-8).bit-rshift(2, logical: true)
     /// ```
-    #[func(title = "Bitwise Right Shift", since = "0.11.0")]
-    pub fn bit_rshift(
+    # [func(title = "Bitwise Right Shift", since = "0.11.0")]
+    pub fn bit_rshift
+    (
         self,
         /// The amount of bits to shift. Must not be negative.
         ///
@@ -301,10 +281,11 @@ impl i64
         /// operands will not preserve their sign bit, and bits which appear to
         /// the left after the shift will be `{0}`. This parameter has no effect
         /// on non-negative operands.
-        #[named]
-        #[default(false)]
+        # [named]
+        # [default (false)]
         logical: bool,
-    ) -> i64
+    )
+   ->i64
     {
         if logical
         {
@@ -345,34 +326,30 @@ impl i64
     /// #int.from-bytes(bytes((0, 0, 0, 0, 0, 0, 0, 1))) \
     /// #int.from-bytes(bytes((1, 0, 0, 0, 0, 0, 0, 0)), endian: "big")
     /// ```
-    #[func(since = "0.12.0")]
-    pub fn from_bytes(
+    # [func(since = "0.12.0")]
+    pub fn from_bytes
+    (
         /// The bytes that should be converted to an integer.
         ///
         /// Must be of length at most 8 so that the result fits into a 64-bit
         /// signed integer.
         bytes: Bytes,
         /// The endianness of the conversion.
-        #[named]
-        #[default(Endianness::Little)]
+        # [named]
+        # [default (Endianness::Little)]
         endian: Endianness,
         /// Whether the bytes should be treated as a signed integer. If this is
         /// `{true}` and the most significant bit is set, the resulting number
         /// will negative.
-        #[named]
-        #[default(true)]
+        # [named]
+        # [default (true)]
         signed: bool,
-    ) -> StrResult<i64>
+    )
+   ->StrResult<i64>
     {
         let len = bytes.len();
-        if len == 0
-        {
-            return Ok(0);
-        }
-        else if len > 8
-        {
-            bail!("too many bytes to convert to a 64 bit number");
-        }
+        if len == 0 { return Ok(0); }
+        else if len > 8 { bail ! ("too many bytes to convert to a 64 bit number"); }
 
         // `decimal` will hold the part of the buffer that should be filled with
         // the input bytes, `rest` will remain as is or be filled with 0xFF for
@@ -381,38 +358,19 @@ impl i64
         // – big-endian: `decimal` will be the rightmost bytes of the buffer.
         // - little-endian: `decimal` will be the leftmost bytes of the buffer.
         let mut buf = [0_u8; 8];
-        let (rest, decimal) = match endian
-        {
-            Endianness::Big => buf.split_at_mut(8 - len),
-            Endianness::Little =>
-            {
-                let (first, second) = buf.split_at_mut(len);
-                (second, first)
-            }
-        };
+        let (rest, decimal) = match endian { Endianness::Big => buf.split_at_mut(8 - len), Endianness::Little => { let (first, second) = buf.split_at_mut(len);(second, first) } };
 
         decimal.copy_from_slice(bytes.as_ref());
 
         // Perform sign-extension if necessary.
         if signed
         {
-            let most_significant_byte = match endian
-            {
-                Endianness::Big => decimal[0],
-                Endianness::Little => decimal[len - 1],
-            };
+            let most_significant_byte = match endian { Endianness::Big => decimal[0], Endianness::Little => decimal[len - 1], };
 
-            if most_significant_byte & 0b1000_0000 != 0
-            {
-                rest.fill(0xFF);
-            }
+            if most_significant_byte & 0b1000_0000 != 0 { rest.fill(0xFF); }
         }
 
-        Ok(match endian
-        {
-            Endianness::Big => i64::from_be_bytes(buf),
-            Endianness::Little => i64::from_le_bytes(buf),
-        })
+        Ok(match endian { Endianness::Big => i64::from_be_bytes(buf), Endianness::Little => i64::from_le_bytes(buf), })
     }
 
     /// Converts an integer to bytes.
@@ -421,12 +379,13 @@ impl i64
     /// #array(10000.to-bytes(endian: "big")) \
     /// #array(10000.to-bytes(size: 4))
     /// ```
-    #[func(since = "0.12.0")]
-    pub fn to_bytes(
+    # [func(since = "0.12.0")]
+    pub fn to_bytes
+    (
         self,
         /// The endianness of the conversion.
-        #[named]
-        #[default(Endianness::Little)]
+        # [named]
+        # [default (Endianness::Little)]
         endian: Endianness,
         /// The size in bytes of the resulting bytes (must be at least zero). If
         /// the integer is too large to fit in the specified size, the
@@ -440,18 +399,15 @@ impl i64
         /// to make the number fit, when passing the resulting bytes to
         /// `int.from-bytes`, the resulting number might be positive, as the
         /// most significant bit might not be set to 1.
-        #[named]
-        #[default(8)]
+        # [named]
+        # [default (8)]
         size: usize,
-    ) -> Bytes
+    )
+   ->Bytes
     {
-        let array = match endian
-        {
-            Endianness::Big => self.to_be_bytes(),
-            Endianness::Little => self.to_le_bytes(),
-        };
+        let array = match endian { Endianness::Big => self.to_be_bytes(), Endianness::Little => self.to_le_bytes(), };
 
-        let mut buf = SmallVec::<[u8; 8]>::from_elem(0, size);
+        let mut buf = SmallVec:: < [u8; 8] >:: from_elem(0, size);
         match endian
         {
             Endianness::Big =>
@@ -460,28 +416,22 @@ impl i64
                 // the end of the buffer.
                 let buf_start = size.saturating_sub(8);
                 let array_start = 8_usize.saturating_sub(size);
-                buf[buf_start..].copy_from_slice(&array[array_start..]);
+                buf[buf_start..].copy_from_slice( & array[array_start..]);
             }
             Endianness::Little =>
             {
                 // Copy the bytes from the array to the buffer, starting from
                 // the beginning of the buffer.
                 let end = size.min(8);
-                buf[..end].copy_from_slice(&array[..end]);
+                buf[..end].copy_from_slice( & array[..end]);
             }
         }
 
-        Bytes::new(buf)
+        Bytes:: new (buf)
     }
 }
 
-impl Repr for i64
-{
-    fn repr(&self) -> EcoString
-    {
-        eco_format!("{self:?}")
-    }
-}
+impl Repr for i64 { fn repr( & self)->EcoString { eco_format ! ("{self:?}") } }
 
 /// Represents the byte order used for converting integers and floats to bytes
 /// and vice versa.
@@ -497,51 +447,36 @@ pub enum Endianness
 }
 
 /// A value that can be cast to an integer.
-pub enum ToInt
-{
-    Int(i64),
-    Str(Str),
-}
+pub enum ToInt { Int(i64), Str(Str), }
 
-cast! {
+cast!
+{
     ToInt,
     v: i64 => Self::Int(v),
     v: bool => Self::Int(v as i64),
     v: f64 => Self::Int(convert_float_to_int(v)?),
-    v: Decimal => Self::Int(i64::try_from(v).map_err(|_| eco_format!("number too large"))?),
+    v: Decimal => Self::Int(i64::try_from(v).map_err( | _ | eco_format ! ("number too large"))?),
     v: Str => Self::Str(v),
 }
 
-pub fn convert_float_to_int(f: f64) -> StrResult<i64>
-{
-    if f <= i64::MIN as f64 - 1.0 || f >= i64::MAX as f64 + 1.0
-    {
-        Err(eco_format!("number too large"))
-    }
-    else
-    {
-        Ok(f as i64)
-    }
-}
+pub fn convert_float_to_int(f: f64)->StrResult<i64> { if f <= i64::MIN as f64 - 1.0 || f >= i64::MAX as f64 + 1.0 { Err(eco_format ! ("number too large")) } else { Ok(f as i64) } }
 
 #[cold]
-fn parse_str_error(kind: IntErrorKind, base: Spanned<Base>) -> HintedString
+fn parse_str_error(kind: IntErrorKind, base: Spanned<Base>)->HintedString
 {
     let base = base.v.value();
     match kind
     {
         IntErrorKind::Empty => error!("string must not be empty"),
-        IntErrorKind::InvalidDigit => match base
-        {
-            10 => error!("string contains invalid digits"),
-            _ => error!("string contains invalid digits for a base {base} integer"),
-        },
-        IntErrorKind::PosOverflow => error!(
+        IntErrorKind::InvalidDigit => match base { 10 => error ! ("string contains invalid digits"), _ => error ! ("string contains invalid digits for a base {base} integer"), },
+        IntErrorKind::PosOverflow => error!
+        (
             "integer value is too large";
             hint: "value does not fit into a signed 64-bit integer";
             hint: "try using a floating point number";
         ),
-        IntErrorKind::NegOverflow => error!(
+        IntErrorKind::NegOverflow => error!
+        (
             "integer value is too small";
             hint: "value does not fit into a signed 64-bit integer";
             hint: "try using a floating point number";
@@ -551,114 +486,109 @@ fn parse_str_error(kind: IntErrorKind, base: Spanned<Base>) -> HintedString
     }
 }
 
-macro_rules! signed_int {
-    ($($ty:ty)*) => {
-        $(cast! {
-            $ty,
-            self => {
-                #[allow(irrefutable_let_patterns)]
-                if let Ok(int) = i64::try_from(self) {
-                    Value::Int(int)
-                } else {
-                    // Some numbers (i128) are too large to be cast as i64
-                    // In that case, we accept that there may be a
-                    // precision loss, and use a floating point number
-                    Value::Float(self as f64)
-                }
-            },
-            v: i64 => v.try_into().map_err(|_| "number too large")?,
-        })*
+macro_rules! signed_int
+{
+    ($($ty: ty) *) =>
+    {
+        $
+        (
+            cast!
+            {
+                $ty,
+                self =>
+                {
+                    # [allow(irrefutable_let_patterns)]
+                    if let Ok(int) = i64::try_from(self) { Value::Int(int) }
+                    else
+                    {
+                        // Some numbers (i128) are too large to be cast as i64
+                        // In that case, we accept that there may be a
+                        // precision loss, and use a floating point number
+                        Value::Float(self as f64)
+                    }
+                },
+                v: i64 => v.try_into().map_err( | _ | "number too large")?,
+            }
+        )
+        *
     }
 }
 
-macro_rules! unsigned_int {
-    ($($ty:ty)*) => {
-        $(cast! {
-            $ty,
-            self => {
-                #[allow(irrefutable_let_patterns)]
-                if let Ok(int) = i64::try_from(self) {
-                    Value::Int(int)
-                } else {
-                    // Some numbers (u64, u128) are too large to be cast as i64
-                    // In that case, we accept that there may be a
-                    // precision loss, and use a floating point number
-                    Value::Float(self as f64)
-                }
-            },
-            v: i64 => v.try_into().map_err(|_| {
-                if v < 0 {
-                    "number must be at least zero"
-                } else {
-                    "number too large"
-                }
-            })?,
-        })*
+macro_rules! unsigned_int
+{
+    ($($ty: ty) *) =>
+    {
+        $
+        (
+            cast!
+            {
+                $ty,
+                self =>
+                {
+                    # [allow(irrefutable_let_patterns)]
+                    if let Ok(int) = i64::try_from(self) { Value::Int(int) }
+                    else
+                    {
+                        // Some numbers (u64, u128) are too large to be cast as i64
+                        // In that case, we accept that there may be a
+                        // precision loss, and use a floating point number
+                        Value::Float(self as f64)
+                    }
+                },
+                v: i64 => v.try_into().map_err( | _ | { if v < 0 { "number must be at least zero" } else { "number too large" } })?,
+            }
+        )
+        *
     }
 }
 
 signed_int! { i8 i16 i32 i128 isize }
 unsigned_int! { u8 u16 u32 u64 u128 usize }
 
-cast! {
+cast!
+{
     NonZeroI64,
-    self => Value::Int(self.get()),
+    self => Value::Int(self.get ()),
     v: i64 => v.try_into()
-        .map_err(|_| if v == 0 {
-            "number must not be zero"
-        } else {
-            "number too large"
-        })?,
+    .map_err( | _ | if v == 0 { "number must not be zero" } else { "number too large" })?,
 }
 
-cast! {
+cast!
+{
     NonZeroIsize,
-    self => Value::Int(self.get() as i64),
+    self => Value::Int(self.get () as i64),
     v: i64 => v
-        .try_into()
-        .and_then(|v: isize| v.try_into())
-        .map_err(|_| if v == 0 {
-            "number must not be zero"
-        } else {
-            "number too large"
-        })?,
+    .try_into()
+    .and_then( | v: isize | v.try_into())
+    .map_err( | _ | if v == 0 { "number must not be zero" } else { "number too large" })?,
 }
 
-cast! {
+cast!
+{
     NonZeroU64,
-    self => Value::Int(self.get() as i64),
+    self => Value::Int(self.get () as i64),
     v: i64 => v
-        .try_into()
-        .and_then(|v: u64| v.try_into())
-        .map_err(|_| if v <= 0 {
-            "number must be positive"
-        } else {
-            "number too large"
-        })?,
+    .try_into()
+    .and_then( | v: u64 | v.try_into())
+    .map_err( | _ | if v <= 0 { "number must be positive" } else { "number too large" })?,
 }
 
-cast! {
+cast!
+{
     NonZeroUsize,
-    self => Value::Int(self.get() as i64),
+    self => Value::Int(self.get () as i64),
     v: i64 => v
-        .try_into()
-        .and_then(|v: usize| v.try_into())
-        .map_err(|_| if v <= 0 {
-            "number must be positive"
-        } else {
-            "number too large"
-        })?,
+    .try_into()
+    .and_then( | v: usize | v.try_into())
+    .map_err( | _ | if v <= 0 { "number must be positive" } else { "number too large" })?,
 }
 
-cast! {
+cast!
+{
     NonZeroU32,
-    self => Value::Int(self.get() as i64),
+    self => Value::Int(self.get () as i64),
     v: i64 => v
-        .try_into()
-        .and_then(|v: u32| v.try_into())
-        .map_err(|_| if v <= 0 {
-            "number must be positive"
-        } else {
-            "number too large"
-        })?,
+    .try_into()
+    .and_then( | v: u32 | v.try_into())
+    .map_err( | _ | if v <= 0 { "number must be positive" } else { "number too large" })?,
 }

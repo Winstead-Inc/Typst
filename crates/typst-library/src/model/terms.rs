@@ -1,8 +1,6 @@
-use crate::foundations::{
-    Content, NativeElement, Packed, Smart, Styles, cast, elem, scope,
-};
-use crate::layout::{Em, HElem, Length};
-use crate::model::{ListItemLike, ListLike};
+use crate::foundations:: { Content, NativeElement, Packed, Smart, Styles, cast, elem, scope, };
+use crate::layout:: { Em, HElem, Length };
+use crate::model:: { ListItemLike, ListLike };
 
 /// A list of terms and their descriptions.
 ///
@@ -45,7 +43,7 @@ pub struct TermsElem
     ///   insert a blank line between the
     ///   items.
     /// ```
-    #[default(true)]
+    # [default (true)]
     pub tight: bool,
 
     /// The separator between the item and the description.
@@ -59,7 +57,7 @@ pub struct TermsElem
     ///
     /// / Colon: A nice separator symbol.
     /// ```
-    #[default(HElem::new(Em::new(0.6).into()).with_weak(true).pack())]
+    # [default (HElem::new (Em::new (0.6).into()).with_weak(true).pack())]
     pub separator: Content,
 
     /// The indentation of each item.
@@ -74,7 +72,7 @@ pub struct TermsElem
     /// / Term: This term list does not
     ///   make use of hanging indents.
     /// ```
-    #[default(Em::new(2.0).into())]
+    # [default (Em::new (2.0).into())]
     pub hanging_indent: Length,
 
     /// The spacing between the items of the term list.
@@ -96,53 +94,43 @@ pub struct TermsElem
     ///   "2019": "Typst",
     /// ) [/ #product: Born in #year.]
     /// ```
-    #[variadic]
+    # [variadic]
     pub children: Vec<Packed<TermItem>>,
 
     /// Whether we are currently within a term list.
-    #[internal]
-    #[ghost]
+    # [internal]
+    # [ghost]
     pub within: bool,
 }
 
 #[scope]
-impl TermsElem
-{
-    #[elem]
-    type TermItem;
-}
+impl TermsElem { # [elem] type TermItem; }
 
 /// A term list item.
 #[elem(name = "item", title = "Term List Item", since = "0.4.0", Tagged)]
 pub struct TermItem
 {
     /// The term described by the list item.
-    #[required]
+    # [required]
     pub term: Content,
 
     /// The description of the term.
-    #[required]
+    # [required]
     pub description: Content,
 }
 
-cast! {
-    TermItem,
-    v: Content => v.unpack::<Self>().map_err(|_| "expected term item or array")?,
-}
+cast! { TermItem, v: Content => v.unpack::<Self>().map_err( | _ | "expected term item or array")?, }
 
 impl ListLike for TermsElem
 {
     type Item = TermItem;
 
-    fn create(children: Vec<Packed<Self::Item>>, tight: bool) -> Self
-    {
-        Self::new(children).with_tight(tight)
-    }
+    fn create(children: Vec<Packed<Self::Item>>, tight: bool)->Self { Self::new (children).with_tight(tight) }
 }
 
 impl ListItemLike for TermItem
 {
-    fn styled(mut item: Packed<Self>, styles: Styles) -> Packed<Self>
+    fn styled(mut item: Packed<Self>, styles: Styles)->Packed<Self>
     {
         item.term.style_in_place(styles.clone());
         item.description.style_in_place(styles);

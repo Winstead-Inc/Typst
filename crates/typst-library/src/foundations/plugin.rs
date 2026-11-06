@@ -1,15 +1,15 @@
-use std::fmt::{self, Debug, Formatter};
-use std::hash::{Hash, Hasher};
-use std::sync::{Arc, Mutex};
+use std::fmt:: { self, Debug, Formatter };
+use std::hash:: { Hash, Hasher };
+use std::sync:: { Arc, Mutex };
 
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use typst_syntax::Spanned;
 use wasmi::Memory;
 
-use crate::diag::{At, SourceResult, StrResult, bail};
+use crate::diag:: { At, SourceResult, StrResult, bail };
 use crate::engine::Engine;
-use crate::foundations::{Binding, Bytes, Func, Module, Scope, Value, cast, func, scope};
-use crate::loading::{DataSource, Load};
+use crate::foundations:: { Binding, Bytes, Func, Module, Scope, Value, cast, func, scope };
+use crate::loading:: { DataSource, Load };
 
 /// Loads a WebAssembly module.
 ///
@@ -146,15 +146,13 @@ use crate::loading::{DataSource, Load};
 /// - Wrappers to help you write your plugin in Rust
 /// - A stubber for WASI
 #[func(scope, since = "0.8.0")]
-pub fn plugin(
-    engine: &mut Engine,
+pub fn plugin
+(
+    engine: & mut Engine,
     /// A path to a WebAssembly file or raw WebAssembly bytes.
     source: Spanned<DataSource>,
-) -> SourceResult<Module>
-{
-    let loaded = source.load(engine.world)?;
-    Plugin::module(loaded.data).at(source.span)
-}
+)
+->SourceResult<Module> { let loaded = source.load(engine.world)?; Plugin::module(loaded.data).at(source.span) }
 
 #[scope]
 impl plugin
@@ -191,17 +189,16 @@ impl plugin
     /// #assert.eq(base.get(), "[]")
     /// #assert.eq(mutated.get(), "[hello]")
     /// ```
-    #[func(since = "0.13.0")]
-    pub fn transition(
+    # [func(since = "0.13.0")]
+    pub fn transition
+    (
         /// The plugin function to call.
         func: PluginFunc,
         /// The byte buffers to call the function with.
-        #[variadic]
+        # [variadic]
         arguments: Vec<Bytes>,
-    ) -> StrResult<Module>
-    {
-        func.transition(arguments)
-    }
+    )
+   ->StrResult<Module> { func.transition(arguments) }
 }
 
 /// A function loaded from a WebAssembly plugin.
@@ -217,33 +214,20 @@ pub struct PluginFunc
 impl PluginFunc
 {
     /// The name of the plugin function.
-    pub fn name(&self) -> &EcoString
-    {
-        &self.name
-    }
+    pub fn name( & self)-> & EcoString { & self.name }
 
     /// Call the WebAssembly function with the given arguments.
-    #[comemo::memoize]
-    #[typst_macros::time(name = "call plugin")]
-    pub fn call(&self, args: Vec<Bytes>) -> StrResult<Bytes>
-    {
-        self.plugin.call(&self.name, args)
-    }
+    # [comemo::memoize]
+    # [typst_macros::time(name = "call plugin")]
+    pub fn call( & self, args: Vec<Bytes>)->StrResult<Bytes> { self.plugin.call( & self.name, args) }
 
     /// Transition a plugin and turn the result into a module.
-    #[comemo::memoize]
-    #[typst_macros::time(name = "transition plugin")]
-    pub fn transition(&self, args: Vec<Bytes>) -> StrResult<Module>
-    {
-        self.plugin.transition(&self.name, args).map(Plugin::into_module)
-    }
+    # [comemo::memoize]
+    # [typst_macros::time(name = "transition plugin")]
+    pub fn transition( & self, args: Vec<Bytes>)->StrResult<Module> { self.plugin.transition( & self.name, args).map(Plugin::into_module) }
 }
 
-cast! {
-    PluginFunc,
-    self => Value::Func(self.into()),
-    v: Func => v.to_plugin().ok_or("expected plugin function")?.clone(),
-}
+cast! { PluginFunc, self => Value::Func(self.into()), v: Func => v.to_plugin().ok_or("expected plugin function")?.clone(), }
 
 /// A plugin with potentially multiple instances for multi-threaded
 /// execution.
@@ -268,60 +252,41 @@ struct Plugin
 impl Plugin
 {
     /// Create a plugin and turn it into a module.
-    #[comemo::memoize]
-    #[typst_macros::time(name = "load plugin")]
-    fn module(bytes: Bytes) -> StrResult<Module>
-    {
-        Self::new(bytes).map(Self::into_module)
-    }
+    # [comemo::memoize]
+    # [typst_macros::time(name = "load plugin")]
+    fn module(bytes: Bytes)->StrResult<Module> { Self::new (bytes).map(Self::into_module) }
 
     /// Create a new plugin from raw WebAssembly bytes.
-    fn new(bytes: Bytes) -> StrResult<Self>
+    fn new (bytes: Bytes)->StrResult<Self>
     {
-        let mut config = wasmi::Config::default();
+        let mut config = wasmi::Config:: default();
 
         // Disable relaxed SIMD as it can introduce non-determinism.
         config.wasm_relaxed_simd(false);
 
-        let engine = wasmi::Engine::new(&config);
-        let module = wasmi::Module::new(&engine, bytes.as_slice())
-            .map_err(|err| format!("failed to load WebAssembly module ({err})"))?;
+        let engine = wasmi::Engine:: new ( & config);
+        let module = wasmi::Module:: new ( & engine, bytes.as_slice())
+        .map_err( | err | format ! ("failed to load WebAssembly module ({err})"))?;
 
         // Ensure that the plugin exports its memory.
-        if !matches!(module.get_export("memory"), Some(wasmi::ExternType::Memory(_)))
-        {
-            bail!("plugin does not export its memory");
-        }
+        if ! matches!(module.get_export("memory"), Some(wasmi::ExternType::Memory(_))) { bail ! ("plugin does not export its memory"); }
 
-        let mut linker = wasmi::Linker::new(&engine);
+        let mut linker = wasmi::Linker:: new ( & engine);
         linker
-            .func_wrap(
-                "typst_env",
-                "wasm_minimal_protocol_send_result_to_host",
-                wasm_minimal_protocol_send_result_to_host,
-            )
-            .unwrap();
+        .func_wrap("typst_env", "wasm_minimal_protocol_send_result_to_host", wasm_minimal_protocol_send_result_to_host,)
+        .unwrap();
         linker
-            .func_wrap(
-                "typst_env",
-                "wasm_minimal_protocol_write_args_to_buffer",
-                wasm_minimal_protocol_write_args_to_buffer,
-            )
-            .unwrap();
+        .func_wrap("typst_env", "wasm_minimal_protocol_write_args_to_buffer", wasm_minimal_protocol_write_args_to_buffer,)
+        .unwrap();
 
-        let base = Arc::new(PluginBase { bytes, module, linker });
-        let instance = PluginInstance::new(&base, None)?;
+        let base = Arc:: new (PluginBase { bytes, module, linker });
+        let instance = PluginInstance:: new ( & base, None)?;
 
-        Ok(Self {
-            base,
-            snapshot: None,
-            fingerprint: 0,
-            pool: Mutex::new(vec![instance]),
-        })
+        Ok(Self { base, snapshot: None, fingerprint: 0, pool: Mutex::new (vec ! [instance]), })
     }
 
     /// Execute a function with access to an instance.
-    fn call(&self, func: &str, args: Vec<Bytes>) -> StrResult<Bytes>
+    fn call( & self, func: & str, args: Vec<Bytes>)->StrResult<Bytes>
     {
         // Acquire an instance from the pool (potentially creating a new one).
         let mut instance = self.acquire()?;
@@ -339,10 +304,10 @@ impl Plugin
 
     /// Call a mutable plugin function, producing a new mutable whose functions
     /// are guaranteed to be able to observe the mutation.
-    fn transition(&self, func: &str, args: Vec<Bytes>) -> StrResult<Plugin>
+    fn transition( & self, func: & str, args: Vec<Bytes>)->StrResult<Plugin>
     {
         // Derive a new transition hash from the old one and the function and arguments.
-        let fingerprint = typst_utils::hash128(&(self.fingerprint, func, &args));
+        let fingerprint = typst_utils::hash128( & (self.fingerprint, func, & args));
 
         // Execute the mutable call on an instance.
         let mut instance = self.acquire()?;
@@ -358,34 +323,26 @@ impl Plugin
         // into it, so that the old plugin won't observe the mutation. Also
         // save the snapshot so that instances that are initialized for the
         // transitioned plugin's pool observe the mutation.
-        Ok(Self {
-            base: self.base.clone(),
-            snapshot: Some(snapshot),
-            fingerprint,
-            pool: Mutex::new(vec![instance]),
-        })
+        Ok(Self { base: self.base.clone(), snapshot: Some(snapshot), fingerprint, pool: Mutex::new (vec ! [instance]), })
     }
 
     /// Acquire an instance from the pool (or create a new one).
-    fn acquire(&self) -> StrResult<PluginInstance>
+    fn acquire( & self)->StrResult<PluginInstance>
     {
         // Don't use match to ensure that the lock is released before we create
         // a new instance.
-        if let Some(instance) = self.pool.lock().unwrap().pop()
-        {
-            return Ok(instance);
-        }
+        if let Some(instance) = self.pool.lock().unwrap().pop() { return Ok(instance); }
 
-        PluginInstance::new(&self.base, self.snapshot.as_ref())
+        PluginInstance:: new ( & self.base, self.snapshot.as_ref())
     }
 
     /// Turn a plugin into a Typst module containing plugin functions.
-    fn into_module(self) -> Module
+    fn into_module(self)->Module
     {
-        let shared = Arc::new(self);
+        let shared = Arc:: new (self);
 
         // Build a scope from the collected functions.
-        let mut scope = Scope::new();
+        let mut scope = Scope:: new ();
         for export in shared.base.module.exports()
         {
             if matches!(export.ty(), wasmi::ExternType::Func(_))
@@ -400,30 +357,11 @@ impl Plugin
     }
 }
 
-impl Debug for Plugin
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        f.pad("Plugin(..)")
-    }
-}
+impl Debug for Plugin { fn fmt( & self, f: & mut Formatter)->fmt::Result { f.pad("Plugin(..)") } }
 
-impl PartialEq for Plugin
-{
-    fn eq(&self, other: &Self) -> bool
-    {
-        self.base.bytes == other.base.bytes && self.fingerprint == other.fingerprint
-    }
-}
+impl PartialEq for Plugin { fn eq( & self, other: & Self)->bool { self.base.bytes == other.base.bytes && self.fingerprint == other.fingerprint } }
 
-impl Hash for Plugin
-{
-    fn hash<H: Hasher>(&self, state: &mut H)
-    {
-        self.base.bytes.hash(state);
-        self.fingerprint.hash(state);
-    }
-}
+impl Hash for Plugin { fn hash<H: Hasher>( & self, state: & mut H) { self.base.bytes.hash(state); self.fingerprint.hash(state); } }
 
 /// Shared by all pooled & transitioned variants of the plugin.
 struct PluginBase
@@ -458,144 +396,113 @@ impl PluginInstance
 {
     /// Create a new execution instance of a plugin, potentially restoring
     /// a snapshot.
-    #[typst_macros::time(name = "create plugin instance")]
-    fn new(base: &PluginBase, snapshot: Option<&Snapshot>) -> StrResult<PluginInstance>
+    # [typst_macros::time(name = "create plugin instance")]
+    fn new (base: & PluginBase, snapshot: Option <& Snapshot >)->StrResult<PluginInstance>
     {
-        let mut store = wasmi::Store::new(base.linker.engine(), CallData::default());
+        let mut store = wasmi::Store:: new (base.linker.engine(), CallData::default ());
         let instance = base
-            .linker
-            .instantiate_and_start(&mut store, &base.module)
-            .map_err(|e| eco_format!("{e}"))?;
+        .linker
+        .instantiate_and_start( & mut store, & base.module)
+        .map_err( | e | eco_format ! ("{e}"))?;
 
         let mut instance = PluginInstance { instance, store };
-        if let Some(snapshot) = snapshot
-        {
-            instance.restore(snapshot);
-        }
+        if let Some(snapshot) = snapshot { instance.restore(snapshot); }
         Ok(instance)
     }
 
     /// Call a plugin function with byte arguments.
-    fn call(&mut self, func: &str, args: Vec<Bytes>) -> StrResult<Bytes>
+    fn call( & mut self, func: & str, args: Vec<Bytes>)->StrResult<Bytes>
     {
         let handle = self
-            .instance
-            .get_export(&self.store, func)
-            .unwrap()
-            .into_func()
-            .unwrap();
-        let ty = handle.ty(&self.store);
+        .instance
+        .get_export( & self.store, func)
+        .unwrap()
+        .into_func()
+        .unwrap();
+        let ty = handle.ty( & self.store);
 
         // Check function signature. Do this lazily only when a function is called
         // because there might be exported functions like `_initialize` that don't
         // match the schema.
-        if ty.params().iter().any(|&v| v != wasmi::ValType::I32)
-        {
-            bail!(
-                "plugin function `{func}` has a parameter that is not a 32-bit integer",
-            );
-        }
-        if ty.results() != [wasmi::ValType::I32]
-        {
-            bail!("plugin function `{func}` does not return exactly one 32-bit integer");
-        }
+        if ty.params().iter().any( |& v | v != wasmi::ValType::I32) { bail ! ("plugin function `{func}` has a parameter that is not a 32-bit integer",); }
+        if ty.results() != [wasmi::ValType::I32] { bail ! ("plugin function `{func}` does not return exactly one 32-bit integer"); }
 
         // Check inputs.
         let expected = ty.params().len();
         let given = args.len();
         if expected != given
         {
-            bail!(
-                "plugin function takes {expected} argument{}, but {given} {} given",
-                if expected == 1 { "" } else { "s" },
-                if given == 1 { "was" } else { "were" },
-            );
+            bail!("plugin function takes {expected} argument{}, but {given} {} given", if expected == 1 { "" } else { "s" }, if given == 1 { "was" } else { "were" },);
         }
 
         // Collect the lengths of the argument buffers.
         let lengths = args
-            .iter()
-            .map(|a| wasmi::Val::I32(a.len() as i32))
-            .collect::<Vec<_>>();
+        .iter()
+        .map( | a | wasmi::Val::I32(a.len() as i32))
+        .collect::<Vec<_>>();
 
         // Store the input data.
         self.store.data_mut().args = args;
 
         // Call the function.
-        let mut code = wasmi::Val::I32(-1);
+        let mut code = wasmi::Val::I32( - 1);
         handle
-            .call(&mut self.store, &lengths, std::slice::from_mut(&mut code))
-            .map_err(|err| eco_format!("plugin panicked: {err}"))?;
+        .call( & mut self.store, & lengths, std::slice::from_mut( & mut code))
+        .map_err( | err | eco_format ! ("plugin panicked: {err}"))?;
 
         if let Some(MemoryError { offset, length, write }) =
-            self.store.data_mut().memory_error.take()
+        self.store.data_mut().memory_error.take()
         {
-            return Err(eco_format!(
-                "plugin tried to {kind} out of bounds: \
+            return Err
+            (
+                eco_format!
+                (
+                    "plugin tried to {kind} out of bounds: \
                  pointer {offset:#x} is out of bounds for {kind} of length {length}",
-                kind = if write { "write" } else { "read" }
-            ));
+                    kind = if write { "write" } else { "read" }
+                )
+            );
         }
 
         // Extract the returned data.
-        let output = std::mem::take(&mut self.store.data_mut().output);
+        let output = std::mem::take( & mut self.store.data_mut().output);
 
         // Parse the functions return value.
         match code
         {
-            wasmi::Val::I32(0) =>
-            {}
-            wasmi::Val::I32(1) => match std::str::from_utf8(&output)
-            {
-                Ok(message) => bail!("plugin errored with: {message}"),
-                Err(_) =>
-                {
-                    bail!("plugin errored, but did not return a valid error message")
-                }
-            },
+            wasmi::Val::I32(0) => {}
+            wasmi::Val::I32(1) => match std::str::from_utf8( & output) { Ok(message) => bail ! ("plugin errored with: {message}"), Err(_) => { bail ! ("plugin errored, but did not return a valid error message") } },
             _ => bail!("plugin did not respect the protocol"),
         }
 
-        Ok(Bytes::new(output))
+        Ok(Bytes::new (output))
     }
 
     /// Creates a snapshot of this instance from which another one can be
     /// initialized.
-    #[typst_macros::time(name = "save snapshot")]
-    fn snapshot(&self) -> Snapshot
+    # [typst_macros::time(name = "save snapshot")]
+    fn snapshot( & self)->Snapshot
     {
         let memory = self.memory();
-        let mem_pages = memory.size(&self.store);
-        let mem_data = memory.data(&self.store).to_vec();
+        let mem_pages = memory.size( & self.store);
+        let mem_data = memory.data( & self.store).to_vec();
         Snapshot { mem_pages, mem_data }
     }
 
     /// Restores the instance to a snapshot.
-    #[typst_macros::time(name = "restore snapshot")]
-    fn restore(&mut self, snapshot: &Snapshot)
+    # [typst_macros::time(name = "restore snapshot")]
+    fn restore( & mut self, snapshot: & Snapshot)
     {
         let memory = self.memory();
-        let current_size = memory.size(&self.store);
-        if current_size < snapshot.mem_pages
-        {
-            memory
-                .grow(&mut self.store, snapshot.mem_pages - current_size)
-                .unwrap();
-        }
+        let current_size = memory.size( & self.store);
+        if current_size < snapshot.mem_pages { memory.grow( & mut self.store, snapshot.mem_pages - current_size).unwrap(); }
 
-        memory.data_mut(&mut self.store)[..snapshot.mem_data.len()]
-            .copy_from_slice(&snapshot.mem_data);
+        memory.data_mut( & mut self.store)[..snapshot.mem_data.len()]
+        .copy_from_slice( & snapshot.mem_data);
     }
 
     /// Retrieves a handle to the plugin's main memory.
-    fn memory(&self) -> Memory
-    {
-        self.instance
-            .get_export(&self.store, "memory")
-            .unwrap()
-            .into_memory()
-            .unwrap()
-    }
+    fn memory( & self)->Memory { self.instance.get_export( & self.store, "memory").unwrap().into_memory().unwrap() }
 }
 
 /// The persistent store data used for communication between store and host.
@@ -612,52 +519,36 @@ struct CallData
 
 /// If there was an error reading/writing memory, keep the offset + length to
 /// display an error message.
-struct MemoryError
-{
-    offset: u32,
-    length: u32,
-    write: bool,
-}
+struct MemoryError { offset: u32, length: u32, write: bool , }
 
 /// Write the arguments to the plugin function into the plugin's memory.
-fn wasm_minimal_protocol_write_args_to_buffer(
-    mut caller: wasmi::Caller<CallData>,
-    ptr: u32,
-)
+fn wasm_minimal_protocol_write_args_to_buffer(mut caller: wasmi::Caller<CallData>, ptr: u32,)
 {
     let memory = caller.get_export("memory").unwrap().into_memory().unwrap();
-    let arguments = std::mem::take(&mut caller.data_mut().args);
+    let arguments = std::mem::take( & mut caller.data_mut().args);
     let mut offset = ptr as usize;
     for arg in arguments
     {
-        if memory.write(&mut caller, offset, arg.as_slice()).is_err()
+        if memory.write( & mut caller, offset, arg.as_slice()).is_err()
         {
-            caller.data_mut().memory_error = Some(MemoryError {
-                offset: offset as u32,
-                length: arg.len() as u32,
-                write: true,
-            });
-            return;
+            caller.data_mut().memory_error = Some(MemoryError { offset: offset as u32, length: arg.len() as u32, write: true, });
+            return ;
         }
         offset += arg.len();
     }
 }
 
 /// Extracts the output of the plugin function from the plugin's memory.
-fn wasm_minimal_protocol_send_result_to_host(
-    mut caller: wasmi::Caller<CallData>,
-    ptr: u32,
-    len: u32,
-)
+fn wasm_minimal_protocol_send_result_to_host(mut caller: wasmi::Caller<CallData>, ptr: u32, len: u32,)
 {
     let memory = caller.get_export("memory").unwrap().into_memory().unwrap();
-    let mut buffer = std::mem::take(&mut caller.data_mut().output);
+    let mut buffer = std::mem::take( & mut caller.data_mut().output);
     buffer.resize(len as usize, 0);
-    if memory.read(&caller, ptr as usize, &mut buffer).is_err()
+    if memory.read( & caller, ptr as usize, & mut buffer).is_err()
     {
         caller.data_mut().memory_error =
-            Some(MemoryError { offset: ptr, length: len, write: false });
-        return;
+        Some(MemoryError { offset: ptr, length: len, write: false });
+        return ;
     }
     caller.data_mut().output = buffer;
 }

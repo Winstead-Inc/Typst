@@ -1,0 +1,3 @@
+Error formatting E:\Typst\crates\typst-html\src\mathml.rs: Safety Gate Failed: Significant token count mismatch! (Original: 7340, Formatted: 7339). Output aborted to prevent code corruption.
+Summary: 0 formatted and saved, 0 already clean, 1 errors (29.77ms, 1 threads).
+Failed file paths recorded to 'failed.txt'. Use 'lafs format failed' to retry.

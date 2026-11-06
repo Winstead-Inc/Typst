@@ -1,20 +1,17 @@
 use std::collections::BTreeSet;
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt:: { self, Debug, Display, Formatter };
 use std::sync::Arc;
 
 use codex::ModifierSet;
-use ecow::{EcoString, eco_format};
+use ecow:: { EcoString, eco_format };
 use rustc_hash::FxHashMap;
-use serde::{Serialize, Serializer};
-use typst_syntax::{Span, Spanned, is_ident};
+use serde:: { Serialize, Serializer };
+use typst_syntax:: { Span, Spanned, is_ident };
 use typst_utils::hash128;
 use unicode_segmentation::UnicodeSegmentation;
 
-use crate::diag::{SourceResult, StrResult, WarningSink, bail, error};
-use crate::foundations::{
-    Array, Content, Func, NativeElement, Packed, PlainText, Repr, cast, elem, func,
-    scope, ty,
-};
+use crate::diag:: { SourceResult, StrResult, WarningSink, bail, error };
+use crate::foundations:: { Array, Content, Func, NativeElement, Packed, PlainText, Repr, cast, elem, func, scope, ty, };
 
 /// A Unicode symbol.
 ///
@@ -55,9 +52,9 @@ pub struct Symbol(SymbolInner);
 enum SymbolInner
 {
     /// A native symbol that has no named variant.
-    Single(&'static str),
+    Single( & 'static str),
     /// A native symbol with multiple named variants.
-    Complex(&'static [Variant<&'static str>]),
+    Complex( & 'static[Variant <& 'static str >]),
     /// A symbol that has modifiers applied.
     Modified(Arc<Modified>),
 }
@@ -79,107 +76,77 @@ struct Modified
 
 /// A symbol variant, consisting of a set of modifiers, the variant's value, and an
 /// optional deprecation message.
-type Variant<S> = (ModifierSet<S>, S, Option<S>);
+type Variant < S > = (ModifierSet<S>, S, Option<S>);
 
 /// A collection of symbols.
 #[derive(Clone, Eq, PartialEq, Hash)]
-enum List
-{
-    Static(&'static [Variant<&'static str>]),
-    Runtime(Box<[Variant<EcoString>]>),
-}
+enum List { Static( & 'static[Variant <& 'static str >]), Runtime(Box<[Variant<EcoString>]>), }
 
 impl Symbol
 {
     /// Create a new symbol from a single value.
-    pub const fn single(value: &'static str) -> Self
-    {
-        Self(SymbolInner::Single(value))
-    }
+    pub const fn single(value: & 'static str)->Self { Self(SymbolInner::Single(value)) }
 
     /// Create a symbol with a static variant list.
-    #[track_caller]
-    pub const fn list(list: &'static [Variant<&'static str>]) -> Self
-    {
-        debug_assert!(!list.is_empty());
-        Self(SymbolInner::Complex(list))
-    }
+    # [track_caller]
+    pub const fn list(list: & 'static[Variant <& 'static str >])->Self { debug_assert ! ( ! list.is_empty()); Self(SymbolInner::Complex(list)) }
 
     /// Create a symbol from a runtime char.
-    pub fn runtime_char(c: char) -> Self
-    {
-        Self::runtime(Box::new([(ModifierSet::default(), c.into(), None)]))
-    }
+    pub fn runtime_char(c: char)->Self { Self::runtime(Box::new ([(ModifierSet::default (), c.into(), None)])) }
 
     /// Create a symbol with a runtime variant list.
-    #[track_caller]
-    pub fn runtime(list: Box<[Variant<EcoString>]>) -> Self
+    # [track_caller]
+    pub fn runtime(list: Box<[Variant<EcoString>]>)->Self
     {
-        debug_assert!(!list.is_empty());
-        Self(SymbolInner::Modified(Arc::new(Modified {
-            list: List::Runtime(list),
-            modifiers: ModifierSet::default(),
-            deprecated: false,
-        })))
+        debug_assert!( ! list.is_empty());
+        Self(SymbolInner::Modified(Arc::new (Modified { list: List::Runtime(list), modifiers: ModifierSet::default (), deprecated: false, })))
     }
 
     /// Get the symbol's value.
-    pub fn get(&self) -> &str
+    pub fn get( & self)-> & str
     {
-        match &self.0
+        match & self .0
         {
             SymbolInner::Single(value) => value,
-            SymbolInner::Complex(_) => ModifierSet::<&'static str>::default()
-                .best_match_in(self.variants().map(|(m, v, _)| (m, v)))
-                .unwrap(),
+            SymbolInner::Complex(_) => ModifierSet:: <& 'static str >:: default()
+            .best_match_in(self.variants().map( | (m, v, _) | (m, v)))
+            .unwrap(),
             SymbolInner::Modified(arc) => arc
-                .modifiers
-                .best_match_in(self.variants().map(|(m, v, _)| (m, v)))
-                .unwrap(),
+            .modifiers
+            .best_match_in(self.variants().map( | (m, v, _) | (m, v)))
+            .unwrap(),
         }
     }
 
     /// Try to get the function associated with the symbol, if any.
-    pub fn func(&self) -> Result<Func, Uncallable>
+    pub fn func( & self)->Result<Func, Uncallable>
     {
-        let value = self.get();
+        let value = self. get();
         crate::math::accent::get_accent_func(value)
-            .or_else(|| crate::math::get_lr_wrapper_func(value))
-            .ok_or_else(|| Uncallable(self.clone()))
+        .or_else( || crate::math::get_lr_wrapper_func(value))
+        .ok_or_else( || Uncallable(self.clone()))
     }
 
     /// Apply a modifier to the symbol.
-    pub fn modified(
-        mut self,
-        mut sink: impl WarningSink,
-        modifier: &str,
-    ) -> StrResult<Self>
+    pub fn modified(mut self, mut sink: impl WarningSink, modifier: & str,)->StrResult<Self>
     {
-        if let SymbolInner::Complex(list) = self.0
+        if let SymbolInner::Complex(list) = self .0
         {
-            self.0 = SymbolInner::Modified(Arc::new(Modified {
-                list: List::Static(list),
-                modifiers: ModifierSet::default(),
-                deprecated: false,
-            }));
+            self .0 = SymbolInner::Modified(Arc::new (Modified { list: List::Static(list), modifiers: ModifierSet::default (), deprecated: false, }));
         }
 
-        if let SymbolInner::Modified(arc) = &mut self.0
+        if let SymbolInner::Modified(arc) = & mut self .0
         {
             let modified = Arc::make_mut(arc);
             modified.modifiers.insert_raw(modifier);
             if let Some(deprecation) = modified
-                .modifiers
-                .best_match_in(modified.list.variants().map(|(m, _, d)| (m, d)))
+            .modifiers
+            .best_match_in(modified.list.variants().map( | (m, _, d) | (m, d)))
             {
                 // If we already emitted a deprecation warning during a previous
                 // modification of the symbol, do not emit another one.
-                if !modified.deprecated
-                    && let Some(message) = deprecation
-                {
-                    modified.deprecated = true;
-                    sink.emit(message.into());
-                }
+                if ! modified.deprecated
+                && let Some(message) = deprecation { modified.deprecated = true; sink.emit(message.into()); }
                 return Ok(self);
             }
         }
@@ -188,29 +155,25 @@ impl Symbol
     }
 
     /// The characters that are covered by this symbol.
-    pub fn variants(&self) -> impl Iterator<Item = Variant<&str>>
+    pub fn variants( & self)-> impl Iterator<Item = Variant <& str> >
     {
-        match &self.0
+        match & self .0
         {
-            SymbolInner::Single(value) => Variants::Single(std::iter::once(*value)),
+            SymbolInner::Single(value) => Variants::Single(std::iter::once( * value)),
             SymbolInner::Complex(list) => Variants::Static(list.iter()),
             SymbolInner::Modified(arc) => arc.list.variants(),
         }
     }
 
     /// Possible modifiers.
-    pub fn modifiers(&self) -> impl Iterator<Item = &str> + '_
+    pub fn modifiers( & self)-> impl Iterator < Item = & str > + '_
     {
-        let modifiers = match &self.0
-        {
-            SymbolInner::Modified(arc) => arc.modifiers.as_deref(),
-            _ => ModifierSet::default(),
-        };
+        let modifiers = match & self .0 { SymbolInner::Modified(arc) => arc.modifiers.as_deref(), _ => ModifierSet::default (), };
         self.variants()
-            .flat_map(|(m, _, _)| m)
-            .filter(|modifier| !modifier.is_empty() && !modifiers.contains(modifier))
-            .collect::<BTreeSet<_>>()
-            .into_iter()
+        .flat_map( | (m, _, _) | m)
+        .filter( | modifier | ! modifier.is_empty() && ! modifiers.contains(modifier))
+        .collect::<BTreeSet<_>>()
+        .into_iter()
     }
 }
 
@@ -234,8 +197,9 @@ impl Symbol
     /// #envelope.lightning
     /// #envelope.fly
     /// ```
-    #[func(constructor, since = "forever")]
-    pub fn construct(
+    # [func(constructor, since = "forever")]
+    pub fn construct
+    (
         span: Span,
         /// The variants of the symbol.
         ///
@@ -245,51 +209,38 @@ impl Symbol
         /// by dots. When displaying a symbol, Typst selects the first from the
         /// variants that have all attached modifiers and the minimum number of
         /// other modifiers.
-        #[variadic]
+        # [variadic]
         variants: Vec<Spanned<SymbolVariant>>,
-    ) -> SourceResult<Symbol>
+    )
+   ->SourceResult<Symbol>
     {
-        if variants.is_empty()
-        {
-            bail!(span, "expected at least one variant");
-        }
+        if variants.is_empty() { bail ! (span, "expected at least one variant"); }
 
         // Maps from canonicalized 128-bit hashes to indices of variants we've
         // seen before.
-        let mut seen = FxHashMap::<u128, usize>::default();
+        let mut seen = FxHashMap:: < u128, usize >:: default();
 
         // A list of modifiers, cleared & reused in each iteration.
-        let mut modifiers = Vec::new();
+        let mut modifiers = Vec:: new ();
 
         let mut errors = ecow::eco_vec![];
 
         // Validate the variants.
-        'variants: for (i, &Spanned { ref v, span }) in variants.iter().enumerate()
+        'variants: for (i, & Spanned { ref v, span }) in variants.iter().enumerate()
         {
             modifiers.clear();
 
-            if v.1.is_empty() || v.1.graphemes(true).nth(1).is_some()
+            if v .1.is_empty() || v .1.graphemes(true).nth(1).is_some()
             {
-                errors.push(error!(
-                    span, "invalid variant value: {}", v.1.repr();
-                    hint: "variant value must be exactly one grapheme cluster";
-                ));
+                errors.push(error ! (span, "invalid variant value: {}", v .1.repr(); hint: "variant value must be exactly one grapheme cluster";));
             }
 
-            if !v.0.is_empty()
+            if ! v .0.is_empty()
             {
                 // Collect all modifiers.
-                for modifier in v.0.split('.')
+                for modifier in v .0.split('.')
                 {
-                    if !is_ident(modifier)
-                    {
-                        errors.push(error!(
-                            span,
-                            "invalid symbol modifier: {}",
-                            modifier.repr(),
-                        ));
-                        continue 'variants;
-                    }
+                    if ! is_ident(modifier) { errors.push(error ! (span, "invalid symbol modifier: {}", modifier.repr(),)); continue 'variants; }
                     modifiers.push(modifier);
                 }
             }
@@ -298,32 +249,25 @@ impl Symbol
             modifiers.sort_unstable();
 
             // Ensure that there are no duplicate modifiers.
-            if let Some(ms) = modifiers.windows(2).find(|ms| ms[0] == ms[1])
+            if let Some(ms) = modifiers.windows(2).find( | ms | ms[0] == ms[1])
             {
-                errors.push(error!(
-                    span, "duplicate modifier within variant: {}", ms[0].repr();
-                    hint: "modifiers are not ordered, so each one may appear only once";
-                ));
+                errors.push(error ! (span, "duplicate modifier within variant: {}", ms[0].repr(); hint: "modifiers are not ordered, so each one may appear only once";));
                 continue 'variants;
             }
 
             // Check whether we had this set of modifiers before.
-            let hash = hash128(&modifiers);
-            if let Some(&i) = seen.get(&hash)
+            let hash = hash128( & modifiers);
+            if let Some( & i) = seen. get( & hash)
             {
-                errors.push(
-                    if v.0.is_empty()
-                    {
-                        error!(span, "duplicate default variant")
-                    }
-                    else if v.0 == variants[i].v.0
-                    {
-                        error!(span, "duplicate variant: {}", v.0.repr())
-                    }
+                errors.push
+                (
+                    if v .0.is_empty() { error ! (span, "duplicate default variant") }
+                    else if v .0 == variants[i].v .0 { error ! (span, "duplicate variant: {}", v .0.repr()) }
                     else
                     {
-                        error!(
-                            span, "duplicate variant: {}", v.0.repr();
+                        error!
+                        (
+                            span, "duplicate variant: {}", v .0.repr();
                             hint: "variants with the same modifiers are identical, \
                                    regardless of their order";
                         )
@@ -334,179 +278,125 @@ impl Symbol
 
             seen.insert(hash, i);
         }
-        if !errors.is_empty()
-        {
-            return Err(errors);
-        }
+        if ! errors.is_empty() { return Err(errors); }
 
         let list = variants
-            .into_iter()
-            .map(|s| (ModifierSet::from_raw_dotted(s.v.0), s.v.1, None))
-            .collect();
+        .into_iter()
+        .map( | s | (ModifierSet::from_raw_dotted(s.v .0), s.v .1, None))
+        .collect();
         Ok(Symbol::runtime(list))
     }
 }
 
-impl Display for Symbol
-{
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        f.write_str(self.get())
-    }
-}
+impl Display for Symbol { fn fmt( & self, f: & mut Formatter)->fmt::Result { f.write_str(self.get ()) } }
 
 impl Debug for SymbolInner
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
+    fn fmt( & self, f: & mut Formatter)->fmt::Result
     {
-        match self
-        {
-            Self::Single(value) => Debug::fmt(value, f),
-            Self::Complex(list) => list.fmt(f),
-            Self::Modified(lists) => lists.fmt(f),
-        }
+        match self { Self::Single(value) => Debug::fmt(value, f), Self::Complex(list) => list.fmt(f), Self::Modified(lists) => lists.fmt(f), }
     }
 }
 
 impl Debug for List
 {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result
-    {
-        match self
-        {
-            Self::Static(list) => list.fmt(f),
-            Self::Runtime(list) => list.fmt(f),
-        }
-    }
+    fn fmt( & self, f: & mut Formatter)->fmt::Result { match self { Self::Static(list) => list.fmt(f), Self::Runtime(list) => list.fmt(f), } }
 }
 
 impl Repr for Symbol
 {
-    fn repr(&self) -> EcoString
+    fn repr( & self)->EcoString
     {
-        match &self.0
+        match & self .0
         {
             SymbolInner::Single(value) => eco_format!("symbol({})", value.repr()),
-            SymbolInner::Complex(variants) =>
-            {
-                eco_format!(
-                    "symbol{}",
-                    repr_variants(variants.iter().copied(), ModifierSet::default())
-                )
-            }
+            SymbolInner::Complex(variants) => { eco_format ! ("symbol{}", repr_variants(variants.iter().copied(), ModifierSet::default ())) }
             SymbolInner::Modified(arc) =>
             {
-                let Modified { list, modifiers, .. } = arc.as_ref();
-                if modifiers.is_empty()
-                {
-                    eco_format!(
-                        "symbol{}",
-                        repr_variants(list.variants(), ModifierSet::default())
-                    )
-                }
-                else
-                {
-                    eco_format!(
-                        "symbol{}",
-                        repr_variants(list.variants(), modifiers.as_deref())
-                    )
-                }
+                let Modified { list, modifiers,.. }
+                = arc.as_ref();
+                if modifiers.is_empty() { eco_format ! ("symbol{}", repr_variants(list.variants(), ModifierSet::default ())) }
+                else { eco_format ! ("symbol{}", repr_variants(list.variants(), modifiers.as_deref())) }
             }
         }
     }
 }
 
-fn repr_variants<'a>(
-    variants: impl Iterator<Item = Variant<&'a str>>,
-    applied_modifiers: ModifierSet<&str>,
-) -> String
+fn repr_variants<'a>(variants: impl Iterator<Item = Variant <& 'a str> > , applied_modifiers: ModifierSet <& str > ,)->String
 {
-    crate::foundations::repr::pretty_array_like(
-        &variants
-            .filter(|(modifiers, _, _)| {
+    crate::foundations::repr::pretty_array_like
+    (
+        & variants
+        .filter
+        (
+            | (modifiers, _, _) |
+            {
                 // Only keep variants that can still be accessed, i.e., variants
                 // that contain all applied modifiers.
-                applied_modifiers.iter().all(|am| modifiers.contains(am))
-            })
-            .map(|(modifiers, value, _)| {
+                applied_modifiers.iter().all( | am | modifiers.contains(am))
+            }
+        )
+        .map
+        (
+            | (modifiers, value, _) |
+            {
                 let trimmed_modifiers =
-                    modifiers.into_iter().filter(|&m| !applied_modifiers.contains(m));
-                if trimmed_modifiers.clone().all(|m| m.is_empty())
-                {
-                    value.repr()
-                }
+                modifiers.into_iter().filter( |& m | ! applied_modifiers.contains(m));
+                if trimmed_modifiers.clone().all( | m | m.is_empty()) { value.repr() }
                 else
                 {
                     let trimmed_modifiers =
-                        trimmed_modifiers.collect::<Vec<_>>().join(".");
+                    trimmed_modifiers.collect::<Vec<_>>().join(".");
                     eco_format!("({}, {})", trimmed_modifiers.repr(), value.repr())
                 }
-            })
-            .collect::<Vec<_>>(),
+            }
+        )
+        .collect::<Vec<_>>(),
         false,
     )
 }
 
-impl Serialize for Symbol
-{
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(self.get())
-    }
-}
+impl Serialize for Symbol { fn serialize<S>( & self, serializer: S)->Result<S::Ok, S::Error> where S: Serializer, { serializer.serialize_str(self.get ()) } }
 
 impl List
 {
     /// The characters that are covered by this list.
-    fn variants(&self) -> Variants<'_>
-    {
-        match self
-        {
-            List::Static(list) => Variants::Static(list.iter()),
-            List::Runtime(list) => Variants::Runtime(list.iter()),
-        }
-    }
+    fn variants( & self)->Variants<'_> { match self { List::Static(list) => Variants::Static(list.iter()), List::Runtime(list) => Variants::Runtime(list.iter()), } }
 }
 
 /// A value that can be cast to a symbol.
 pub struct SymbolVariant(EcoString, EcoString);
 
-cast! {
+cast!
+{
     SymbolVariant,
-    s: EcoString => Self(EcoString::new(), s),
-    array: Array => {
+    s: EcoString => Self(EcoString::new (), s),
+    array: Array =>
+    {
         let mut iter = array.into_iter();
-        match (iter.next(), iter.next(), iter.next()) {
-            (Some(a), Some(b), None) => Self(a.cast()?, b.cast()?),
-            _ => Err("variant array must contain exactly two entries")?,
-        }
+        match (iter.next(), iter.next(), iter.next()) { (Some(a), Some(b), None) => Self(a.cast()?, b.cast()?), _ => Err("variant array must contain exactly two entries")?, }
     },
 }
 
 /// Iterator over variants.
 enum Variants<'a>
 {
-    Single(std::iter::Once<&'static str>),
-    Static(std::slice::Iter<'static, Variant<&'static str>>),
+    Single(std::iter::Once <& 'static str >),
+    Static(std::slice::Iter<'static, Variant <& 'static str> >),
     Runtime(std::slice::Iter<'a, Variant<EcoString>>),
 }
 
-impl<'a> Iterator for Variants<'a>
+impl <'a> Iterator for Variants<'a>
 {
-    type Item = Variant<&'a str>;
+    type Item = Variant <& 'a str > ;
 
-    fn next(&mut self) -> Option<Self::Item>
+    fn next( & mut self)->Option<Self::Item>
     {
         match self
         {
-            Self::Single(iter) => Some((ModifierSet::default(), iter.next()?, None)),
+            Self::Single(iter) => Some((ModifierSet::default (), iter.next()?, None)),
             Self::Static(list) => list.next().copied(),
-            Self::Runtime(list) =>
-            {
-                list.next().map(|(m, s, d)| (m.as_deref(), s.as_str(), d.as_deref()))
-            }
+            Self::Runtime(list) => { list.next().map( | (m, s, d) | (m.as_deref(), s.as_str(), d.as_deref())) }
         }
     }
 }
@@ -516,7 +406,7 @@ impl<'a> Iterator for Variants<'a>
 pub struct SymbolElem
 {
     /// The symbol's value.
-    #[required]
+    # [required]
     pub text: EcoString, // This is called `text` for consistency with `TextElem`.
 }
 
@@ -524,27 +414,15 @@ impl SymbolElem
 {
     /// Creates a new symbol element and directly packs it into type-erased
     /// content.
-    pub fn packed(text: impl Into<EcoString>) -> Content
-    {
-        Self::new(text.into()).pack()
-    }
+    pub fn packed(text: impl Into<EcoString>)->Content { Self::new (text.into()).pack() }
 }
 
-impl PlainText for Packed<SymbolElem>
-{
-    fn plain_text(&self, text: &mut EcoString)
-    {
-        text.push_str(&self.text);
-    }
-}
+impl PlainText for Packed<SymbolElem> { fn plain_text( & self, text: & mut EcoString) { text.push_str( & self.text); } }
 
 impl Repr for SymbolElem
 {
     /// Use a custom repr that matches normal content.
-    fn repr(&self) -> EcoString
-    {
-        eco_format!("[{}]", self.text)
-    }
+    fn repr( & self)->EcoString { eco_format ! ("[{}]", self.text) }
 }
 
 /// An error that indicates that a symbol is not callable.
@@ -553,18 +431,6 @@ pub struct Uncallable(Symbol);
 
 impl std::error::Error for Uncallable {}
 
-impl Display for Uncallable
-{
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        write!(f, "symbol {} is not callable", self.0)
-    }
-}
+impl Display for Uncallable { fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { write ! (f, "symbol {} is not callable", self .0) } }
 
-impl From<Uncallable> for EcoString
-{
-    fn from(err: Uncallable) -> Self
-    {
-        eco_format!("{err}")
-    }
-}
+impl From<Uncallable> for EcoString { fn from(err: Uncallable)->Self { eco_format ! ("{err}") } }

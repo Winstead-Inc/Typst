@@ -1,7 +1,7 @@
 use comemo::Tracked;
 
 use crate::diag::HintedStrResult;
-use crate::foundations::{Context, func};
+use crate::foundations:: { Context, func };
 use crate::introspection::Location;
 
 /// Provides the current location in the document.
@@ -47,7 +47,4 @@ use crate::introspection::Location;
 ///
 /// Refer to the @selector type for more details on before/after selectors.
 #[func(contextual, since = "0.11.0")]
-pub fn here(context: Tracked<Context>) -> HintedStrResult<Location>
-{
-    context.location()
-}
+pub fn here(context: Tracked<Context>)->HintedStrResult<Location> { context.location() }

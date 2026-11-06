@@ -1,9 +1,9 @@
-use typst_macros::{Cast, elem};
+use typst_macros:: { Cast, elem };
 
 use crate::diag::SourceResult;
 use crate::diag::bail;
 use crate::engine::Engine;
-use crate::foundations::{Args, Construct, Content, NativeElement};
+use crate::foundations:: { Args, Construct, Content, NativeElement };
 
 /// Marks content as a PDF artifact.
 ///
@@ -40,11 +40,11 @@ pub struct ArtifactElem
     /// Artifact types have been introduced in various different PDF
     /// specifications. Depending on which PDF version you target, Typst will
     /// select the most appropriate artifact type using your selection here.
-    #[default(ArtifactKind::Other)]
+    # [default (ArtifactKind::Other)]
     pub kind: ArtifactKind,
 
     /// The content that is an artifact.
-    #[required]
+    # [required]
     pub body: Content,
 }
 
@@ -85,56 +85,43 @@ pub enum ArtifactKind
     /// will use the `{"other"}` type instead.
     Background,
     /// Other artifacts.
-    #[default]
+    # [default]
     Other,
 }
 
 /// Used to delimit content for tagged PDF.
 #[elem(Construct, Tagged)]
-pub struct PdfMarkerTag
-{
-    #[internal]
-    #[required]
-    pub kind: PdfMarkerTagKind,
-    #[required]
-    pub body: Content,
-}
+pub struct PdfMarkerTag { # [internal] # [required] pub kind: PdfMarkerTagKind, # [required] pub body: Content, }
 
-impl Construct for PdfMarkerTag
+impl Construct for PdfMarkerTag { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually"); } }
+
+macro_rules! pdf_marker_tag
 {
-    fn construct(_: &mut Engine, args: &mut Args) -> SourceResult<Content>
+    ($( # [doc = $doc: expr] $variant: ident$(($($name: ident: $ty: ty) +))?,) +) =>
     {
-        bail!(args.span, "cannot be constructed manually");
-    }
-}
+        # [derive(Debug, Clone, Eq, PartialEq, Hash)]
+        pub enum PdfMarkerTagKind { $( # [doc = $doc] $variant $(($($ty), +))?), + }
 
-macro_rules! pdf_marker_tag {
-    ($(#[doc = $doc:expr] $variant:ident$(($($name:ident: $ty:ty)+))?,)+) => {
-        #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-        pub enum PdfMarkerTagKind {
-            $(
-                #[doc = $doc]
-                $variant $(($($ty),+))?
-            ),+
-        }
-
-        impl PdfMarkerTag {
-            $(
-                #[doc = $doc]
-                #[expect(non_snake_case)]
-                pub fn $variant($($($name: $ty,)+)? body: Content) -> Content {
+        impl PdfMarkerTag
+        {
+            $
+            (
+                # [doc = $doc]
+                # [expect(non_snake_case)]
+                pub fn $variant($($($name: $ty,) +)? body: Content)->Content
+                {
                     let span = body.span();
-                    Self {
-                        kind: PdfMarkerTagKind::$variant $(($($name),+))?,
-                        body,
-                    }.pack().spanned(span)
+                    Self { kind: PdfMarkerTagKind::$variant $(($($name), +))?, body, }
+                    .pack().spanned(span)
                 }
-            )+
+            )
+            +
         }
     }
 }
 
-pdf_marker_tag! {
+pdf_marker_tag!
+{
     /// `TOC`.
     OutlineBody,
     /// `L` bibliography list.

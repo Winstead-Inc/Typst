@@ -11,21 +11,21 @@ mod shape;
 mod stroke;
 mod tiling;
 
-pub use self::color::*;
-pub use self::curve::*;
-pub use self::gradient::*;
-pub use self::image::*;
-pub use self::line::*;
-pub use self::paint::*;
-pub use self::polygon::*;
-pub use self::shape::*;
-pub use self::stroke::*;
-pub use self::tiling::*;
+pub use self::color:: * ;
+pub use self::curve:: * ;
+pub use self::gradient:: * ;
+pub use self::image:: * ;
+pub use self::line:: * ;
+pub use self::paint:: * ;
+pub use self::polygon:: * ;
+pub use self::shape:: * ;
+pub use self::stroke:: * ;
+pub use self::tiling:: * ;
 
 use crate::foundations::Scope;
 
 /// Hook up all visualize definitions.
-pub(super) fn define(global: &mut Scope)
+pub (super) fn define(global: & mut Scope)
 {
     global.start_category(crate::Category::Visualize);
     global.define_type::<Color>();

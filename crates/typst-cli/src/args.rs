@@ -3,20 +3,20 @@
 // that are both runtime and build dependencies of this crate, or else
 // Rust will give a confusing error message about a missing crate.
 
-use std::fmt::{self, Display, Formatter};
+use std::fmt:: { self, Display, Formatter };
 use std::io::Write;
 use std::num::NonZeroUsize;
 use std::ops::RangeInclusive;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use clap::builder::styling::{AnsiColor, Effects};
-use clap::builder::{Styles, TypedValueParser, ValueParser};
-use clap::{ArgAction, Args, ColorChoice, Parser, Subcommand, ValueEnum, ValueHint};
+use clap::builder::styling:: { AnsiColor, Effects };
+use clap::builder:: { Styles, TypedValueParser, ValueParser };
+use clap:: { ArgAction, Args, ColorChoice, Parser, Subcommand, ValueEnum, ValueHint };
 use clap_complete::Generator;
 use semver::Version;
 use serde::Serialize;
-use typst_utils::{display_possible_values, parse_sys_input_pair};
+use typst_utils:: { display_possible_values, parse_sys_input_pair };
 
 /// The character typically used to separate path components
 /// in environment variables.
@@ -24,7 +24,7 @@ pub const ENV_PATH_SEP: char = if cfg!(windows) { ';' } else { ':' };
 
 /// The overall structure of the help.
 #[rustfmt::skip]
-const HELP_TEMPLATE: &str = "\
+const HELP_TEMPLATE: & str = "\
 Typst {version}
 
 {usage-heading} {usage}
@@ -34,45 +34,44 @@ Typst {version}
 
 /// Adds a list of useful links after the normal help.
 #[rustfmt::skip]
-const AFTER_HELP: &str = color_print::cstr!("\
+const AFTER_HELP: & str = color_print::cstr!
+(
+    "\
 <s><u>Resources:</></>
   <s>Tutorial:</>                 https://typst.app/docs/tutorial/
   <s>Reference documentation:</>  https://typst.app/docs/reference/
   <s>Templates & Packages:</>     https://typst.app/universe/
   <s>Forum for questions:</>      https://forum.typst.app/
-");
+"
+);
 
 const STYLES: Styles = Styles::styled()
-    .literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
-    .placeholder(AnsiColor::Blue.on_default());
+.literal(AnsiColor::Cyan.on_default().effects(Effects::BOLD))
+.placeholder(AnsiColor::Blue.on_default());
 
 /// The Typst compiler.
 #[derive(Debug, Clone, Parser)]
 #[clap(
-    name = "typst",
-    version = format!(
-        "{} ({})",
-        typst_utils::version().raw(),
-        typst_utils::display_commit(typst_utils::version().commit()),
-    ),
-    author,
-    help_template = HELP_TEMPLATE,
-    after_help = AFTER_HELP,
-    max_term_width = 80,
-    styles = STYLES,
+name = "typst",
+version = format!("{} ({})", typst_utils::version().raw(), typst_utils::display_commit(typst_utils::version().commit()),),
+author,
+help_template = HELP_TEMPLATE,
+after_help = AFTER_HELP,
+max_term_width = 80,
+styles = STYLES,
 )]
 pub struct CliArguments
 {
     /// The command to run.
-    #[command(subcommand)]
+    # [command(subcommand)]
     pub command: Command,
 
     /// Whether to use color. When set to `auto`, uses color if the terminal supports it.
-    #[clap(long, default_value_t = ColorChoice::Auto, default_missing_value = "always")]
+    # [clap(long , default_value_t = ColorChoice::Auto, default_missing_value = "always")]
     pub color: ColorChoice,
 
     /// Path to a custom CA certificate to use when making network requests.
-    #[clap(long, env = "TYPST_CERT")]
+    # [clap(long , env = "TYPST_CERT")]
     pub cert: Option<PathBuf>,
 }
 
@@ -82,18 +81,18 @@ pub struct CliArguments
 pub enum Command
 {
     /// Compiles an input file into a supported output format.
-    #[command(visible_alias = "c")]
+    # [command(visible_alias = "c")]
     Compile(CompileCommand),
 
     /// Watches an input file and recompiles on changes.
-    #[command(visible_alias = "w")]
+    # [command(visible_alias = "w")]
     Watch(WatchCommand),
 
     /// Initializes a new project from a template.
     Init(InitCommand),
 
     /// Processes an input file to extract provided metadata (deprecated, use `eval` instead).
-    #[command(hide = true)]
+    # [command(hide = true)]
     Query(QueryCommand),
 
     /// Evaluates a piece of Typst code, optionally in the context of a document.
@@ -103,7 +102,7 @@ pub enum Command
     Fonts(FontsCommand),
 
     /// Self update the Typst CLI.
-    #[cfg_attr(not(feature = "self-update"), clap(hide = true))]
+    # [cfg_attr(not(feature = "self-update"), clap(hide = true))]
     Update(UpdateCommand),
 
     /// Generates shell completion scripts.
@@ -118,7 +117,7 @@ pub enum Command
 pub struct CompileCommand
 {
     /// Arguments for compilation.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub args: CompileArgs,
 }
 
@@ -127,19 +126,19 @@ pub struct CompileCommand
 pub struct WatchCommand
 {
     /// Arguments for compilation.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub args: CompileArgs,
 
     /// Stops the watcher from taking over the terminal.
     ///
     /// With this flag, the watcher will only ever print normal output lines,
     /// not clear or reconfigure the terminal.
-    #[arg(long)]
+    # [arg(long)]
     pub no_fullscreen: bool,
 
     /// Arguments for the HTTP server.
-    #[cfg(feature = "http-server")]
-    #[clap(flatten)]
+    # [cfg(feature = "http-server")]
+    # [clap(flatten)]
     pub server: ServerArgs,
 }
 
@@ -159,7 +158,7 @@ pub struct InitCommand
     pub dir: Option<String>,
 
     /// Arguments related to storage of packages in the system.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub package: PackageArgs,
 }
 
@@ -168,40 +167,40 @@ pub struct InitCommand
 pub struct QueryCommand
 {
     /// Path to input Typst file. Use `-` to read input from stdin.
-    #[clap(value_parser = input_value_parser(), value_hint = ValueHint::FilePath)]
+    # [clap(value_parser = input_value_parser(), value_hint = ValueHint::FilePath)]
     pub input: Input,
 
     /// Defines which elements to retrieve.
     pub selector: String,
 
     /// Extracts just one field from all retrieved elements.
-    #[clap(long = "field")]
+    # [clap(long = "field")]
     pub field: Option<String>,
 
     /// Expects and retrieves exactly one element.
-    #[clap(long = "one", default_value = "false")]
+    # [clap(long = "one", default_value = "false")]
     pub one: bool,
 
     /// The format to serialize in.
-    #[clap(long = "format", default_value_t)]
+    # [clap(long = "format", default_value_t)]
     pub format: SerializationFormat,
 
     /// Whether to pretty-print the serialized output.
     ///
     /// Only applies to JSON format.
-    #[clap(long)]
+    # [clap(long)]
     pub pretty: bool,
 
     /// The target to compile for.
-    #[clap(long, default_value_t)]
+    # [clap(long , default_value_t)]
     pub target: Target,
 
     /// World arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub world: WorldArgs,
 
     /// Processing arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub process: ProcessArgs,
 }
 
@@ -214,38 +213,33 @@ pub struct EvalCommand
 
     /// A file in whose context to evaluate the code. Can be used to
     /// introspect the document. Use `-` to read input from stdin.
-    #[clap(long = "in", value_hint = ValueHint::FilePath, value_parser = input_value_parser())]
-    pub r#in: Option<Input>,
+    # [clap(long = "in", value_hint = ValueHint::FilePath, value_parser = input_value_parser())]
+    pub r # in: Option<Input>,
 
     /// The target to compile for.
-    #[clap(long, default_value_t)]
+    # [clap(long , default_value_t)]
     pub target: Target,
 
     /// Path to output file. Use `-` to write output to stdout.
-    #[clap(
-         long, short,
-         default_value = "-",
-         value_parser = output_value_parser(),
-         value_hint = ValueHint::FilePath,
-     )]
+    # [clap(long , short , default_value = "-", value_parser = output_value_parser(), value_hint = ValueHint::FilePath,)]
     pub output: Output,
 
     /// The format to serialize in.
-    #[clap(long = "format", short = 'f')]
+    # [clap(long = "format", short = 'f')]
     pub format: Option<EvalSerializationFormat>,
 
     /// Whether to pretty-print the serialized output.
     ///
     /// Only applies to JSON format.
-    #[clap(long)]
+    # [clap(long)]
     pub pretty: bool,
 
     /// The world arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub world: WorldArgs,
 
     /// The processing arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub process: ProcessArgs,
 }
 
@@ -254,11 +248,11 @@ pub struct EvalCommand
 pub struct FontsCommand
 {
     /// Common font arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub font: FontArgs,
 
     /// Also lists style variants of each font family.
-    #[arg(long)]
+    # [arg(long)]
     pub variants: bool,
 }
 
@@ -270,22 +264,17 @@ pub struct UpdateCommand
     pub version: Option<Version>,
 
     /// Forces a downgrade to an older version (required for downgrading).
-    #[clap(long, default_value_t = false)]
+    # [clap(long , default_value_t = false)]
     pub force: bool,
 
     /// Reverts to the version from before the last update (only possible if
     /// `typst update` has previously ran).
-    #[clap(
-        long,
-        default_value_t = false,
-        conflicts_with = "version",
-        conflicts_with = "force"
-    )]
+    # [clap(long , default_value_t = false, conflicts_with = "version", conflicts_with = "force")]
     pub revert: bool,
 
     /// Custom path to the backup file created on update and used by `--revert`,
     /// defaults to system-dependent location
-    #[clap(long = "backup-path", env = "TYPST_UPDATE_BACKUP_PATH", value_name = "FILE")]
+    # [clap(long = "backup-path", env = "TYPST_UPDATE_BACKUP_PATH", value_name = "FILE")]
     pub backup_path: Option<PathBuf>,
 }
 
@@ -294,7 +283,7 @@ pub struct UpdateCommand
 pub struct CompletionsCommand
 {
     /// The shell to generate completions for.
-    #[arg(value_enum)]
+    # [arg(value_enum)]
     pub shell: Shell,
 }
 
@@ -302,19 +291,11 @@ pub struct CompletionsCommand
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ValueEnum)]
 #[clap(rename_all = "lowercase")]
 #[expect(clippy::enum_variant_names)]
-pub enum Shell
-{
-    Bash,
-    Elvish,
-    Fish,
-    Nushell,
-    PowerShell,
-    Zsh,
-}
+pub enum Shell { Bash, Elvish, Fish, Nushell, PowerShell, Zsh, }
 
 impl Generator for Shell
 {
-    fn file_name(&self, name: &str) -> String
+    fn file_name( & self, name: & str)->String
     {
         match self
         {
@@ -327,7 +308,7 @@ impl Generator for Shell
         }
     }
 
-    fn generate(&self, cmd: &clap::Command, buf: &mut dyn Write)
+    fn generate( & self, cmd: & clap::Command, buf: & mut dyn Write)
     {
         match self
         {
@@ -349,13 +330,13 @@ pub struct InfoCommand
     ///
     /// If no format is passed the output is displayed human-readable. Note that
     /// human-readable format truncates the build commit hash value.
-    #[arg(long = "format", short = 'f')]
+    # [arg(long = "format", short = 'f')]
     pub format: Option<SerializationFormat>,
 
     /// Whether to pretty-print the serialized output.
     ///
     /// Only applies to JSON format.
-    #[clap(long)]
+    # [clap(long)]
     pub pretty: bool,
 }
 
@@ -364,7 +345,7 @@ pub struct InfoCommand
 pub struct CompileArgs
 {
     /// Path to input Typst file. Use `-` to read input from stdin.
-    #[clap(value_parser = input_value_parser(), value_hint = ValueHint::FilePath)]
+    # [clap(value_parser = input_value_parser(), value_hint = ValueHint::FilePath)]
     pub input: Input,
 
     /// Path to output file (PDF, PNG, SVG, or HTML). Use `-` to write output to
@@ -375,19 +356,15 @@ pub struct CompileArgs
     /// pages. Use `{p}` for page numbers, `{0p}` for zero padded page numbers
     /// and `{t}` for page count. For example, `page-{0p}-of-{t}.png` creates
     /// `page-01-of-10.png`, `page-02-of-10.png`, and so on.
-    #[clap(
-         required_if_eq("input", "-"),
-         value_parser = output_value_parser(),
-         value_hint = ValueHint::FilePath,
-     )]
+    # [clap(required_if_eq("input", "-"), value_parser = output_value_parser(), value_hint = ValueHint::FilePath,)]
     pub output: Option<Output>,
 
     /// The format of the output file, inferred from the extension by default.
-    #[arg(long = "format", short = 'f')]
+    # [arg(long = "format", short = 'f')]
     pub format: Option<OutputFormat>,
 
     /// World arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub world: WorldArgs,
 
     /// Whether to pretty-print produced output.
@@ -395,12 +372,7 @@ pub struct CompileArgs
     /// This formats the output in a more human-readable, but less
     /// space-efficient way. Affects HTML, SVG, and PDF export, but not PNG
     /// export.
-    #[arg(
-        long = "pretty",
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    # [arg(long = "pretty", default_missing_value = "true", num_args = 0.. = 1, require_equals = true,)]
     pub pretty: Option<bool>,
 
     /// Which pages to export. When unspecified, all pages are exported.
@@ -413,12 +385,12 @@ pub struct CompileArgs
     /// Page numbers are one-indexed and correspond to physical page numbers in
     /// the document (therefore not being affected by the document's page
     /// counter).
-    #[arg(long = "pages", value_delimiter = ',')]
+    # [arg(long = "pages", value_delimiter = ',')]
     pub pages: Option<Vec<Pages>>,
 
     /// One (or multiple comma-separated) PDF standards that Typst will enforce
     /// conformance with.
-    #[arg(long = "pdf-standard", value_delimiter = ',')]
+    # [arg(long = "pdf-standard", value_delimiter = ',')]
     pub pdf_standard: Vec<PdfStandard>,
 
     /// By default, even when not producing a `PDF/UA-1` document, a tagged PDF
@@ -426,7 +398,7 @@ pub struct CompileArgs
     /// circumstances (for example when trying to reduce the size of a document)
     /// it can be desirable to disable tagged PDF.
     // TODO: Remove deprecated flag in the 0.17 release cycle.
-    #[arg(long = "no-pdf-tags", hide = true)]
+    # [arg(long = "no-pdf-tags", hide = true)]
     pub no_pdf_tags: bool,
 
     /// Enables or disables PDF tagging.
@@ -435,41 +407,31 @@ pub struct CompileArgs
     /// document is written to provide a baseline of accessibility. In some
     /// circumstances (for example when trying to reduce the size of a document)
     /// it can be desirable to disable PDF tags.
-    #[arg(
-        long = "pdf-tagged",
-        default_missing_value = "true",
-        num_args = 0..=1,
-        require_equals = true,
-    )]
+    # [arg(long = "pdf-tagged", default_missing_value = "true", num_args = 0.. = 1, require_equals = true,)]
     pub pdf_tagged: Option<bool>,
 
     /// The PPI (pixels per inch) to use for PNG export.
     ///
     /// [default: 144]
-    #[arg(long = "ppi")]
+    # [arg(long = "ppi")]
     pub ppi: Option<f64>,
 
     /// File path to which a Makefile with the current compilation's
     /// dependencies will be written.
-    #[clap(long = "make-deps", value_name = "PATH", hide = true)]
+    # [clap(long = "make-deps", value_name = "PATH", hide = true)]
     pub make_deps: Option<PathBuf>,
 
     /// File path to which a list of current compilation's dependencies will be
     /// written. Use `-` to write to stdout.
-    #[clap(
-        long,
-        value_name = "PATH",
-        value_parser = output_value_parser(),
-        value_hint = ValueHint::FilePath,
-    )]
+    # [clap(long , value_name = "PATH", value_parser = output_value_parser(), value_hint = ValueHint::FilePath,)]
     pub deps: Option<Output>,
 
     /// File format to use for dependencies.
-    #[clap(long, default_value_t)]
+    # [clap(long , default_value_t)]
     pub deps_format: DepsFormat,
 
     /// Processing arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub process: ProcessArgs,
 
     /// Opens the output file with the default viewer or a specific program
@@ -477,7 +439,7 @@ pub struct CompileArgs
     ///
     /// When passing a specific program, the name must be attached with
     /// an equals sign (`--open=VIEWER`).
-    #[arg(long = "open", value_name = "VIEWER", require_equals = true)]
+    # [arg(long = "open", value_name = "VIEWER", require_equals = true)]
     pub open: Option<Option<String>>,
 
     /// Produces performance timings of the compilation process. (experimental)
@@ -485,7 +447,7 @@ pub struct CompileArgs
     /// The resulting JSON file can be loaded into a tracing tool such as
     /// <https://ui.perfetto.dev>. It does not contain any sensitive information
     /// apart from file names and line numbers.
-    #[arg(long = "timings", value_name = "OUTPUT_JSON")]
+    # [arg(long = "timings", value_name = "OUTPUT_JSON")]
     pub timings: Option<PathBuf>,
 }
 
@@ -495,35 +457,25 @@ pub struct CompileArgs
 pub struct WorldArgs
 {
     /// Configures the project root (for absolute paths).
-    #[clap(long = "root", env = "TYPST_ROOT", value_name = "DIR")]
+    # [clap(long = "root", env = "TYPST_ROOT", value_name = "DIR")]
     pub root: Option<PathBuf>,
 
     /// Add a string key-value pair visible through `sys.inputs`.
-    #[clap(
-        short = 'i',
-        long = "input",
-        value_name = "key=value",
-        action = ArgAction::Append,
-        value_parser = ValueParser::new(parse_sys_input_pair),
-    )]
+    # [clap(short = 'i', long = "input", value_name = "key=value", action = ArgAction::Append, value_parser = ValueParser::new (parse_sys_input_pair),)]
     pub inputs: Vec<(String, String)>,
 
     /// Common font arguments.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub font: FontArgs,
 
     /// Arguments related to storage of packages in the system.
-    #[clap(flatten)]
+    # [clap(flatten)]
     pub package: PackageArgs,
 
     /// The document's creation date formatted as a UNIX timestamp.
     ///
     /// For more information, see <https://reproducible-builds.org/specs/source-date-epoch/>.
-    #[clap(
-        long = "creation-timestamp",
-        env = "SOURCE_DATE_EPOCH",
-        value_name = "UNIX_TIMESTAMP"
-    )]
+    # [clap(long = "creation-timestamp", env = "SOURCE_DATE_EPOCH", value_name = "UNIX_TIMESTAMP")]
     pub creation_timestamp: Option<i64>,
 }
 
@@ -533,16 +485,16 @@ pub struct ProcessArgs
 {
     /// Number of parallel jobs spawned during compilation. Defaults to number
     /// of CPUs. Setting it to 1 disables parallelism.
-    #[clap(long, short)]
+    # [clap(long , short)]
     pub jobs: Option<usize>,
 
     /// Enables in-development features that may be changed or removed at any
     /// time.
-    #[arg(long = "features", value_delimiter = ',', env = "TYPST_FEATURES")]
+    # [arg(long = "features", value_delimiter = ',', env = "TYPST_FEATURES")]
     pub features: Vec<Feature>,
 
     /// The format to emit diagnostics in.
-    #[clap(long, default_value_t, env = "TYPST_DIAGNOSTIC_FORMAT")]
+    # [clap(long , default_value_t, env = "TYPST_DIAGNOSTIC_FORMAT")]
     pub diagnostic_format: DiagnosticFormat,
 }
 
@@ -551,15 +503,11 @@ pub struct ProcessArgs
 pub struct PackageArgs
 {
     /// Custom path to local packages, defaults to system-dependent location.
-    #[clap(long = "package-path", env = "TYPST_PACKAGE_PATH", value_name = "DIR")]
+    # [clap(long = "package-path", env = "TYPST_PACKAGE_PATH", value_name = "DIR")]
     pub package_path: Option<PathBuf>,
 
     /// Custom path to package cache, defaults to system-dependent location.
-    #[clap(
-        long = "package-cache-path",
-        env = "TYPST_PACKAGE_CACHE_PATH",
-        value_name = "DIR"
-    )]
+    # [clap(long = "package-cache-path", env = "TYPST_PACKAGE_CACHE_PATH", value_name = "DIR")]
     pub package_cache_path: Option<PathBuf>,
 }
 
@@ -571,23 +519,17 @@ pub struct FontArgs
     ///
     /// If multiple paths are specified, they are separated by the system's path
     /// separator (`:` on Unix-like systems and `;` on Windows).
-    #[clap(
-        long = "font-path",
-        env = "TYPST_FONT_PATHS",
-        value_name = "DIR",
-        value_delimiter = ENV_PATH_SEP,
-        value_parser = font_path_value_parser(),
-    )]
+    # [clap(long = "font-path", env = "TYPST_FONT_PATHS", value_name = "DIR", value_delimiter = ENV_PATH_SEP, value_parser = font_path_value_parser(),)]
     pub font_paths: Vec<Option<PathBuf>>,
 
     /// Ensures system fonts won't be searched, unless explicitly included via
     /// `--font-path`.
-    #[arg(long, env = "TYPST_IGNORE_SYSTEM_FONTS")]
+    # [arg(long , env = "TYPST_IGNORE_SYSTEM_FONTS")]
     pub ignore_system_fonts: bool,
 
     /// Ensures fonts embedded into Typst won't be considered.
-    #[cfg(feature = "embedded-fonts")]
-    #[arg(long, env = "TYPST_IGNORE_EMBEDDED_FONTS")]
+    # [cfg(feature = "embedded-fonts")]
+    # [arg(long , env = "TYPST_IGNORE_EMBEDDED_FONTS")]
     pub ignore_embedded_fonts: bool,
 }
 
@@ -597,18 +539,18 @@ pub struct FontArgs
 pub struct ServerArgs
 {
     /// Disables the built-in HTTP server for HTML export.
-    #[clap(long)]
+    # [clap(long)]
     pub no_serve: bool,
 
     /// Disables the injected live reload script for HTML export. The HTML that
     /// is written to disk isn't affected either way.
-    #[clap(long)]
+    # [clap(long)]
     pub no_reload: bool,
 
     /// The port where HTML is served.
     ///
     /// Defaults to the first free port in the range 3000-3005.
-    #[clap(long)]
+    # [clap(long)]
     pub port: Option<u16>,
 }
 
@@ -624,14 +566,7 @@ pub enum Input
 
 impl Display for Input
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        match self
-        {
-            Input::Stdin => f.pad("stdin"),
-            Input::Path(path) => path.display().fmt(f),
-        }
-    }
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { match self { Input::Stdin => f.pad("stdin"), Input::Path(path) => path.display().fmt(f), } }
 }
 
 /// An output that is either stdout or a real path.
@@ -647,17 +582,10 @@ pub enum Output
 impl Output
 {
     /// Write data to the output.
-    pub fn write(&self, buffer: &[u8]) -> std::io::Result<()>
-    {
-        match self
-        {
-            Output::Stdout => std::io::stdout().write_all(buffer),
-            Output::Path(path) => std::fs::write(path, buffer),
-        }
-    }
+    pub fn write( & self, buffer: & [u8])->std::io::Result<()> { match self { Output::Stdout => std::io::stdout().write_all(buffer), Output::Path(path) => std::fs::write(path, buffer), } }
 
     /// Open the output for writing.
-    pub fn open(&self) -> std::io::Result<OpenOutput<'_>>
+    pub fn open( & self)->std::io::Result<OpenOutput<'_>>
     {
         match self
         {
@@ -669,63 +597,28 @@ impl Output
 
 impl Display for Output
 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
-    {
-        match self
-        {
-            Output::Stdout => f.pad("stdout"),
-            Output::Path(path) => path.display().fmt(f),
-        }
-    }
+    fn fmt( & self, f: & mut Formatter<'_>)->fmt::Result { match self { Output::Stdout => f.pad("stdout"), Output::Path(path) => path.display().fmt(f), } }
 }
 
 /// A step-by-step writable version of [`Output`].
 #[derive(Debug)]
-pub enum OpenOutput<'a>
-{
-    Stdout(std::io::StdoutLock<'a>),
-    File(std::fs::File),
-}
+pub enum OpenOutput<'a> { Stdout(std::io::StdoutLock<'a>), File(std::fs::File), }
 
 impl Write for OpenOutput<'_>
 {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize>
-    {
-        match self
-        {
-            OpenOutput::Stdout(v) => v.write(buf),
-            OpenOutput::File(v) => v.write(buf),
-        }
-    }
+    fn write( & mut self, buf: & [u8])->std::io::Result<usize> { match self { OpenOutput::Stdout(v) => v.write(buf), OpenOutput::File(v) => v.write(buf), } }
 
-    fn flush(&mut self) -> std::io::Result<()>
-    {
-        match self
-        {
-            OpenOutput::Stdout(v) => v.flush(),
-            OpenOutput::File(v) => v.flush(),
-        }
-    }
+    fn flush( & mut self)->std::io::Result<()> { match self { OpenOutput::Stdout(v) => v.flush(), OpenOutput::File(v) => v.flush(), } }
 }
 
 /// Which format to use for the generated output.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, ValueEnum)]
-pub enum OutputFormat
-{
-    Pdf,
-    Png,
-    Svg,
-    Html,
-    Bundle,
-}
+pub enum OutputFormat { Pdf, Png, Svg, Html, Bundle, }
 
 impl OutputFormat
 {
     /// Whether this format results in a `PagedDocument`.
-    pub fn is_paged(self) -> bool
-    {
-        matches!(self, Self::Pdf | Self::Png | Self::Svg)
-    }
+    pub fn is_paged(self)-> bool { matches ! (self, Self::Pdf | Self::Png | Self::Svg) }
 }
 
 display_possible_values!(OutputFormat);
@@ -735,7 +628,7 @@ display_possible_values!(OutputFormat);
 pub enum DepsFormat
 {
     /// Encodes as JSON, failing for non-Unicode paths.
-    #[default]
+    # [default]
     Json,
     /// Separates paths with NULL bytes and can express all paths.
     Zero,
@@ -750,7 +643,7 @@ display_possible_values!(DepsFormat);
 pub enum Target
 {
     /// PDF and image formats.
-    #[default]
+    # [default]
     Paged,
     /// HTML.
     Html,
@@ -762,23 +655,13 @@ display_possible_values!(Target);
 
 /// Which format to use for diagnostics.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, ValueEnum)]
-pub enum DiagnosticFormat
-{
-    #[default]
-    Human,
-    Short,
-}
+pub enum DiagnosticFormat { # [default] Human, Short, }
 
 display_possible_values!(DiagnosticFormat);
 
 /// An in-development feature that may be changed or removed at any time.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ValueEnum, Serialize)]
-pub enum Feature
-{
-    Html,
-    Bundle,
-    A11yExtras,
-}
+pub enum Feature { Html, Bundle, A11yExtras, }
 
 display_possible_values!(Feature);
 
@@ -788,55 +671,55 @@ display_possible_values!(Feature);
 pub enum PdfStandard
 {
     /// PDF 1.4.
-    #[value(name = "1.4")]
+    # [value(name = "1.4")]
     V_1_4,
     /// PDF 1.5.
-    #[value(name = "1.5")]
+    # [value(name = "1.5")]
     V_1_5,
     /// PDF 1.6.
-    #[value(name = "1.6")]
+    # [value(name = "1.6")]
     V_1_6,
     /// PDF 1.7.
-    #[value(name = "1.7")]
+    # [value(name = "1.7")]
     V_1_7,
     /// PDF 2.0.
-    #[value(name = "2.0")]
+    # [value(name = "2.0")]
     V_2_0,
     /// PDF/A-1b.
-    #[value(name = "a-1b")]
+    # [value(name = "a-1b")]
     A_1b,
     /// PDF/A-1a.
-    #[value(name = "a-1a")]
+    # [value(name = "a-1a")]
     A_1a,
     /// PDF/A-2b.
-    #[value(name = "a-2b")]
+    # [value(name = "a-2b")]
     A_2b,
     /// PDF/A-2u.
-    #[value(name = "a-2u")]
+    # [value(name = "a-2u")]
     A_2u,
     /// PDF/A-2a.
-    #[value(name = "a-2a")]
+    # [value(name = "a-2a")]
     A_2a,
     /// PDF/A-3b.
-    #[value(name = "a-3b")]
+    # [value(name = "a-3b")]
     A_3b,
     /// PDF/A-3u.
-    #[value(name = "a-3u")]
+    # [value(name = "a-3u")]
     A_3u,
     /// PDF/A-3a.
-    #[value(name = "a-3a")]
+    # [value(name = "a-3a")]
     A_3a,
     /// PDF/A-4.
-    #[value(name = "a-4")]
+    # [value(name = "a-4")]
     A_4,
     /// PDF/A-4f.
-    #[value(name = "a-4f")]
+    # [value(name = "a-4f")]
     A_4f,
     /// PDF/A-4e.
-    #[value(name = "a-4e")]
+    # [value(name = "a-4e")]
     A_4e,
     /// PDF/UA-1.
-    #[value(name = "ua-1")]
+    # [value(name = "ua-1")]
     UA_1,
 }
 
@@ -844,12 +727,7 @@ display_possible_values!(PdfStandard);
 
 /// Output file format for query and info commands
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, ValueEnum)]
-pub enum SerializationFormat
-{
-    #[default]
-    Json,
-    Yaml,
-}
+pub enum SerializationFormat { # [default] Json, Yaml, }
 
 display_possible_values!(SerializationFormat);
 
@@ -857,7 +735,7 @@ display_possible_values!(SerializationFormat);
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, ValueEnum)]
 pub enum EvalSerializationFormat
 {
-    #[default]
+    # [default]
     Json,
     Yaml,
     /// Prints the output without any additional formatting or escaping
@@ -877,95 +755,62 @@ pub struct Pages(pub RangeInclusive<Option<NonZeroUsize>>);
 
 impl FromStr for Pages
 {
-    type Err = &'static str;
+    type Err = & 'static str;
 
-    fn from_str(value: &str) -> Result<Self, Self::Err>
+    fn from_str(value: & str)->Result<Self, Self::Err>
     {
         match value.split('-').map(str::trim).collect::<Vec<_>>().as_slice()
         {
-            [] | [""] => Err("page range must not be empty"),
-            [single_page] =>
+            [] | [""] => Err("page range must not be empty"),[single_page] =>
             {
                 let page_number = parse_page_number(single_page)?;
-                Ok(Pages(Some(page_number)..=Some(page_number)))
+                Ok(Pages(Some(page_number).. = Some(page_number)))
             }
-            ["", ""] => Err("page range must have start or end"),
-            [start, ""] => Ok(Pages(Some(parse_page_number(start)?)..=None)),
-            ["", end] => Ok(Pages(None..=Some(parse_page_number(end)?))),
-            [start, end] =>
+            ["", ""] => Err("page range must have start or end"),[start, ""] => Ok(Pages(Some(parse_page_number(start)?).. = None)),["", end] => Ok(Pages(None.. = Some(parse_page_number(end)?))),[start, end] =>
             {
                 let start = parse_page_number(start)?;
                 let end = parse_page_number(end)?;
-                if start > end
-                {
-                    Err("page range must end at a page after the start")
-                }
-                else
-                {
-                    Ok(Pages(Some(start)..=Some(end)))
-                }
+                if start > end { Err("page range must end at a page after the start") }
+                else { Ok(Pages(Some(start).. = Some(end))) }
             }
-            [_, _, _, ..] => Err("page range must have a single hyphen"),
+            [_, _, _,..] => Err("page range must have a single hyphen"),
         }
     }
 }
 
 /// Parses a single page number.
-fn parse_page_number(value: &str) -> Result<NonZeroUsize, &'static str>
-{
-    if value == "0"
-    {
-        Err("page numbers start at one")
-    }
-    else
-    {
-        NonZeroUsize::from_str(value).map_err(|_| "not a valid page number")
-    }
-}
+fn parse_page_number(value: & str)->Result<NonZeroUsize, & 'static str> { if value == "0" { Err("page numbers start at one") } else { NonZeroUsize::from_str(value).map_err( | _ | "not a valid page number") } }
 
 /// The clap value parser used by `SharedArgs.input`
-fn input_value_parser() -> impl TypedValueParser<Value = Input>
+fn input_value_parser()-> impl TypedValueParser<Value = Input>
 {
-    clap::builder::OsStringValueParser::new().try_map(|value| {
-        if value.is_empty()
+    clap::builder::OsStringValueParser:: new ().try_map
+    (
+        | value |
         {
-            Err(clap::Error::new(clap::error::ErrorKind::InvalidValue))
+            if value.is_empty() { Err(clap::Error::new (clap::error::ErrorKind::InvalidValue)) }
+            else if value == "-" { Ok(Input::Stdin) }
+            else { Ok(Input::Path(value.into())) }
         }
-        else if value == "-"
-        {
-            Ok(Input::Stdin)
-        }
-        else
-        {
-            Ok(Input::Path(value.into()))
-        }
-    })
+    )
 }
 
 /// The clap value parser used by `CompileCommand.output`
-fn output_value_parser() -> impl TypedValueParser<Value = Output>
+fn output_value_parser()-> impl TypedValueParser<Value = Output>
 {
-    clap::builder::OsStringValueParser::new().try_map(|value| {
-        // Empty value also handled by clap for `Option<Output>`
-        if value.is_empty()
+    clap::builder::OsStringValueParser:: new ().try_map
+    (
+        | value |
         {
-            Err(clap::Error::new(clap::error::ErrorKind::InvalidValue))
+            // Empty value also handled by clap for `Option<Output>`
+            if value.is_empty() { Err(clap::Error::new (clap::error::ErrorKind::InvalidValue)) }
+            else if value == "-" { Ok(Output::Stdout) }
+            else { Ok(Output::Path(value.into())) }
         }
-        else if value == "-"
-        {
-            Ok(Output::Stdout)
-        }
-        else
-        {
-            Ok(Output::Path(value.into()))
-        }
-    })
+    )
 }
 
 /// Allows empty paths (so that `--font-path ""` works) and turns them into
 /// `None`. There is no simple way to filter these out in the arg parsing layer,
 /// so we do so later.
-fn font_path_value_parser() -> impl TypedValueParser<Value = Option<PathBuf>>
-{
-    clap::builder::OsStringValueParser::new().map(|s| (!s.is_empty()).then(|| s.into()))
-}
+fn font_path_value_parser()-> impl TypedValueParser<Value = Option<PathBuf>> { clap::builder::OsStringValueParser::new ().map( | s | ( ! s.is_empty()).then( || s.into())) }

@@ -1,26 +1,18 @@
-use heck::{ToKebabCase, ToTitleCase};
+use heck:: { ToKebabCase, ToTitleCase };
 use proc_macro2::TokenStream;
-use quote::{ToTokens, quote};
+use quote:: { ToTokens, quote };
 use std::str::FromStr;
-use syn::parse::{Parse, ParseStream};
+use syn::parse:: { Parse, ParseStream };
 use syn::spanned::Spanned;
 use syn::token::Token;
-use syn::{Attribute, Error, Ident, Result, Token};
+use syn:: { Attribute, Error, Ident, Result, Token };
 
 /// Return an error at the given item.
-macro_rules! bail {
-    (callsite, $($tts:tt)*) => {
-        return Err(syn::Error::new(
-            proc_macro2::Span::call_site(),
-            format!("typst: {}", format!($($tts)*))
-        ))
-    };
-    ($item:expr, $($tts:tt)*) => {
-        return Err(syn::Error::new_spanned(
-            &$item,
-            format!("typst: {}", format!($($tts)*))
-        ))
-    };
+macro_rules! bail
+{
+    (callsite, $($tts: tt) *) => { return Err(syn::Error::new (proc_macro2::Span::call_site(), format ! ("typst: {}", format ! ($($tts) *)))) };
+
+    ($item: expr, $($tts: tt) *) => { return Err(syn::Error::new_spanned( & $item, format ! ("typst: {}", format ! ($($tts) *)))) };
 }
 
 /// A basic reimplementation of the `stringify!` macro.
@@ -28,7 +20,7 @@ macro_rules! bail {
 /// The `stringify!` macro does not expand eagerly so we have some very basic
 /// support for int and float expressions here. This is e.g. used for paper
 /// sizes.
-fn stringify(tokens: TokenStream) -> Option<String>
+fn stringify(tokens: TokenStream)->Option<String>
 {
     let lit = syn::parse2::<syn::Lit>(tokens).ok()?;
     match lit
@@ -40,35 +32,41 @@ fn stringify(tokens: TokenStream) -> Option<String>
 }
 
 /// Extract documentation comments from an attribute list.
-pub fn documentation(attrs: &[syn::Attribute]) -> Result<String>
+pub fn documentation(attrs: & [syn::Attribute])->Result<String>
 {
-    let mut doc = String::new();
+    let mut doc = String:: new ();
 
     // Parse doc comments.
     for attr in attrs
     {
-        if let syn::Meta::NameValue(meta) = &attr.meta
-            && meta.path.is_ident("doc")
+        if let syn::Meta::NameValue(meta) = & attr.meta
+        && meta.path.is_ident("doc")
         {
-            if let syn::Expr::Lit(lit) = &meta.value
-                && let syn::Lit::Str(string) = &lit.lit
+            if let syn::Expr::Lit(lit) = & meta.value
+            && let syn::Lit::Str(string) = & lit.lit
             {
                 let full = string.value();
-                let line = full.strip_prefix(' ').unwrap_or(&full);
+                let line = full.strip_prefix(' ').unwrap_or( & full);
                 doc.push_str(line);
                 doc.push('\n');
             }
-            else if let syn::Expr::Macro(expr) = &meta.value
-                && expr.mac.path.is_ident("stringify")
+            else if let syn::Expr::Macro(expr) = & meta.value
+            && expr.mac.path.is_ident("stringify")
             {
-                let value = stringify(expr.mac.tokens.clone()).ok_or_else(|| {
-                    Error::new(
-                        expr.span(),
-                        "the `stringify!` macro is not fully supported in \
+                let value = stringify(expr.mac.tokens.clone()).ok_or_else
+                (
+                    ||
+                    {
+                        Error:: new
+                        (
+                            expr.span(),
+                            "the `stringify!` macro is not fully supported in \
                          the Typst documentation",
-                    )
-                })?;
-                doc.push_str(&value);
+                        )
+                    }
+                )
+                ?;
+                doc.push_str( & value);
                 doc.push('\n');
             }
         }
@@ -78,51 +76,43 @@ pub fn documentation(attrs: &[syn::Attribute]) -> Result<String>
 }
 
 /// Whether an attribute list has a specified attribute.
-pub fn has_attr(attrs: &mut Vec<syn::Attribute>, target: &str) -> bool
-{
-    take_attr(attrs, target).is_some()
-}
+pub fn has_attr(attrs: & mut Vec<syn::Attribute>, target: & str)-> bool { take_attr(attrs, target).is_some() }
 
 /// Whether an attribute list has a specified attribute.
-pub fn parse_attr<T: Parse>(
-    attrs: &mut Vec<syn::Attribute>,
-    target: &str,
-) -> Result<Option<Option<T>>>
+pub fn parse_attr<T: Parse>(attrs: & mut Vec<syn::Attribute>, target: & str,)->Result < Option < Option < T >>>
 {
     take_attr(attrs, target)
-        .map(|attr| {
-            Ok(match attr.meta
-            {
-                syn::Meta::Path(_) => None,
-                syn::Meta::List(list) => Some(list.parse_args()?),
-                syn::Meta::NameValue(meta) => bail!(meta, "not valid here"),
-            })
-        })
-        .transpose()
+    .map
+    (
+        | attr |
+        {
+            Ok
+            (
+                match attr.meta
+                {
+                    syn::Meta::Path(_) => None,
+                    syn::Meta::List(list) => Some(list.parse_args()?),
+                    syn::Meta::NameValue(meta) => bail!(meta, "not valid here"),
+                }
+            )
+        }
+    )
+    .transpose()
 }
 
 /// Extracts a specific attribute.
-pub fn take_attr(attrs: &mut Vec<syn::Attribute>, target: &str)
--> Option<syn::Attribute>
-{
-    attrs
-        .iter()
-        .position(|attr| attr.path().is_ident(target))
-        .map(|i| attrs.remove(i))
-}
+pub fn take_attr(attrs: & mut Vec<syn::Attribute>, target: & str)
+->Option<syn::Attribute> { attrs.iter().position( | attr | attr.path().is_ident(target)).map( | i | attrs.remove(i)) }
 
 /// Removes all attributes of a specific type.
-pub fn remove_attrs(attrs: &mut Vec<syn::Attribute>, target: &str)
-{
-    attrs.retain(|attr| !attr.path().is_ident(target));
-}
+pub fn remove_attrs(attrs: & mut Vec<syn::Attribute>, target: & str) { attrs.retain( | attr | ! attr.path().is_ident(target)); }
 
 /// Ensure that no unrecognized attributes remain.
-pub fn validate_attrs(attrs: &[syn::Attribute]) -> Result<()>
+pub fn validate_attrs(attrs: & [syn::Attribute])->Result<()>
 {
     for attr in attrs
     {
-        if !attr.path().is_ident("doc") && !attr.path().is_ident("derive")
+        if ! attr.path().is_ident("doc") && ! attr.path().is_ident("derive")
         {
             let ident = attr.path().get_ident().unwrap();
             bail!(ident, "unrecognized attribute: {ident}");
@@ -132,115 +122,57 @@ pub fn validate_attrs(attrs: &[syn::Attribute]) -> Result<()>
 }
 
 /// Quotes an option literally.
-pub fn quote_option<T: ToTokens>(option: &Option<T>) -> TokenStream
+pub fn quote_option<T: ToTokens>(option: & Option<T>)->TokenStream
 {
-    if let Some(value) = option
-    {
-        quote! { Some(#value) }
-    }
-    else
-    {
-        quote! { None }
-    }
+    if let Some(value) = option { quote ! { Some( # value) } }
+    else { quote ! { None } }
 }
 
 /// Parse a metadata key-value pair, separated by `=`.
-pub fn parse_key_value<K: Token + Default + Parse, V: Parse>(
-    input: ParseStream,
-) -> Result<Option<V>>
+pub fn parse_key_value<K: Token + Default + Parse, V: Parse>(input: ParseStream,)->Result<Option<V>>
 {
-    if !input.peek(|_| K::default())
-    {
-        return Ok(None);
-    }
+    if ! input.peek( | _ | K::default ()) { return Ok(None); }
 
     let _: K = input.parse()?;
-    let _: Token![=] = input.parse()?;
+    let _: Token![ =] = input.parse()?;
     let value: V = input.parse::<V>()?;
     eat_comma(input);
     Ok(Some(value))
 }
 
 /// Parse a metadata key-array pair, separated by `=`.
-pub fn parse_key_value_array<K: Token + Default + Parse, V: Parse>(
-    input: ParseStream,
-) -> Result<Vec<V>>
-{
-    Ok(parse_key_value::<K, Array<V>>(input)?.map_or(vec![], |array| array.0))
-}
+pub fn parse_key_value_array<K: Token + Default + Parse, V: Parse>(input: ParseStream,)->Result<Vec<V>> { Ok(parse_key_value::<K, Array<V>>(input)?.map_or(vec ! [], | array | array .0)) }
 
 /// Parse an metadata key-identifier pair, separated by `=`.
-pub fn parse_ident<K: Token + Default + Parse>(
-    input: ParseStream,
-) -> Result<Option<syn::Ident>>
-{
-    parse_key_value::<K, syn::Ident>(input)
-}
+pub fn parse_ident<K: Token + Default + Parse>(input: ParseStream,)->Result<Option<syn::Ident>> { parse_key_value::<K, syn::Ident>(input) }
 
 /// Parse a metadata key-string pair, separated by `=`.
-pub fn parse_string<K: Token + Default + Parse>(
-    input: ParseStream,
-) -> Result<Option<String>>
-{
-    Ok(parse_key_value::<K, syn::LitStr>(input)?.map(|s| s.value()))
-}
+pub fn parse_string<K: Token + Default + Parse>(input: ParseStream,)->Result<Option<String>> { Ok(parse_key_value::<K, syn::LitStr>(input)?.map( | s | s.value())) }
 
 /// Parse a metadata key-string pair, separated by `=`.
-pub fn parse_string_array<K: Token + Default + Parse>(
-    input: ParseStream,
-) -> Result<Vec<String>>
-{
-    Ok(parse_key_value_array::<K, syn::LitStr>(input)?
-        .into_iter()
-        .map(|lit| lit.value())
-        .collect())
-}
+pub fn parse_string_array<K: Token + Default + Parse>(input: ParseStream,)->Result<Vec<String>> { Ok(parse_key_value_array::<K, syn::LitStr>(input)?.into_iter().map( | lit | lit.value()).collect()) }
 
 /// Parse a metadata flag that can be present or not.
-pub fn parse_flag<K: Token + Default + Parse>(input: ParseStream) -> Result<bool>
-{
-    if input.peek(|_| K::default())
-    {
-        let _: K = input.parse()?;
-        eat_comma(input);
-        return Ok(true);
-    }
-    Ok(false)
-}
+pub fn parse_flag<K: Token + Default + Parse>(input: ParseStream)->Result<bool> { if input.peek( | _ | K::default ()) { let _: K = input.parse()?; eat_comma(input); return Ok(true); } Ok(false) }
 
 /// Parse a comma if there is one.
-pub fn eat_comma(input: ParseStream)
-{
-    if input.peek(Token![,])
-    {
-        let _: Token![,] = input.parse().unwrap();
-    }
-}
+pub fn eat_comma(input: ParseStream) { if input.peek(Token ! [,]) { let _: Token ! [,] = input.parse().unwrap(); } }
 
 /// Determine the normal and title case name of a function, type, or element.
-pub fn determine_name_and_title(
-    specified_name: Option<String>,
-    specified_title: Option<String>,
-    ident: &syn::Ident,
-    trim: Option<fn(&str) -> &str>,
-) -> Result<(String, String)>
+pub fn determine_name_and_title(specified_name: Option<String>, specified_title: Option<String>, ident: & syn::Ident, trim: Option<fn ( & str)-> & str>,)->Result<(String, String)>
 {
-    let name = {
-        let trim = trim.unwrap_or(|s| s);
-        let default = trim(&ident.to_string()).to_kebab_case();
-        if specified_name.as_ref() == Some(&default)
-        {
-            bail!(ident, "name was specified unnecessarily");
-        }
+    let name =
+    {
+        let trim = trim.unwrap_or( | s | s);
+        let default = trim( & ident.to_string()).to_kebab_case();
+        if specified_name.as_ref() == Some( & default) { bail ! (ident, "name was specified unnecessarily"); }
         specified_name.unwrap_or(default)
     };
 
-    let title = {
+    let title =
+    {
         let default = name.to_title_case();
-        if specified_title.as_ref() == Some(&default)
-        {
-            bail!(ident, "title was specified unnecessarily");
-        }
+        if specified_title.as_ref() == Some( & default) { bail ! (ident, "title was specified unnecessarily"); }
         specified_title.unwrap_or(default)
     };
 
@@ -250,22 +182,19 @@ pub fn determine_name_and_title(
 /// A generic parseable array.
 struct Array<T>(Vec<T>);
 
-impl<T: Parse> Parse for Array<T>
+impl <T: Parse> Parse for Array<T>
 {
-    fn parse(input: ParseStream) -> Result<Self>
+    fn parse(input: ParseStream)->Result<Self>
     {
         let content;
         syn::bracketed!(content in input);
 
-        let mut elems = Vec::new();
-        while !content.is_empty()
+        let mut elems = Vec:: new ();
+        while ! content.is_empty()
         {
             let first: T = content.parse()?;
             elems.push(first);
-            if !content.is_empty()
-            {
-                let _: Token![,] = content.parse()?;
-            }
+            if ! content.is_empty() { let _: Token ! [,] = content.parse()?; }
         }
 
         Ok(Self(elems))
@@ -278,10 +207,7 @@ pub struct foundations;
 
 impl quote::ToTokens for foundations
 {
-    fn to_tokens(&self, tokens: &mut TokenStream)
-    {
-        quote! { ::typst_library::foundations }.to_tokens(tokens);
-    }
+    fn to_tokens( & self, tokens: & mut TokenStream) { quote ! {::typst_library::foundations }.to_tokens(tokens); }
 }
 
 /// For parsing attributes of the form:
@@ -292,46 +218,31 @@ impl quote::ToTokens for foundations
 ///   returned_expression
 /// )]
 /// ```
-pub struct BlockWithReturn
-{
-    pub prefix: Vec<syn::Stmt>,
-    pub expr: syn::Stmt,
-}
+pub struct BlockWithReturn { pub prefix: Vec<syn::Stmt>, pub expr: syn::Stmt, }
 
 impl Parse for BlockWithReturn
 {
-    fn parse(input: ParseStream) -> Result<Self>
+    fn parse(input: ParseStream)->Result<Self>
     {
         let mut stmts = syn::Block::parse_within(input)?;
         let Some(expr) = stmts.pop()
-        else
-        {
-            return Err(input.error("expected at least one expression"));
-        };
+        else { return Err(input.error("expected at least one expression")); };
         Ok(Self { prefix: stmts, expr })
     }
 }
 
 /// Parse a bare `type Name;` item.
 #[expect(dead_code)]
-pub struct BareType
-{
-    pub attrs: Vec<Attribute>,
-    pub type_token: Token![type],
-    pub ident: Ident,
-    pub semi_token: Token![;],
-}
+pub struct BareType { pub attrs: Vec<Attribute>, pub type_token: Token ! [type], pub ident: Ident, pub semi_token: Token ! [;], }
 
 impl Parse for BareType
 {
-    fn parse(input: ParseStream) -> Result<Self>
+    fn parse(input: ParseStream)->Result<Self>
     {
-        Ok(Self {
-            attrs: input.call(Attribute::parse_outer)?,
-            type_token: input.parse()?,
-            ident: input.parse()?,
-            semi_token: input.parse()?,
-        })
+        Ok
+        (
+            Self { attrs: input.call(Attribute::parse_outer)?, type_token: input.parse()?, ident: input.parse()?, semi_token: input.parse()?, }
+        )
     }
 }
 
@@ -364,78 +275,52 @@ pub enum Since
     Unreleased,
 }
 
-impl Since
-{
-    const FOREVER: &'static str = "forever";
-    const UNRELEASED: &'static str = "unreleased";
-}
+impl Since { const FOREVER: & 'static str = "forever"; const UNRELEASED: & 'static str = "unreleased"; }
 
 impl FromStr for Since
 {
     type Err = ();
 
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err>
+    fn from_str(s: & str)->std::result::Result<Self, Self::Err>
     {
-        if s == Self::FOREVER
-        {
-            Ok(Self::Forever)
-        }
-        else if s == Self::UNRELEASED
-        {
-            Ok(Self::Unreleased)
-        }
-        else if let Ok(&[major, minor, patch]) = s
-            .splitn(3, '.')
-            .map(u32::from_str)
-            .collect::<std::result::Result<Vec<_>, _>>()
-            .as_deref()
-        {
-            Ok(Self::Version([major, minor, patch]))
-        }
-        else
-        {
-            Err(())
-        }
+        if s == Self::FOREVER { Ok(Self::Forever) }
+        else if s == Self::UNRELEASED { Ok(Self::Unreleased) }
+        else if let Ok( & [major, minor, patch]) = s
+        .splitn(3, '.')
+        .map(u32::from_str)
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .as_deref() { Ok(Self::Version([major, minor, patch])) }
+        else { Err(()) }
     }
 }
 
 impl Parse for Since
 {
-    fn parse(input: ParseStream) -> Result<Self>
+    fn parse(input: ParseStream)->Result<Self>
     {
         let value = input.parse::<syn::LitStr>()?;
         let Ok(since) = value.value().parse()
-        else
-        {
-            bail!(
-                value,
-                "invalid version; use `{:?}` for an unreleased version",
-                Self::UNRELEASED,
-            )
-        };
+        else { bail ! (value, "invalid version; use `{:?}` for an unreleased version", Self::UNRELEASED,) };
         Ok(since)
     }
 }
 
 impl ToTokens for Since
 {
-    fn to_tokens(&self, tokens: &mut TokenStream)
+    fn to_tokens( & self, tokens: & mut TokenStream)
     {
         match self
         {
-            Self::Forever => quote! { #foundations::Since::Forever },
-            Self::Version([major, minor, patch]) =>
-            {
-                quote! { #foundations::Since::Version([#major, #minor, #patch]) }
-            }
-            Self::Unreleased => quote! { #foundations::Since::Unreleased },
+            Self::Forever => quote! { # foundations::Since::Forever },
+            Self::Version([major, minor, patch]) => { quote ! { # foundations::Since::Version([ # major, # minor, # patch]) } }
+            Self::Unreleased => quote! { # foundations::Since::Unreleased },
         }
         .to_tokens(tokens);
     }
 }
 
 /// Extract the first line of documentation.
-pub fn oneliner(docs: &str) -> String
+pub fn oneliner(docs: & str)->String
 {
     let paragraph = docs.split("\n\n").next().unwrap_or_default();
     let mut depth = 0;
@@ -448,13 +333,9 @@ pub fn oneliner(docs: &str) -> String
             '(' | '[' | '{' => depth += 1,
             ')' | ']' | '}' => depth -= 1,
             '.' if depth == 0 => period = true,
-            c if period && c.is_whitespace() && !docs[..i].ends_with("e.g.") =>
-            {
-                end = i;
-                break;
-            }
+            c if period && c.is_whitespace() && ! docs[..i].ends_with("e.g.") => { end = i; break ; }
             _ => period = false,
         }
     }
-    String::from(&docs[..end]).replace("\r\n", " ").replace("\n", " ")
+    String::from( & docs[..end]).replace("\r\n", " ").replace("\n", " ")
 }

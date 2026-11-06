@@ -326,111 +326,58 @@ pub enum SyntaxKind
 impl SyntaxKind
 {
     /// Is this a bracket, brace, or parenthesis?
-    pub fn is_grouping(self) -> bool
-    {
-        matches!(
-            self,
-            Self::LeftBracket
-                | Self::LeftBrace
-                | Self::LeftParen
-                | Self::RightBracket
-                | Self::RightBrace
-                | Self::RightParen
-        )
-    }
+    pub fn is_grouping(self)-> bool { matches ! (self, Self::LeftBracket | Self::LeftBrace | Self::LeftParen | Self::RightBracket | Self::RightBrace | Self::RightParen) }
 
     /// Does this node terminate a preceding expression?
-    pub fn is_terminator(self) -> bool
-    {
-        matches!(
-            self,
-            Self::End
-                | Self::Semicolon
-                | Self::RightBrace
-                | Self::RightParen
-                | Self::RightBracket
-        )
-    }
+    pub fn is_terminator(self)-> bool { matches ! (self, Self::End | Self::Semicolon | Self::RightBrace | Self::RightParen | Self::RightBracket) }
 
     /// Is this a code or content block.
-    pub fn is_block(self) -> bool
-    {
-        matches!(self, Self::CodeBlock | Self::ContentBlock)
-    }
+    pub fn is_block(self)-> bool { matches ! (self, Self::CodeBlock | Self::ContentBlock) }
 
     /// Does this node need termination through a semicolon or linebreak?
-    pub fn is_stmt(self) -> bool
-    {
-        matches!(
-            self,
-            Self::LetBinding
-                | Self::SetRule
-                | Self::ShowRule
-                | Self::ModuleImport
-                | Self::ModuleInclude
-        )
-    }
+    pub fn is_stmt(self)-> bool { matches ! (self, Self::LetBinding | Self::SetRule | Self::ShowRule | Self::ModuleImport | Self::ModuleInclude) }
 
     /// Is this node is a keyword.
-    pub fn is_keyword(self) -> bool
+    pub fn is_keyword(self)-> bool
     {
-        matches!(
+        matches!
+        (
             self,
             Self::Not
-                | Self::And
-                | Self::Or
-                | Self::None
-                | Self::Auto
-                | Self::Let
-                | Self::Set
-                | Self::Show
-                | Self::Context
-                | Self::If
-                | Self::Else
-                | Self::For
-                | Self::In
-                | Self::While
-                | Self::Break
-                | Self::Continue
-                | Self::Return
-                | Self::Import
-                | Self::Include
-                | Self::As
+            | Self::And
+            | Self::Or
+            | Self::None
+            | Self::Auto
+            | Self::Let
+            | Self::Set
+            | Self::Show
+            | Self::Context
+            | Self::If
+            | Self::Else
+            | Self::For
+            | Self::In
+            | Self::While
+            | Self::Break
+            | Self::Continue
+            | Self::Return
+            | Self::Import
+            | Self::Include
+            | Self::As
         )
     }
 
     /// Does this produce textual content matching itself?
-    pub fn is_text_like(self) -> bool
-    {
-        matches!(
-            self,
-            Self::Text | Self::MathLetter | Self::MathSymbol | Self::MathNumber
-        )
-    }
+    pub fn is_text_like(self)-> bool { matches ! (self, Self::Text | Self::MathLetter | Self::MathSymbol | Self::MathNumber) }
 
     /// Whether this kind of node is automatically skipped by the parser in
     /// code and math mode.
-    pub fn is_trivia(self) -> bool
-    {
-        matches!(
-            self,
-            Self::Shebang
-                | Self::LineComment
-                | Self::BlockComment
-                | Self::SpaceNoNewline
-                | Self::SpaceWithNewline
-                | Self::Parbreak
-        )
-    }
+    pub fn is_trivia(self)-> bool { matches ! (self, Self::Shebang | Self::LineComment | Self::BlockComment | Self::SpaceNoNewline | Self::SpaceWithNewline | Self::Parbreak) }
 
     /// Whether this is an error.
-    pub const fn is_error(self) -> bool
-    {
-        matches!(self, Self::Error)
-    }
+    pub const fn is_error(self)-> bool { matches ! (self, Self::Error) }
 
     /// A human-readable name for the kind.
-    pub fn name(self) -> &'static str
+    pub fn name(self)-> & 'static str
     {
         match self
         {
@@ -583,7 +530,7 @@ impl SyntaxKind
 /// How to determine the [`SyntaxMode`] we will be in when immediately after a
 /// node of this kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ModeAfter
+pub (crate) enum ModeAfter
 {
     /// The mode is known!
     Known(SyntaxMode),
@@ -623,10 +570,10 @@ impl SyntaxKind
     /// a node of this kind.
     ///
     /// The high-level interface for this is [`crate::LinkedNode::mode_after`].
-    pub(crate) fn mode_after(self) -> ModeAfter
+    pub (crate) fn mode_after(self)->ModeAfter
     {
-        use ModeAfter::*;
-        use SyntaxMode::{Code, Markup, Math};
+        use ModeAfter:: * ;
+        use SyntaxMode:: { Code, Markup, Math };
 
         // For the kinds which are not `Known`, the possible modes are listed in
         // a comment with the parent kinds that can cause that mode, although
@@ -636,28 +583,28 @@ impl SyntaxKind
         // its mode, and `part` is a kind which is just a part of an expression.
         match self
         {
-            Self::End => None,     // none
+            Self::End => None, // none
             Self::Error => Parent, // code/math/markup
 
-            Self::Shebang => None,      // none
-            Self::LineComment => None,  // none
+            Self::Shebang => None, // none
+            Self::LineComment => None, // none
             Self::BlockComment => None, // none
 
             Self::Markup => Known(Markup),
-            Self::Text => Text,              // none: Raw | markup: expr
-            Self::SpaceNoNewline => Space,   // code: part | markup/math: expr/part
+            Self::Text => Text, // none: Raw | markup: expr
+            Self::SpaceNoNewline => Space, // code: part | markup/math: expr/part
             Self::SpaceWithNewline => Space, // code: part | markup/math: expr/part
-            Self::Linebreak => Parent,       // math/markup: expr
+            Self::Linebreak => Parent, // math/markup: expr
             Self::Parbreak => Known(Markup),
             Self::Escape => Parent, // math/markup: expr
             Self::Shorthand => Known(Markup),
             Self::SmartQuote => Known(Markup),
             Self::Strong => Known(Markup),
             Self::Emph => Known(Markup),
-            Self::Raw => Embeddable,    // code/markup: expr
-            Self::RawLang => None,      // none
+            Self::Raw => Embeddable, // code/markup: expr
+            Self::RawLang => None, // none
             Self::RawDelim => RawDelim, // none: opening backticks | code/markup: Raw
-            Self::RawTrimmed => None,   // none
+            Self::RawTrimmed => None, // none
             Self::Link => Known(Markup),
             Self::Label => Embeddable, // code/markup: expr
             Self::Ref => Known(Markup),
@@ -695,14 +642,14 @@ impl SyntaxKind
             Self::RightBrace => Known(Code),
             Self::LeftBracket => Known(Markup),
             Self::RightBracket => Parent, // code/markup: ContentBlock
-            Self::LeftParen => Parent,    // code: part | math: MathArgs/MathDelimited
-            Self::RightParen => Parent,   // code: part | math: MathArgs/MathDelimited
-            Self::Comma => Parent,        // code: part | math: MathArgs
-            Self::Semicolon => Parent,    // code: CodeBlock | math/markup: after embedded
-            Self::Colon => Parent,        // code: part | math: Named | markup: TermItem
-            Self::Star => Parent,         // code: Binary/ModuleImport | markup: Strong
-            Self::Underscore => Parent,   // code: part | math: MathAttach | markup: Emph
-            Self::Dollar => Dollar,       // code/markup: Equation | math: opening dollar
+            Self::LeftParen => Parent, // code: part | math: MathArgs/MathDelimited
+            Self::RightParen => Parent, // code: part | math: MathArgs/MathDelimited
+            Self::Comma => Parent, // code: part | math: MathArgs
+            Self::Semicolon => Parent, // code: CodeBlock | math/markup: after embedded
+            Self::Colon => Parent, // code: part | math: Named | markup: TermItem
+            Self::Star => Parent, // code: Binary/ModuleImport | markup: Strong
+            Self::Underscore => Parent, // code: part | math: MathAttach | markup: Emph
+            Self::Dollar => Dollar, // code/markup: Equation | math: opening dollar
             Self::Plus => Known(Code),
             Self::Minus => Known(Code),
             Self::Slash => Parent, // code: Binary | math: MathFrac
@@ -791,18 +738,14 @@ impl SyntaxKind
 #[cfg(test)]
 mod test
 {
-    use super::*;
-    use crate::{FileId, LinkedNode, Side, Source};
+    use super:: * ;
+    use crate:: { FileId, LinkedNode, Side, Source };
 
-    #[track_caller]
-    fn test_mode(
-        text: &str,
-        cursors: impl IntoIterator<Item = usize>,
-        expected: Option<SyntaxMode>,
-    )
+    # [track_caller]
+    fn test_mode(text: & str, cursors: impl IntoIterator<Item = usize>, expected: Option<SyntaxMode>,)
     {
-        let source = Source::new(FileId::new_for_test("test_mode"), text);
-        let root = LinkedNode::new(source.root());
+        let source = Source:: new (FileId::new_for_test("test_mode"), text);
+        let root = LinkedNode:: new (source.root());
         for cursor in cursors
         {
             let leaf = root.leaf_at(cursor, Side::After).unwrap();
@@ -811,10 +754,10 @@ mod test
         }
     }
 
-    #[test]
+    # [test]
     fn test_mode_after()
     {
-        use SyntaxMode::{Code, Markup, Math};
+        use SyntaxMode:: { Code, Markup, Math };
 
         // Trivia
         test_mode("#! typ", [0, 1, 2, 3], None);
@@ -856,7 +799,8 @@ mod test
         test_mode("#f(x, ..y)", [2, 4, 6], Some(Code));
         test_mode("#{(x) => {}}", [3, 6], Some(Code));
         test_mode("#let x = 1", [1, 7], Some(Code));
-        test_mode("#let x;", [6], Some(Markup)); // After semicolon is the parent
+        test_mode("#let x;", [6], Some(Markup));
+        // After semicolon is the parent
         test_mode("#set text()", [1, 4], Some(Code));
         test_mode("#show text : it => it", [1, 11], Some(Code));
         test_mode("#context 1", [1, 8], Some(Code));
@@ -870,11 +814,16 @@ mod test
         test_mode("= #1.1", [2, 3], Some(Code));
 
         // Math
-        test_mode("$$", [0], Some(Math)); // Opening dollar is math
-        test_mode("$$", [1], Some(Markup)); // Closing dollar is parent
-        test_mode("#$$", [2], Some(Code)); // Closing dollar is parent
-        test_mode("$ a b $", [1, 3, 5], Some(Math)); // Just the spaces
-        test_mode("$\na\nb\n$", [1, 3, 5], Some(Math)); // Just the newlines
+        test_mode("$$", [0], Some(Math));
+        // Opening dollar is math
+        test_mode("$$", [1], Some(Markup));
+        // Closing dollar is parent
+        test_mode("#$$", [2], Some(Code));
+        // Closing dollar is parent
+        test_mode("$ a b $", [1, 3, 5], Some(Math));
+        // Just the spaces
+        test_mode("$\na\nb\n$", [1, 3, 5], Some(Math));
+        // Just the newlines
         test_mode("$arrow$", [1], Some(Math));
         test_mode("$123.32$", [1, 2, 4, 5], Some(Math));
         test_mode("$+12 * y!", [1, 5, 8], Some(Math));

@@ -1,6 +1,6 @@
 use typst_syntax::Span;
 
-use crate::foundations::{Content, Func, NativeElement, elem, func};
+use crate::foundations:: { Content, Func, NativeElement, elem, func };
 
 /// Provides access to the current outer container's (or page's, if none)
 /// dimensions (width and height).
@@ -62,7 +62,8 @@ use crate::foundations::{Content, Func, NativeElement, elem, func};
 /// Note that the width or height provided by `layout` will be infinite if the
 /// corresponding page dimension is set to `{auto}`.
 #[func(since = "0.2.0")]
-pub fn layout(
+pub fn layout
+(
     span: Span,
     /// A function to call with the outer container's size. Its return value is
     /// displayed in the document.
@@ -74,16 +75,14 @@ pub fn layout(
     /// `layout` appears in the document. This makes it possible to generate
     /// content that depends on the dimensions of its container.
     func: Func,
-) -> Content
-{
-    LayoutElem::new(func).pack().spanned(span)
-}
+)
+->Content { LayoutElem::new (func).pack().spanned(span) }
 
 /// Executes a `layout` call.
 #[elem(Locatable)]
 pub struct LayoutElem
 {
     /// The function to call with the outer container's (or page's) size.
-    #[required]
+    # [required]
     pub func: Func,
 }

@@ -1,10 +1,10 @@
 use ecow::eco_format;
 use typst_syntax::Spanned;
 
-use crate::diag::{At, LineCol, LoadError, LoadedWithin, ReportTextPos, SourceResult};
+use crate::diag:: { At, LineCol, LoadError, LoadedWithin, ReportTextPos, SourceResult };
 use crate::engine::Engine;
-use crate::foundations::{Str, Value, func, scope};
-use crate::loading::{DataSource, Load};
+use crate::foundations:: { Str, Value, func, scope };
+use crate::loading:: { DataSource, Load };
 
 /// Reads structured data from a YAML file.
 ///
@@ -92,46 +92,55 @@ use crate::loading::{DataSource, Load};
 /// - The `repr` function is @repr:debugging-only[for debugging purposes only],
 ///   and its output is not guaranteed to be stable across Typst versions.
 #[func(scope, title = "YAML", since = "0.1.0")]
-pub fn yaml(
-    engine: &mut Engine,
+pub fn yaml
+(
+    engine: & mut Engine,
     /// A path to a YAML file or raw YAML bytes.
     source: Spanned<DataSource>,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
     let loaded = source.load(engine.world)?;
     serde_yaml::from_slice(loaded.data.as_slice())
-        .map_err(format_yaml_error)
-        .within(&loaded)
+    .map_err(format_yaml_error)
+    .within( & loaded)
 }
 
 #[scope]
 impl yaml
 {
     /// Encode structured data into a YAML string.
-    #[func(title = "Encode YAML", since = "0.8.0")]
-    pub fn encode(
+    # [func(title = "Encode YAML", since = "0.8.0")]
+    pub fn encode
+    (
         /// Value to be encoded.
         value: Spanned<Value>,
-    ) -> SourceResult<Str>
+    )
+   ->SourceResult<Str>
     {
-        let Spanned { v: value, span } = value;
-        serde_yaml::to_string(&value)
-            .map(|v| v.into())
-            .map_err(|err| eco_format!("failed to encode value as YAML ({err})"))
-            .at(span)
+        let Spanned { v: value, span }
+        = value;
+        serde_yaml::to_string( & value)
+        .map( | v | v.into())
+        .map_err( | err | eco_format ! ("failed to encode value as YAML ({err})"))
+        .at(span)
     }
 }
 
 /// Format the user-facing YAML error message.
-pub fn format_yaml_error(error: serde_yaml::Error) -> LoadError
+pub fn format_yaml_error(error: serde_yaml::Error)->LoadError
 {
     let pos = error
-        .location()
-        .map(|loc| {
+    .location()
+    .map
+    (
+        | loc |
+        {
             let line_col = LineCol::one_based(loc.line(), loc.column());
             let range = loc.index()..loc.index();
             ReportTextPos::full(range, line_col)
-        })
-        .unwrap_or_default();
+        }
+    )
+    .unwrap_or_default();
     LoadError::text(pos, "failed to parse YAML", error)
 }

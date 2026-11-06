@@ -1,31 +1,26 @@
-use comemo::{Tracked, TrackedMut};
-use ecow::{EcoString, EcoVec, eco_format};
-use typst_library::diag::{
-    At, HintedStrResult, HintedString, SourceDiagnostic, SourceResult, Trace, Tracepoint,
-    bail, error,
-};
-use typst_library::engine::{Engine, Sink, Traced};
-use typst_library::foundations::{
+use comemo:: { Tracked, TrackedMut };
+use ecow:: { EcoString, EcoVec, eco_format };
+use typst_library::diag:: { At, HintedStrResult, HintedString, SourceDiagnostic, SourceResult, Trace, Tracepoint, bail, error, };
+use typst_library::engine:: { Engine, Sink, Traced };
+use typst_library::foundations::
+{
     Arg, Args, Binding, BindingAccess, Capturer, Closure, ClosureNode, Content, Context,
     Func, NativeElement, Scope, Scopes, SequenceElem, SymbolElem, Value,
 };
 use typst_library::introspection::Introspector;
 use typst_library::math::LrElem;
-use typst_library::{Library, World};
-use typst_syntax::ast::{self, AstNode};
-use typst_syntax::{Span, Spanned, SyntaxNode};
-use typst_utils::{LazyHash, Protected};
+use typst_library:: { Library, World };
+use typst_syntax::ast:: { self, AstNode };
+use typst_syntax:: { Span, Spanned, SyntaxNode };
+use typst_utils:: { LazyHash, Protected };
 
-use crate::{
-    Access, Eval, FlowEvent, Route, Vm, call_method_mut, hint_if_shadowed_std,
-    is_dict_mutating_method, is_mutating_method,
-};
+use crate:: { Access, Eval, FlowEvent, Route, Vm, call_method_mut, hint_if_shadowed_std, is_dict_mutating_method, is_mutating_method, };
 
 impl Eval for ast::FuncCall<'_>
 {
     type Output = Value;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         let span = self.span();
         let callee = self.callee();
@@ -39,41 +34,19 @@ impl Eval for ast::FuncCall<'_>
             let field = access.field();
             let (target, maybe_args) = if is_mutating_method(field.as_str())
             {
-                match maybe_resolve_mutating(vm, target_expr, field, self.args(), span)?
-                {
-                    Ok(value) => return Ok(value),
-                    Err((target, args)) => (target, Some(args)),
-                }
+                match maybe_resolve_mutating(vm, target_expr, field, self.args(), span)? { Ok(value) => return Ok(value), Err((target, args)) => (target, Some(args)), }
             }
-            else
-            {
-                (target_expr.eval(vm)?, None)
-            };
-            match eval_field_callee(
-                vm,
-                access.to_untyped(),
-                field.as_str(),
-                field.span(),
-                target,
-                false,
-            )?
+            else { (target_expr.eval(vm)?, None) };
+            match eval_field_callee(vm, access.to_untyped(), field.as_str(), field.span(), target, false,)?
             {
                 FieldCallee::Func(func) =>
                 {
-                    let args = match maybe_args
-                    {
-                        Some(args) => args,
-                        None => self.args().eval(vm)?.spanned(span),
-                    };
+                    let args = match maybe_args { Some(args) => args, None => self.args().eval(vm)?.spanned(span), };
                     call_func(vm, func, args, span)
                 }
                 FieldCallee::Method(func, target) =>
                 {
-                    let mut args = match maybe_args
-                    {
-                        Some(args) => args,
-                        None => self.args().eval(vm)?.spanned(span),
-                    };
+                    let mut args = match maybe_args { Some(args) => args, None => self.args().eval(vm)?.spanned(span), };
                     // Method calls pass the target as the first argument.
                     args.insert(0, target_expr.span(), target);
                     call_func(vm, func, args, span)
@@ -85,28 +58,20 @@ impl Eval for ast::FuncCall<'_>
         {
             // Function call order: we evaluate the callee before the arguments.
             let func = callee
-                .eval(vm)?
-                .cast::<Func>()
-                .map_err(|err| hint_if_shadowed_std(vm, &callee, err))
-                .at(callee.span())?;
+            .eval(vm)?
+            .cast::<Func>()
+            .map_err( | err | hint_if_shadowed_std(vm, & callee, err))
+            .at(callee.span())?;
             let args = self.args().eval(vm)?.spanned(span);
             call_func(vm, func, args, span)
         }
     }
 }
 
-impl Eval for ast::MathCall<'_>
-{
-    type Output = Value;
-
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
-    {
-        eval_math_call(vm, self)
-    }
-}
+impl Eval for ast::MathCall<'_> { type Output = Value; fn eval(self, vm: & mut Vm)->SourceResult<Self::Output> { eval_math_call(vm, self) } }
 
 /// Evaluate a function call in math.
-fn eval_math_call(vm: &mut Vm, math_call: ast::MathCall) -> SourceResult<Value>
+fn eval_math_call(vm: & mut Vm, math_call: ast::MathCall)->SourceResult<Value>
 {
     let span = math_call.span();
     let callee = math_call.callee();
@@ -121,12 +86,8 @@ fn eval_math_call(vm: &mut Vm, math_call: ast::MathCall) -> SourceResult<Value>
             let callee_value = ident.eval(vm)?;
             // We need to call `trace_at` for the callee manually because we did
             // not evaluate via `ast::Expr::eval()`.
-            vm.trace_at(ident.span(), &callee_value);
-            match callee_value.clone().cast::<Func>()
-            {
-                Ok(func) => FieldCallee::Func(func),
-                Err(err) => FieldCallee::NonFunc(callee_value, err),
-            }
+            vm.trace_at(ident.span(), & callee_value);
+            match callee_value.clone().cast::<Func>() { Ok(func) => FieldCallee::Func(func), Err(err) => FieldCallee::NonFunc(callee_value, err), }
         }
         ast::MathAccess::MathFieldAccess(access) =>
         {
@@ -135,7 +96,7 @@ fn eval_math_call(vm: &mut Vm, math_call: ast::MathCall) -> SourceResult<Value>
             let field = access.field();
             let target = target_expr.eval(vm)?;
             if is_mutating_method(field.as_str())
-                && matches!(target, Value::Array(_) | Value::Dict(_))
+            && matches!(target, Value::Array(_) | Value::Dict(_))
             {
                 // FUTURE: This is probably worth allowing once we nail down
                 // mutable method semantics.
@@ -147,32 +108,22 @@ fn eval_math_call(vm: &mut Vm, math_call: ast::MathCall) -> SourceResult<Value>
                 // requires deeper changes because math mode needs to know
                 // whether the target is actually a function before evaluating
                 // arguments.
-                bail!(
+                bail!
+                (
                     span,
                     "cannot call mutating methods in math";
                     hint: "try using code mode to call the method: `#{}`",
-                        math_call.to_untyped().full_text();
+                    math_call.to_untyped().full_text();
                 );
             }
-            eval_field_callee(
-                vm,
-                access.to_untyped(),
-                field.as_str(),
-                field.span(),
-                target,
-                true,
-            )?
+            eval_field_callee(vm, access.to_untyped(), field.as_str(), field.span(), target, true,)?
         }
     };
 
     let args = math_call.args();
     match math_call_result
     {
-        FieldCallee::Func(func) =>
-        {
-            let args = args.eval(vm)?.spanned(span);
-            call_func(vm, func, args, span)
-        }
+        FieldCallee::Func(func) => { let args = args.eval(vm)?.spanned(span); call_func(vm, func, args, span) }
         FieldCallee::Method(func, target) =>
         {
             let mut args = args.eval(vm)?.spanned(span);
@@ -189,16 +140,16 @@ fn eval_math_call(vm: &mut Vm, math_call: ast::MathCall) -> SourceResult<Value>
 }
 
 /// Call a function.
-fn call_func(vm: &mut Vm, func: Func, args: Args, span: Span) -> SourceResult<Value>
+fn call_func(vm: & mut Vm, func: Func, args: Args, span: Span)->SourceResult<Value>
 {
     let func = func.spanned(span);
-    let f = || func.call(&mut vm.engine, vm.context, args, span);
+    let f = || func.call( & mut vm.engine, vm.context, args, span);
 
     // Stacker is broken on WASM.
-    #[cfg(target_arch = "wasm32")]
+    # [cfg(target_arch = "wasm32")]
     return f();
 
-    #[cfg(not(target_arch = "wasm32"))]
+    # [cfg(not(target_arch = "wasm32"))]
     stacker::maybe_grow(32 * 1024, 2 * 1024 * 1024, f)
 }
 
@@ -209,13 +160,7 @@ fn call_func(vm: &mut Vm, func: Func, args: Args, span: Span) -> SourceResult<Va
 ///
 /// This currently causes a number of bad errors due to limitations of the
 /// [`Access`] trait used for mutation.
-fn maybe_resolve_mutating(
-    vm: &mut Vm,
-    target: ast::Expr,
-    field: ast::Ident,
-    args: ast::Args,
-    span: Span,
-) -> SourceResult<Result<Value, (Value, Args)>>
+fn maybe_resolve_mutating(vm: & mut Vm, target: ast::Expr, field: ast::Ident, args: ast::Args, span: Span,)->SourceResult<Result<Value, (Value, Args)>>
 {
     // We evaluate the arguments first because `target_expr.access(vm)` mutably
     // borrows `vm`, so we won't be able to call `args.eval(vm)` afterwards.
@@ -223,15 +168,12 @@ fn maybe_resolve_mutating(
     match target.access(vm)?
     {
         // Skip methods that aren't actually mutating for dictionaries.
-        target @ Value::Dict(_) if !is_dict_mutating_method(field.as_str()) =>
-        {
-            Ok(Err((target.clone(), args)))
-        }
+        target @ Value::Dict(_) if ! is_dict_mutating_method(field.as_str()) => { Ok(Err((target.clone(), args))) }
         // Only arrays and dictionaries have mutable methods.
         target @ (Value::Array(_) | Value::Dict(_)) =>
         {
-            let value = call_method_mut(target, &field, args, span);
-            let point = || Tracepoint::call(field.get().clone());
+            let value = call_method_mut(target, & field, args, span);
+            let point = || Tracepoint::call(field.get ().clone());
             Ok(Ok(value.trace(vm.world(), point, span)?))
         }
         target => Ok(Err((target.clone(), args))),
@@ -264,44 +206,37 @@ enum FieldCallee
 /// - Prioritizing methods would make all new method additions breaking changes.
 /// - Prioritizing field functions would break methods for certain dictionaries,
 ///   e.g. `(at: x => ...).at(key)`.
-fn eval_field_callee(
-    vm: &mut Vm,
-    access: &SyntaxNode,
-    field: &str,
-    field_span: Span,
-    target: Value,
-    in_math: bool,
-) -> SourceResult<FieldCallee>
+fn eval_field_callee(vm: & mut Vm, access: & SyntaxNode, field: & str, field_span: Span, target: Value, in_math: bool ,)->SourceResult<FieldCallee>
 {
     let guard = vm.engine.binding_guard(field_span);
 
     let mut is_method_call = false;
-    let callee_value = if let Some(method) = target.ty().scope().get(field)
+    let callee_value = if let Some(method) = target.ty().scope(). get(field)
     {
         is_method_call = true;
         let ty = target.ty().short_name();
         method
-            .read(guard)
-            .or_cannot(format_args!("call method `{field}` on {ty}"))
-            .at(field_span)?
-            .clone()
+        .read(guard)
+        .or_cannot(format_args ! ("call method `{field}` on {ty}"))
+        .at(field_span)?
+        .clone()
     }
-    else if let Value::Content(content) = &target
-        && let Some(method) = content.elem().scope().get(field)
+    else if let Value::Content(content) = & target
+    && let Some(method) = content.elem().scope(). get(field)
     {
         is_method_call = true;
         method
-            .read(guard)
-            .or_cannot(format_args!("call method `{field}` on content"))
-            .at(field_span)?
-            .clone()
+        .read(guard)
+        .or_cannot(format_args ! ("call method `{field}` on content"))
+        .at(field_span)?
+        .clone()
     }
     else if matches!(target, Value::Symbol(_) | Value::Type(_) | Value::Module(_))
     {
         // These types are allowed to use field call syntax on non-methods.
         target.field(field, guard).at(field_span)?
     }
-    else if let Value::Func(func) = &target
+    else if let Value::Func(func) = & target
     {
         // Functions can also use field call syntax on non-methods, but not for
         // settable fields accessed from context.
@@ -311,22 +246,13 @@ fn eval_field_callee(
             Err(err) =>
             {
                 if let Some(element) = func.to_element()
-                    && let Some(field_accessor) = element.settable_field_accessor(field)
+                && let Some(field_accessor) = element.settable_field_accessor(field)
                 {
                     let styles = vm.context.styles().at(field_span)?;
                     let callee_value = field_accessor(styles);
-                    bail!(disallowed_field_call_error(
-                        callee_value,
-                        access,
-                        field,
-                        target,
-                        in_math
-                    ));
+                    bail!(disallowed_field_call_error(callee_value, access, field, target, in_math));
                 }
-                else
-                {
-                    return Err(err);
-                }
+                else { return Err(err); }
             }
         }
     }
@@ -336,27 +262,14 @@ fn eval_field_callee(
         match target.field(field, guard)
         {
             // The field does exist.
-            Ok(callee_value) =>
-            {
-                bail!(disallowed_field_call_error(
-                    callee_value,
-                    access,
-                    field,
-                    target,
-                    in_math
-                ));
-            }
+            Ok(callee_value) => { bail ! (disallowed_field_call_error(callee_value, access, field, target, in_math)); }
             // The field does not exist. We don't try as hard on the error here
             // to avoid assuming the user's intent.
-            Err(_) =>
-            {
-                let (kind, name) = element_or_type_with_name(&target);
-                bail!(access.span(), "{kind} {name} has no method `{field}`");
-            }
+            Err(_) => { let (kind, name) = element_or_type_with_name( & target); bail ! (access.span(),"{kind} {name} has no method `{field}`"); }
         }
     };
 
-    vm.trace_at(access.span(), &callee_value);
+    vm.trace_at(access.span(), & callee_value);
 
     match callee_value.clone().cast::<Func>()
     {
@@ -382,13 +295,7 @@ fn eval_field_callee(
 /// - `Rel`: `.ratio`, `.length`
 /// - `Stroke`: `.cap`, `.dash`, `.join`, `.miter-limit`, `.paint`, `.thickness`
 /// - `Version`: `.major`, `.minor`, `.patch`
-fn disallowed_field_call_error(
-    callee_value: Value,
-    access: &SyntaxNode,
-    field: &str,
-    target: Value,
-    in_math: bool,
-) -> SourceDiagnostic
+fn disallowed_field_call_error(callee_value: Value, access: & SyntaxNode, field: & str, target: Value, in_math: bool ,)->SourceDiagnostic
 {
     let is_dict = matches!(target, Value::Dict(_));
     let is_named = matches!(target, Value::Args(_));
@@ -397,63 +304,57 @@ fn disallowed_field_call_error(
         // Dictionaries get a specific error & hint because they're the easiest
         // to attempt this with, and users need to be told directly why it's not
         // allowed.
-        error!(access.span(), "cannot directly call dictionary keys as functions")
+        error!(access.span(),"cannot directly call dictionary keys as functions")
     }
     else if is_named
     {
         // Also give the custom error & hint for named arguments.
-        error!(access.span(), "cannot directly call named argument fields as functions")
+        error!(access.span(),"cannot directly call named argument fields as functions")
     }
-    else
-    {
-        let (kind, name) = element_or_type_with_name(&target);
-        error!(access.span(), "`{field}` is not a valid method for {kind} `{name}`")
-    };
+    else { let (kind, name) = element_or_type_with_name( & target); error ! (access.span(),"`{field}` is not a valid method for {kind} `{name}`") };
 
     if callee_value.clone().cast::<Func>().is_ok()
     {
-        err.hint(eco_format!(
-            "to call the stored function, {}wrap the field access \
+        err.hint
+        (
+            eco_format!
+            (
+                "to call the stored function, {}wrap the field access \
                 in parentheses: `{}({})(..)`",
-            if in_math { "use code mode and " } else { "" },
-            if in_math { "#" } else { "" },
-            access.full_text(),
-        ));
+                if in_math { "use code mode and " } else { "" },
+                if in_math { "#" } else { "" },
+                access.full_text(),
+            )
+        );
     }
-    else if in_math
-    {
-        err.hint("try adding a space before the parentheses");
-    }
+    else if in_math { err.hint("try adding a space before the parentheses"); }
     else
     {
-        err.hint(eco_format!(
-            "to access the `{field}` {}, remove the function arguments: `{}`",
-            if is_dict
-            {
-                "key"
-            }
-            else if is_named
-            {
-                "argument"
-            }
-            else
-            {
-                "field"
-            },
-            access.full_text(),
-        ));
+        err.hint
+        (
+            eco_format!
+            (
+                "to access the `{field}` {}, remove the function arguments: `{}`",
+                if is_dict { "key" }
+                else if is_named { "argument" }
+                else { "field" },
+                access.full_text(),
+            )
+        );
     }
 
     if is_dict
     {
-        err.hint(
+        err.hint
+        (
             "dictionary keys cannot be used with method syntax as keys could conflict \
                 with built-in method names",
         );
     }
     else if is_named
     {
-        err.hint(
+        err.hint
+        (
             "named arguments cannot be used with method syntax as argument names could \
                 conflict with built-in method names",
         );
@@ -464,23 +365,13 @@ fn disallowed_field_call_error(
 
 /// If the value is content, the string "element" and the name of its element
 /// function, or the string "type" and the name of the value's type.
-fn element_or_type_with_name(value: &Value) -> (&'static str, &'static str)
-{
-    if let Value::Content(content) = value
-    {
-        ("element", content.elem().name())
-    }
-    else
-    {
-        ("type", value.ty().long_name())
-    }
-}
+fn element_or_type_with_name(value: & Value)->( & 'static str, & 'static str) { if let Value::Content(content) = value { ("element", content.elem().name()) } else { ("type", value.ty().long_name()) } }
 
 impl Eval for ast::Args<'_>
 {
     type Output = Args;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         let mut items = EcoVec::with_capacity(self.items().count());
 
@@ -489,45 +380,25 @@ impl Eval for ast::Args<'_>
             let span = arg.span();
             match arg
             {
-                ast::Arg::Pos(expr) =>
-                {
-                    items.push(Arg {
-                        span,
-                        name: None,
-                        value: Spanned::new(expr.eval(vm)?, expr.span()),
-                    });
-                }
+                ast::Arg::Pos(expr) => { items.push(Arg { span, name: None, value: Spanned::new (expr.eval(vm)?, expr.span()), }); }
                 ast::Arg::Named(named) =>
                 {
                     let expr = named.expr();
-                    items.push(Arg {
-                        span,
-                        name: Some(named.name().get().clone().into()),
-                        value: Spanned::new(expr.eval(vm)?, expr.span()),
-                    });
+                    items.push(Arg { span, name: Some(named.name().get ().clone().into()), value: Spanned::new (expr.eval(vm)?, expr.span()), });
                 }
                 ast::Arg::Spread(spread) => match spread.expr().eval(vm)?
                 {
-                    Value::None =>
-                    {}
+                    Value::None => {}
                     Value::Array(array) =>
                     {
-                        items.extend(array.into_iter().map(|value| Arg {
-                            span,
-                            name: None,
-                            value: Spanned::new(value, span),
-                        }));
+                        items.extend(array.into_iter().map( | value | Arg { span, name: None, value: Spanned::new (value, span), }));
                     }
                     Value::Dict(dict) =>
                     {
-                        items.extend(dict.into_iter().map(|(key, value)| Arg {
-                            span,
-                            name: Some(key),
-                            value: Spanned::new(value, span),
-                        }));
+                        items.extend(dict.into_iter().map( | (key, value) | Arg { span, name: Some(key), value: Spanned::new (value, span), }));
                     }
                     Value::Args(args) => items.extend(args.items),
-                    v => bail!(spread.span(), "cannot spread {}", v.ty()),
+                    v => bail!(spread.span(),"cannot spread {}", v.ty()),
                 },
             }
         }
@@ -542,100 +413,64 @@ impl Eval for ast::MathArgs<'_>
 {
     type Output = Args;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         // Math args need to fully separate named/pos to handle two-dimensional
         // args correctly, for example: `mat(a, delim:"[", b; c, d)`.
-        let mut named = EcoVec::new();
-        let mut pos = Vec::new();
-        let mut two_dim_start: Option<usize> = None;
+        let mut named = EcoVec:: new ();
+        let mut pos = Vec:: new ();
+        let mut two_dim_start: Option < usize > = None;
 
         /// Optimize two-dimensional args by using `pos` as the sole container
         /// while iterating and only group into an array when we encounter a
         /// semicolon.
-        fn drain_into_array(pos: &mut Vec<Arg>, start: usize, span: Span)
+        fn drain_into_array(pos: & mut Vec<Arg>, start: usize, span: Span)
         {
-            let array = pos.drain(start..).map(|arg| arg.value.v).collect();
-            pos.push(Arg {
-                span,
-                name: None,
-                value: Spanned::new(Value::Array(array), span),
-            });
+            let array = pos.drain(start..).map( | arg | arg.value.v).collect();
+            pos.push(Arg { span, name: None, value: Spanned::new (Value::Array(array), span), });
         }
 
-        for ast::MathArg { arg, ends_in_semicolon } in self.arg_items()
+        for ast::MathArg { arg, ends_in_semicolon }
+        in self.arg_items()
         {
             let span = arg.span();
             match arg
             {
-                ast::Arg::Pos(expr) =>
-                {
-                    pos.push(Arg {
-                        span,
-                        name: None,
-                        value: Spanned::new(expr.eval(vm)?, expr.span()),
-                    });
-                }
+                ast::Arg::Pos(expr) => { pos.push(Arg { span, name: None, value: Spanned::new (expr.eval(vm)?, expr.span()), }); }
                 ast::Arg::Named(named_arg) =>
                 {
                     let expr = named_arg.expr();
-                    named.push(Arg {
-                        span,
-                        name: Some(named_arg.name().get().clone().into()),
-                        value: Spanned::new(expr.eval(vm)?, expr.span()),
-                    });
+                    named.push(Arg { span, name: Some(named_arg.name().get ().clone().into()), value: Spanned::new (expr.eval(vm)?, expr.span()), });
                 }
                 ast::Arg::Spread(spread) => match spread.expr().eval(vm)?
                 {
-                    Value::None =>
-                    {}
+                    Value::None => {}
                     Value::Array(array) =>
                     {
-                        pos.extend(array.into_iter().map(|value| Arg {
-                            span,
-                            name: None,
-                            value: Spanned::new(value, span),
-                        }));
+                        pos.extend(array.into_iter().map( | value | Arg { span, name: None, value: Spanned::new (value, span), }));
                     }
                     Value::Dict(dict) =>
                     {
-                        named.extend(dict.into_iter().map(|(key, value)| Arg {
-                            span,
-                            name: Some(key),
-                            value: Spanned::new(value, span),
-                        }));
+                        named.extend(dict.into_iter().map( | (key, value) | Arg { span, name: Some(key), value: Spanned::new (value, span), }));
                     }
                     Value::Args(args) =>
                     {
-                        for arg in args.items
-                        {
-                            if arg.name.is_none()
-                            {
-                                pos.push(arg);
-                            }
-                            else
-                            {
-                                named.push(arg);
-                            }
-                        }
+                        for arg in args.items { if arg.name.is_none() { pos.push(arg); } else { named.push(arg); } }
                     }
-                    v => bail!(spread.span(), "cannot spread {}", v.ty()),
+                    v => bail!(spread.span(),"cannot spread {}", v.ty()),
                 },
             }
             if ends_in_semicolon
             {
                 let start = two_dim_start.unwrap_or(0);
                 // There's not really a better span to use :/
-                drain_into_array(&mut pos, start, self.span());
+                drain_into_array( & mut pos, start, self.span());
                 two_dim_start = Some(pos.len());
             }
         }
 
         if let Some(start) = two_dim_start
-            && start != pos.len()
-        {
-            drain_into_array(&mut pos, start, self.span());
-        }
+        && start != pos.len() { drain_into_array( & mut pos, start, self.span()); }
 
         named.extend(pos);
         Ok(Args { span: Span::detached(), items: named })
@@ -644,29 +479,19 @@ impl Eval for ast::MathArgs<'_>
 
 /// For non-functions in math, we evaluate the arguments and punctuation as
 /// content and wrap in an [`LrElem`].
-fn unparse_math_args(
-    vm: &mut Vm,
-    args: ast::MathArgs,
-    callee: ast::MathAccess,
-) -> SourceResult<Content>
+fn unparse_math_args(vm: & mut Vm, args: ast::MathArgs, callee: ast::MathAccess,)->SourceResult<Content>
 {
-    let mut body = Vec::new();
-    let mut errors = EcoVec::new();
+    let mut body = Vec:: new ();
+    let mut errors = EcoVec:: new ();
     for item in args.content_items()
     {
         match item
         {
-            ast::MathArgItem::Space(space) =>
-            {
-                body.push(space.eval(vm)?.spanned(space.span()));
-            }
+            ast::MathArgItem::Space(space) => { body.push(space.eval(vm)?.spanned(space.span())); }
             ast::MathArgItem::Comma(c, node)
             | ast::MathArgItem::Semicolon(c, node)
             | ast::MathArgItem::LeftParen(c, node)
-            | ast::MathArgItem::RightParen(c, node) =>
-            {
-                body.push(SymbolElem::packed(c).spanned(node.span()));
-            }
+            | ast::MathArgItem::RightParen(c, node) => { body.push(SymbolElem::packed(c).spanned(node.span())); }
             ast::MathArgItem::Arg(ast::Arg::Pos(expr)) =>
             {
                 // We use `Value::display` to convert argument expressions into
@@ -678,68 +503,67 @@ fn unparse_math_args(
             {
                 let name = callee.to_untyped().full_text();
                 let fixed = named.to_untyped().full_text().replacen(":", "\\:", 1);
-                errors.push(error!(
-                    named.span(), "named-argument syntax can only be used with functions";
-                    hint[callee.span()]: "`{name}` is not a function";
-                    hint: "to render the colon as text, escape it: `{fixed}`";
-                ));
+                errors.push
+                (
+                    error!
+                    (
+                        named.span(),"named-argument syntax can only be used with functions";
+                        hint[callee.span()]: "`{name}` is not a function";
+                        hint: "to render the colon as text, escape it: `{fixed}`";
+                    )
+                );
             }
             ast::MathArgItem::Arg(ast::Arg::Spread(spread)) =>
             {
                 let name = callee.to_untyped().full_text();
                 let fixed = spread.to_untyped().full_text().replacen("..", ".. ", 1);
-                errors.push(error!(
-                    spread.span(), "spread-argument syntax can only be used with functions";
-                    hint[callee.span()]: "`{name}` is not a function";
-                    hint: "to render the dots as text, add a space: `{fixed}`";
-                ));
+                errors.push
+                (
+                    error!
+                    (
+                        spread.span(),"spread-argument syntax can only be used with functions";
+                        hint[callee.span()]: "`{name}` is not a function";
+                        hint: "to render the dots as text, add a space: `{fixed}`";
+                    )
+                );
             }
         }
     }
 
-    if !errors.is_empty()
-    {
-        return Err(errors);
-    }
+    if ! errors.is_empty() { return Err(errors); }
 
-    Ok(LrElem::new(SequenceElem::new(body).pack())
-        .pack()
-        .spanned(args.span()))
+    Ok(LrElem::new (SequenceElem::new (body).pack()).pack().spanned(args.span()))
 }
 
 impl Eval for ast::Closure<'_>
 {
     type Output = Value;
 
-    fn eval(self, vm: &mut Vm) -> SourceResult<Self::Output>
+    fn eval(self, vm: & mut Vm)->SourceResult<Self::Output>
     {
         // Evaluate default values of named parameters.
-        let mut defaults = Vec::new();
-        for param in self.params().children()
-        {
-            if let ast::Param::Named(named) = param
-            {
-                defaults.push(named.expr().eval(vm)?);
-            }
-        }
+        let mut defaults = Vec:: new ();
+        for param in self.params().children() { if let ast::Param::Named(named) = param { defaults.push(named.expr().eval(vm)?); } }
 
         // Collect captured variables.
-        let captured = {
-            let mut visitor = CapturesVisitor::new(Some(&vm.scopes), Capturer::Function);
+        let captured =
+        {
+            let mut visitor = CapturesVisitor:: new (Some( & vm.scopes), Capturer::Function);
             visitor.visit(self.to_untyped());
             visitor.finish()
         };
 
         // Define the closure.
-        let closure = Closure {
+        let closure = Closure
+        {
             node: ClosureNode::Closure(self.to_untyped().clone()),
             defaults,
             captured,
             num_pos_params: self
-                .params()
-                .children()
-                .filter(|p| matches!(p, ast::Param::Pos(_)))
-                .count(),
+            .params()
+            .children()
+            .filter( | p | matches ! (p, ast::Param::Pos(_)))
+            .count(),
             params_span: self.params().span(),
         };
 
@@ -750,57 +574,46 @@ impl Eval for ast::Closure<'_>
 /// Call the function in the context with the arguments.
 #[comemo::memoize]
 #[expect(clippy::too_many_arguments)]
-pub fn eval_closure(
-    func: &Func,
-    closure: &LazyHash<Closure>,
+pub fn eval_closure
+(
+    func: & Func,
+    closure: & LazyHash<Closure>,
     world: Tracked<dyn World + '_>,
-    library: &LazyHash<Library>,
+    library: & LazyHash<Library>,
     introspector: Tracked<dyn Introspector + '_>,
     traced: Tracked<Traced>,
     sink: TrackedMut<Sink>,
     route: Tracked<Route>,
     context: Tracked<Context>,
     mut args: Args,
-) -> SourceResult<Value>
+)
+->SourceResult<Value>
 {
     let (name, params, body) = match closure.node
     {
         ClosureNode::Closure(ref node) =>
         {
             let closure =
-                node.cast::<ast::Closure>().expect("node to be an `ast::Closure`");
+            node.cast::<ast::Closure>().expect("node to be an `ast::Closure`");
             (closure.name(), closure.params(), closure.body())
         }
-        ClosureNode::Context(ref node) =>
-        {
-            (None, ast::Params::placeholder(), node.cast().unwrap())
-        }
+        ClosureNode::Context(ref node) => { (None, ast::Params::placeholder(), node.cast().unwrap()) }
     };
 
     // Don't leak the scopes from the call site. Instead, we use the scope
     // of captured variables we collected earlier.
-    let mut scopes = Scopes::new(None);
+    let mut scopes = Scopes:: new (None);
     scopes.top = closure.captured.clone();
 
     // Prepare the engine.
     let introspector = Protected::from_raw(introspector);
-    let engine = Engine {
-        library,
-        world,
-        introspector,
-        traced,
-        sink,
-        route: Route::extend(route),
-    };
+    let engine = Engine { library, world, introspector, traced, sink, route: Route::extend(route), };
 
     // Prepare VM.
-    let mut vm = Vm::new(engine, context, scopes, body.span());
+    let mut vm = Vm:: new (engine, context, scopes, body.span());
 
     // Provide the closure itself for recursive calls.
-    if let Some(name) = name
-    {
-        vm.define(name, func.clone());
-    }
+    if let Some(name) = name { vm.define(name, func.clone()); }
 
     let num_pos_args = args.to_pos().len();
     let sink_size = num_pos_args.checked_sub(closure.num_pos_params);
@@ -814,33 +627,20 @@ pub fn eval_closure(
         {
             ast::Param::Pos(pattern) => match pattern
             {
-                ast::Pattern::Normal(ast::Expr::Ident(ident)) =>
-                {
-                    vm.define(ident, args.expect::<Value>(&ident)?);
-                }
-                pattern =>
-                {
-                    crate::destructure(
-                        &mut vm,
-                        pattern,
-                        args.expect::<Value>("pattern parameter")?,
-                    )?;
-                }
+                ast::Pattern::Normal(ast::Expr::Ident(ident)) => { vm.define(ident, args.expect::<Value>( & ident)?); }
+                pattern => { crate::destructure( & mut vm, pattern, args.expect::<Value>("pattern parameter")?,)?; }
             },
             ast::Param::Spread(spread) =>
             {
                 sink = Some(spread.sink_ident());
-                if let Some(sink_size) = sink_size
-                {
-                    sink_pos_values = Some(args.consume(sink_size)?);
-                }
+                if let Some(sink_size) = sink_size { sink_pos_values = Some(args.consume(sink_size)?); }
             }
             ast::Param::Named(named) =>
             {
                 let name = named.name();
                 let default = defaults.next().unwrap();
                 let value =
-                    args.named::<Value>(&name)?.unwrap_or_else(|| default.clone());
+                args.named::<Value>( & name)?.unwrap_or_else( || default.clone());
                 vm.define(name, value);
             }
         }
@@ -852,10 +652,7 @@ pub fn eval_closure(
         let mut remaining_args = args.take();
         if let Some(sink_name) = sink
         {
-            if let Some(sink_pos_values) = sink_pos_values
-            {
-                remaining_args.items.extend(sink_pos_values);
-            }
+            if let Some(sink_pos_values) = sink_pos_values { remaining_args.items.extend(sink_pos_values); }
             vm.define(sink_name, remaining_args);
         }
     }
@@ -864,50 +661,31 @@ pub fn eval_closure(
     args.finish()?;
 
     // Handle control flow.
-    let output = body.eval(&mut vm)?;
+    let output = body.eval( & mut vm)?;
     match vm.flow
     {
         Some(FlowEvent::Return(_, Some(explicit), _)) => return Ok(explicit),
-        Some(FlowEvent::Return(_, None, _)) =>
-        {}
+        Some(FlowEvent::Return(_, None, _)) => {}
         Some(flow) => bail!(flow.forbidden()),
-        None =>
-        {}
+        None => {}
     }
 
     Ok(output)
 }
 
 /// A visitor that determines which variables to capture for a closure.
-pub struct CapturesVisitor<'a>
-{
-    external: Option<&'a Scopes<'a>>,
-    internal: Scopes<'a>,
-    captures: Scope,
-    capturer: Capturer,
-}
+pub struct CapturesVisitor<'a> { external: Option <& 'a Scopes<'a> > , internal : Scopes<'a>, captures: Scope, capturer: Capturer, }
 
-impl<'a> CapturesVisitor<'a>
+impl <'a> CapturesVisitor<'a>
 {
     /// Create a new visitor for the given external scopes.
-    pub fn new(external: Option<&'a Scopes<'a>>, capturer: Capturer) -> Self
-    {
-        Self {
-            external,
-            internal: Scopes::new(None),
-            captures: Scope::new(),
-            capturer,
-        }
-    }
+    pub fn new (external: Option <& 'a Scopes<'a> > , capturer: Capturer)->Self { Self { external, internal : Scopes::new (None), captures: Scope::new (), capturer, } }
 
     /// Return the scope of captured variables.
-    pub fn finish(self) -> Scope
-    {
-        self.captures
-    }
+    pub fn finish(self)->Scope { self.captures }
 
     /// Visit any node and collect all captured variables.
-    pub fn visit(&mut self, node: &SyntaxNode)
+    pub fn visit( & mut self, node: & SyntaxNode)
     {
         match node.cast()
         {
@@ -915,95 +693,48 @@ impl<'a> CapturesVisitor<'a>
             // Identifiers that shouldn't count as captures because they
             // actually bind a new name are handled below (individually through
             // the expressions that contain them).
-            Some(ast::Expr::Ident(ident)) =>
-            {
-                self.capture(ident.get(), Scopes::get_binding);
-            }
-            Some(ast::Expr::MathIdent(ident)) =>
-            {
-                self.capture(ident.get(), Scopes::get_binding_in_math);
-            }
+            Some(ast::Expr::Ident(ident)) => { self.capture(ident.get (), Scopes::get_binding); }
+            Some(ast::Expr::MathIdent(ident)) => { self.capture(ident.get (), Scopes::get_binding_in_math); }
 
             // Code and content blocks create a scope.
             Some(ast::Expr::CodeBlock(_) | ast::Expr::ContentBlock(_)) =>
             {
-                self.internal.enter();
-                for child in node.children()
-                {
-                    self.visit(child);
-                }
-                self.internal.exit();
+                self. internal.enter();
+                for child in node.children() { self.visit(child); }
+                self. internal.exit();
             }
 
             // Don't capture the field of a field access.
-            Some(ast::Expr::FieldAccess(access)) =>
-            {
-                self.visit(access.target().to_untyped());
-            }
-            Some(ast::Expr::MathFieldAccess(access)) =>
-            {
-                self.visit(access.target().to_untyped());
-            }
+            Some(ast::Expr::FieldAccess(access)) => { self.visit(access.target().to_untyped()); }
+            Some(ast::Expr::MathFieldAccess(access)) => { self.visit(access.target().to_untyped()); }
 
             // A closure contains parameter bindings, which are bound before the
             // body is evaluated. Care must be taken so that the default values
             // of named parameters cannot access previous parameter bindings.
             Some(ast::Expr::Closure(expr)) =>
             {
-                for param in expr.params().children()
-                {
-                    if let ast::Param::Named(named) = param
-                    {
-                        self.visit(named.expr().to_untyped());
-                    }
-                }
+                for param in expr.params().children() { if let ast::Param::Named(named) = param { self.visit(named.expr().to_untyped()); } }
 
-                self.internal.enter();
-                if let Some(name) = expr.name()
-                {
-                    self.bind(name);
-                }
+                self. internal.enter();
+                if let Some(name) = expr.name() { self.bind(name); }
 
                 for param in expr.params().children()
                 {
                     match param
                     {
-                        ast::Param::Pos(pattern) =>
-                        {
-                            for ident in pattern.bindings()
-                            {
-                                self.bind(ident);
-                            }
-                        }
+                        ast::Param::Pos(pattern) => { for ident in pattern.bindings() { self.bind(ident); } }
                         ast::Param::Named(named) => self.bind(named.name()),
-                        ast::Param::Spread(spread) =>
-                        {
-                            if let Some(ident) = spread.sink_ident()
-                            {
-                                self.bind(ident);
-                            }
-                        }
+                        ast::Param::Spread(spread) => { if let Some(ident) = spread.sink_ident() { self.bind(ident); } }
                     }
                 }
 
                 self.visit(expr.body().to_untyped());
-                self.internal.exit();
+                self. internal.exit();
             }
 
             // A let expression contains a binding, but that binding is only
             // active after the body is evaluated.
-            Some(ast::Expr::LetBinding(expr)) =>
-            {
-                if let Some(init) = expr.init()
-                {
-                    self.visit(init.to_untyped());
-                }
-
-                for ident in expr.kind().bindings()
-                {
-                    self.bind(ident);
-                }
-            }
+            Some(ast::Expr::LetBinding(expr)) => { if let Some(init) = expr.init () { self.visit(init.to_untyped()); } for ident in expr.kind().bindings() { self.bind(ident); } }
 
             // A for loop contains one or two bindings in its pattern. These are
             // active after the iterable is evaluated but before the body is
@@ -1011,16 +742,13 @@ impl<'a> CapturesVisitor<'a>
             Some(ast::Expr::ForLoop(expr)) =>
             {
                 self.visit(expr.iterable().to_untyped());
-                self.internal.enter();
+                self. internal.enter();
 
                 let pattern = expr.pattern();
-                for ident in pattern.bindings()
-                {
-                    self.bind(ident);
-                }
+                for ident in pattern.bindings() { self.bind(ident); }
 
                 self.visit(expr.body().to_untyped());
-                self.internal.exit();
+                self. internal.exit();
             }
 
             // An import contains items, but these are active only after the
@@ -1028,69 +756,42 @@ impl<'a> CapturesVisitor<'a>
             Some(ast::Expr::ModuleImport(expr)) =>
             {
                 self.visit(expr.source().to_untyped());
-                if let Some(ast::Imports::Items(items)) = expr.imports()
-                {
-                    for item in items.iter()
-                    {
-                        self.bind(item.bound_name());
-                    }
-                }
+                if let Some(ast::Imports::Items(items)) = expr.imports() { for item in items.iter() { self.bind(item.bound_name()); } }
             }
 
             _ =>
             {
                 // Never capture the name part of a named pair.
-                if let Some(named) = node.cast::<ast::Named>()
-                {
-                    self.visit(named.expr().to_untyped());
-                    return;
-                }
+                if let Some(named) = node.cast::<ast::Named>() { self.visit(named.expr().to_untyped()); return ; }
 
                 // Everything else is traversed from left to right.
-                for child in node.children()
-                {
-                    self.visit(child);
-                }
+                for child in node.children() { self.visit(child); }
             }
         }
     }
 
     /// Bind a new internal variable.
-    fn bind(&mut self, ident: ast::Ident)
+    fn bind( & mut self, ident: ast::Ident)
     {
         // The concrete value does not matter as we only use the scoping
         // mechanism of `Scopes`, not the values themselves.
-        self.internal
-            .top
-            .bind(ident.get().clone(), Binding::detached(Value::None));
+        self. internal
+        .top
+        .bind(ident.get ().clone(), Binding::detached(Value::None));
     }
 
     /// Capture a variable if it isn't internal.
-    fn capture(
-        &mut self,
-        ident: &EcoString,
-        getter: impl FnOnce(&'a Scopes<'a>, &str) -> HintedStrResult<&'a Binding>,
-    )
+    fn capture( & mut self, ident: & EcoString, getter: impl FnOnce( & 'a Scopes<'a>, & str)->HintedStrResult <& 'a Binding > ,)
     {
-        if self.internal.get_binding(ident).is_ok()
-        {
-            return;
-        }
+        if self. internal.get_binding(ident).is_ok() { return ; }
 
         // If the variable has already been captured, there is no need to look
         // it up again, since the external scopes don't change.
-        if self.captures.get(ident).is_some()
-        {
-            return;
-        }
+        if self.captures. get(ident).is_some() { return ; }
 
         let binding = match self.external
         {
-            Some(external) => match getter(external, ident)
-            {
-                Ok(binding) => binding.capture(self.capturer),
-                Err(_) => return,
-            },
+            Some(external) => match getter(external, ident) { Ok(binding) => binding.capture(self.capturer), Err(_) => return , },
             // The external scopes are only `None` when we are doing IDE capture
             // analysis, in which case the concrete value doesn't matter.
             None => Binding::detached(Value::None),
@@ -1105,80 +806,80 @@ mod tests
 {
     use typst_syntax::parse;
 
-    use super::*;
+    use super:: * ;
 
-    #[track_caller]
-    fn test(scopes: &Scopes, text: &str, result: &[&str])
+    # [track_caller]
+    fn test(scopes: & Scopes, text: & str, result: & [ & str])
     {
-        let mut visitor = CapturesVisitor::new(Some(scopes), Capturer::Function);
+        let mut visitor = CapturesVisitor:: new (Some(scopes), Capturer::Function);
         let root = parse(text);
-        visitor.visit(&root);
+        visitor.visit( & root);
 
         let captures = visitor.finish();
-        let mut names: Vec<_> = captures.iter().map(|(k, ..)| k).collect();
+        let mut names: Vec < _ > = captures.iter().map( | (k,..) | k).collect();
         names.sort();
 
         assert_eq!(names, result);
     }
 
-    #[test]
+    # [test]
     fn test_captures()
     {
-        let mut scopes = Scopes::new(None);
+        let mut scopes = Scopes:: new (None);
         scopes.top.define("f", 0);
         scopes.top.define("x", 0);
         scopes.top.define("y", 0);
         scopes.top.define("z", 0);
-        let s = &scopes;
+        let s = & scopes;
 
         // Let binding and function definition.
-        test(s, "#let x = x", &["x"]);
-        test(s, "#let x; #(x + y)", &["y"]);
-        test(s, "#let f(x, y) = x + y", &[]);
-        test(s, "#let f(x, y) = f", &[]);
-        test(s, "#let f = (x, y) => f", &["f"]);
+        test(s, "#let x = x", & ["x"]);
+        test(s, "#let x; #(x + y)", & ["y"]);
+        test(s, "#let f(x, y) = x + y", & []);
+        test(s, "#let f(x, y) = f", & []);
+        test(s, "#let f = (x, y) => f", & ["f"]);
 
         // Closure with different kinds of params.
-        test(s, "#((x, y) => x + z)", &["z"]);
-        test(s, "#((x: y, z) => x + z)", &["y"]);
-        test(s, "#((..x) => x + y)", &["y"]);
-        test(s, "#((x, y: x + z) => x + y)", &["x", "z"]);
-        test(s, "#{x => x; x}", &["x"]);
+        test(s, "#((x, y) => x + z)", & ["z"]);
+        test(s, "#((x: y, z) => x + z)", & ["y"]);
+        test(s, "#((..x) => x + y)", & ["y"]);
+        test(s, "#((x, y: x + z) => x + y)", & ["x", "z"]);
+        test(s, "#{x => x; x}", & ["x"]);
 
         // Show rule.
-        test(s, "#show y: x => x", &["y"]);
-        test(s, "#show y: x => x + z", &["y", "z"]);
-        test(s, "#show x: x => x", &["x"]);
+        test(s, "#show y: x => x", & ["y"]);
+        test(s, "#show y: x => x + z", & ["y", "z"]);
+        test(s, "#show x: x => x", & ["x"]);
 
         // For loop.
-        test(s, "#for x in y { x + z }", &["y", "z"]);
-        test(s, "#for (x, y) in y { x + y }", &["y"]);
-        test(s, "#for x in y {} #x", &["x", "y"]);
+        test(s, "#for x in y { x + z }", & ["y", "z"]);
+        test(s, "#for (x, y) in y { x + y }", & ["y"]);
+        test(s, "#for x in y {} #x", & ["x", "y"]);
 
         // Import.
-        test(s, "#import z: x, y", &["z"]);
-        test(s, "#import x + y: x, y, z", &["x", "y"]);
+        test(s, "#import z: x, y", & ["z"]);
+        test(s, "#import x + y: x, y, z", & ["x", "y"]);
 
         // Blocks.
-        test(s, "#{ let x = 1; { let y = 2; y }; x + y }", &["y"]);
-        test(s, "#[#let x = 1]#x", &["x"]);
+        test(s, "#{ let x = 1; { let y = 2; y }; x + y }", & ["y"]);
+        test(s, "#[#let x = 1]#x", & ["x"]);
 
         // Field access.
-        test(s, "#x.y.f(z)", &["x", "z"]);
+        test(s, "#x.y.f(z)", & ["x", "z"]);
 
         // Parenthesized expressions.
-        test(s, "#f(x: 1)", &["f"]);
-        test(s, "#(x: 1)", &[]);
-        test(s, "#(x = 1)", &["x"]);
-        test(s, "#(x += y)", &["x", "y"]);
-        test(s, "#{ (x, z) = (y, 1) }", &["x", "y", "z"]);
-        test(s, "#(x.at(y) = 5)", &["x", "y"]);
+        test(s, "#f(x: 1)", & ["f"]);
+        test(s, "#(x: 1)", & []);
+        test(s, "#(x = 1)", & ["x"]);
+        test(s, "#(x += y)", & ["x", "y"]);
+        test(s, "#{ (x, z) = (y, 1) }", & ["x", "y", "z"]);
+        test(s, "#(x.at(y) = 5)", & ["x", "y"]);
     }
 
-    #[test]
+    # [test]
     fn test_captures_in_math()
     {
-        let mut scopes = Scopes::new(None);
+        let mut scopes = Scopes:: new (None);
         scopes.top.define("f", 0);
         scopes.top.define("x", 0);
         scopes.top.define("y", 0);
@@ -1188,31 +889,32 @@ mod tests
         scopes.top.define("bar", 0);
         scopes.top.define("x-bar", 0);
         scopes.top.define("x_bar", 0);
-        let s = &scopes;
+        let s = & scopes;
 
         // Basic math identifier differences.
-        test(s, "$ x f(z) $", &[]); // single letters not captured.
-        test(s, "$ #x #f(z) $", &["f", "x", "z"]);
-        test(s, "$ foo f(bar) $", &["bar", "foo"]);
-        test(s, "$ #foo[#$bar$] $", &["bar", "foo"]);
-        test(s, "$ #let foo = x; foo $", &["x"]);
+        test(s, "$ x f(z) $", & []);
+        // single letters not captured.
+        test(s, "$ #x #f(z) $", & ["f", "x", "z"]);
+        test(s, "$ foo f(bar) $", & ["bar", "foo"]);
+        test(s, "$ #foo[#$bar$] $", & ["bar", "foo"]);
+        test(s, "$ #let foo = x; foo $", & ["x"]);
 
         // Math idents don't have dashes/underscores
-        test(s, "$ x-y x_y foo-x x_bar $", &["bar", "foo"]);
-        test(s, "$ #x-bar #x_bar $", &["x-bar", "x_bar"]);
+        test(s, "$ x-y x_y foo-x x_bar $", & ["bar", "foo"]);
+        test(s, "$ #x-bar #x_bar $", & ["x-bar", "x_bar"]);
 
         // Named-params.
-        test(s, "$ foo(bar: y) $", &["foo"]);
-        test(s, "$ foo(x-y: 1, bar-z: 2) $", &["foo"]);
+        test(s, "$ foo(bar: y) $", & ["foo"]);
+        test(s, "$ foo(x-y: 1, bar-z: 2) $", & ["foo"]);
 
         // Field access in math.
-        test(s, "$ foo.bar $", &["foo"]);
-        test(s, "$ foo.x $", &["foo"]);
-        test(s, "$ x.foo $", &["foo"]);
-        test(s, "$ foo . bar $", &["bar", "foo"]);
-        test(s, "$ foo.x.y.bar(z) $", &["foo"]);
-        test(s, "$ foo.x-bar $", &["bar", "foo"]);
-        test(s, "$ foo.x_bar $", &["bar", "foo"]);
-        test(s, "$ #x_bar.x-bar $", &["x_bar"]);
+        test(s, "$ foo.bar $", & ["foo"]);
+        test(s, "$ foo.x $", & ["foo"]);
+        test(s, "$ x.foo $", & ["foo"]);
+        test(s, "$ foo . bar $", & ["bar", "foo"]);
+        test(s, "$ foo.x.y.bar(z) $", & ["foo"]);
+        test(s, "$ foo.x-bar $", & ["bar", "foo"]);
+        test(s, "$ foo.x_bar $", & ["bar", "foo"]);
+        test(s, "$ #x_bar.x-bar $", & ["x_bar"]);
     }
 }

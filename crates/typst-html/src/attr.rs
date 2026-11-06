@@ -1,4 +1,3 @@
-
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(non_upper_case_globals)]
 #![allow(dead_code)]
@@ -60,8 +59,8 @@ pub const aria_valuemax: HtmlAttr = HtmlAttr::constant("aria-valuemax");
 pub const aria_valuemin: HtmlAttr = HtmlAttr::constant("aria-valuemin");
 pub const aria_valuenow: HtmlAttr = HtmlAttr::constant("aria-valuenow");
 pub const aria_valuetext: HtmlAttr = HtmlAttr::constant("aria-valuetext");
-pub const r#as: HtmlAttr = HtmlAttr::constant("as");
-pub const r#async: HtmlAttr = HtmlAttr::constant("async");
+pub const r # as: HtmlAttr = HtmlAttr::constant("as");
+pub const r # async: HtmlAttr = HtmlAttr::constant("async");
 pub const autocapitalize: HtmlAttr = HtmlAttr::constant("autocapitalize");
 pub const autocomplete: HtmlAttr = HtmlAttr::constant("autocomplete");
 pub const autocorrect: HtmlAttr = HtmlAttr::constant("autocorrect");
@@ -71,7 +70,7 @@ pub const blocking: HtmlAttr = HtmlAttr::constant("blocking");
 pub const charset: HtmlAttr = HtmlAttr::constant("charset");
 pub const checked: HtmlAttr = HtmlAttr::constant("checked");
 pub const cite: HtmlAttr = HtmlAttr::constant("cite");
-pub const class: HtmlAttr = HtmlAttr::constant("class");
+pub const class : HtmlAttr = HtmlAttr::constant("class");
 pub const closedby: HtmlAttr = HtmlAttr::constant("closedby");
 pub const color: HtmlAttr = HtmlAttr::constant("color");
 pub const colorspace: HtmlAttr = HtmlAttr::constant("colorspace");
@@ -97,7 +96,7 @@ pub const draggable: HtmlAttr = HtmlAttr::constant("draggable");
 pub const enctype: HtmlAttr = HtmlAttr::constant("enctype");
 pub const enterkeyhint: HtmlAttr = HtmlAttr::constant("enterkeyhint");
 pub const fetchpriority: HtmlAttr = HtmlAttr::constant("fetchpriority");
-pub const r#for: HtmlAttr = HtmlAttr::constant("for");
+pub const r # for : HtmlAttr = HtmlAttr::constant("for");
 pub const form: HtmlAttr = HtmlAttr::constant("form");
 pub const formaction: HtmlAttr = HtmlAttr::constant("formaction");
 pub const formenctype: HtmlAttr = HtmlAttr::constant("formenctype");
@@ -129,7 +128,7 @@ pub const label: HtmlAttr = HtmlAttr::constant("label");
 pub const lang: HtmlAttr = HtmlAttr::constant("lang");
 pub const list: HtmlAttr = HtmlAttr::constant("list");
 pub const loading: HtmlAttr = HtmlAttr::constant("loading");
-pub const r#loop: HtmlAttr = HtmlAttr::constant("loop");
+pub const r # loop : HtmlAttr = HtmlAttr::constant("loop");
 pub const low: HtmlAttr = HtmlAttr::constant("low");
 pub const max: HtmlAttr = HtmlAttr::constant("max");
 pub const maxlength: HtmlAttr = HtmlAttr::constant("maxlength");
@@ -187,7 +186,7 @@ pub const tabindex: HtmlAttr = HtmlAttr::constant("tabindex");
 pub const target: HtmlAttr = HtmlAttr::constant("target");
 pub const title: HtmlAttr = HtmlAttr::constant("title");
 pub const translate: HtmlAttr = HtmlAttr::constant("translate");
-pub const r#type: HtmlAttr = HtmlAttr::constant("type");
+pub const r # type: HtmlAttr = HtmlAttr::constant("type");
 pub const usemap: HtmlAttr = HtmlAttr::constant("usemap");
 pub const value: HtmlAttr = HtmlAttr::constant("value");
 pub const width: HtmlAttr = HtmlAttr::constant("width");
@@ -196,7 +195,8 @@ pub const writingsuggestions: HtmlAttr = HtmlAttr::constant("writingsuggestions"
 
 /// MathML attributes.
 /// (Only a subset of the ones defined in MathML Core at the moment.)
-pub mod mathml {
+pub mod mathml
+{
     use super::HtmlAttr;
 
     pub const display: HtmlAttr = HtmlAttr::constant("display");

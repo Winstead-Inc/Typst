@@ -1,13 +1,11 @@
 use comemo::Tracked;
 use typst_syntax::Span;
 
-use crate::diag::{At, SourceResult};
+use crate::diag:: { At, SourceResult };
 use crate::engine::Engine;
-use crate::foundations::{
-    Content, Context, Dict, Resolve, Smart, Target, TargetElem, dict, func,
-};
-use crate::introspection::{Locator, LocatorLink};
-use crate::layout::{Abs, Axes, Length, Region, Size};
+use crate::foundations:: { Content, Context, Dict, Resolve, Smart, Target, TargetElem, dict, func, };
+use crate::introspection:: { Locator, LocatorLink };
+use crate::layout:: { Abs, Axes, Length, Region, Size };
 
 /// Measures the layouted size of content.
 ///
@@ -46,8 +44,9 @@ use crate::layout::{Abs, Axes, Length, Region, Size};
 /// position of the content's baseline relative to its top edge, with positive
 /// values extending downwards.
 #[func(contextual, since = "forever")]
-pub fn measure(
-    engine: &mut Engine,
+pub fn measure
+(
+    engine: & mut Engine,
     context: Tracked<Context>,
     span: Span,
     /// The width available to layout the content.
@@ -64,28 +63,23 @@ pub fn measure(
     ///
     /// #context measure(block(lorem(100), width: 400pt))
     /// ```
-    #[named]
-    #[default(Smart::Auto)]
+    # [named]
+    # [default (Smart::Auto)]
     width: Smart<Length>,
     /// The height available to layout the content.
     ///
     /// Setting this to `{auto}` indicates infinite available height.
-    #[named]
-    #[default(Smart::Auto)]
+    # [named]
+    # [default (Smart::Auto)]
     height: Smart<Length>,
     /// The content whose size to measure.
     content: Content,
-) -> SourceResult<Dict>
+)
+->SourceResult<Dict>
 {
     // Create a pod region with the available space.
     let styles = context.styles().at(span)?;
-    let pod = Region::new(
-        Axes::new(
-            width.resolve(styles).unwrap_or(Abs::inf()),
-            height.resolve(styles).unwrap_or(Abs::inf()),
-        ),
-        Axes::splat(false),
-    );
+    let pod = Region:: new (Axes::new (width.resolve(styles).unwrap_or(Abs::inf()), height.resolve(styles).unwrap_or(Abs::inf()),), Axes::splat(false),);
 
     // We put the locator into a special "measurement mode" to ensure that
     // introspection-driven features within the content continue to work. Read
@@ -93,20 +87,11 @@ pub fn measure(
     // details.
     let here = context.location().at(span)?;
     let link = LocatorLink::measure(here, span);
-    let locator = Locator::link(&link);
-    let style = TargetElem::target.set(Target::Paged).wrap();
+    let locator = Locator::link( & link);
+    let style = TargetElem::target. set(Target::Paged).wrap();
 
-    let frame = (engine.library.routines.layout_frame)(
-        engine,
-        &content,
-        locator,
-        styles.chain(&style),
-        pod,
-    )?;
-    let Size { x, y } = frame.size();
-    Ok(dict! {
-        "width" => x,
-        "height" => y,
-        "baseline" => frame.baseline(),
-    })
+    let frame = (engine.library.routines.layout_frame)(engine, & content, locator, styles.chain( & style), pod,)?;
+    let Size { x, y }
+    = frame.size();
+    Ok(dict ! { "width" => x, "height" => y, "baseline" => frame.baseline(), })
 }
