@@ -6,7 +6,6 @@ const ChildProcess = require("node:child_process");
 const OS = require("node:os");
 const Crypto = require("node:crypto");
 const JSZip = require("./public/vendor/jszip.min.js");
-const Deterministic_Bidirectional_Mapper_Module = require("./public/Deterministic_Bidirectional_Mapper.js");
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const HOST = "127.0.0.1";
@@ -208,7 +207,7 @@ function VerifyClientAuthorization(Request)
     // Protect all state-modifying requests and sensitive file operations with local session token
     const URLInstance = new URL(Request.url, `http://${Request.headers.host}`);
     const Pathname = URLInstance.pathname;
-    const SafePublicEndpoints = new Set(["/api/status", "/api/auth/token", "/api/fonts", "/api/font-file", "/api/sync/forward", "/api/sync/reverse"]);
+    const SafePublicEndpoints = new Set(["/api/status", "/api/auth/token", "/api/fonts", "/api/font-file"]);
 
     if (Pathname === "/api/auth/token")
     {
@@ -1333,14 +1332,9 @@ async function HandleCompile(Request, Response)
             );
 
         const Pages = [];
-        for (let Idx = 0; Idx < SvgFiles.length; Idx++)
+        for (const SvgFile of SvgFiles)
         {
-            const SvgFile = SvgFiles[Idx];
-            let SvgContent = await FSPromises.readFile(Path.join(JobDir, SvgFile), "utf-8");
-            if (!SvgContent.includes("data-lafs-page-index"))
-            {
-                SvgContent = SvgContent.replace(/<svg\b/i, `<svg data-lafs-page-index = "${Idx}" `);
-            }
+            const SvgContent = await FSPromises.readFile(Path.join(JobDir, SvgFile), "utf-8");
             Pages.push(SvgContent);
         }
 
@@ -1687,56 +1681,6 @@ async function HandleFormat(Request, Response)
         const Formatted = FormatTypstLAFS(Source);
         Response.writeHead(200, { "Content-Type": "application/json" });
         Response.end(JSON.stringify({ Success: true, Formatted: Formatted }));
-    }
-    catch (Exception)
-    {
-        Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Exception.message }));
-    }
-}
-
-async function HandleSyncForward(Request, Response)
-{
-    try
-    {
-        const RawBody    = await ReadRequestBody(Request);
-        const Payload    = JSON.parse(RawBody);
-        const Source     = Payload.Source || "";
-        const CursorLine = Payload.CursorLine || 1;
-        const CursorCol  = Payload.CursorCol || 1;
-        const CursorByte = Payload.CursorByte !== undefined ? Payload.CursorByte : null;
-
-        const Mapper = new Deterministic_Bidirectional_Mapper_Module.Deterministic_Bidirectional_Mapper();
-        Mapper.BuildFromSourceAndLayout(Source);
-        const Target = Mapper.ResolveForwardSync(CursorLine, CursorCol, CursorByte);
-
-        Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Target: Target }));
-    }
-    catch (Exception)
-    {
-        Response.writeHead(500, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: false, Error: Exception.message }));
-    }
-}
-
-async function HandleSyncReverse(Request, Response)
-{
-    try
-    {
-        const RawBody   = await ReadRequestBody(Request);
-        const Payload   = JSON.parse(RawBody);
-        const Source    = Payload.Source || "";
-        const PageIndex = Payload.PageIndex || 0;
-        const ClickXPt  = Payload.ClickXPt || 0;
-        const ClickYPt  = Payload.ClickYPt || 0;
-
-        const Mapper = new Deterministic_Bidirectional_Mapper_Module.Deterministic_Bidirectional_Mapper();
-        Mapper.BuildFromSourceAndLayout(Source);
-        const Target = Mapper.ResolveReverseSync(PageIndex, ClickXPt, ClickYPt);
-
-        Response.writeHead(200, { "Content-Type": "application/json" });
-        Response.end(JSON.stringify({ Success: true, Target: Target }));
     }
     catch (Exception)
     {
@@ -2887,18 +2831,6 @@ const Server = HTTP.createServer
         if (Request.method === "POST" && Pathname === "/api/format")
         {
             await HandleFormat(Request, Response);
-            return;
-        }
-
-        if (Request.method === "POST" && Pathname === "/api/sync/forward")
-        {
-            await HandleSyncForward(Request, Response);
-            return;
-        }
-
-        if (Request.method === "POST" && Pathname === "/api/sync/reverse")
-        {
-            await HandleSyncReverse(Request, Response);
             return;
         }
 

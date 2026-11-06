@@ -733,180 +733,6 @@ function JumpToEditorLocation(Line, Col)
     MonacoInstance.focus();
 }
 
-// =========================================================================
-// DETERMINISTIC BIDIRECTIONAL MAPPING SUBSYSTEM (LAFS SYNCTEX)
-// =========================================================================
-let ActiveBidirectionalMapper   = null;
-let AnchorPillarDecorations     = [];
-let AnchorFlashTimeout          = null;
-
-function FlashAnchorPillars(OpeningLine, ClosingLine)
-{
-    if (!MonacoInstance || !window.monaco)
-    {
-        return;
-    }
-
-    if (AnchorFlashTimeout)
-    {
-        clearTimeout(AnchorFlashTimeout);
-        AnchorFlashTimeout = null;
-    }
-
-    const NewDecorations =
-    [
-        {
-            range:   new window.monaco.Range(OpeningLine, 1, OpeningLine, 1),
-            options: { isWholeLine: true, className: "lafs-anchor-pillar-highlight" }
-        },
-        {
-            range:   new window.monaco.Range(ClosingLine, 1, ClosingLine, 1),
-            options: { isWholeLine: true, className: "lafs-anchor-pillar-highlight" }
-        }
-    ];
-
-    AnchorPillarDecorations = MonacoInstance.deltaDecorations(AnchorPillarDecorations, NewDecorations);
-    AnchorFlashTimeout      = setTimeout
-    (
-        () =>
-        {
-            if (MonacoInstance)
-            {
-                AnchorPillarDecorations = MonacoInstance.deltaDecorations(AnchorPillarDecorations, []);
-            }
-        },
-        800
-    );
-}
-
-function HandleForwardSync()
-{
-    if (!MonacoInstance || !ActiveBidirectionalMapper)
-    {
-        return;
-    }
-
-    const Position = MonacoInstance.getPosition();
-    if (!Position)
-    {
-        return;
-    }
-
-    const CursorLine = Position.lineNumber;
-    const CursorCol  = Position.column;
-    const Target     = ActiveBidirectionalMapper.ResolveForwardSync(CursorLine, CursorCol);
-
-    // Remove any existing highlight rect across all preview pages
-    const ExistingHighlights = document.querySelectorAll("#lafs-forward-sync-highlight");
-    for (let I = 0; I < ExistingHighlights.length; I++)
-    {
-        ExistingHighlights[I].remove();
-    }
-
-    if (!Target || !Target.Bounds)
-    {
-        return;
-    }
-
-    const PageSheet = document.getElementById(`PageSheet_${Target.PageIndex + 1}`);
-    if (!PageSheet)
-    {
-        return;
-    }
-
-    const ActiveSvg = PageSheet.querySelector(".SvgLayer:not([style*='display: none']) svg") || PageSheet.querySelector("svg");
-    if (!ActiveSvg)
-    {
-        return;
-    }
-
-    const RectElem = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    RectElem.setAttribute("id", "lafs-forward-sync-highlight");
-    RectElem.setAttribute("x", Target.Bounds.MinX.toFixed(2));
-    RectElem.setAttribute("y", Target.Bounds.MinY.toFixed(2));
-    RectElem.setAttribute("width", Target.Bounds.Width().toFixed(2));
-    RectElem.setAttribute("height", Target.Bounds.Height().toFixed(2));
-    RectElem.setAttribute("stroke", Target.StrokeColor);
-    RectElem.setAttribute("fill", Target.FillColor);
-    RectElem.setAttribute("stroke-width", "1.5");
-    RectElem.setAttribute("rx", "2");
-    RectElem.setAttribute("pointer-events", "none");
-
-    ActiveSvg.appendChild(RectElem);
-
-    // Smooth scroll preview container if off-screen
-    const PreviewViewport = document.getElementById("PreviewViewport");
-    if (PreviewViewport)
-    {
-        const RectBounds = RectElem.getBoundingClientRect();
-        const ViewBounds = PreviewViewport.getBoundingClientRect();
-
-        const IsOffScreen = RectBounds.top < ViewBounds.top || RectBounds.bottom > ViewBounds.bottom;
-        if (IsOffScreen)
-        {
-            const ScrollOffset = (RectBounds.top - ViewBounds.top) + PreviewViewport.scrollTop - (ViewBounds.height / 2);
-            PreviewViewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
-        }
-    }
-}
-
-function HandleReverseSync(Event)
-{
-    if (!Event.ctrlKey && !Event.metaKey)
-    {
-        return;
-    }
-    if (!ActiveBidirectionalMapper)
-    {
-        return;
-    }
-
-    const SvgElement = Event.target.closest("svg");
-    if (!SvgElement)
-    {
-        return;
-    }
-
-    Event.preventDefault();
-    Event.stopPropagation();
-
-    const PageSheet = SvgElement.closest(".PageSheet");
-    let PageIndex = 0;
-    if (SvgElement.hasAttribute("data-lafs-page-index"))
-    {
-        PageIndex = parseInt(SvgElement.getAttribute("data-lafs-page-index"), 10);
-    }
-    else if (PageSheet)
-    {
-        PageIndex = Math.max(0, parseInt(PageSheet.id.replace("PageSheet_", ""), 10) - 1);
-    }
-
-    const ScreenCTM = SvgElement.getScreenCTM();
-    if (!ScreenCTM)
-    {
-        return;
-    }
-
-    const InvCTM  = ScreenCTM.inverse();
-    const Pt      = new DOMPoint(Event.clientX, Event.clientY).matrixTransform(InvCTM);
-    const ClickX  = Pt.x;
-    const ClickY  = Pt.y;
-
-    const Target = ActiveBidirectionalMapper.ResolveReverseSync(PageIndex, ClickX, ClickY);
-    if (!Target)
-    {
-        return;
-    }
-
-    JumpToEditorLocation(Target.SourceLine, Target.SourceCol);
-
-    // If container with opening and closing anchors, flash highlight anchor pillars in #00E5FF
-    if (Target.EnclosingSpan && Target.EnclosingSpan.OpeningAnchorLine && Target.EnclosingSpan.ClosingAnchorLine)
-    {
-        FlashAnchorPillars(Target.EnclosingSpan.OpeningAnchorLine, Target.EnclosingSpan.ClosingAnchorLine);
-    }
-}
-
 // Appearance & UI Settings
 const UI_SETTINGS_STORAGE_KEY = "TypstStudio_UISettings";
 
@@ -2576,7 +2402,6 @@ async function InitializeMonaco()
                     const Pos = Event.position;
                     document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
                     UpdateMathBracketHighlighting();
-                    HandleForwardSync();
                 }
             );
 
@@ -2716,16 +2541,6 @@ async function TriggerCompileNow()
             CurrentPageCount = Result.PageCount;
             RenderPages(Result.Pages);
             UpdatePagination();
-
-            if (typeof Deterministic_Bidirectional_Mapper_Module !== "undefined")
-            {
-                if (!ActiveBidirectionalMapper)
-                {
-                    ActiveBidirectionalMapper = new Deterministic_Bidirectional_Mapper_Module.Deterministic_Bidirectional_Mapper();
-                }
-                ActiveBidirectionalMapper.BuildFromSourceAndLayout(Source);
-                HandleForwardSync();
-            }
         }
         else
         {
@@ -2947,20 +2762,16 @@ function RenderPages(Pages)
         PageDiv.style.width = `${ScaledWidth}px`;
         PageDiv.style.height = `${ScaledHeight}px`;
 
-        function NormalizeSvg(RawSvg, PageIdx)
+        function NormalizeSvg(RawSvg)
         {
             return RawSvg.replace
             (
                 /<svg\b([^>]*)>/i,
                 (Match, Attrs) =>
                 {
-                    let CleanedAttrs = Attrs
+                    const CleanedAttrs = Attrs
                         .replace(/\bwidth="[^"]*"/gi, "")
                         .replace(/\bheight="[^"]*"/gi, "");
-                    if (!CleanedAttrs.includes("data-lafs-page-index"))
-                    {
-                        CleanedAttrs += ` data-lafs-page-index="${PageIdx}"`;
-                    }
                     return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
                 }
             );
@@ -2968,11 +2779,11 @@ function RenderPages(Pages)
 
         const LightLayer = document.createElement("div");
         LightLayer.className = "SvgLayer LightSvgLayer";
-        LightLayer.innerHTML = NormalizeSvg(SvgContent, Index);
+        LightLayer.innerHTML = NormalizeSvg(SvgContent);
 
         const DarkLayer = document.createElement("div");
         DarkLayer.className = "SvgLayer DarkSvgLayer";
-        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent), Index);
+        DarkLayer.innerHTML = NormalizeSvg(ConvertSvgToDarkMode(SvgContent));
 
         PageDiv.appendChild(LightLayer);
         PageDiv.appendChild(DarkLayer);
@@ -3974,13 +3785,6 @@ function SetupEventListeners()
             }
         }
     );
-
-    // Preview Viewport Reverse Sync (Ctrl+Click / Cmd+Click)
-    const PagesContainerElement = document.getElementById("PagesContainer");
-    if (PagesContainerElement)
-    {
-        PagesContainerElement.addEventListener("click", HandleReverseSync);
-    }
 
     document.getElementById("ManualCompileButton").addEventListener("click", () => { TriggerCompileNow(); });
     document.getElementById("FormatLafsButton").addEventListener("click", () => { ApplyFormattingToEditor(); });
