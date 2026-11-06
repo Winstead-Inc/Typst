@@ -584,6 +584,9 @@ let SessionAuthToken = window.__TYPST_STUDIO_AUTH_TOKEN__ || "";
 let IsSyncTexEnabled = localStorage.getItem("typst_synctex_enabled") !== "false";
 let ActiveSpanMap = {};
 let ActiveSyncMap = [];
+let ActiveSyncMapByLine = new Map();
+let ActiveHighlightLayers = new Set();
+let LastTypingTimestamp = 0;
 let ActiveHighlightSpan = null;
 let ActiveHighlightBox = null;
 let ActiveHighlightBoxes = [];
@@ -591,8 +594,40 @@ let SuppressForwardSync = false;
 let SyncLineDecorations = null;
 let ForwardSyncDebounceTimer = null;
 
+function RebuildSyncMapIndex(SyncMap)
+{
+    ActiveSyncMapByLine = new Map();
+    if (!SyncMap || !Array.isArray(SyncMap))
+    {
+        return ;
+    }
+
+    for (let I = 0; I < SyncMap.length; I ++)
+    {
+        const Elem = SyncMap[I];
+        const StartLine = Elem.line || 1;
+        const EndLine = Elem.end_line || StartLine;
+        for (let L = StartLine; L <= EndLine; L ++)
+        {
+            let LineList = ActiveSyncMapByLine.get(L);
+            if (!LineList)
+            {
+                LineList = [];
+                ActiveSyncMapByLine.set(L, LineList);
+            }
+            LineList.push(Elem);
+        }
+    }
+}
+
 async function EnsureSessionAuthToken()
 {
+    if (IsTauriDesktop)
+    {
+        SessionAuthToken = "desktop-tauri-token";
+        return SessionAuthToken;
+    }
+
     if (SessionAuthToken)
     {
         return SessionAuthToken;
@@ -1191,9 +1226,16 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawBlock = false;
     let InRawInline = false;
     let BlockCommentDepth = 0;
+    const MaskCache = new Map();
     // Helper to get clean line text with strings/comments masked
     function GetMaskedLine(LineText)
     {
+        const Cached = MaskCache.get(LineText);
+        if (Cached !== undefined)
+        {
+            return Cached;
+        }
+
         let Masked = "";
         let InStr = false;
         for (let I = 0; I < LineText.length; I ++)
@@ -1219,6 +1261,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             }
             Masked += C;
         }
+        MaskCache.set(LineText, Masked);
         return Masked;
     }
 
@@ -1602,6 +1645,9 @@ Hint: Click the button "Format LAFS" to fix it.`;
     };
 }
 
+let LastValidatedVersionId = - 1;
+let LastValidatedResult = { HasError: false, Errors:[] };
+
 function ValidateEditorLAFS()
 {
     if (!MonacoInstance)
@@ -1615,9 +1661,18 @@ function ValidateEditorLAFS()
         return { HasError: false, Errors:[] };
     }
 
+    const CurrentVersion = Model.getAlternativeVersionId();
+    if (CurrentVersion === LastValidatedVersionId && LastValidatedResult)
+    {
+        return LastValidatedResult;
+    }
+
     const Source = Model.getValue();
     const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop(): "main.typ";
     const KnrResult = DetectKnrSlop(Source, ActiveFileName);
+
+    LastValidatedVersionId = CurrentVersion;
+    LastValidatedResult = KnrResult;
 
     if (KnrResult.HasError)
     {
@@ -2233,19 +2288,34 @@ async function InitializeMonaco()
             (
                 (Event) =>
                 {
+                    const Pos = Event.position;
+                    const CursorPosEl = document.getElementById("CursorPosition");
+                    if (CursorPosEl)
+                    {
+                        CursorPosEl.textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
+                    }
+
+                    if (Pos.lineNumber !== LastBracketCursorLine)
+                    {
+                        LastBracketCursorLine = Pos.lineNumber;
+                        ScheduleMathBracketHighlighting();
+                    }
+
                     if (!IsSyncTexEnabled || SuppressForwardSync)
                     {
                         return ;
                     }
 
                     clearTimeout(ForwardSyncDebounceTimer);
+                    const IsTyping = (Date.now() - LastTypingTimestamp) < 500;
+                    const DebounceMs = IsTyping ? 400: 120;
                     ForwardSyncDebounceTimer = setTimeout
                     (
                         () =>
                         {
                             PerformForwardSync(Event.position.lineNumber, Event.position.column);
                         },
-                        100
+                        DebounceMs
                     );
                 }
             );
@@ -2260,6 +2330,8 @@ async function InitializeMonaco()
                     }
 
                     clearTimeout(ForwardSyncDebounceTimer);
+                    const IsTyping = (Date.now() - LastTypingTimestamp) < 500;
+                    const DebounceMs = IsTyping ? 400: 120;
                     ForwardSyncDebounceTimer = setTimeout
                     (
                         () =>
@@ -2270,7 +2342,7 @@ async function InitializeMonaco()
                                 PerformForwardSync(Pos.lineNumber, Pos.column);
                             }
                         },
-                        100
+                        DebounceMs
                     );
                 }
             );
@@ -2288,10 +2360,11 @@ async function InitializeMonaco()
                 {
                     clearTimeout(MathBracketHighlightTimer);
                 }
+                const SettleMs = (Date.now() - LastTypingTimestamp < 500) ? 600: 250;
                 MathBracketHighlightTimer = setTimeout
                 (
                     () => { UpdateMathBracketHighlighting(); },
-                    250
+                    SettleMs
                 );
             }
 
@@ -2445,6 +2518,7 @@ async function InitializeMonaco()
             (
                 (Event) =>
                 {
+                    LastTypingTimestamp = Date.now();
                     CheckDocumentDirty();
                     UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();
@@ -2461,20 +2535,24 @@ async function InitializeMonaco()
                         let Delay = 500;
                         if (DocLen > 50000)
                         {
-                            Delay = 1000;
+                            Delay = 1400;
                         }
-                        else if (DocLen > 15000)
+                        else if (DocLen > 20000)
                         {
-                            Delay = 800;
+                            Delay = 1100;
                         }
-                        else if (DocLen > 5000)
+                        else if (DocLen > 8000)
+                        {
+                            Delay = 850;
+                        }
+                        else if (DocLen > 3000)
                         {
                             Delay = 650;
                         }
 
                         if (IsLargeChange)
                         {
-                            Delay = Math.max(Delay, 1000);
+                            Delay = Math.max(Delay, 1200);
                         }
 
                         ScheduleCompile(Delay);
@@ -2486,27 +2564,14 @@ async function InitializeMonaco()
             (
                 () =>
                 {
+                    LastTypingTimestamp = Date.now();
                     UpdateStatusBar();
                     ScheduleMathBracketHighlighting();
                     ScheduleLAFSValidation();
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
-                        ScheduleCompile(600);
-                    }
-                }
-            );
-
-            MonacoInstance.onDidChangeCursorPosition
-            (
-                (Event) =>
-                {
-                    const Pos = Event.position;
-                    document.getElementById("CursorPosition").textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
-                    if (Pos.lineNumber !== LastBracketCursorLine)
-                    {
-                        LastBracketCursorLine = Pos.lineNumber;
-                        ScheduleMathBracketHighlighting();
+                        ScheduleCompile(1200);
                     }
                 }
             );
@@ -2633,18 +2698,53 @@ async function TriggerCompileNow()
 
     try
     {
-        const Response = await AuthenticatedFetch
-        (
-            "/api/compile",
+        let Result;
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const RustResp = await window.__TAURI__.core.invoke
+            (
+                "CompileTypst",
+                {
+                    Source: Source,
+                    FilePath: CurrentFilePath || null
+                }
+            );
+            Result =
             {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify( { Source: Source }),
-                signal: Controller.signal
+                Success: RustResp.success,
+                Pages: RustResp.pages || [],
+                PageCount: RustResp.page_count || 0,
+                SyncMap: RustResp.sync_map || [],
+                SpanMap: {},
+                DurationMs: RustResp.duration_ms || 0,
+                Error: RustResp.error
+            };
+            if (Result.SyncMap && Array.isArray(Result.SyncMap))
+            {
+                for (const Elem of Result.SyncMap)
+                {
+                    if (Elem.span && !Result.SpanMap[Elem.span])
+                    {
+                        Result.SpanMap[Elem.span] = Elem;
+                    }
+                }
             }
-        );
+        }
+        else
+        {
+            const Response = await AuthenticatedFetch
+            (
+                "/api/compile",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify( { Source: Source }),
+                    signal: Controller.signal
+                }
+            );
 
-        const Result = await Response.json();
+            Result = await Response.json();
+        }
 
         if (Result.Aborted)
         {
@@ -2663,6 +2763,7 @@ async function TriggerCompileNow()
             CurrentPageCount = Result.PageCount;
             ActiveSpanMap = Result.SpanMap || {};
             ActiveSyncMap = Result.SyncMap || [];
+            RebuildSyncMapIndex(ActiveSyncMap);
             RenderPages(Result.Pages);
             UpdatePagination();
             if (ActiveHighlightBoxes && ActiveHighlightBoxes.length > 0)
@@ -2915,44 +3016,48 @@ function ConvertSvgToDarkMode(Svg)
         return Cached;
     }
 
-    let Result = Svg.replace
-    (
-        /\b(fill|stroke|stop-color)\s*=\s*(["'][^"']*["'])/gi, (Match, Attr, QuotedVal) =>
-        {
-            const Quote = QuotedVal[0];
-            const Color = QuotedVal.slice(1, - 1);
-            const Inverted = InvertMonochromeColor(Color);
-            return `${Attr}=${Quote}${Inverted}${Quote}`;
-        }
-    );
+    // High-performance string replacement for native Typst SVG output
+    let Result = Svg;
+    // 1. Invert white page canvas to pure pitch black #000000
+    Result = Result.replace('fill="#ffffff" fill-rule="nonzero" d="M 0 0v', 'fill="#000000" fill-rule="nonzero" d="M 0 0v');
+    Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="#000000" fill-rule="nonzero" d="M 0 0v');
+    // 2. Invert standard black text and symbols to pure white
+    Result = Result.replaceAll('fill="#000000"', 'fill="#FFFFFF"');
+    Result = Result.replaceAll('stroke="#000000"', 'stroke="#FFFFFF"');
+    Result = Result.replaceAll('fill="#0C0C0C"', 'fill="#000000"');
+    Result = Result.replaceAll('fill="#0c0c0c"', 'fill="#000000"');
+    Result = Result.replaceAll('fill="rgb(12, 12, 12)"', 'fill="rgb(0, 0, 0)"');
+    Result = Result.replaceAll('fill="#555555"', 'fill="#AAAAAA"');
+    Result = Result.replaceAll('stroke="#555555"', 'stroke="#AAAAAA"');
 
-    Result = Result.replace
-    (
-        /\bstyle\s*=\s*(["'][^"']*["'])/gi, (Match, QuotedVal) =>
-        {
-            const Quote = QuotedVal[0];
-            const StyleContent = QuotedVal.slice(1, - 1);
-            const Transformed = StyleContent.replace
-            (
-                /\b(fill|stroke|color|background-color)\s*:\s*([^;"']+)/gi, (PropMatch, Prop, Color) =>
-                {
-                    return `${Prop}: ${InvertMonochromeColor(Color.trim())}`;
-                }
-            );
-            return `style=${Quote}${Transformed}${Quote}`;
-        }
-    );
+    // 3. Handle any custom style="" attributes only if present
+    if (Result.includes('style="') || Result.includes("style='"))
+    {
+        Result = Result.replace
+        (
+            /\bstyle\s*=\s*(["'][^"']*["'])/gi, (Match, QuotedVal) =>
+            {
+                const Quote = QuotedVal[0];
+                const StyleContent = QuotedVal.slice(1, - 1);
+                const Transformed = StyleContent.replace
+                (
+                    /\b(fill|stroke|color)\s*:\s*(#000000|black|#ffffff|white|rgb\(0,\s*0,\s*0\)|rgb\(255,\s*255,\s*255\))/gi,
+                    (PropMatch, Prop, Color) =>
+                    {
+                        const Inverted = (Color === "#000000" || Color === "black" || Color.includes("0, 0, 0")) ? "#FFFFFF": "#000000";
+                        return `${Prop}: ${Inverted}`;
+                    }
+                );
+                return `style=${Quote}${Transformed}${Quote}`;
+            }
+        );
+    }
 
-    Result = Result.replace(/\bfill\s*:\s*rgb\(\s*12\s*,\s*12\s*,\s*12\s*\)/gi, "fill: rgb(0, 0, 0)");
-    Result = Result.replace(/\bfill\s*=\s*["']#0[cC]0[cC]0[cC]["']/gi, 'fill="#000000"');
-    Result = Result.replace(/\bfill\s*=\s*["']rgb\(\s*12\s*,\s*12\s*,\s*12\s*\)["']/gi, 'fill="rgb(0, 0, 0)"');
-
-    SvgDarkModeCache.set(SvgKey, Result);
-    if (SvgDarkModeCache.size > 40)
+    if (SvgDarkModeCache.size > 200)
     {
         SvgDarkModeCache.clear();
     }
-
+    SvgDarkModeCache.set(SvgKey, Result);
     return Result;
 }
 
@@ -3069,15 +3174,11 @@ function RenderPages(Pages)
                 return ;
                 // Newer render has started
             }
-            const ChunkLimit = Math.min(Pages.length, CurrentIndex + 4);
+            const ChunkSize = Pages.length > 20 ? 2: 3;
+            const ChunkLimit = Math.min(Pages.length, CurrentIndex + ChunkSize);
             for (; CurrentIndex < ChunkLimit; CurrentIndex ++)
             {
                 UpdateOrCreatePageElement(Pages[CurrentIndex], CurrentIndex);
-            }
-            if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
-            {
-                Viewport.scrollTop = PrevScrollTop;
-                Viewport.scrollLeft = PrevScrollLeft;
             }
             if (CurrentIndex < Pages.length)
             {
@@ -3264,6 +3365,32 @@ async function ExportPdf()
         const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
         const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
 
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const PdfBytes = await window.__TAURI__.core.invoke
+            (
+                "ExportPdf",
+                {
+                    Source: Source,
+                    FilePath: CurrentFilePath || null
+                }
+            );
+            const Blob = new Blob([new Uint8Array(PdfBytes)], { type: "application/pdf" });
+            const DownloadUrl = URL.createObjectURL(Blob);
+            const Anchor = document.createElement("a");
+            Anchor.href = DownloadUrl;
+            Anchor.download = DocTitle.endsWith(".pdf") ? DocTitle: `${DocTitle}.pdf`;
+            document.body.appendChild(Anchor);
+            Anchor.click();
+            document.body.removeChild(Anchor);
+            URL.revokeObjectURL(DownloadUrl);
+
+            StatusDot.className = "StatusDot";
+            StatusText.textContent = "PDF Exported";
+            ShowToast("PDF exported successfully", "success");
+            return ;
+        }
+
         const Response = await AuthenticatedFetch
         (
             "/api/export/pdf",
@@ -3331,6 +3458,35 @@ async function ExportSvg()
         const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
         const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
         const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
+
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const ZipBytes = await window.__TAURI__.core.invoke
+            (
+                "ExportSvg",
+                {
+                    Source: Source,
+                    FilePath: CurrentFilePath || null,
+                    BaseDocName: BaseDocName,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
+                }
+            );
+            const Blob = new Blob([new Uint8Array(ZipBytes)], { type: "application/zip" });
+            const DownloadUrl = URL.createObjectURL(Blob);
+            const Anchor = document.createElement("a");
+            Anchor.href = DownloadUrl;
+            Anchor.download = `${BaseDocName}_svg.zip`;
+            document.body.appendChild(Anchor);
+            Anchor.click();
+            document.body.removeChild(Anchor);
+            URL.revokeObjectURL(DownloadUrl);
+
+            if (StatusDot) { StatusDot.className = "StatusDot"; }
+            if (StatusText) { StatusText.textContent = "SVG Exported"; }
+            ShowToast("SVG ZIP exported successfully", "success");
+            return ;
+        }
 
         const Response = await AuthenticatedFetch
         (
@@ -3454,6 +3610,35 @@ async function ExportPng()
         const TransparentCheckbox = document.getElementById("ExportTransparentCheckbox");
         const BlackMode = BlackModeCheckbox ? BlackModeCheckbox.checked: false;
         const Transparent = TransparentCheckbox ? TransparentCheckbox.checked: false;
+
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const ZipBytes = await window.__TAURI__.core.invoke
+            (
+                "ExportPng",
+                {
+                    Source: Source,
+                    FilePath: CurrentFilePath || null,
+                    BaseDocName: BaseDocName,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
+                }
+            );
+            const Blob = new Blob([new Uint8Array(ZipBytes)], { type: "application/zip" });
+            const DownloadUrl = URL.createObjectURL(Blob);
+            const Anchor = document.createElement("a");
+            Anchor.href = DownloadUrl;
+            Anchor.download = `${BaseDocName}_png.zip`;
+            document.body.appendChild(Anchor);
+            Anchor.click();
+            document.body.removeChild(Anchor);
+            URL.revokeObjectURL(DownloadUrl);
+
+            if (StatusDot) { StatusDot.className = "StatusDot"; }
+            if (StatusText) { StatusText.textContent = "PNG Exported"; }
+            ShowToast("PNG ZIP exported successfully", "success");
+            return ;
+        }
 
         const Response = await AuthenticatedFetch
         (
@@ -3842,23 +4027,59 @@ async function HandleDroppedAssetFile(File)
         const Base64Data = Reader.result.split(",")[1];
         try
         {
-            const Response = await AuthenticatedFetch
-            (
-                "/api/workspace/upload",
+            let CleanFileName;
+            if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+            {
+                let TargetDir = null;
+                if (CurrentFilePath)
                 {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify
-                    ({
-                        FileName: File.name,
-                        Base64Data: Base64Data,
-                        ActiveFilePath: CurrentFilePath
-                    })
+                    const LastSep = Math.max(CurrentFilePath.lastIndexOf("/"), CurrentFilePath.lastIndexOf("\\"));
+                    if (LastSep > 0)
+                    {
+                        TargetDir = CurrentFilePath.substring(0, LastSep);
+                    }
                 }
-            );
+                const SavedPath = await window.__TAURI__.core.invoke
+                (
+                    "UploadAsset",
+                    {
+                        Directory: TargetDir,
+                        FileName: File.name,
+                        Base64Data: Base64Data
+                    }
+                );
+                CleanFileName = SavedPath.split(/[\\/]/).pop();
+            }
+            else
+            {
+                const Response = await AuthenticatedFetch
+                (
+                    "/api/workspace/upload",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify
+                        ({
+                            FileName: File.name,
+                            Base64Data: Base64Data,
+                            ActiveFilePath: CurrentFilePath
+                        })
+                    }
+                );
 
-            const Data = await Response.json();
-            if (Data.Success && MonacoInstance)
+                const Data = await Response.json();
+                if (Data.Success)
+                {
+                    CleanFileName = Data.FileName;
+                }
+                else
+                {
+                    ShowToast(`Upload failed: ${Data.Error || "Server error"}`, "error");
+                    return ;
+                }
+            }
+
+            if (CleanFileName && MonacoInstance)
             {
                 const CleanFileName = Data.FileName;
                 const Snippet = `\n#image\n(\n\t"${CleanFileName}",\n\twidth: 80%\n)\n`;
@@ -4534,7 +4755,17 @@ async function PickFolderFromDisk()
 
     try
     {
-        if (window.__TAURI__ && window.__TAURI__.dialog && typeof window.__TAURI__.dialog.open === "function")
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const SelectedPath = await window.__TAURI__.core.invoke("PickFolder");
+            if (SelectedPath && DirInput)
+            {
+                DirInput.value = SelectedPath;
+                DirInput.focus();
+                return ;
+            }
+        }
+        else if (window.__TAURI__ && window.__TAURI__.dialog && typeof window.__TAURI__.dialog.open === "function")
         {
             const SelectedPath = await window.__TAURI__.dialog.open
             ({
@@ -4614,9 +4845,18 @@ async function LoadWorkspaceInfo()
 {
     try
     {
-        const Response = await AuthenticatedFetch("/api/workspace/info");
-        const Data = await Response.json();
-        if (Data.Success)
+        let Data;
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            Data = await window.__TAURI__.core.invoke("GetWorkspaceInfo");
+        }
+        else
+        {
+            const Response = await AuthenticatedFetch("/api/workspace/info");
+            Data = await Response.json();
+        }
+
+        if (Data && Data.Success)
         {
             WorkspaceDirectories = Data.Directories || [];
             WorkspaceFiles = Data.Files || [];
@@ -4723,9 +4963,23 @@ async function OpenFileFromWorkspace(FilePath)
 {
     try
     {
-        const Response = await AuthenticatedFetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
-        const Data = await Response.json();
-        if (Data.Success && MonacoInstance)
+        let Content;
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { PathStr: FilePath });
+        }
+        else
+        {
+            const Response = await AuthenticatedFetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
+            const Data = await Response.json();
+            if (!Data.Success)
+            {
+                throw new Error(Data.Message || "Unknown error");
+            }
+            Content = Data.Content;
+        }
+
+        if (Content !== undefined && MonacoInstance)
         {
             CurrentFilePath = FilePath;
             const FileName = FilePath.split(/[\\/]/).pop();
@@ -4735,8 +4989,8 @@ async function OpenFileFromWorkspace(FilePath)
             {
                 ActiveDocStat.textContent = FileName;
             }
-            MonacoInstance.setValue(Data.Content);
-            MarkDocumentClean(Data.Content);
+            MonacoInstance.setValue(Content);
+            MarkDocumentClean(Content);
             ShowToast(`Loaded ${FileName}`, "info");
             CloseDocDropdown();
             SwitchView("editor");
@@ -4788,6 +5042,29 @@ async function SaveCurrentFile()
 
     try
     {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            await window.__TAURI__.core.invoke("SaveWorkspaceFile", { PathStr: TargetPath, Content: Content });
+            MarkDocumentClean(Content);
+            ShowToast("Saved to disk", "success");
+            if (SaveBtn && Label)
+            {
+                SaveBtn.classList.add("SavedSuccess");
+                Label.textContent = "Saved!";
+                setTimeout
+                (
+                    () =>
+                    {
+                        SaveBtn.classList.remove("SavedSuccess");
+                        Label.textContent = "Save";
+                    },
+                    1500
+                );
+            }
+            LoadWorkspaceInfo();
+            return ;
+        }
+
         const Response = await AuthenticatedFetch
         (
             "/api/workspace/file",
@@ -4855,24 +5132,46 @@ async function CreateNewWorkspaceFile()
 
     try
     {
-        const Response = await AuthenticatedFetch
-        (
-            "/api/workspace/create",
-            {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify( { Directory: TargetDir, FileName: CleanName, Content: InitialContent })
-            }
-        );
-        const Data = await Response.json();
-        if (Data.Success && Data.Path)
+        let CreatedPath;
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            await LoadWorkspaceInfo();
-            OpenFileFromWorkspace(Data.Path);
+            CreatedPath = await window.__TAURI__.core.invoke
+            (
+                "CreateWorkspaceFile",
+                {
+                    Directory: TargetDir || null,
+                    FileName: CleanName,
+                    Content: InitialContent
+                }
+            );
         }
         else
         {
-            alert("Create failed: " + (Data.Message || "Unknown error"));
+            const Response = await AuthenticatedFetch
+            (
+                "/api/workspace/create",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify( { Directory: TargetDir, FileName: CleanName, Content: InitialContent })
+                }
+            );
+            const Data = await Response.json();
+            if (Data.Success && Data.Path)
+            {
+                CreatedPath = Data.Path;
+            }
+            else
+            {
+                alert("Create failed: " + (Data.Message || "Unknown error"));
+                return ;
+            }
+        }
+
+        if (CreatedPath)
+        {
+            await LoadWorkspaceInfo();
+            OpenFileFromWorkspace(CreatedPath);
         }
     }
     catch (Err)
@@ -4892,6 +5191,14 @@ async function AddWorkspaceDirectory()
 
     try
     {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            await window.__TAURI__.core.invoke("AddWorkspaceDirectory", { PathStr: DirPath });
+            Input.value = "";
+            await LoadWorkspaceInfo();
+            return ;
+        }
+
         const Response = await AuthenticatedFetch
         (
             "/api/workspace/directory",
@@ -4927,6 +5234,13 @@ async function RemoveWorkspaceDirectory(DirPath)
 
     try
     {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            await window.__TAURI__.core.invoke("RemoveWorkspaceDirectory", { PathStr: DirPath });
+            await LoadWorkspaceInfo();
+            return ;
+        }
+
         const Response = await AuthenticatedFetch
         (
             "/api/workspace/directory",
@@ -4961,6 +5275,20 @@ async function DeleteWorkspaceFile(FilePath, FileName)
 
     try
     {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            await window.__TAURI__.core.invoke("DeleteWorkspaceFile", { PathStr: FilePath });
+            await LoadWorkspaceInfo();
+            if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
+            {
+                if (WorkspaceFiles.length > 0)
+                {
+                    OpenFileFromWorkspace(WorkspaceFiles[0].Path);
+                }
+            }
+            return ;
+        }
+
         const Response = await AuthenticatedFetch
         (
             `/api/workspace/file?path=${encodeURIComponent(FilePath)}`,
@@ -5289,10 +5617,25 @@ function InitializeSyncTex()
 
 function ClearSyncHighlights()
 {
-    document.querySelectorAll(".SyncHighlightLayer").forEach
-    (
-        (Layer) => { Layer.innerHTML = ""; }
-    );
+    if (ActiveHighlightLayers.size > 0)
+    {
+        for (const Layer of ActiveHighlightLayers)
+        {
+            if (Layer && Layer.parentNode)
+            {
+                Layer.innerHTML = "";
+            }
+        }
+        ActiveHighlightLayers.clear();
+    }
+    else
+    {
+        document.querySelectorAll(".SyncHighlightLayer").forEach
+        (
+            (Layer) => { Layer.innerHTML = ""; }
+        );
+    }
+
     if (SyncLineDecorations)
     {
         SyncLineDecorations.clear();
@@ -5721,10 +6064,24 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
     ActiveHighlightBoxes = Boxes;
     ActiveHighlightBox = Boxes[0] || null;
 
-    document.querySelectorAll(".SyncHighlightLayer").forEach
-    (
-        (Layer) => { Layer.innerHTML = ""; }
-    );
+    if (ActiveHighlightLayers.size > 0)
+    {
+        for (const Layer of ActiveHighlightLayers)
+        {
+            if (Layer && Layer.parentNode)
+            {
+                Layer.innerHTML = "";
+            }
+        }
+        ActiveHighlightLayers.clear();
+    }
+    else
+    {
+        document.querySelectorAll(".SyncHighlightLayer").forEach
+        (
+            (Layer) => { Layer.innerHTML = ""; }
+        );
+    }
 
     const PageBoxesMap = new Map();
     for (const Box of Boxes)
@@ -5779,6 +6136,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     Svg.appendChild(HighlightLayer);
                 }
                 HighlightLayer.innerHTML = "";
+                ActiveHighlightLayers.add(HighlightLayer);
 
                 const CleanBoxes = [];
                 for (let I = 0; I < PageBoxes.length; I ++)
@@ -5811,7 +6169,8 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
                     const PadX = 2.0;
-                    const TopShift = Math.max(1.5, Box.height * 0.20);
+                    const TopShift = Math.max(2.8, Box.height * 0.32);
+                    const RectHeight = Math.max(8.0, Box.height * 0.90);
                     Rect.setAttribute("x", (Box.x - PadX).toFixed(2));
                     Rect.setAttribute("y", (Box.y + TopShift).toFixed(2));
                     Rect.setAttribute
@@ -5820,7 +6179,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     );
                     Rect.setAttribute
                     (
-                        "height", Box.height.toFixed(2)
+                        "height", RectHeight.toFixed(2)
                     );
                     Rect.setAttribute("rx", "3");
                     Rect.setAttribute("ry", "3");
@@ -5854,9 +6213,10 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             if (!IsAlreadyVisible)
             {
                 const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
+                const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
                 Viewport.scrollTo
                 ({
-                    top: Math.max(0, ScrollOffset), behavior: "smooth"
+                    top: Math.max(0, ScrollOffset), behavior: ScrollBehavior
                 });
             }
         }
@@ -6207,8 +6567,22 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             const SelStartCol = Selection.startColumn;
             const SelEndLine = Selection.endLineNumber;
             const SelEndCol = Selection.endColumn;
+            const CandidateSet = new Set();
+            for (let L = SelStartLine; L <= SelEndLine; L ++)
+            {
+                const LineList = ActiveSyncMapByLine.get(L);
+                if (LineList)
+                {
+                    for (let I = 0; I < LineList.length; I ++)
+                    {
+                        CandidateSet.add(LineList[I]);
+                    }
+                }
+            }
+            const Candidates = CandidateSet.size > 0 ? Array.from(CandidateSet): ActiveSyncMap;
+
             // Find overlapping elements using rock-solid Line & Column coordinates (UTF-16 aligned)
-            const IntersectingRaw = ActiveSyncMap.filter
+            const IntersectingRaw = Candidates.filter
             (
                 (Elem) =>
                 {
@@ -6286,7 +6660,8 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         return ;
     }
 
-    const SameLineCandidates = ActiveSyncMap.filter
+    const SameLineRaw = ActiveSyncMapByLine.get(Line) || (ActiveSyncMap.length < 500 ? ActiveSyncMap: []);
+    const SameLineCandidates = SameLineRaw.filter
     (
         (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
     );

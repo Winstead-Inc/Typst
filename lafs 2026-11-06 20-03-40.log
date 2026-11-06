@@ -1,0 +1,24 @@
+No target files specified. Format all {json} files in current directory and subdirectories? [y/N]: Formatted & Saved: .\TypstStudio\.workspace_config.json
+Formatted & Saved: .\TypstStudio Backup\.workspace_config.json
+Formatted & Saved: .\TypstStudio\src-tauri\capabilities\default.json
+Formatted & Saved: .\TypstStudio\src-tauri\gen\schemas\capabilities.json
+Formatted & Saved: .\scratch\synctex.json
+Formatted & Saved: .\tools\support\config.json
+Formatted & Saved: .\tools\support\package.json
+Formatted & Saved: .\scratch\test_mat_svg\synctex.json
+Formatted & Saved: .\tools\support\typst.tmLanguage.json
+Formatted & Saved: .\tools\test-helper\package.json
+Formatted & Saved: .\TypstStudio\.temp\test_synctex\synctex.json
+Formatted & Saved: .\TypstStudio\src-tauri\tauri.conf.json
+Formatted & Saved: .\TypstStudio Backup\.temp\test_synctex\synctex.json
+Formatted & Saved: .\tools\test-helper\tsconfig.json
+Formatted & Saved: .\scratch\battle_test_job\synctex.json
+Formatted & Saved: .\scratch\battle_test_job\span-map.json
+Formatted & Saved: .\TypstStudio\src-tauri\gen\schemas\acl-manifests.json
+Formatted & Saved: .\TypstStudio\src-tauri\gen\schemas\desktop-schema.json
+Formatted & Saved: .\TypstStudio\src-tauri\gen\schemas\windows-schema.json
+Formatted & Saved: .\TypstStudio\.temp\test_run\synctex.json
+Formatted & Saved: .\TypstStudio Backup\.temp\test_run\synctex.json
+Formatted & Saved: .\scratch\timings_nosys.json
+Formatted & Saved: .\scratch\timings.json
+Summary: 23 formatted and saved, 0 already clean, 0 errors (565.92ms, 16 threads).

@@ -1411,7 +1411,7 @@ button, input, select, textarea,
 /* Page Sheet: FULL HEIGHT, NO OVERFLOW HIDDEN CLIPPING */
 .PageSheet
 {
-    background-color: #ffffff;
+    background-color: #FFFFFF;
     box-shadow: var(--paper-shadow);
     border-radius: 2px;
     overflow: visible !important;
@@ -1420,6 +1420,8 @@ button, input, select, textarea,
     margin: 0 auto;
     line-height: 0;
     transition: width 0.1s ease-out, height 0.1s ease-out, filter 0.2s ease, box-shadow 0.2s ease;
+    content-visibility: auto;
+    contain-intrinsic-size: 792px 1120px;
 }
 
 .PageSheet:hover
