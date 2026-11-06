@@ -1414,8 +1414,8 @@ async function HandleResolveClick(Request, Response)
 
         if (isNaN(X) || isNaN(Y))
         {
-            Response.writeHead(400, { "Content-Type": "application/json" });
-            Response.end(JSON.stringify({ Success: false, Error: "Valid X and Y coordinates are required." }));
+            Response.writeHead(200, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Found: false, Error: "Valid X and Y coordinates are required." }));
             return;
         }
 

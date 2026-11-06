@@ -3435,26 +3435,27 @@ kbd
 
 .SyncHighlightRect
 {
-    fill: rgba(113, 0, 255, 0.18);
+    fill: rgba(113, 0, 255, 0.15);
     stroke: #7100FF;
-    stroke-width: 1.5;
+    stroke-width: 0.75;
+    vector-effect: non-scaling-stroke;
     stroke-linecap: round;
     stroke-linejoin: round;
     pointer-events: none;
-    animation: SyncPulse 1.2s ease-in-out infinite alternate;
+    animation: SyncPulse 1.4s ease-in-out infinite alternate;
 }
 
 @keyframes SyncPulse
 {
     0%
     {
-        fill: rgba(113, 0, 255, 0.14);
-        stroke-width: 1.5;
+        fill: rgba(113, 0, 255, 0.10);
+        stroke-width: 0.75;
     }
     100%
     {
-        fill: rgba(113, 0, 255, 0.28);
-        stroke-width: 2.2;
+        fill: rgba(113, 0, 255, 0.22);
+        stroke-width: 1.10;
     }
 }
 

@@ -330,7 +330,8 @@ Matrices and vectors express linear mappings. Inline forms like $mat(1, 2; 3, 4)
 
 Display matrix affine rotation:
 $
-  mat(
+  mat
+  (
     cos theta, -sin theta, 0;
     sin theta,  cos theta, 0;
     0,          0,         1
@@ -342,7 +343,8 @@ $ <eq:rotation>
 
 Display 3D cylindrical coordinate vector:
 $
-  vec(
+  vec
+  (
     r cos phi,
     r sin phi,
     z
@@ -354,7 +356,8 @@ Piecewise conditions can be expressed inline via $cases(1 "if" x > 0, 0 "otherwi
 $
   f(x)
   =
-  cases(
+  cases
+  (
     x^2 "if" x in QQ,
     0 "if" x in RR backslash QQ
   )
@@ -375,7 +378,8 @@ Radicals format inline as $sqrt(x^2 + 1)$ and $root(3, 8)$, and binomial coeffic
 
 Display radical of high-order forms:
 $
-  root(
+  root
+  (
     3,
     x^3 + y^3 + z^3
   )
@@ -384,7 +388,8 @@ $
 Display binomial expansion theorem:
 $
   sum_(k=0)^n
-  binom(
+  binom
+  (
     n,
     k
   )
@@ -1633,6 +1638,16 @@ function ValidateEditorLAFS()
             })
         );
         monaco.editor.setModelMarkers(Model, "lafs-validator", Markers);
+
+        const PagesContainer = document.getElementById("PagesContainer");
+        if (PagesContainer)
+        {
+            PagesContainer.innerHTML = "";
+        }
+        ClearSyncHighlights();
+        LastCompiledPages = [];
+        CurrentPageCount = 0;
+        UpdatePagination();
     }
     else
     {
@@ -2425,6 +2440,16 @@ async function InitializeMonaco()
                     UpdateDocumentOutlineThrottled();
                     UpdateStatusBar();
                     UpdateMathBracketHighlighting();
+                    const LAFSValidation = ValidateEditorLAFS();
+                    if (LAFSValidation && LAFSValidation.HasError)
+                    {
+                        if (CompileTimeoutID)
+                        {
+                            clearTimeout(CompileTimeoutID);
+                            CompileTimeoutID = null;
+                        }
+                        return;
+                    }
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
@@ -2442,6 +2467,16 @@ async function InitializeMonaco()
                 {
                     UpdateStatusBar();
                     UpdateMathBracketHighlighting();
+                    const LAFSValidation = ValidateEditorLAFS();
+                    if (LAFSValidation && LAFSValidation.HasError)
+                    {
+                        if (CompileTimeoutID)
+                        {
+                            clearTimeout(CompileTimeoutID);
+                            CompileTimeoutID = null;
+                        }
+                        return;
+                    }
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile) { ScheduleCompile(450); }
                 }
@@ -2558,6 +2593,25 @@ async function TriggerCompileNow()
     const DurationText = document.getElementById("DurationText");
     const ErrorDrawer = document.getElementById("ErrorDrawer");
 
+    const LAFSValidation = ValidateEditorLAFS();
+    if (LAFSValidation && LAFSValidation.HasError)
+    {
+        const PagesContainer = document.getElementById("PagesContainer");
+        if (PagesContainer)
+        {
+            PagesContainer.innerHTML = "";
+        }
+        ClearSyncHighlights();
+        LastCompiledPages = [];
+        CurrentPageCount = 0;
+        UpdatePagination();
+        StatusDot.className = "StatusDot Error";
+        StatusText.textContent = "Error";
+        DurationText.textContent = "0ms";
+        ShowCompilationError(`Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: ${LAFSValidation.Errors[0] ? LAFSValidation.Errors[0].Reason : "Violation of LAFS"}`);
+        return;
+    }
+
     StatusDot.className = "StatusDot Compiling";
     StatusText.textContent = "Compiling...";
 
@@ -2612,6 +2666,19 @@ async function TriggerCompileNow()
             StatusDot.className = "StatusDot Error";
             StatusText.textContent = "Error";
             DurationText.textContent = `${Result.DurationMs}ms`;
+
+            if (Result.KnrSlop)
+            {
+                const PagesContainer = document.getElementById("PagesContainer");
+                if (PagesContainer)
+                {
+                    PagesContainer.innerHTML = "";
+                }
+                ClearSyncHighlights();
+                LastCompiledPages = [];
+                CurrentPageCount = 0;
+                UpdatePagination();
+            }
 
             ShowCompilationError(Result.Error);
         }
@@ -4947,8 +5014,28 @@ function HandlePreviewClick(Event)
         return;
     }
 
-    const Svg = PageSheet.querySelector("svg");
-    if (!Svg)
+    const Svgs = PageSheet.querySelectorAll("svg");
+    let ActiveSvg = null;
+    for (const Candidate of Svgs)
+    {
+        const Rect = Candidate.getBoundingClientRect();
+        if (Rect.width > 0 && Rect.height > 0)
+        {
+            ActiveSvg = Candidate;
+            break;
+        }
+    }
+    if (!ActiveSvg && Svgs.length > 0)
+    {
+        ActiveSvg = Svgs[0];
+    }
+    if (!ActiveSvg)
+    {
+        return;
+    }
+
+    const SvgRect = ActiveSvg.getBoundingClientRect();
+    if (SvgRect.width <= 0 || SvgRect.height <= 0)
     {
         return;
     }
@@ -4959,13 +5046,17 @@ function HandlePreviewClick(Event)
     const PageIdMatch = PageSheet.id.match(/\d+/);
     const PageNum = PageIdMatch ? parseInt(PageIdMatch[0], 10) : 1;
 
-    const SvgRect = Svg.getBoundingClientRect();
-    const Vb = Svg.viewBox && Svg.viewBox.baseVal && Svg.viewBox.baseVal.width > 0 
-        ? Svg.viewBox.baseVal 
+    const Vb = ActiveSvg.viewBox && ActiveSvg.viewBox.baseVal && ActiveSvg.viewBox.baseVal.width > 0 
+        ? ActiveSvg.viewBox.baseVal 
         : { x: 0, y: 0, width: parseFloat(PageSheet.dataset.baseWidth) || 576, height: parseFloat(PageSheet.dataset.baseHeight) || 864 };
 
     const ClickPtX = Vb.x + (Event.clientX - SvgRect.left) * (Vb.width / SvgRect.width);
     const ClickPtY = Vb.y + (Event.clientY - SvgRect.top) * (Vb.height / SvgRect.height);
+
+    if (isNaN(ClickPtX) || isNaN(ClickPtY) || !isFinite(ClickPtX) || !isFinite(ClickPtY))
+    {
+        return;
+    }
 
     let BestElem = null;
     let MinDist = Infinity;
@@ -5001,12 +5092,12 @@ function HandlePreviewClick(Event)
 
     if (BestElem)
     {
-        let Related = ActiveSyncMap.filter((Elem) => Elem.page === BestElem.page && Elem.span === BestElem.span);
+        let Related = ActiveSyncMap.filter((Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line));
         if (BestElem.line === BestElem.end_line)
         {
             const SameLineElems = ActiveSyncMap.filter
             (
-                (Elem) => Elem.page === BestElem.page && Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
+                (Elem) => Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
             );
             if (SameLineElems.length > Related.length)
             {
@@ -5019,7 +5110,6 @@ function HandlePreviewClick(Event)
             (
                 (Elem) =>
                 {
-                    if (Elem.page !== BestElem.page) { return false; }
                     const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
                     const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
                     return Inside && !IsNumbering;
@@ -5115,6 +5205,100 @@ function FlashMonacoLine(LineNumber)
     );
 }
 
+function MergeOverlappingBoxes(Boxes)
+{
+    if (!Boxes || Boxes.length <= 1)
+    {
+        return Boxes || [];
+    }
+
+    const PageGroups = new Map();
+    for (const Box of Boxes)
+    {
+        const PageNum = Box.page || 1;
+        if (!PageGroups.has(PageNum))
+        {
+            PageGroups.set(PageNum, []);
+        }
+        PageGroups.get(PageNum).push({ ...Box });
+    }
+
+    const Result = [];
+
+    for (const [PageNum, PageBoxes] of PageGroups.entries())
+    {
+        let Changed = true;
+        let Current = [...PageBoxes];
+
+        while (Changed)
+        {
+            Changed = false;
+            const Next = [];
+            const MergedIndices = new Set();
+
+            for (let I = 0; I < Current.length; I++)
+            {
+                if (MergedIndices.has(I))
+                {
+                    continue;
+                }
+                let BoxA = Current[I];
+
+                for (let J = I + 1; J < Current.length; J++)
+                {
+                    if (MergedIndices.has(J))
+                    {
+                        continue;
+                    }
+                    const BoxB = Current[J];
+
+                    const CenterY_A = BoxA.y + (BoxA.height / 2);
+                    const CenterY_B = BoxB.y + (BoxB.height / 2);
+                    const DistY = Math.abs(CenterY_A - CenterY_B);
+
+                    const OverlapX = (Math.min(BoxA.x + BoxA.width, BoxB.x + BoxB.width) - Math.max(BoxA.x, BoxB.x)) >= -1.0;
+                    const OverlapY = (Math.min(BoxA.y + BoxA.height, BoxB.y + BoxB.height) - Math.max(BoxA.y, BoxB.y));
+
+                    const MinHeight = Math.min(BoxA.height, BoxB.height);
+                    const SameLine = DistY < 7.5 || (OverlapY > MinHeight * 0.45);
+
+                    const AInsideB = (BoxA.x >= BoxB.x - 2.0) && ((BoxA.x + BoxA.width) <= (BoxB.x + BoxB.width + 2.0));
+                    const BInsideA = (BoxB.x >= BoxA.x - 2.0) && ((BoxB.x + BoxB.width) <= (BoxA.x + BoxA.width + 2.0));
+                    const Nested = (AInsideB || BInsideA) && DistY < 10.0;
+
+                    if (OverlapX && (SameLine || Nested))
+                    {
+                        const MinX = Math.min(BoxA.x, BoxB.x);
+                        const MaxX = Math.max(BoxA.x + BoxA.width, BoxB.x + BoxB.width);
+                        const MinY = Math.min(BoxA.y, BoxB.y);
+                        const MaxY = Math.max(BoxA.y + BoxA.height, BoxB.y + BoxB.height);
+
+                        BoxA =
+                        {
+                            page: PageNum,
+                            x: MinX,
+                            y: MinY,
+                            width: MaxX - MinX,
+                            height: MaxY - MinY
+                        };
+
+                        MergedIndices.add(J);
+                        Changed = true;
+                    }
+                }
+
+                Next.push(BoxA);
+            }
+
+            Current = Next;
+        }
+
+        Result.push(...Current);
+    }
+
+    return Result;
+}
+
 function GroupElementsIntoVisualBoxes(Elements)
 {
     if (!Elements || Elements.length === 0)
@@ -5122,45 +5306,62 @@ function GroupElementsIntoVisualBoxes(Elements)
         return [];
     }
 
-    const Buckets = [];
+    const PageGroups = new Map();
     for (const Elem of Elements)
     {
         const PageNum = Elem.page || 1;
-        let Bucket = Buckets.find((B) => B.page === PageNum && Math.abs(B.y - Elem.y) < 3.5);
-        if (!Bucket)
+        if (!PageGroups.has(PageNum))
         {
-            Bucket =
-            {
-                page: PageNum,
-                y: Elem.y,
-                minX: Elem.x,
-                maxX: Elem.x + Elem.width,
-                height: Elem.height
-            };
-            Buckets.push(Bucket);
+            PageGroups.set(PageNum, []);
         }
-        else
+        PageGroups.get(PageNum).push({ ...Elem });
+    }
+
+    const FinalBoxes = [];
+
+    for (const [PageNum, PageElements] of PageGroups.entries())
+    {
+        const LineClusters = [];
+        PageElements.sort((A, B) => ((A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x));
+
+        for (const Box of PageElements)
         {
-            Bucket.minX = Math.min(Bucket.minX, Elem.x);
-            Bucket.maxX = Math.max(Bucket.maxX, Elem.x + Elem.width);
-            Bucket.height = Math.max(Bucket.height, Elem.height);
+            const CenterY = Box.y + (Box.height / 2);
+            let Cluster = LineClusters.find((C) => Math.abs(C.CenterY - CenterY) < 10.0);
+            if (!Cluster)
+            {
+                LineClusters.push({ CenterY: CenterY, Boxes: [Box] });
+            }
+            else
+            {
+                Cluster.Boxes.push(Box);
+                Cluster.CenterY = Cluster.Boxes.reduce((Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
+            }
+        }
+
+        for (const Cluster of LineClusters)
+        {
+            const CBoxes = Cluster.Boxes;
+            const MinX = Math.min(...CBoxes.map((B) => B.x));
+            const MaxX = Math.max(...CBoxes.map((B) => B.x + B.width));
+            const MinY = Math.min(...CBoxes.map((B) => B.y));
+            const MaxY = Math.max(...CBoxes.map((B) => B.y + B.height));
+
+            FinalBoxes.push
+            ({
+                page: PageNum,
+                x: MinX,
+                y: MinY,
+                width: MaxX - MinX,
+                height: MaxY - MinY
+            });
         }
     }
 
-    return Buckets.map
-    (
-        (B) =>
-        ({
-            page: B.page,
-            x: B.minX,
-            y: B.y,
-            width: B.maxX - B.minX,
-            height: B.height
-        })
-    );
+    return MergeOverlappingBoxes(FinalBoxes);
 }
 
-function HighlightSvgRects(Boxes, AutoScroll = false)
+function HighlightSvgRects(Boxes, AutoScroll = true)
 {
     if (!IsSyncTexEnabled || !Boxes || Boxes.length === 0)
     {
@@ -5184,7 +5385,20 @@ function HighlightSvgRects(Boxes, AutoScroll = false)
         PageBoxesMap.get(PageNum).push(Box);
     }
 
-    let PrimaryPageSheet = null;
+    let ScrollTargetPage = null;
+    for (const PageNum of PageBoxesMap.keys())
+    {
+        if (PageNum > 1)
+        {
+            ScrollTargetPage = PageNum;
+        }
+    }
+    if (!ScrollTargetPage)
+    {
+        ScrollTargetPage = PageBoxesMap.keys().next().value;
+    }
+
+    let PrimaryPageSheet = document.getElementById(`PageSheet_${ScrollTargetPage}`) || document.querySelectorAll(".PageSheet")[ScrollTargetPage - 1];
     let PrimaryTopY = Infinity;
 
     for (const [PageNum, PageBoxes] of PageBoxesMap.entries())
@@ -5193,11 +5407,6 @@ function HighlightSvgRects(Boxes, AutoScroll = false)
         if (!TargetPageSheet)
         {
             continue;
-        }
-
-        if (!PrimaryPageSheet)
-        {
-            PrimaryPageSheet = TargetPageSheet;
         }
 
         const Svgs = TargetPageSheet.querySelectorAll("svg");
@@ -5223,16 +5432,16 @@ function HighlightSvgRects(Boxes, AutoScroll = false)
                 {
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
-                    Rect.setAttribute("x", (Box.x - 2).toFixed(2));
-                    Rect.setAttribute("y", (Box.y - 2).toFixed(2));
-                    Rect.setAttribute("width", (Box.width + 4).toFixed(2));
-                    Rect.setAttribute("height", (Box.height + 4).toFixed(2));
-                    Rect.setAttribute("rx", "3");
-                    Rect.setAttribute("ry", "3");
+                    Rect.setAttribute("x", (Box.x - 1.0).toFixed(2));
+                    Rect.setAttribute("y", (Box.y - 1.0).toFixed(2));
+                    Rect.setAttribute("width", (Box.width + 2.0).toFixed(2));
+                    Rect.setAttribute("height", (Box.height + 2.0).toFixed(2));
+                    Rect.setAttribute("rx", "2");
+                    Rect.setAttribute("ry", "2");
 
                     HighlightLayer.appendChild(Rect);
 
-                    if (Box.y < PrimaryTopY)
+                    if (PageNum === ScrollTargetPage && Box.y < PrimaryTopY)
                     {
                         PrimaryTopY = Box.y;
                     }
@@ -5252,21 +5461,18 @@ function HighlightSvgRects(Boxes, AutoScroll = false)
             const ScaleY = PageRect.height / VbH;
             const TargetScreenY = PageRect.top + (PrimaryTopY * ScaleY);
 
-            if (TargetScreenY < ViewportRect.top + 60 || TargetScreenY > ViewportRect.bottom - 60)
-            {
-                const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
-                Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
-            }
+            const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
+            Viewport.scrollTo({ top: Math.max(0, ScrollOffset), behavior: "smooth" });
         }
     }
 }
 
-function HighlightSvgRect(PageNum, X, Y, Width, Height, AutoScroll = false)
+function HighlightSvgRect(PageNum, X, Y, Width, Height, AutoScroll = true)
 {
     HighlightSvgRects([{ page: PageNum, x: X, y: Y, width: Width, height: Height }], AutoScroll);
 }
 
-function HighlightSvgSpan(SpanId, AutoScroll = false)
+function HighlightSvgSpan(SpanId, AutoScroll = true)
 {
     if (!IsSyncTexEnabled || !SpanId)
     {
@@ -5280,7 +5486,7 @@ function HighlightSvgSpan(SpanId, AutoScroll = false)
     }
 }
 
-function PerformForwardSync(Line, Col, ForceAutoScroll = false)
+function PerformForwardSync(Line, Col, ForceAutoScroll = true)
 {
     if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
     {
@@ -5294,17 +5500,22 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = false)
         const Selection = MonacoInstance.getSelection();
         if (Selection && !Selection.isEmpty())
         {
-            const SelStartLine = Selection.startLineNumber;
-            const SelStartCol = Selection.startColumn;
-            const SelEndLine = Selection.endLineNumber;
-            const SelEndCol = Selection.endColumn;
+            const Model = MonacoInstance.getModel();
+            const SelStart = Model ? Model.getOffsetAt({ lineNumber: Selection.startLineNumber, column: Selection.startColumn }) : 0;
+            const SelEnd = Model ? Model.getOffsetAt({ lineNumber: Selection.endLineNumber, column: Selection.endColumn }) : 0;
 
             const Intersecting = ActiveSyncMap.filter
             (
                 (Elem) =>
                 {
-                    const StartsBeforeEnd = Elem.line < SelEndLine || (Elem.line === SelEndLine && Elem.col <= SelEndCol);
-                    const EndsAfterStart = Elem.end_line > SelStartLine || (Elem.end_line === SelStartLine && Elem.end_col >= SelStartCol);
+                    // Strict character range intersection so trailing whitespace never matches the next element
+                    const StartsBeforeEnd = typeof Elem.start === "number" && typeof SelEnd === "number"
+                        ? Elem.start < SelEnd
+                        : (Elem.line < Selection.endLineNumber || (Elem.line === Selection.endLineNumber && Elem.col < Selection.endColumn));
+                    const EndsAfterStart = typeof Elem.end === "number" && typeof SelStart === "number"
+                        ? Elem.end > SelStart
+                        : (Elem.end_line > Selection.startLineNumber || (Elem.end_line === Selection.startLineNumber && Elem.end_col > Selection.startColumn));
+
                     if (!StartsBeforeEnd || !EndsAfterStart)
                     {
                         return false;
@@ -5318,65 +5529,116 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = false)
             if (Intersecting.length > 0)
             {
                 const GroupedBoxes = GroupElementsIntoVisualBoxes(Intersecting);
-                HighlightSvgRects(GroupedBoxes, false);
+                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
                 return;
             }
         }
     }
 
     // 2. Cursor Position
-    let Matches = ActiveSyncMap.filter
+    // Check if there are content elements on the exact current line first (excluding equation numbers)
+    const SameLineCandidates = ActiveSyncMap.filter
     (
-        (Elem) =>
-        {
-            const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
-            const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
-            return StartsBefore && EndsAfter;
-        }
+        (Elem) => (Elem.line === Line && Elem.end_line === Line) && !(Elem.width < 50 && Elem.x > 450)
     );
 
-    if (Matches.length === 0)
+    let BestElem = null;
+
+    if (SameLineCandidates.length > 0)
     {
-        Matches = ActiveSyncMap.filter((Elem) => Elem.line === Line || Elem.end_line === Line);
+        BestElem = SameLineCandidates[0];
+        let MinDist = Math.abs(Col - BestElem.col);
+        for (const Elem of SameLineCandidates)
+        {
+            const Dist = Math.min(Math.abs(Col - Elem.col), Math.abs(Col - Elem.end_col));
+            if (Dist < MinDist)
+            {
+                MinDist = Dist;
+                BestElem = Elem;
+            }
+        }
+    }
+    else
+    {
+        let Matches = ActiveSyncMap.filter
+        (
+            (Elem) =>
+            {
+                const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
+                const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
+                return StartsBefore && EndsAfter;
+            }
+        );
+
+        const ContentMatches = Matches.filter
+        (
+            (Elem) =>
+            {
+                const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+                const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+                return !IsNumbering;
+            }
+        );
+
+        if (ContentMatches.length > 0)
+        {
+            BestElem = ContentMatches[0];
+            let MinRange = BestElem.end - BestElem.start;
+            for (const Elem of ContentMatches)
+            {
+                const RangeLen = Elem.end - Elem.start;
+                if (RangeLen < MinRange)
+                {
+                    MinRange = RangeLen;
+                    BestElem = Elem;
+                }
+            }
+        }
+        else
+        {
+            // If inside a block without a direct line token, find closest content element inside block or nearby
+            const BlockMatch = Matches.find((Elem) => Elem.end_line - Elem.line >= 2);
+            const NonNumbering = ActiveSyncMap.filter((Elem) => !(Elem.width < 50 && Elem.x > 450));
+            let CandidatePool = NonNumbering;
+            if (BlockMatch)
+            {
+                const InsideBlock = NonNumbering.filter((Elem) => Elem.line >= BlockMatch.line && Elem.end_line <= BlockMatch.end_line);
+                if (InsideBlock.length > 0)
+                {
+                    CandidatePool = InsideBlock;
+                }
+            }
+
+            if (CandidatePool.length > 0)
+            {
+                let MinLineDist = Infinity;
+                for (const Elem of CandidatePool)
+                {
+                    const Dist = Math.min(Math.abs(Elem.line - Line), Math.abs(Elem.end_line - Line));
+                    if (Dist < MinLineDist)
+                    {
+                        MinLineDist = Dist;
+                        BestElem = Elem;
+                    }
+                }
+            }
+        }
     }
 
-    if (Matches.length === 0)
+    if (!BestElem)
     {
         ClearSyncHighlights();
         return;
     }
 
-    const ContentMatches = Matches.filter
-    (
-        (Elem) =>
-        {
-            const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-            const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-            return !IsNumbering;
-        }
-    );
-
-    const Candidates = ContentMatches.length > 0 ? ContentMatches : Matches;
-
-    let BestElem = Candidates[0];
-    let MinRange = BestElem.end - BestElem.start;
-    for (const Elem of Candidates)
-    {
-        const RangeLen = Elem.end - Elem.start;
-        if (RangeLen < MinRange)
-        {
-            MinRange = RangeLen;
-            BestElem = Elem;
-        }
-    }
-
-    let Related = ActiveSyncMap.filter((Elem) => Elem.page === BestElem.page && Elem.span === BestElem.span);
+    // Include all occurrences of this span or line across both TOC and document body
+    let Related = ActiveSyncMap.filter((Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line));
 
     if (BestElem.line === BestElem.end_line)
     {
         const SameLineElems = ActiveSyncMap.filter
         (
-            (Elem) => Elem.page === BestElem.page && Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
+            (Elem) => Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
         );
         if (SameLineElems.length > Related.length)
         {
@@ -5389,10 +5651,6 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = false)
         (
             (Elem) =>
             {
-                if (Elem.page !== BestElem.page)
-                {
-                    return false;
-                }
                 const Inside = Elem.start >= BestElem.start && Elem.end <= BestElem.end;
                 const IsNumbering = (Elem.end_line - Elem.line) >= 2 && Elem.width < 50 && Elem.x > 450;
                 return Inside && !IsNumbering;
