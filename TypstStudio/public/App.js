@@ -2214,6 +2214,21 @@ async function InitializeMonaco()
                             });
                         }
 
+                        if (CachedAvailableFonts && CachedAvailableFonts.length > 0)
+                        {
+                            for (const FontName of CachedAvailableFonts)
+                            {
+                                Suggestions.push
+                                ({
+                                    label: FontName,
+                                    kind: monaco.languages.CompletionItemKind.Color,
+                                    insertText: `"${FontName}"`,
+                                    detail: "Available Font Family",
+                                    range: Range
+                                });
+                            }
+                        }
+
                         return { suggestions: Suggestions };
                     }
                 }
@@ -2960,7 +2975,7 @@ function InvertMonochromeColor(ColorStr)
     }
 
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
-    if (MaxDelta > 18)
+    if (MaxDelta > 22)
     {
         InvertColorCache.set(ColorStr, ColorStr);
         return ColorStr;
@@ -2973,19 +2988,26 @@ function InvertMonochromeColor(ColorStr)
         return DarkPageColor;
     }
 
-    const InvertComponent = (Component) => Math.min
-    (
-        255, Math.max
-        (
-            0, Math.round(255 - Component)
-        )
-    );
+    const Avg = (Red + Green + Blue) / 3;
+    const MapComp = (L) =>
+    {
+        if (L >= 254.5) { return 255; }
+        const D = 255 - L;
+        if (D <= 8) { return Math.round(30 + D * 0.8); }
+        if (D <= 18) { return Math.round(46 + (D - 8) * 1.2); }
+        if (D <= 32) { return Math.round(68 + (D - 18) * 1.2); }
+        if (D <= 55) { return Math.round(86 + (D - 32) * 0.6); }
+        if (L <= 30) { return 255; }
+        return Math.round(255 - L);
+    };
+
+    const BaseDark = MapComp(Avg);
+    const InvertedR = Math.max(0, Math.min(255, Math.round(BaseDark + (Red - Avg))));
+    const InvertedG = Math.max(0, Math.min(255, Math.round(BaseDark + (Green - Avg))));
+    const InvertedB = Math.max(0, Math.min(255, Math.round(BaseDark + (Blue - Avg))));
 
     if (Trimmed.toLowerCase().startsWith("rgb"))
     {
-        const InvertedR = InvertComponent(Red);
-        const InvertedG = InvertComponent(Green);
-        const InvertedB = InvertComponent(Blue);
         const FinalColor = Alpha !== ""
             ? `rgba(${InvertedR}, ${InvertedG}, ${InvertedB}, ${(parseInt(Alpha, 16) / 255).toFixed(3).replace(/\.?0+$/, "")})`
             : `rgb(${InvertedR}, ${InvertedG}, ${InvertedB})`;
@@ -2993,23 +3015,40 @@ function InvertMonochromeColor(ColorStr)
         return FinalColor;
     }
 
-    const InvertedRed = InvertComponent(Red).toString(16).padStart(2, "0").toUpperCase();
-    const InvertedGreen = InvertComponent(Green).toString(16).padStart(2, "0").toUpperCase();
-    const InvertedBlue = InvertComponent(Blue).toString(16).padStart(2, "0").toUpperCase();
+    const HexR = InvertedR.toString(16).padStart(2, "0").toUpperCase();
+    const HexG = InvertedG.toString(16).padStart(2, "0").toUpperCase();
+    const HexB = InvertedB.toString(16).padStart(2, "0").toUpperCase();
 
-    const FinalColor = `#${InvertedRed}${InvertedGreen}${InvertedBlue}${Alpha.toUpperCase()}`;
+    const FinalColor = `#${HexR}${HexG}${HexB}${Alpha.toUpperCase()}`;
     InvertColorCache.set(ColorStr, FinalColor);
     return FinalColor;
 }
 
-function ConvertSvgToDarkMode(Svg)
+function ConvertSvgToTransparent(Svg)
 {
     if (!Svg)
     {
         return Svg;
     }
 
-    const SvgKey = FastHash(Svg);
+    let Result = Svg.replace
+    (
+        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vh][^"']*Z\s*["'][^>]*)>/i,
+        (Match) => Match.replace(/\bfill=["'][^"']*["']/i, 'fill="none"')
+    );
+    Result = Result.replace('fill="#ffffff" fill-rule="nonzero" d="M 0 0v', 'fill="none" fill-rule="nonzero" d="M 0 0v');
+    Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="none" fill-rule="nonzero" d="M 0 0v');
+    return Result;
+}
+
+function ConvertSvgToDarkMode(Svg, Transparent = false)
+{
+    if (!Svg)
+    {
+        return Svg;
+    }
+
+    const SvgKey = FastHash(Svg) + (Transparent ? "_trans": "_solid");
     const Cached = SvgDarkModeCache.get(SvgKey);
     if (Cached)
     {
@@ -3018,33 +3057,75 @@ function ConvertSvgToDarkMode(Svg)
 
     // High-performance string replacement for native Typst SVG output
     let Result = Svg;
-    // 1. Invert white page canvas to pure pitch black #000000
-    Result = Result.replace('fill="#ffffff" fill-rule="nonzero" d="M 0 0v', 'fill="#000000" fill-rule="nonzero" d="M 0 0v');
-    Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="#000000" fill-rule="nonzero" d="M 0 0v');
-    // 2. Invert standard black text and symbols to pure white
-    Result = Result.replaceAll('fill="#000000"', 'fill="#FFFFFF"');
-    Result = Result.replaceAll('stroke="#000000"', 'stroke="#FFFFFF"');
-    Result = Result.replaceAll('fill="#0C0C0C"', 'fill="#000000"');
-    Result = Result.replaceAll('fill="#0c0c0c"', 'fill="#000000"');
-    Result = Result.replaceAll('fill="rgb(12, 12, 12)"', 'fill="rgb(0, 0, 0)"');
-    Result = Result.replaceAll('fill="#555555"', 'fill="#AAAAAA"');
-    Result = Result.replaceAll('stroke="#555555"', 'stroke="#AAAAAA"');
 
-    // 3. Handle any custom style="" attributes only if present
+    // 1. Mark the page canvas background with a sentinel so it is not affected by text/glyph inversions
+    let CanvasFound = false;
+    Result = Result.replace
+    (
+        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vh][^"']*Z\s*["'][^>]*)>/i,
+        (Match) =>
+        {
+            CanvasFound = true;
+            return Match.replace(/\bfill=["'][^"']*["']/i, 'fill="__CANVAS_BLACK_SENTINEL__"');
+        }
+    );
+
+    if (!CanvasFound)
+    {
+        Result = Result.replace
+        (
+            /(<svg\b[^>]*>\s*<path\b[^>]*\bfill=)(["'][^"']*["'])/i,
+            (Match, Prefix) =>
+            {
+                CanvasFound = true;
+                return `${Prefix}"__CANVAS_BLACK_SENTINEL__"`;
+            }
+        );
+    }
+
+    if (!CanvasFound)
+    {
+        Result = Result.replace('fill="#ffffff" fill-rule="nonzero" d="M 0 0v', 'fill="__CANVAS_BLACK_SENTINEL__" fill-rule="nonzero" d="M 0 0v');
+        Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="__CANVAS_BLACK_SENTINEL__" fill-rule="nonzero" d="M 0 0v');
+    }
+
+    // 2. High-performance single-pass inversion of all monochrome and tinted-gray fills and strokes
+    // (Inverts text #000000 -> #FFFFFF, light table/card backgrounds #FAFAFA/#F1F3F6/#E4E9F0 -> dark #050505/#0E0C09/#1B160F,
+    // and borders #CCCCCC/#BBBBBB/#DDDDDD -> #333333/#444444/#222222, while preserving chromatic accents)
+    Result = Result.replace
+    (
+        /\b(fill|stroke)\s*=\s*(["'])([^"']+)\2/gi,
+        (Match, Attr, Quote, Color) =>
+        {
+            if (Color === "__CANVAS_BLACK_SENTINEL__")
+            {
+                return Match;
+            }
+            const Inverted = InvertMonochromeColor(Color);
+            return Inverted === Color ? Match: `${Attr}=${Quote}${Inverted}${Quote}`;
+        }
+    );
+
+    // 3. Resolve the canvas sentinel to pure pitch black #000000 or none
+    const CanvasFill = Transparent ? 'fill="none"': 'fill="#000000"';
+    Result = Result.replaceAll('fill="__CANVAS_BLACK_SENTINEL__"', CanvasFill);
+
+    // 4. Handle any custom style="" attributes only if present
     if (Result.includes('style="') || Result.includes("style='"))
     {
         Result = Result.replace
         (
-            /\bstyle\s*=\s*(["'][^"']*["'])/gi, (Match, QuotedVal) =>
+            /\bstyle\s*=\s*(["'][^"']*["'])/gi,
+            (Match, QuotedVal) =>
             {
                 const Quote = QuotedVal[0];
                 const StyleContent = QuotedVal.slice(1, - 1);
                 const Transformed = StyleContent.replace
                 (
-                    /\b(fill|stroke|color)\s*:\s*(#000000|black|#ffffff|white|rgb\(0,\s*0,\s*0\)|rgb\(255,\s*255,\s*255\))/gi,
+                    /\b(fill|stroke|color)\s*:\s*([^;"]+)/gi,
                     (PropMatch, Prop, Color) =>
                     {
-                        const Inverted = (Color === "#000000" || Color === "black" || Color.includes("0, 0, 0")) ? "#FFFFFF": "#000000";
+                        const Inverted = InvertMonochromeColor(Color.trim());
                         return `${Prop}: ${Inverted}`;
                     }
                 );
@@ -3336,6 +3417,7 @@ function ToggleBlackPageMode()
 {
     IsBlackPageMode = ! IsBlackPageMode;
     localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true": "false");
+    SvgDarkModeCache.clear();
     UpdateBlackPageMode();
     if (LastCompiledPages && LastCompiledPages.length > 0)
     {
@@ -3372,7 +3454,9 @@ async function ExportPdf()
                 "ExportPdf",
                 {
                     Source: Source,
-                    FilePath: CurrentFilePath || null
+                    FilePath: CurrentFilePath || null,
+                    BlackMode: BlackMode,
+                    Transparent: Transparent
                 }
             );
             const Blob = new Blob([new Uint8Array(PdfBytes)], { type: "application/pdf" });
@@ -4841,6 +4925,35 @@ function EscapeHtml(Str)
     return Str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+let CachedAvailableFonts = [];
+
+async function LoadAvailableFonts()
+{
+    try
+    {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const Resp = await window.__TAURI__.core.invoke("GetAvailableFonts");
+            if (Resp && Resp.Success && Array.isArray(Resp.Fonts))
+            {
+                CachedAvailableFonts = Resp.Fonts;
+            }
+        }
+        else
+        {
+            const Resp = await fetch("/api/fonts");
+            const Data = await Resp.json();
+            if (Data && Data.Success && Array.isArray(Data.Fonts))
+            {
+                CachedAvailableFonts = Data.Fonts;
+            }
+        }
+    }
+    catch (Ignored)
+    {
+    }
+}
+
 async function LoadWorkspaceInfo()
 {
     try
@@ -5781,6 +5894,25 @@ function HandlePreviewClick(Event)
         SuppressForwardSync = true;
         setTimeout( () => { SuppressForwardSync = false; }, 300);
         JumpMonacoToLocation(BestElem.line, BestElem.col);
+        return ;
+    }
+
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        window.__TAURI__.core.invoke("SyncClick", { Page: PageNum, X: ClickPtX, Y: ClickPtY })
+            .then
+            (
+                (Result) =>
+                {
+                    if (Result && Result.Success && Result.Line)
+                    {
+                        SuppressForwardSync = true;
+                        setTimeout( () => { SuppressForwardSync = false; }, 300);
+                        JumpMonacoToLocation(Result.Line, Result.Column);
+                    }
+                }
+            )
+            .catch ( () => {});
         return ;
     }
 
@@ -6785,6 +6917,7 @@ window.addEventListener
         InitializeMonaco();
         InitializeSyncTex();
         LoadWorkspaceInfo();
+        LoadAvailableFonts();
         SetupAssetDragAndDrop();
         SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
     }

@@ -201,12 +201,12 @@ async function RunWysiwygSuite()
     const CanvasTag_B = (SvgLightTrans.match(/<path[^>]*d=["']\s*M\s*0\s+0v[^"']*["'][^>]*>/i) ||[""])[0];
     Assert(CanvasTag_B.includes('fill="none"'), "Mode B (Light Transparent SVG): Canvas background path is fill=none");
     // Mode C Checks:
-    const HasWhiteGlyphs_C = (SvgDarkSolid.match(/fill=["']#ffffff["']/g) ||[]).length;
+    const HasWhiteGlyphs_C = (SvgDarkSolid.match(/fill=["']#ffffff["']/gi) ||[]).length;
     Assert(HasWhiteGlyphs_C >= 12, "Mode C (Black Solid SVG): White glyphs intact on colored box", `Count: ${HasWhiteGlyphs_C}`);
     const CanvasTag_C = (SvgDarkSolid.match(/<path[^>]*d=["']\s*M\s*0\s+0v[^"']*["'][^>]*>/i) ||[""])[0];
     Assert(CanvasTag_C.includes('fill="#000000"'), "Mode C (Black Solid SVG): Canvas background path is fill=#000000");
     // Mode D Checks:
-    const HasWhiteGlyphs_D = (SvgDarkTrans.match(/fill=["']#ffffff["']/g) ||[]).length;
+    const HasWhiteGlyphs_D = (SvgDarkTrans.match(/fill=["']#ffffff["']/gi) ||[]).length;
     Assert(HasWhiteGlyphs_D >= 12, "Mode D (Black Transparent SVG): White glyphs intact on colored box", `Count: ${HasWhiteGlyphs_D}`);
     const CanvasTag_D = (SvgDarkTrans.match(/<path[^>]*d=["']\s*M\s*0\s+0v[^"']*["'][^>]*>/i) ||[""])[0];
     Assert(CanvasTag_D.includes('fill="none"'), "Mode D (Black Transparent SVG): Canvas background path is fill=none");

@@ -1,0 +1,55 @@
+<svg xmlns = "http://www.w3.org/2000/svg"
+     viewBox = "0 0 512 512"
+     width   = "512"
+     height  = "512">
+    <defs>
+        <linearGradient id = "LogoGrad"
+                        x1 = "0%"
+                        y1 = "0%"
+                        x2 = "100%"
+                        y2 = "100%">
+            <stop offset = "0%"   stop-color = "#3B82F6" />
+            <stop offset = "35%"  stop-color = "#4338CA" />
+            <stop offset = "70%"  stop-color = "#7C3AED" />
+            <stop offset = "100%" stop-color = "#C084FC" />
+        </linearGradient>
+        <linearGradient id = "LogoGradWhite"
+                        x1 = "0%"
+                        y1 = "0%"
+                        x2 = "100%"
+                        y2 = "0%">
+            <stop offset = "0%"   stop-color = "#FFFFFF" />
+            <stop offset = "100%" stop-color = "#38BDF8" />
+        </linearGradient>
+    </defs>
+    <!-- Dark Sleek Squircle Container -->
+    <rect width  = "512"
+          height = "512"
+          rx     = "108"
+          fill   = "#0A0A0A" />
+    <rect x              = "6"
+          y              = "6"
+          width          = "500"
+          height         = "500"
+          rx             = "102"
+          fill           = "none"
+          stroke         = "#2E1065"
+          stroke-width   = "3"
+          stroke-opacity = "0.7" />
+    <!-- Centered Isometric Stack Logo from Top-Left WebApp Header -->
+    <g transform = "translate(64, 64) scale(16)">
+        <path d               = "M12 2L2 7l10 5 10-5-10-5z"
+              fill            = "none"
+              stroke          = "url(#LogoGradWhite)"
+              stroke-width    = "2"
+              stroke-linecap  = "round"
+              stroke-linejoin = "round" />
+        <path d               = "M2 17l10 5 10-5M2 12l10 5 10-5"
+              fill            = "none"
+              stroke          = "url(#LogoGrad)"
+              stroke-width    = "2"
+              stroke-linecap  = "round"
+              stroke-linejoin = "round" />
+    </g>
+</svg>
+

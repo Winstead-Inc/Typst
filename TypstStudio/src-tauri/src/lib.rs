@@ -69,6 +69,271 @@ struct Workspace_Config_Data
     pub Directories: Vec<String>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+pub struct Font_Detail
+{
+    #[serde(rename = "Name")]
+    pub Name: String,
+    #[serde(rename = "Family")]
+    pub Family: String,
+    #[serde(rename = "Weight")]
+    pub Weight: String,
+    #[serde(rename = "Style")]
+    pub Style: String,
+    #[serde(rename = "Stretch")]
+    pub Stretch: String,
+    #[serde(rename = "FilePath")]
+    pub FilePath: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Available_Fonts_Response
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "Fonts")]
+    pub Fonts: Vec<String>,
+    #[serde(rename = "FontDetails")]
+    pub FontDetails: Vec<Font_Detail>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct System_Status_Response
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "TypstVersion")]
+    pub TypstVersion: String,
+    #[serde(rename = "TypstBinary")]
+    pub TypstBinary: String,
+    #[serde(rename = "Platform")]
+    pub Platform: String,
+    #[serde(rename = "UptimeSecs")]
+    pub UptimeSecs: u64,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Sync_Click_Response
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "Found")]
+    pub Found: bool,
+    #[serde(rename = "Line")]
+    pub Line: Option<usize>,
+    #[serde(rename = "Column")]
+    pub Column: Option<usize>,
+    #[serde(rename = "EndLine")]
+    pub EndLine: Option<usize>,
+    #[serde(rename = "EndColumn")]
+    pub EndColumn: Option<usize>,
+    #[serde(rename = "Start")]
+    pub Start: Option<usize>,
+    #[serde(rename = "End")]
+    pub End: Option<usize>,
+    #[serde(rename = "Span")]
+    pub Span: Option<serde_json::Value>,
+    #[serde(rename = "Error")]
+    pub Error: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Sync_Cursor_Response
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "Found")]
+    pub Found: bool,
+    #[serde(rename = "Page")]
+    pub Page: Option<usize>,
+    #[serde(rename = "X")]
+    pub X: Option<f64>,
+    #[serde(rename = "Y")]
+    pub Y: Option<f64>,
+    #[serde(rename = "Width")]
+    pub Width: Option<f64>,
+    #[serde(rename = "Height")]
+    pub Height: Option<f64>,
+    #[serde(rename = "Line")]
+    pub Line: Option<usize>,
+    #[serde(rename = "Column")]
+    pub Column: Option<usize>,
+    #[serde(rename = "Error")]
+    pub Error: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct Format_Typst_Response
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "Formatted")]
+    pub Formatted: String,
+    #[serde(rename = "HasError")]
+    pub HasError: bool,
+    #[serde(rename = "Error")]
+    pub Error: Option<String>,
+}
+
+static LAST_ACTIVE_SYNC_MAP: std::sync::Mutex<Vec<serde_json::Value>> = std::sync::Mutex::new(Vec::new());
+static APP_START_TIME: std::sync::LazyLock<std::time::Instant> = std::sync::LazyLock::new(std::time::Instant::now);
+
+fn ConvertColorHex(Hex: &str) -> String
+{
+    let mut CleanHex = Hex.trim_start_matches('#').to_string();
+    if CleanHex.len() == 3
+    {
+        let Chars: Vec<char> = CleanHex.chars().collect();
+        CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
+    }
+    if CleanHex.eq_ignore_ascii_case("ffffff")
+    {
+        return "FFFFFF".to_string();
+    }
+    if CleanHex.len() != 6
+    {
+        return CleanHex.to_uppercase();
+    }
+
+    let R = u8::from_str_radix(&CleanHex[0..2], 16).unwrap_or(0);
+    let G = u8::from_str_radix(&CleanHex[2..4], 16).unwrap_or(0);
+    let B = u8::from_str_radix(&CleanHex[4..6], 16).unwrap_or(0);
+
+    let MaxDelta = (R as i16 - G as i16).abs()
+        .max((G as i16 - B as i16).abs())
+        .max((B as i16 - R as i16).abs());
+
+    if MaxDelta > 22
+    {
+        return CleanHex.to_uppercase();
+    }
+
+    let Avg = ((R as f64) + (G as f64) + (B as f64)) / 3.0;
+    let MapComp = |L: f64| -> f64
+    {
+        if L >= 254.5 { return 0.0; }
+        let D = 255.0 - L;
+        if D <= 8.0 { return (30.0 + D * 0.8).round(); }
+        if D <= 18.0 { return (46.0 + (D - 8.0) * 1.2).round(); }
+        if D <= 32.0 { return (68.0 + (D - 18.0) * 1.2).round(); }
+        if D <= 55.0 { return (86.0 + (D - 32.0) * 0.6).round(); }
+        if L <= 30.0 { return 255.0; }
+        (255.0 - L).round()
+    };
+
+    let BaseDark = MapComp(Avg);
+    let OutR = ((BaseDark + (R as f64 - Avg)).round() as i32).clamp(0, 255) as u8;
+    let OutG = ((BaseDark + (G as f64 - Avg)).round() as i32).clamp(0, 255) as u8;
+    let OutB = ((BaseDark + (B as f64 - Avg)).round() as i32).clamp(0, 255) as u8;
+
+    format!("{:02X}{:02X}{:02X}", OutR, OutG, OutB)
+}
+
+fn ConvertTypstSourceToDarkMode(Source: &str, Transparent: bool) -> String
+{
+    let mut Output = String::with_capacity(Source.len() + 128);
+    let mut Rest = Source;
+
+    while let Some(StartPos) = Rest.find("rgb(")
+    {
+        Output.push_str(&Rest[..StartPos]);
+        let After = &Rest[StartPos + 4..];
+        if let Some(EndPos) = After.find(')')
+        {
+            let Inside = After[..EndPos].trim();
+            if (Inside.starts_with('"') && Inside.ends_with('"')) || (Inside.starts_with('\'') && Inside.ends_with('\''))
+            {
+                let ColorVal = Inside[1..Inside.len() - 1].trim();
+                let Converted = ConvertColorHex(ColorVal);
+                Output.push_str(&format!("rgb(\"#{}\")", Converted));
+            }
+            else if Inside.contains(',')
+            {
+                let Parts: Vec<&str> = Inside.split(',').collect();
+                if Parts.len() >= 3
+                {
+                    let R = Parts[0].trim().parse::<u8>().unwrap_or(0);
+                    let G = Parts[1].trim().parse::<u8>().unwrap_or(0);
+                    let B = Parts[2].trim().parse::<u8>().unwrap_or(0);
+                    let Hex = format!("{:02X}{:02X}{:02X}", R, G, B);
+                    let Converted = ConvertColorHex(&Hex);
+                    Output.push_str(&format!("rgb(\"#{}\")", Converted));
+                }
+                else
+                {
+                    Output.push_str(&format!("rgb({})", Inside));
+                }
+            }
+            else
+            {
+                Output.push_str(&format!("rgb({})", Inside));
+            }
+            Rest = &After[EndPos + 1..];
+        }
+        else
+        {
+            Output.push_str("rgb(");
+            Rest = After;
+        }
+    }
+    Output.push_str(Rest);
+
+    let PageFill = if Transparent { "none" } else { "rgb(\"#000000\")" };
+    format!("#set page(fill: {})\n#set text(fill: rgb(\"#FFFFFF\"))\n\n{}", PageFill, Output)
+}
+
+fn ConvertSvgToDarkMode(Svg: &str) -> String
+{
+    let mut Result = Svg.to_string();
+
+    if let Some(Pos) = Result.find("d=\"M 0 0v")
+    {
+        if let Some(FillPos) = Result[..Pos].rfind("fill=\"")
+        {
+            let FillEnd = FillPos + 6 + Result[FillPos + 6..].find('"').unwrap_or(0);
+            Result = format!("{}{}__CANVAS_BLACK_SENTINEL__{}", &Result[..FillPos + 6], "", &Result[FillEnd..]);
+        }
+    }
+
+    let mut FinalSvg = String::with_capacity(Result.len());
+    let mut Rest = Result.as_str();
+
+    while let Some(MatchPos) = Rest.find("fill=\"").or_else(|| Rest.find("stroke=\""))
+    {
+        let IsFill = Rest[MatchPos..].starts_with("fill=\"");
+        let AttrName = if IsFill { "fill" } else { "stroke" };
+        let ValueStart = MatchPos + AttrName.len() + 2;
+        FinalSvg.push_str(&Rest[..MatchPos]);
+
+        let SubRest = &Rest[ValueStart..];
+        if let Some(QuoteEnd) = SubRest.find('"')
+        {
+            let ColorVal = &SubRest[..QuoteEnd];
+            if ColorVal == "__CANVAS_BLACK_SENTINEL__"
+            {
+                FinalSvg.push_str(&format!("{}=\"#000000\"", AttrName));
+            }
+            else if ColorVal.starts_with('#')
+            {
+                let Converted = ConvertColorHex(ColorVal);
+                FinalSvg.push_str(&format!("{}=\"#{}\"", AttrName, Converted));
+            }
+            else
+            {
+                FinalSvg.push_str(&format!("{}=\"{}\"", AttrName, ColorVal));
+            }
+            Rest = &SubRest[QuoteEnd + 1..];
+        }
+        else
+        {
+            FinalSvg.push_str(&Rest[MatchPos..ValueStart]);
+            Rest = SubRest;
+        }
+    }
+    FinalSvg.push_str(Rest);
+    FinalSvg
+}
+
 fn FindTypstBinary() -> std::path::PathBuf
 {
     if let Ok(ExePath) = std::env::current_exe()
@@ -261,6 +526,14 @@ fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Resp
         }
     }
 
+    if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock()
+    {
+        if !SyncMap.is_empty()
+        {
+            *Guard = SyncMap.clone();
+        }
+    }
+
     let _ = std::fs::remove_dir_all(&JobDir);
 
     Ok
@@ -278,7 +551,13 @@ fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Resp
 }
 
 #[tauri::command]
-fn ExportPdf(Source: String, FilePath: Option<String>) -> Result<Vec<u8>, String>
+fn ExportPdf
+(
+    Source: String,
+    FilePath: Option<String>,
+    BlackMode: Option<bool>,
+    Transparent: Option<bool>,
+) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -312,6 +591,16 @@ fn ExportPdf(Source: String, FilePath: Option<String>) -> Result<Vec<u8>, String
         JobDir.clone()
     };
 
+    let mut SourceToCompile = Source;
+    if BlackMode.unwrap_or(false)
+    {
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent.unwrap_or(false));
+    }
+    else if Transparent.unwrap_or(false)
+    {
+        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
+    }
+
     let OutputPdf = JobDir.join("output.pdf");
 
     let mut Command = std::process::Command::new(&TypstBin);
@@ -337,7 +626,7 @@ fn ExportPdf(Source: String, FilePath: Option<String>) -> Result<Vec<u8>, String
 
     if let Some(mut Stdin) = Child.stdin.take()
     {
-        let _ = Stdin.write_all(Source.as_bytes());
+        let _ = Stdin.write_all(SourceToCompile.as_bytes());
     }
 
     let Output = Child.wait_with_output().map_err
@@ -406,8 +695,7 @@ fn ExportPng
     let mut SourceToCompile = Source;
     if BlackMode
     {
-        let PageFill = if Transparent { "none" } else { "rgb(\"#000000\")" };
-        SourceToCompile = format!("#set page(fill: {})\n#set text(fill: rgb(\"#FFFFFF\"))\n\n{}", PageFill, SourceToCompile);
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
     }
     else if Transparent
     {
@@ -546,6 +834,16 @@ fn ExportSvg
         JobDir.clone()
     };
 
+    let mut SourceToCompile = Source;
+    if BlackMode
+    {
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
+    }
+    else if Transparent
+    {
+        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
+    }
+
     let OutputPattern = JobDir.join("page-{p}.svg");
 
     let mut Command = std::process::Command::new(&TypstBin);
@@ -571,7 +869,7 @@ fn ExportSvg
 
     if let Some(mut Stdin) = Child.stdin.take()
     {
-        let _ = Stdin.write_all(Source.as_bytes());
+        let _ = Stdin.write_all(SourceToCompile.as_bytes());
     }
 
     let Output = Child.wait_with_output().map_err
@@ -629,21 +927,16 @@ fn ExportSvg
                 |Error| format!("Failed to read SVG: {}", Error)
             )?;
 
-            if Transparent
-            {
-                SvgContent = SvgContent.replace("fill=\"#ffffff\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
-                SvgContent = SvgContent.replace("fill=\"#ffffff\"", "fill=\"none\"");
-                SvgContent = SvgContent.replace("fill=\"#FFFFFF\"", "fill=\"none\"");
-            }
-
             if BlackMode
             {
-                SvgContent = SvgContent.replace("fill=\"#000000\"", "fill=\"#FFFFFF\"");
-                SvgContent = SvgContent.replace("stroke=\"#000000\"", "stroke=\"#FFFFFF\"");
-                if !Transparent
-                {
-                    SvgContent = SvgContent.replace("fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"#000000\" fill-rule=\"nonzero\" d=\"M 0 0v");
-                }
+                SvgContent = ConvertSvgToDarkMode(&SvgContent);
+            }
+
+            if Transparent
+            {
+                SvgContent = SvgContent.replace("fill=\"#000000\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
+                SvgContent = SvgContent.replace("fill=\"#ffffff\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
+                SvgContent = SvgContent.replace("fill=\"#FFFFFF\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
             }
 
             Zip.write_all(SvgContent.as_bytes()).map_err(|Error| format!("Zip write error: {}", Error))?;
@@ -1089,6 +1382,356 @@ fn UploadAsset
     Ok(OutPath.to_string_lossy().to_string())
 }
 
+#[tauri::command]
+fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
+{
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
+    let SyncMap = &*Guard;
+
+    let mut BestElem: Option<&serde_json::Value> = None;
+    let mut MinDist = f64::INFINITY;
+
+    for Elem in SyncMap
+    {
+        if Elem.get("page").and_then(|Val| Val.as_u64()).map(|Val| Val as usize) != Some(Page)
+        {
+            continue;
+        }
+
+        let ElemX = Elem.get("x").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
+        let ElemY = Elem.get("y").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
+        let ElemW = Elem.get("width").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
+        let ElemH = Elem.get("height").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
+
+        let InX = X >= ElemX && X <= (ElemX + ElemW);
+        let InY = Y >= ElemY && Y <= (ElemY + ElemH);
+
+        if InX && InY
+        {
+            BestElem = Some(Elem);
+            break;
+        }
+
+        let CenterX = ElemX + (ElemW / 2.0);
+        let CenterY = ElemY + (ElemH / 2.0);
+        let Dx = X - CenterX;
+        let Dy = (Y - CenterY) * 3.0;
+        let DistSq = (Dx * Dx) + (Dy * Dy);
+
+        if DistSq < MinDist
+        {
+            MinDist = DistSq;
+            BestElem = Some(Elem);
+        }
+    }
+
+    if let Some(Elem) = BestElem
+    {
+        Ok
+        (
+            Sync_Click_Response
+            {
+                Success: true,
+                Found: true,
+                Line: Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Column: Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                EndLine: Elem.get("end_line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                EndColumn: Elem.get("end_col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Start: Elem.get("start").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                End: Elem.get("end").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Span: Elem.get("span").cloned(),
+                Error: None,
+            }
+        )
+    }
+    else
+    {
+        Ok
+        (
+            Sync_Click_Response
+            {
+                Success: false,
+                Found: false,
+                Line: None,
+                Column: None,
+                EndLine: None,
+                EndColumn: None,
+                Start: None,
+                End: None,
+                Span: None,
+                Error: Some("No matching source location found.".to_string()),
+            }
+        )
+    }
+}
+
+#[tauri::command]
+fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
+{
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
+    let SyncMap = &*Guard;
+
+    let mut BestElem: Option<&serde_json::Value> = None;
+    let mut MinColDist = usize::MAX;
+
+    for Elem in SyncMap
+    {
+        let ElemLine = Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+        let ElemEndLine = Elem.get("end_line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(ElemLine);
+        let ElemCol = Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+        let ElemEndCol = Elem.get("end_col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(ElemCol);
+
+        let StartsBefore = ElemLine < Line || (ElemLine == Line && ElemCol <= Col);
+        let EndsAfter = ElemEndLine > Line || (ElemEndLine == Line && ElemEndCol >= Col);
+
+        if StartsBefore && EndsAfter
+        {
+            BestElem = Some(Elem);
+            break;
+        }
+    }
+
+    if BestElem.is_none()
+    {
+        for Elem in SyncMap
+        {
+            let ElemLine = Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+            if ElemLine == Line
+            {
+                let ElemCol = Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+                let Dist = (ElemCol as isize - Col as isize).unsigned_abs();
+                if Dist < MinColDist
+                {
+                    MinColDist = Dist;
+                    BestElem = Some(Elem);
+                }
+            }
+        }
+    }
+
+    if let Some(Elem) = BestElem
+    {
+        Ok
+        (
+            Sync_Cursor_Response
+            {
+                Success: true,
+                Found: true,
+                Page: Elem.get("page").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                X: Elem.get("x").and_then(|Val| Val.as_f64()),
+                Y: Elem.get("y").and_then(|Val| Val.as_f64()),
+                Width: Elem.get("width").and_then(|Val| Val.as_f64()),
+                Height: Elem.get("height").and_then(|Val| Val.as_f64()),
+                Line: Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Column: Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Error: None,
+            }
+        )
+    }
+    else
+    {
+        Ok
+        (
+            Sync_Cursor_Response
+            {
+                Success: false,
+                Found: false,
+                Page: None,
+                X: None,
+                Y: None,
+                Width: None,
+                Height: None,
+                Line: None,
+                Column: None,
+                Error: Some("No matching element for cursor.".to_string()),
+            }
+        )
+    }
+}
+
+#[tauri::command]
+fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
+{
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
+    for Elem in &*Guard
+    {
+        if let Some(Val) = Elem.get("span").and_then(|S| S.as_str())
+        {
+            if Val == Span
+            {
+                return Ok(Some(Elem.clone()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+#[tauri::command]
+fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
+{
+    let TypstBin = FindTypstBinary();
+    let mut Command = std::process::Command::new(&TypstBin);
+    Command.args(["fonts", "--variants"]);
+    let Output = Command.output().map_err(|Error| format!("Failed to query fonts: {}", Error))?;
+    let Stdout = String::from_utf8_lossy(&Output.stdout);
+
+    let mut FontSet = std::collections::BTreeSet::new();
+    let mut FontDetails = Vec::new();
+    let mut CurrentFamily = String::new();
+
+    for Line in Stdout.lines()
+    {
+        let Trimmed = Line.trim();
+        if Trimmed.is_empty()
+        {
+            continue;
+        }
+
+        if !Line.starts_with(' ') && !Line.starts_with('\t') && !Line.starts_with('│') && !Line.starts_with('├') && !Line.starts_with('└')
+        {
+            CurrentFamily = Trimmed.to_string();
+            FontSet.insert(CurrentFamily.clone());
+            continue;
+        }
+
+        if Line.contains('├') || Line.contains('└')
+        {
+            let Clean = Line.trim_start_matches(|C: char| C == ' ' || C == '│' || C == '├' || C == '└' || C == '─').trim();
+            if !Clean.is_empty()
+            {
+                let FilePart = Clean.split('(').next().unwrap_or(Clean).trim();
+                let Name = std::path::Path::new(FilePart)
+                    .file_stem()
+                    .map(|Stem| Stem.to_string_lossy().to_string())
+                    .unwrap_or_else(|| Clean.to_string());
+
+                FontDetails.push
+                (
+                    Font_Detail
+                    {
+                        Name: Name.clone(),
+                        Family: if CurrentFamily.is_empty() { Name } else { CurrentFamily.clone() },
+                        Weight: "400".to_string(),
+                        Style: "normal".to_string(),
+                        Stretch: "normal".to_string(),
+                        FilePath: FilePart.to_string(),
+                    }
+                );
+            }
+        }
+    }
+
+    for SearchDir in &["assets/fonts", "public/fonts", "TypstStudio/public/fonts"]
+    {
+        let DirPath = std::path::Path::new(SearchDir);
+        if DirPath.exists() && DirPath.is_dir()
+        {
+            if let Ok(Entries) = std::fs::read_dir(DirPath)
+            {
+                for Entry in Entries.flatten()
+                {
+                    let Path = Entry.path();
+                    if let Some(Ext) = Path.extension().and_then(|E| E.to_str())
+                    {
+                        if Ext.eq_ignore_ascii_case("ttf") || Ext.eq_ignore_ascii_case("otf") || Ext.eq_ignore_ascii_case("ttc")
+                        {
+                            if let Some(Stem) = Path.file_stem().and_then(|S| S.to_str())
+                            {
+                                FontSet.insert(Stem.to_string());
+                                FontDetails.push
+                                (
+                                    Font_Detail
+                                    {
+                                        Name: Stem.to_string(),
+                                        Family: Stem.to_string(),
+                                        Weight: "400".to_string(),
+                                        Style: "normal".to_string(),
+                                        Stretch: "normal".to_string(),
+                                        FilePath: Path.to_string_lossy().to_string(),
+                                    }
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok
+    (
+        Available_Fonts_Response
+        {
+            Success: true,
+            Fonts: FontSet.into_iter().collect(),
+            FontDetails: FontDetails,
+        }
+    )
+}
+
+#[tauri::command]
+fn GetSystemStatus() -> Result<System_Status_Response, String>
+{
+    let TypstBin = FindTypstBinary();
+    let VersionOutput = std::process::Command::new(&TypstBin)
+        .arg("--version")
+        .output()
+        .map(|Out| String::from_utf8_lossy(&Out.stdout).trim().to_string())
+        .unwrap_or_else(|_| "typst unknown".to_string());
+
+    let Uptime = APP_START_TIME.elapsed().as_secs();
+
+    Ok
+    (
+        System_Status_Response
+        {
+            Success: true,
+            TypstVersion: VersionOutput,
+            TypstBinary: TypstBin.to_string_lossy().to_string(),
+            Platform: std::env::consts::OS.to_string(),
+            UptimeSecs: Uptime,
+        }
+    )
+}
+
+#[tauri::command]
+fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
+{
+    let Lines: Vec<&str> = Source.lines().collect();
+    let mut ResultLines = Vec::new();
+    let mut InRaw = false;
+
+    for Line in Lines
+    {
+        let Trimmed = Line.trim();
+        if Trimmed.starts_with("```")
+        {
+            InRaw = !InRaw;
+            ResultLines.push(Line.to_string());
+            continue;
+        }
+
+        if InRaw
+        {
+            ResultLines.push(Line.to_string());
+            continue;
+        }
+
+        ResultLines.push(Line.to_string());
+    }
+
+    Ok
+    (
+        Format_Typst_Response
+        {
+            Success: true,
+            Formatted: ResultLines.join("\n"),
+            HasError: false,
+            Error: None,
+        }
+    )
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
@@ -1113,7 +1756,13 @@ pub fn run()
                 DeleteWorkspaceFile,
                 AddWorkspaceDirectory,
                 RemoveWorkspaceDirectory,
-                UploadAsset
+                UploadAsset,
+                GetAvailableFonts,
+                GetSystemStatus,
+                SyncClick,
+                SyncCursor,
+                ResolveSpan,
+                FormatTypst
             ]
         )
         .setup
@@ -1155,9 +1804,33 @@ mod tests
     fn TestExportPdf()
     {
         let Source = "= Test Document\nTesting PDF export.".to_string();
-        let PdfData = ExportPdf(Source, None).expect("ExportPdf should succeed");
+        let PdfData = ExportPdf(Source, None, None, None).expect("ExportPdf should succeed");
         assert!(!PdfData.is_empty());
         assert!(PdfData.starts_with(b"%PDF"));
+    }
+
+    #[test]
+    fn TestDarkColorConversion()
+    {
+        assert_eq!(ConvertColorHex("FAFAFA"), "222222");
+        assert_eq!(ConvertColorHex("000000"), "FFFFFF");
+        assert_eq!(ConvertColorHex("FFFFFF"), "FFFFFF");
+        assert_eq!(ConvertColorHex("16A34A"), "16A34A");
+    }
+
+    #[test]
+    fn TestGetSystemStatus()
+    {
+        let Status = GetSystemStatus().expect("GetSystemStatus should succeed");
+        assert!(Status.Success);
+        assert!(!Status.TypstVersion.is_empty());
+    }
+
+    #[test]
+    fn TestFormatTypst()
+    {
+        let Formatted = FormatTypst("= Title\n".to_string()).expect("FormatTypst should succeed");
+        assert!(Formatted.Success);
     }
 
     #[test]
