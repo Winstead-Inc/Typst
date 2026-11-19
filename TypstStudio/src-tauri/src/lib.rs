@@ -1,5 +1,6 @@
 #![allow(non_camel_case_types, non_snake_case)]
 use std::io::Write;
+use tauri::Manager;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Compile_Response
@@ -447,8 +448,52 @@ fn FindTypstBinary() -> std::path::PathBuf
     { std::path::PathBuf::from("typst") }
 }
 
-#[tauri::command]
-fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
+fn GetFontDirectories() -> Vec<std::path::PathBuf>
+{
+    let mut Dirs = Vec::new();
+    let Candidates =
+    [
+        "TypstStudio/public/fonts",
+        "public/fonts",
+        "assets/fonts",
+        "../public/fonts",
+        "../assets/fonts",
+        "../../TypstStudio/public/fonts",
+        "../../assets/fonts",
+        r"E:\Typst\TypstStudio\public\fonts",
+        r"E:\Typst\assets\fonts",
+    ];
+
+    if let Ok(CurrentExe) = std::env::current_exe()
+    {
+        if let Some(ExeDir) = CurrentExe.parent()
+        {
+            let CandidateRes = ExeDir.join("resources").join("fonts");
+            if CandidateRes.exists() && CandidateRes.is_dir()
+            {
+                Dirs.push(CandidateRes);
+            }
+            let CandidatePub = ExeDir.join("public").join("fonts");
+            if CandidatePub.exists() && CandidatePub.is_dir()
+            {
+                Dirs.push(CandidatePub);
+            }
+        }
+    }
+
+    for Cand in Candidates
+    {
+        let P = std::path::PathBuf::from(Cand);
+        if P.exists() && P.is_dir() && !Dirs.contains(&P)
+        {
+            Dirs.push(P);
+        }
+    }
+
+    Dirs
+}
+
+fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
 {
     let StartTime = std::time::Instant::now();
     let TypstBin = FindTypstBinary();
@@ -480,6 +525,10 @@ fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Resp
 
     let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    for FontDir in GetFontDirectories()
+    {
+        Command.arg("--font-path").arg(FontDir);
+    }
     Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
@@ -546,7 +595,14 @@ fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Resp
 }
 
 #[tauri::command]
-fn ExportPdf(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, Transparent: Option<bool>,) -> Result<Vec<u8>, String>
+async fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
+{
+    tauri::async_runtime::spawn_blocking(move || CompileTypstSync(Source, FilePath))
+        .await
+        .map_err( | Error | Error.to_string())?
+}
+
+fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, Transparent: Option<bool>,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -582,6 +638,10 @@ fn ExportPdf(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, 
 
     let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf"),]);
+    for FontDir in GetFontDirectories()
+    {
+        Command.arg("--font-path").arg(FontDir);
+    }
     Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
@@ -614,7 +674,14 @@ fn ExportPdf(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, 
 }
 
 #[tauri::command]
-fn ExportPng(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
+async fn ExportPdf(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, Transparent: Option<bool>,) -> Result<Vec<u8>, String>
+{
+    tauri::async_runtime::spawn_blocking(move || ExportPdfSync(Source, FilePath, BlackMode, Transparent))
+        .await
+        .map_err( | Error | Error.to_string())?
+}
+
+fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -661,6 +728,10 @@ fn ExportPng(Source: String, FilePath: Option<String>, BaseDocName: String, Blac
         "-",
         OutputPattern.to_str().unwrap_or("page-{p}.png"),
     ]);
+    for FontDir in GetFontDirectories()
+    {
+        Command.arg("--font-path").arg(FontDir);
+    }
     Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
@@ -725,7 +796,14 @@ fn ExportPng(Source: String, FilePath: Option<String>, BaseDocName: String, Blac
 }
 
 #[tauri::command]
-fn ExportSvg(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
+async fn ExportPng(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
+{
+    tauri::async_runtime::spawn_blocking(move || ExportPngSync(Source, FilePath, BaseDocName, BlackMode, Transparent))
+        .await
+        .map_err( | Error | Error.to_string())?
+}
+
+fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -761,6 +839,10 @@ fn ExportSvg(Source: String, FilePath: Option<String>, BaseDocName: String, Blac
 
     let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    for FontDir in GetFontDirectories()
+    {
+        Command.arg("--font-path").arg(FontDir);
+    }
     Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
@@ -835,6 +917,14 @@ fn ExportSvg(Source: String, FilePath: Option<String>, BaseDocName: String, Blac
 
     let _ = std::fs::remove_dir_all( & JobDir);
     Ok(ZipBuffer)
+}
+
+#[tauri::command]
+async fn ExportSvg(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
+{
+    tauri::async_runtime::spawn_blocking(move || ExportSvgSync(Source, FilePath, BaseDocName, BlackMode, Transparent))
+        .await
+        .map_err( | Error | Error.to_string())?
 }
 
 #[tauri::command]
@@ -1293,11 +1383,28 @@ fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
 }
 
 #[tauri::command]
-fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
+async fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
+{
+    tauri::async_runtime::spawn_blocking
+    (
+        move ||
+        {
+            GetAvailableFontsSync()
+        }
+    )
+    .await
+    .map_err( | Error | format ! ("Font query task join error: {}", Error))?
+}
+
+fn GetAvailableFontsSync() -> Result<Available_Fonts_Response, String>
 {
     let TypstBin = FindTypstBinary();
     let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args(["fonts", "--variants"]);
+    for FontDir in GetFontDirectories()
+    {
+        Command.arg("--font-path").arg(FontDir);
+    }
     let Output = Command.output().map_err( | Error | format ! ("Failed to query fonts: {}", Error))?;
     let Stdout = String::from_utf8_lossy( & Output.stdout);
 
@@ -1432,13 +1539,28 @@ fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
     Ok(Format_Typst_Response { Success: true, Formatted: ResultLines.join("\n"), HasError: false, Error: None, })
 }
 
+#[tauri::command]
+fn ToggleFullscreen(App: tauri::AppHandle) -> Result<bool, String>
+{
+    if let Some(Window) = App.get_webview_window("main")
+    {
+        let Current = Window.is_fullscreen().map_err( | Error | Error.to_string())?;
+        Window.set_fullscreen( ! Current).map_err( | Error | Error.to_string())?;
+        Ok( ! Current)
+    }
+    else
+    {
+        Err("Main window not found".to_string())
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
-    tauri::Builder:: default()
-   .plugin(tauri_plugin_dialog::init ())
-   .plugin(tauri_plugin_fs::init ())
-   .plugin(tauri_plugin_shell::init ())
+    tauri::Builder::default()
+   .plugin(tauri_plugin_dialog::init())
+   .plugin(tauri_plugin_fs::init())
+   .plugin(tauri_plugin_shell::init())
    .invoke_handler
     (
         tauri::generate_handler!
@@ -1462,7 +1584,8 @@ pub fn run()
             SyncClick,
             SyncCursor,
             ResolveSpan,
-            FormatTypst
+            FormatTypst,
+            ToggleFullscreen
         ]
     )
    .setup
@@ -1471,12 +1594,12 @@ pub fn run()
         {
             if cfg!(debug_assertions)
             {
-                app.handle().plugin(tauri_plugin_log::Builder::default ().level(log::LevelFilter::Info).build(),)?;
+                app.handle().plugin(tauri_plugin_log::Builder::default().level(log::LevelFilter::Info).build())?;
             }
             Ok(())
         }
     )
-   .run(tauri::generate_context ! ())
+   .run(tauri::generate_context!())
    .expect("error while building tauri application");
 }
 
@@ -1489,7 +1612,7 @@ mod tests
     fn TestCompileTypst()
     {
         let Source = "= Hello Typst\nTesting Tauri command.".to_string();
-        let Resp = CompileTypst(Source, None).expect("CompileTypst should succeed");
+        let Resp = CompileTypstSync(Source, None).expect("CompileTypst should succeed");
         assert!(Resp.success);
         assert_eq!(Resp.page_count, 1);
         assert!( ! Resp.pages.is_empty());
@@ -1499,7 +1622,7 @@ mod tests
     fn TestExportPdf()
     {
         let Source = "= Test Document\nTesting PDF export.".to_string();
-        let PdfData = ExportPdf(Source, None, None, None).expect("ExportPdf should succeed");
+        let PdfData = ExportPdfSync(Source, None, None, None).expect("ExportPdf should succeed");
         assert!( ! PdfData.is_empty());
         assert!(PdfData.starts_with(b"%PDF"));
     }
@@ -1535,7 +1658,7 @@ mod tests
     fn TestExportPngZip()
     {
         let Source = "= Page 1\n#pagebreak()\n= Page 2".to_string();
-        let ZipData = ExportPng(Source, None, "test_doc".to_string(), false, false).expect("ExportPng should succeed");
+        let ZipData = ExportPngSync(Source, None, "test_doc".to_string(), false, false).expect("ExportPng should succeed");
         assert!( ! ZipData.is_empty());
         let Reader = std::io::Cursor:: new (ZipData);
         let mut Archive = zip::ZipArchive:: new (Reader).expect("Valid ZIP archive");
@@ -1548,7 +1671,7 @@ mod tests
     fn TestExportSvgZip()
     {
         let Source = "= Vector Page 1\n#pagebreak()\n= Vector Page 2".to_string();
-        let ZipData = ExportSvg(Source, None, "vector_doc".to_string(), true, true).expect("ExportSvg should succeed");
+        let ZipData = ExportSvgSync(Source, None, "vector_doc".to_string(), true, true).expect("ExportSvg should succeed");
         assert!( ! ZipData.is_empty());
         let Reader = std::io::Cursor:: new (ZipData);
         let mut Archive = zip::ZipArchive:: new (Reader).expect("Valid ZIP archive");

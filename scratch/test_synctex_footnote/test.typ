@@ -1,0 +1,1 @@
+Inline formatting supports *bold emphasis*, _italic styling_, and \inline monospaced code\. Footnotes can be inserted inline #footnote[Footnotes automatically position at page bottoms with dynamic separator lines.] and cross-referenced dynamically.

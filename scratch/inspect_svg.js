@@ -1,20 +1,10 @@
 const fs = require('fs');
+const { execSync } = require('child_process');
+execSync('bin\\typst.exe compile projects/GenesisOfTheVanguard/0typ.typ scratch/test_p{p}.svg');
+const svg = fs.readFileSync('scratch/test_p2.svg', 'utf8');
+const lines = svg.split('\n');
+console.log('SVG total lines:', lines.length);
 
-function inspectSvg(path) {
-    const s = fs.readFileSync(path, 'utf8');
-    const re = /<(path|rect|use|g|text)[^>]*fill="([^"]+)"[^>]*>/g;
-    let m;
-    const fills = new Set();
-    const elements = [];
-    while ((m = re.exec(s)) !== null) {
-        fills.add(m[2]);
-        if (elements.length < 25) {
-            elements.push({ tag: m[1], fill: m[2], snippet: m[0].slice(0, 100) });
-        }
-    }
-    console.log('Unique fills in ' + path + ':', Array.from(fills));
-    console.log('First elements:', elements);
-}
-
-inspectSvg('E:/Typst/scratch/showcase-3.svg');
-inspectSvg('E:/Typst/scratch/showcase-4.svg');
+// Find text or use elements around y = 183 or containing matrix
+const matches = lines.filter(l => l.includes('183') || l.includes('196') || l.includes('matrix'));
+console.log('Matches:', matches.slice(0, 10));

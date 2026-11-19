@@ -36,7 +36,7 @@
 
 #set text
 (
-  font: ("Times New Roman", "TT Lakes Neue Trial Condensed Medium"),
+  font: ("Times New Roman", "XITS Math"),
   size: 10.5pt,
   lang: "en"
 )
@@ -151,8 +151,7 @@ Display radical of high-order forms:
 $
   root
   (
-    3,
-    x^3 + y^3 + z^3
+    3, x^3 + y^3 + z^3
   )
 $
 

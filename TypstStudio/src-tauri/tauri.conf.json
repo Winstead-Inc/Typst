@@ -9,7 +9,9 @@
         "withGlobalTauri": true,
         "windows":
         [{
+            "label": "main",
             "title": "Typst Studio — Realtime Environment",
+            "url": "index.html",
             "width": 1440,
             "height": 900,
             "minWidth": 960,

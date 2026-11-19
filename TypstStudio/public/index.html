@@ -320,6 +320,18 @@
             </div>
 
             <button Type  = "button"
+                    Id    = "FullscreenToggleBtn"
+                    Class = "Button Secondary FullscreenBtn"
+                    Title = "Toggle Fullscreen (F11)">
+                <svg Id = "FullscreenIconEnter" Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                    <path D = "M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+                </svg>
+                <svg Id = "FullscreenIconExit" Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2" Style = "display: none;">
+                    <path D = "M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                </svg>
+            </button>
+
+            <button Type  = "button"
                     Id    = "ShortcutsHelpBtn"
                     Class = "Button Secondary HelpBtn"
                     Title = "Keyboard Shortcuts Cheat Sheet (?)">
@@ -375,6 +387,11 @@
             <div Class = "EditorStatusBar">
                 <div Class = "StatusItem" Id = "CursorPosition">Ln 1, Col 1</div>
                 <div Class = "StatusItem" Id = "CharacterCount">0 chars</div>
+                <div Class = "FontSizeControls" Title = "Editor Font Size (Ctrl + / - / 0)">
+                    <button Type = "button" Id = "DecreaseFontSizeBtn" Class = "StatusBarBtn" Title = "Decrease Font Size (Ctrl+-)">A−</button>
+                    <span Class = "StatusItem FontSizeValue" Id = "EditorFontSizeDisplay" Title = "Reset Font Size (Ctrl+0)">14px</span>
+                    <button Type = "button" Id = "IncreaseFontSizeBtn" Class = "StatusBarBtn" Title = "Increase Font Size (Ctrl+=)">A+</button>
+                </div>
                 <button Type  = "button"
                         Id    = "StatusOutlineToggle"
                         Class = "StatusBarBtn"
@@ -398,7 +415,7 @@
 
                 <div Class = "ZoomControls">
                     <button Type = "button" Id = "ZoomOutButton" Class = "NavButton" Title = "Zoom Out">−</button>
-                    <span Class = "ZoomDisplay" Id = "ZoomDisplay">100%</span>
+                    <span Class = "ZoomDisplay" Id = "ZoomDisplay" Title = "Click to edit zoom percentage (e.g. 125% or 1.25)" ContentEditable = "true" Spellcheck = "false">100%</span>
                     <button Type = "button" Id = "ZoomInButton" Class = "NavButton" Title = "Zoom In">+</button>
                     <button Type = "button" Id = "ZoomFitWidthButton" Class = "NavButton" Title = "Fit Width">Fit W</button>
                     <button Type = "button" Id = "ZoomFitPageButton" Class = "NavButton" Title = "Fit Page">Fit Page</button>
@@ -725,7 +742,7 @@
         </div>
     </section>
 
-    <!-- Keyboard Shortcut Cheat Sheet Modal (Priority 4) -->
+    <!-- Keyboard Shortcut Cheat Sheet & Keybinding Customizer Modal -->
     <div Class = "ModalOverlay" Id = "ShortcutsModal" Style = "display: none;">
         <div Class = "ModalDialog ShortcutsModalDialog">
             <div Class = "ModalHeader">
@@ -736,32 +753,53 @@
                     </svg>
                     <h3>Keyboard Shortcuts</h3>
                 </div>
+                <div Class = "ShortcutsTabs">
+                    <button Type = "button" Id = "ShortcutsTabCheatSheet" Class = "ShortcutsTabBtn Active">Cheat Sheet</button>
+                    <button Type = "button" Id = "ShortcutsTabKeybindings" Class = "ShortcutsTabBtn">Edit Keybindings</button>
+                </div>
                 <button Type = "button" Id = "CloseShortcutsModalBtn" Class = "MiniCloseBtn">×</button>
             </div>
-            <div Class = "ModalBody ShortcutsGrid">
+            <div Class = "ModalBody ShortcutsGrid" Id = "ShortcutsCheatSheetView">
                 <div Class = "ShortcutCategory">
                     <h4>Document &amp; Compilation</h4>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>S</kbd></span><span Class = "ShortcutDesc">Save document to disk</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span><span Class = "ShortcutDesc">Compile &amp; refresh preview</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Shift</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd></span><span Class = "ShortcutDesc">Format code to LAFS standard</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>P</kbd></span><span Class = "ShortcutDesc">Export document to PDF</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></span><span Class = "ShortcutDesc">Print document</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "save_document"><kbd>Ctrl</kbd> + <kbd>S</kbd></span><span Class = "ShortcutDesc">Save document to disk</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "compile_document"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span><span Class = "ShortcutDesc">Compile &amp; refresh preview</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "format_lafs"><kbd>Shift</kbd> + <kbd>Alt</kbd> + <kbd>F</kbd></span><span Class = "ShortcutDesc">Format code to LAFS standard</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "export_pdf"><kbd>Ctrl</kbd> + <kbd>P</kbd></span><span Class = "ShortcutDesc">Export document to PDF</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "print_document"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></span><span Class = "ShortcutDesc">Print document</span></div>
                 </div>
                 <div Class = "ShortcutCategory">
                     <h4>Views &amp; Navigation</h4>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Alt</kbd> + <kbd>1</kbd></span><span Class = "ShortcutDesc">Split View (50/50)</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Alt</kbd> + <kbd>2</kbd></span><span Class = "ShortcutDesc">Editor Only (Focus code)</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Alt</kbd> + <kbd>3</kbd></span><span Class = "ShortcutDesc">Preview Only (Focus output)</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Alt</kbd> + <kbd>O</kbd></span><span Class = "ShortcutDesc">Toggle Document Outline</span></div>
-                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></span><span Class = "ShortcutDesc">Open shortcuts cheat sheet</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_split"><kbd>Alt</kbd> + <kbd>1</kbd></span><span Class = "ShortcutDesc">Split View (50/50)</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_editor"><kbd>Alt</kbd> + <kbd>2</kbd></span><span Class = "ShortcutDesc">Editor Only (Focus code)</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_preview"><kbd>Alt</kbd> + <kbd>3</kbd></span><span Class = "ShortcutDesc">Preview Only (Focus output)</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_outline"><kbd>Alt</kbd> + <kbd>O</kbd></span><span Class = "ShortcutDesc">Toggle Document Outline</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_fullscreen"><kbd>F11</kbd></span><span Class = "ShortcutDesc">Toggle Fullscreen mode</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "open_shortcuts"><kbd>?</kbd> or <kbd>Ctrl</kbd> + <kbd>/</kbd></span><span Class = "ShortcutDesc">Open shortcuts cheat sheet</span></div>
                 </div>
                 <div Class = "ShortcutCategory">
                     <h4>Editor IntelliSense &amp; Editing</h4>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "editor_font_zoom"><kbd>Ctrl</kbd> + <kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></span><span Class = "ShortcutDesc">Zoom font size (In / Out / Reset)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>Space</kbd></span><span Class = "ShortcutDesc">Typst IntelliSense &amp; Snippets</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>F1</kbd></span><span Class = "ShortcutDesc">Monaco Command Palette</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>F</kbd></span><span Class = "ShortcutDesc">Find text in code</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Ctrl</kbd> + <kbd>H</kbd></span><span Class = "ShortcutDesc">Replace text in code</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys"><kbd>Alt</kbd> + <kbd>↑ / ↓</kbd></span><span Class = "ShortcutDesc">Move line up / down</span></div>
+                </div>
+            </div>
+            <div Class = "ModalBody KeybindingsManagerView" Id = "KeybindingsManagerView" Style = "display: none;">
+                <div Class = "KeybindingsToolbar">
+                    <div Class = "KeybindingsSearchWrap">
+                        <input Type = "text" Id = "KeybindingsSearchInput" Class = "KeybindingsSearchInput" Placeholder = "Search commands, actions, or shortcuts..." />
+                    </div>
+                    <button Type = "button" Id = "ResetAllKeybindingsBtn" Class = "KeybindingsResetAllBtn" Title = "Reset all keyboard shortcuts to their factory defaults">Reset All to Defaults</button>
+                </div>
+                <div Class = "KeybindingsRecordingBanner" Id = "KeybindingsRecordingBanner" Style = "display: none;">
+                    <span Class = "RecordingPulse"></span>
+                    <span Id = "KeybindingsRecordingLabel">Press desired key combination on your keyboard... (Press Escape to cancel)</span>
+                </div>
+                <div Class = "KeybindingsList" Id = "KeybindingsList">
+                    <!-- Populated dynamically by App.js -->
                 </div>
             </div>
         </div>

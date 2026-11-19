@@ -36,7 +36,7 @@
 
 #set text
 (
-  font: ("Times New Roman", "TT Lakes Neue Trial Condensed Medium"),
+  font: ("TT Lakes Neue Trl Cnd", "Times New Roman"),
   size: 10.5pt,
   lang: "en"
 )

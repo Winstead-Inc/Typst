@@ -265,7 +265,7 @@ Hello World!
 
 #set text
 (
-  font: ("Times New Roman", "TT Lakes Neue Trial Condensed Medium"),
+  font: ("TT Lakes Neue Trl Cnd", "Times New Roman"),
   size: 10.5pt,
   lang: "en"
 )
@@ -572,7 +572,14 @@ Typst features a built-in Turing-complete functional scripting language:
 
 let MonacoInstance = null;
 let CompileTimeoutID = null;
-let CurrentZoomLevel = 1.0;
+let CurrentZoomLevel = parseFloat(localStorage.getItem("TypstStudio_PreviewZoom") || "1.0");
+if (isNaN(CurrentZoomLevel) || CurrentZoomLevel < 0.25 || CurrentZoomLevel > 5.0)
+{
+    CurrentZoomLevel = 1.0;
+}
+let IsCompiling = false;
+let HasPendingCompile = false;
+let CompileGeneration = 0;
 let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
@@ -593,6 +600,175 @@ let ActiveHighlightBoxes = [];
 let SuppressForwardSync = false;
 let SyncLineDecorations = null;
 let ForwardSyncDebounceTimer = null;
+let CurrentEditorFontSize = parseInt(localStorage.getItem("TypstStudio_EditorFontSize") || "14", 10);
+if (isNaN(CurrentEditorFontSize) || CurrentEditorFontSize < 9 || CurrentEditorFontSize > 36)
+{
+    CurrentEditorFontSize = 14;
+}
+let IsAppFullscreen = false;
+
+const DEFAULT_KEYBINDINGS =
+{
+    "save_document": "Ctrl+S",
+    "compile_document": "Ctrl+Enter",
+    "format_lafs": "Shift+Alt+F",
+    "export_pdf": "Ctrl+P",
+    "print_document": "Ctrl+Shift+P",
+    "layout_split": "Alt+1",
+    "layout_editor": "Alt+2",
+    "layout_preview": "Alt+3",
+    "toggle_outline": "Alt+O",
+    "toggle_fullscreen": "F11",
+    "open_shortcuts": "Ctrl+/",
+    "editor_font_zoom_in": "Ctrl+=",
+    "editor_font_zoom_out": "Ctrl+-",
+    "editor_font_zoom_reset": "Ctrl+0",
+    "preview_zoom_in": "Ctrl+Alt+=",
+    "preview_zoom_out": "Ctrl+Alt+-",
+    "preview_zoom_fit_width": "Alt+W",
+    "preview_zoom_fit_page": "Alt+P",
+    "toggle_dark_page": "Alt+D"
+};
+
+const APPLICATION_COMMANDS_META =
+[
+    { Id: "save_document", Label: "Save Document", Category: "Document & Compilation", Source: "App" },
+    { Id: "compile_document", Label: "Compile & Refresh Preview", Category: "Document & Compilation", Source: "App" },
+    { Id: "format_lafs", Label: "Format Code to LAFS Standard", Category: "Document & Compilation", Source: "App" },
+    { Id: "export_pdf", Label: "Export Document to PDF", Category: "Document & Compilation", Source: "App" },
+    { Id: "print_document", Label: "Print Document", Category: "Document & Compilation", Source: "App" },
+    { Id: "layout_split", Label: "Split View (50/50)", Category: "Views & Navigation", Source: "App" },
+    { Id: "layout_editor", Label: "Editor Only (Focus Code)", Category: "Views & Navigation", Source: "App" },
+    { Id: "layout_preview", Label: "Preview Only (Focus Output)", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_fullscreen", Label: "Toggle Fullscreen Mode", Category: "Views & Navigation", Source: "App" },
+    { Id: "open_shortcuts", Label: "Open Shortcuts / Keybindings Dialog", Category: "Views & Navigation", Source: "App" },
+    { Id: "editor_font_zoom_in", Label: "Editor Font Zoom In", Category: "Editor", Source: "App" },
+    { Id: "editor_font_zoom_out", Label: "Editor Font Zoom Out", Category: "Editor", Source: "App" },
+    { Id: "editor_font_zoom_reset", Label: "Editor Font Zoom Reset", Category: "Editor", Source: "App" },
+    { Id: "preview_zoom_in", Label: "Preview Zoom In", Category: "Preview", Source: "App" },
+    { Id: "preview_zoom_out", Label: "Preview Zoom Out", Category: "Preview", Source: "App" },
+    { Id: "preview_zoom_fit_width", Label: "Preview Fit Width", Category: "Preview", Source: "App" },
+    { Id: "preview_zoom_fit_page", Label: "Preview Fit Page", Category: "Preview", Source: "App" },
+    { Id: "toggle_dark_page", Label: "Toggle Inverted Dark Paper Mode", Category: "Preview", Source: "App" }
+];
+
+let CustomKeybindings = {};
+try
+{
+    const StoredKeybindings = localStorage.getItem("TypstStudio_CustomKeybindings");
+    if (StoredKeybindings)
+    {
+        CustomKeybindings = JSON.parse(StoredKeybindings) || {};
+    }
+}
+catch (Err)
+{
+    CustomKeybindings = {};
+}
+
+let ActiveRecordingCommandId = null;
+
+function UpdateFontSizeUI()
+{
+    const Display = document.getElementById("EditorFontSizeDisplay");
+    if (Display)
+    {
+        Display.textContent = `${CurrentEditorFontSize}px`;
+    }
+}
+
+function SetEditorFontSize(NewSize)
+{
+    NewSize = Math.max(9, Math.min(36, Math.round(NewSize)));
+    CurrentEditorFontSize = NewSize;
+    localStorage.setItem("TypstStudio_EditorFontSize", String(NewSize));
+    if (MonacoInstance)
+    {
+        const NewLineHeight = Math.round(NewSize * 1.55);
+        MonacoInstance.updateOptions
+        ({
+            fontSize: NewSize,
+            lineHeight: NewLineHeight
+        });
+    }
+    UpdateFontSizeUI();
+}
+
+function IncreaseEditorFontSize()
+{
+    SetEditorFontSize(CurrentEditorFontSize + 1);
+}
+
+function DecreaseEditorFontSize()
+{
+    SetEditorFontSize(CurrentEditorFontSize - 1);
+}
+
+function ResetEditorFontSize()
+{
+    SetEditorFontSize(14);
+}
+
+async function ToggleFullscreen()
+{
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            const NewFs = await window.__TAURI__.core.invoke("ToggleFullscreen");
+            IsAppFullscreen = Boolean(NewFs);
+            UpdateFullscreenUI(IsAppFullscreen);
+            return ;
+        }
+        catch (Err)
+        {
+            console.warn("Tauri ToggleFullscreen invoke error, falling back to Web API:", Err);
+        }
+    }
+
+    if (!document.fullscreenElement)
+    {
+        try
+        {
+            await document.documentElement.requestFullscreen();
+            IsAppFullscreen = true;
+        }
+        catch (Err)
+        {
+            console.error("Fullscreen request failed:", Err);
+        }
+    }
+    else
+    {
+        try
+        {
+            await document.exitFullscreen();
+            IsAppFullscreen = false;
+        }
+        catch (Err)
+        {
+            console.error("Exit fullscreen failed:", Err);
+        }
+    }
+    UpdateFullscreenUI(IsAppFullscreen);
+}
+
+function UpdateFullscreenUI(IsFs)
+{
+    const EnterIcon = document.getElementById("FullscreenIconEnter");
+    const ExitIcon = document.getElementById("FullscreenIconExit");
+    const Btn = document.getElementById("FullscreenToggleBtn");
+    if (EnterIcon && ExitIcon)
+    {
+        EnterIcon.style.display = IsFs ? "none": "block";
+        ExitIcon.style.display = IsFs ? "block": "none";
+    }
+    if (Btn)
+    {
+        Btn.title = IsFs ? "Exit Fullscreen (F11 or Esc)": "Toggle Fullscreen (F11)";
+    }
+}
 
 function RebuildSyncMapIndex(SyncMap)
 {
@@ -797,7 +973,7 @@ const UI_SETTINGS_STORAGE_KEY = "TypstStudio_UISettings";
 const DEFAULT_UI_SETTINGS =
 {
     Scale: 100, // 100% = Normal / Default (before user prompted to change it)
-    Font: "Teko",
+    Font: "TT Lakes Neue",
     CustomFont: ""
 };
 
@@ -805,6 +981,12 @@ let CurrentUISettings = { ...DEFAULT_UI_SETTINGS };
 
 const UI_FONT_PRESETS =
 {
+    "TT Lakes Neue":
+    {
+        Family: '"TT Lakes Neue", "TT Lakes Neue Trial Condensed Medium", "TT Lakes Neue Trl Cnd", "TTLakesNeueTrial", "TT Lakes Neue Trl Cnd Md", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        Weight: "500",
+        LetterSpacing: "0.2px"
+    },
     "Teko":
     {
         Family: '"Teko", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -2257,8 +2439,9 @@ async function InitializeMonaco()
                     language: "typst",
                     theme: "typst-vibrant",
                     automaticLayout: true,
-                    fontSize: 14,
-                    lineHeight: 22,
+                    fontSize: CurrentEditorFontSize,
+                    lineHeight: Math.round(CurrentEditorFontSize * 1.55),
+                    mouseWheelZoom: true,
                     fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
                     fontWeight: "400",
                     fontLigatures: true,
@@ -2312,6 +2495,40 @@ async function InitializeMonaco()
             window.MonacoInstance = MonacoInstance;
 
             SyncLineDecorations = MonacoInstance.createDecorationsCollection([]);
+
+            MonacoInstance.onDidChangeConfiguration
+            (
+                (Event) =>
+                {
+                    if (Event.hasChanged(monaco.editor.EditorOption.fontSize))
+                    {
+                        const NewSize = MonacoInstance.getOption(monaco.editor.EditorOption.fontSize);
+                        if (NewSize && NewSize !== CurrentEditorFontSize)
+                        {
+                            CurrentEditorFontSize = NewSize;
+                            localStorage.setItem("TypstStudio_EditorFontSize", String(NewSize));
+                            UpdateFontSizeUI();
+                        }
+                    }
+                }
+            );
+
+            // Register Editor Font Size Commands in Monaco
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Equal,
+                () => { IncreaseEditorFontSize(); }
+            );
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Minus,
+                () => { DecreaseEditorFontSize(); }
+            );
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0,
+                () => { ResetEditorFontSize(); }
+            );
 
             MonacoInstance.onDidChangeCursorPosition
             (
@@ -2674,16 +2891,26 @@ function UpdateStatusBar()
 function ScheduleCompile(DelayMs)
 {
     if (CompileTimeoutID) { clearTimeout(CompileTimeoutID); }
+    const TimeSinceTyping = Date.now() - LastTypingTimestamp;
+    const EffectiveDelay = (TimeSinceTyping < 400) ? Math.max(DelayMs, 650) : DelayMs;
     CompileTimeoutID = setTimeout
     (
         () => { TriggerCompileNow(); },
-        DelayMs
+        EffectiveDelay
     );
 }
 
 async function TriggerCompileNow()
 {
     if (!MonacoInstance) { return; }
+    if (IsCompiling)
+    {
+        HasPendingCompile = true;
+        return ;
+    }
+    IsCompiling = true;
+    const ThisCompileGen = ++ CompileGeneration;
+
     // Cancel any in-flight compilation request to avoid network and backend queue collisions
     if (ActiveAbortController)
     {
@@ -2703,6 +2930,7 @@ async function TriggerCompileNow()
     const LAFSValidation = ValidateEditorLAFS();
     if (LAFSValidation && LAFSValidation.HasError)
     {
+        IsCompiling = false;
         const PagesContainer = document.getElementById("PagesContainer");
         if (PagesContainer)
         {
@@ -2740,6 +2968,12 @@ async function TriggerCompileNow()
                     FilePath: CurrentFilePath || null
                 }
             );
+
+            if (ThisCompileGen !== CompileGeneration)
+            {
+                return ;
+            }
+
             Result =
             {
                 Success: RustResp.success,
@@ -2850,9 +3084,19 @@ async function TriggerCompileNow()
     }
     finally
     {
+        IsCompiling = false;
         if (ActiveAbortController === Controller)
         {
             ActiveAbortController = null;
+        }
+        if (HasPendingCompile)
+        {
+            HasPendingCompile = false;
+            setTimeout
+            (
+                () => { TriggerCompileNow(); },
+                60
+            );
         }
     }
 }
@@ -3499,8 +3743,79 @@ function RecalculateScale()
 
 function SetZoom(NewZoom)
 {
-    CurrentZoomLevel = Math.max(0.25, Math.min(3.0, NewZoom));
+    CurrentZoomLevel = Math.max(0.25, Math.min(5.0, Math.round(NewZoom * 100) / 100));
+    try
+    {
+        localStorage.setItem("TypstStudio_PreviewZoom", String(CurrentZoomLevel));
+    }
+    catch (Ignored) {}
     ApplyZoom();
+}
+
+function SetupZoomControls()
+{
+    const ZoomDisplay = document.getElementById("ZoomDisplay");
+    if (ZoomDisplay)
+    {
+        ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+
+        ZoomDisplay.addEventListener
+        (
+            "keydown",
+            (Event) =>
+            {
+                if (Event.key === "Enter")
+                {
+                    Event.preventDefault();
+                    ZoomDisplay.blur();
+                }
+                else if (Event.key === "Escape")
+                {
+                    Event.preventDefault();
+                    ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+                    ZoomDisplay.blur();
+                }
+            }
+        );
+
+        ZoomDisplay.addEventListener
+        (
+            "blur",
+            () =>
+            {
+                const RawText = ZoomDisplay.textContent.trim().replace("%", "");
+                const Parsed = parseFloat(RawText);
+                if (!isNaN(Parsed) && Parsed > 0)
+                {
+                    const Level = Parsed > 10 ? (Parsed / 100): Parsed;
+                    SetZoom(Level);
+                }
+                else
+                {
+                    ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+                }
+            }
+        );
+    }
+
+    const Viewport = document.getElementById("PreviewViewport");
+    if (Viewport)
+    {
+        Viewport.addEventListener
+        (
+            "wheel",
+            (Event) =>
+            {
+                if (Event.ctrlKey || Event.metaKey)
+                {
+                    Event.preventDefault();
+                    const Delta = Event.deltaY < 0 ? 0.08: - 0.08;
+                    SetZoom(CurrentZoomLevel + Delta);
+                }
+            },
+            { passive: false }
+        );
+    }
 }
 
 function FitWidth()
@@ -3950,6 +4265,13 @@ function SetupSplitResizer()
     const EditorPane = document.getElementById("EditorPane");
     let IsDragging = false;
 
+    // Restore saved split pane width on startup
+    const SavedWidth = localStorage.getItem("TypstStudio_SplitWidth");
+    if (SavedWidth && EditorPane)
+    {
+        EditorPane.style.width = SavedWidth;
+    }
+
     Resizer.addEventListener
     (
         "mousedown", (E) =>
@@ -3985,6 +4307,14 @@ function SetupSplitResizer()
                 Resizer.classList.remove("Dragging");
                 document.body.style.cursor = "";
                 document.body.style.userSelect = "";
+                if (EditorPane && EditorPane.style.width)
+                {
+                    try
+                    {
+                        localStorage.setItem("TypstStudio_SplitWidth", EditorPane.style.width);
+                    }
+                    catch (Ignored) {}
+                }
             }
         }
     );
@@ -4064,6 +4394,12 @@ function ToggleDocumentOutline(ForceState)
 
     IsOutlineVisible = (typeof ForceState === "boolean") ? ForceState: ! IsOutlineVisible;
     Sidebar.style.display = IsOutlineVisible ? "flex": "none";
+
+    try
+    {
+        localStorage.setItem("TypstStudio_OutlineVisible", IsOutlineVisible ? "true": "false");
+    }
+    catch (Ignored) {}
 
     if (IsOutlineVisible)
     {
@@ -4354,6 +4690,371 @@ async function HandleDroppedAssetFile(File)
 }
 // --- KEYBOARD SHORTCUTS & PRINT ARCHITECTURE (PRIORITY 4) ---
 
+function GetEffectiveKeybinding(CommandId)
+{
+    if (CustomKeybindings.hasOwnProperty(CommandId))
+    {
+        return CustomKeybindings[CommandId];
+    }
+    if (DEFAULT_KEYBINDINGS.hasOwnProperty(CommandId))
+    {
+        return DEFAULT_KEYBINDINGS[CommandId];
+    }
+    return "";
+}
+
+function FormatKeyComboHtml(Combo)
+{
+    if (!Combo || Combo.trim() === "")
+    {
+        return `<span Class = "KeybindingUnset">Unassigned</span>`;
+    }
+    const Tokens = Combo.split("+");
+    return Tokens.map( (T) => `<kbd>${T}</kbd>`).join(" + ");
+}
+
+function GetAllManageableCommands()
+{
+    const All = [...APPLICATION_COMMANDS_META];
+    if (MonacoInstance && typeof MonacoInstance.getActions === "function")
+    {
+        const Actions = MonacoInstance.getActions();
+        for (const Act of Actions)
+        {
+            if (!Act.id || Act.id.startsWith("_")) { continue; }
+            if (!Act.label || Act.label.trim() === "") { continue; }
+            All.push
+            ({
+                Id: Act.id,
+                Label: Act.label,
+                Category: "Monaco Editor",
+                Source: "Monaco"
+            });
+        }
+    }
+    return All;
+}
+
+function RenderKeybindingsList(SearchQuery = "")
+{
+    const Container = document.getElementById("KeybindingsList");
+    if (!Container) { return; }
+
+    const Filter = (SearchQuery || "").toLowerCase().trim();
+    const Commands = GetAllManageableCommands();
+
+    const Filtered = Commands.filter
+    (
+        (Cmd) =>
+        {
+            if (!Filter) { return true; }
+            const Key = GetEffectiveKeybinding(Cmd.Id).toLowerCase();
+            return Cmd.Label.toLowerCase().includes(Filter) ||
+                   Cmd.Id.toLowerCase().includes(Filter) ||
+                   Cmd.Category.toLowerCase().includes(Filter) ||
+                   Key.includes(Filter);
+        }
+    );
+
+    if (Filtered.length === 0)
+    {
+        Container.innerHTML = `<p style="padding: 24px; color: #71717A; text-align: center; font-size: 12px;">No matching commands found.</p>`;
+        return ;
+    }
+
+    let Html = "";
+    for (const Cmd of Filtered)
+    {
+        const EffectiveKey = GetEffectiveKeybinding(Cmd.Id);
+        const IsCustom = CustomKeybindings.hasOwnProperty(Cmd.Id);
+        const IsRecording = ActiveRecordingCommandId === Cmd.Id;
+        const ItemClasses = `KeybindingItem ${IsRecording ? "Recording": ""}`;
+        const PillClasses = `KeybindingPill ${IsCustom ? "Custom": ""}`;
+
+        Html += `
+        <div Class = "${ItemClasses}" Data-Command-Id = "${Cmd.Id}">
+            <div Class = "KeybindingInfo">
+                <span Class = "KeybindingLabel">${Cmd.Label}</span>
+                <span Class = "KeybindingSource">${Cmd.Category} · <code style="font-size: 9.5px; opacity: 0.6;">${Cmd.Id}</code></span>
+            </div>
+            <div Class = "KeybindingActions">
+                <span Class = "${PillClasses}">
+                    ${IsRecording ? '<span style="color: #C084FC; font-weight: 600; font-size: 11px;">Press keys...</span>': FormatKeyComboHtml(EffectiveKey)}
+                </span>
+                <button Type = "button" Class = "RecordKeyBtn ${IsRecording ? "Active": ""}" Data-Record-Id = "${Cmd.Id}">
+                    ${IsRecording ? "Cancel": (EffectiveKey ? "Edit": "Assign")}
+                </button>
+                ${IsCustom ? `<button Type = "button" Class = "ResetKeyBtn" Data-Reset-Id = "${Cmd.Id}" Title = "Reset to default">↺</button>`: ""}
+            </div>
+        </div>`;
+    }
+
+    Container.innerHTML = Html;
+
+    Container.querySelectorAll(".RecordKeyBtn").forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener
+            (
+                "click",
+                (E) =>
+                {
+                    E.stopPropagation();
+                    const CmdId = Btn.dataset.recordId;
+                    if (ActiveRecordingCommandId === CmdId)
+                    {
+                        CancelRecordingKeybinding();
+                    }
+                    else
+                    {
+                        StartRecordingKeybinding(CmdId);
+                    }
+                }
+            );
+        }
+    );
+
+    Container.querySelectorAll(".ResetKeyBtn").forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener
+            (
+                "click",
+                (E) =>
+                {
+                    E.stopPropagation();
+                    ResetKeybinding(Btn.dataset.resetId);
+                }
+            );
+        }
+    );
+}
+
+function StartRecordingKeybinding(CommandId)
+{
+    ActiveRecordingCommandId = CommandId;
+    const Banner = document.getElementById("KeybindingsRecordingBanner");
+    const Label = document.getElementById("KeybindingsRecordingLabel");
+    const All = GetAllManageableCommands();
+    const Found = All.find( (C) => C.Id === CommandId);
+    const Name = Found ? Found.Label: CommandId;
+
+    if (Banner && Label)
+    {
+        Label.textContent = `Recording shortcut for "${Name}"... Press key combination on keyboard (Escape to cancel, Backspace to clear).`;
+        Banner.style.display = "flex";
+    }
+
+    const SearchInput = document.getElementById("KeybindingsSearchInput");
+    RenderKeybindingsList(SearchInput ? SearchInput.value: "");
+}
+
+function CancelRecordingKeybinding()
+{
+    ActiveRecordingCommandId = null;
+    const Banner = document.getElementById("KeybindingsRecordingBanner");
+    if (Banner)
+    {
+        Banner.style.display = "none";
+    }
+    const SearchInput = document.getElementById("KeybindingsSearchInput");
+    RenderKeybindingsList(SearchInput ? SearchInput.value: "");
+}
+
+function SaveKeybinding(CommandId, KeyCombo)
+{
+    CustomKeybindings[CommandId] = KeyCombo;
+    try
+    {
+        localStorage.setItem("TypstStudio_CustomKeybindings", JSON.stringify(CustomKeybindings));
+    }
+    catch (Ignored) {}
+    CancelRecordingKeybinding();
+    UpdateCheatSheetBadges();
+    ShowToast(`Updated shortcut for ${CommandId}: ${KeyCombo}`, "info", 1800);
+}
+
+function ResetKeybinding(CommandId)
+{
+    delete CustomKeybindings[CommandId];
+    try
+    {
+        localStorage.setItem("TypstStudio_CustomKeybindings", JSON.stringify(CustomKeybindings));
+    }
+    catch (Ignored) {}
+    CancelRecordingKeybinding();
+    UpdateCheatSheetBadges();
+    ShowToast(`Reset shortcut for ${CommandId} to default`, "info", 1800);
+}
+
+function ResetAllKeybindings()
+{
+    CustomKeybindings = {};
+    try
+    {
+        localStorage.removeItem("TypstStudio_CustomKeybindings");
+    }
+    catch (Ignored) {}
+    CancelRecordingKeybinding();
+    UpdateCheatSheetBadges();
+    ShowToast("All shortcuts reset to defaults", "info", 1800);
+}
+
+function UpdateCheatSheetBadges()
+{
+    document.querySelectorAll("#ShortcutsCheatSheetView .ShortcutKeys[Data-Command]").forEach
+    (
+        (El) =>
+        {
+            const CmdId = El.getAttribute("Data-Command");
+            if (CmdId)
+            {
+                const EffectiveKey = GetEffectiveKeybinding(CmdId);
+                if (EffectiveKey)
+                {
+                    El.innerHTML = FormatKeyComboHtml(EffectiveKey);
+                }
+            }
+        }
+    );
+}
+
+function NormalizeKeyboardEvent(Event)
+{
+    const Parts = [];
+    if (Event.ctrlKey || Event.metaKey)
+    {
+        Parts.push("Ctrl");
+    }
+    if (Event.altKey)
+    {
+        Parts.push("Alt");
+    }
+    if (Event.shiftKey)
+    {
+        Parts.push("Shift");
+    }
+
+    let Key = Event.key;
+    if (Key === "Control" || Key === "Alt" || Key === "Shift" || Key === "Meta")
+    {
+        return null;
+    }
+
+    if (Key === " ") { Key = "Space"; }
+    else if (Key === "+") { Key = "="; }
+    else if (Key.length === 1) { Key = Key.toUpperCase(); }
+
+    Parts.push(Key);
+    return Parts.join("+");
+}
+
+function FindCommandByBinding(PressedCombo)
+{
+    if (!PressedCombo) { return null; }
+    const NormalizedPressed = PressedCombo.toLowerCase();
+
+    for (const [CmdId, Key] of Object.entries(CustomKeybindings))
+    {
+        if (Key && Key.toLowerCase() === NormalizedPressed)
+        {
+            return CmdId;
+        }
+    }
+
+    for (const [CmdId, Key] of Object.entries(DEFAULT_KEYBINDINGS))
+    {
+        if (CustomKeybindings.hasOwnProperty(CmdId)) { continue; }
+        if (Key && Key.toLowerCase() === NormalizedPressed)
+        {
+            return CmdId;
+        }
+    }
+
+    return null;
+}
+
+function ExecuteStudioCommand(CommandId)
+{
+    switch (CommandId)
+    {
+        case "save_document":
+            SaveCurrentFile();
+            TriggerCompileNow();
+            break;
+        case "compile_document":
+            TriggerCompileNow();
+            break;
+        case "format_lafs":
+            ApplyFormattingToEditor();
+            break;
+        case "export_pdf":
+            ExportPdf();
+            break;
+        case "print_document":
+            TriggerDocumentPrint();
+            break;
+        case "layout_split":
+            SetViewportLayout("split");
+            break;
+        case "layout_editor":
+            SetViewportLayout("editor");
+            break;
+        case "layout_preview":
+            SetViewportLayout("preview");
+            break;
+        case "toggle_outline":
+            ToggleDocumentOutline();
+            break;
+        case "toggle_fullscreen":
+            ToggleFullscreen();
+            break;
+        case "open_shortcuts":
+            ToggleShortcutsModal();
+            break;
+        case "editor_font_zoom_in":
+            IncreaseEditorFontSize();
+            break;
+        case "editor_font_zoom_out":
+            DecreaseEditorFontSize();
+            break;
+        case "editor_font_zoom_reset":
+            ResetEditorFontSize();
+            break;
+        case "preview_zoom_in":
+            SetZoom(CurrentZoomLevel + 0.1);
+            break;
+        case "preview_zoom_out":
+            SetZoom(CurrentZoomLevel - 0.1);
+            break;
+        case "preview_zoom_fit_width":
+            FitWidth();
+            break;
+        case "preview_zoom_fit_page":
+            FitPage();
+            break;
+        case "toggle_dark_page":
+            ToggleBlackPageMode();
+            break;
+        default:
+            if (MonacoInstance)
+            {
+                const Action = MonacoInstance.getAction(CommandId);
+                if (Action && typeof Action.run === "function")
+                {
+                    Action.run();
+                }
+                else
+                {
+                    MonacoInstance.trigger("keyboard", CommandId);
+                }
+            }
+            break;
+    }
+}
+
 function ToggleShortcutsModal(ForceOpen)
 {
     const Modal = document.getElementById("ShortcutsModal");
@@ -4362,6 +5063,14 @@ function ToggleShortcutsModal(ForceOpen)
     const IsOpen = Modal.style.display !== "none";
     const ShouldOpen = (typeof ForceOpen === "boolean") ? ForceOpen: ! IsOpen;
     Modal.style.display = ShouldOpen ? "flex": "none";
+    if (ShouldOpen)
+    {
+        UpdateCheatSheetBadges();
+    }
+    else
+    {
+        CancelRecordingKeybinding();
+    }
 }
 
 function TriggerDocumentPrint()
@@ -4411,6 +5120,51 @@ function SetupEventListeners()
             "click", () => { SetViewportLayout("preview"); }
         );
     }
+    // Fullscreen Toggle Control
+    const FullscreenBtn = document.getElementById("FullscreenToggleBtn");
+    if (FullscreenBtn)
+    {
+        FullscreenBtn.addEventListener
+        (
+            "click", () => { ToggleFullscreen(); }
+        );
+    }
+    document.addEventListener
+    (
+        "fullscreenchange",
+        () =>
+        {
+            IsAppFullscreen = Boolean(document.fullscreenElement);
+            UpdateFullscreenUI(IsAppFullscreen);
+        }
+    );
+
+    // Editor Font Size Controls
+    const DecreaseFontBtn = document.getElementById("DecreaseFontSizeBtn");
+    const IncreaseFontBtn = document.getElementById("IncreaseFontSizeBtn");
+    const FontSizeDisplay = document.getElementById("EditorFontSizeDisplay");
+    if (DecreaseFontBtn)
+    {
+        DecreaseFontBtn.addEventListener
+        (
+            "click", () => { DecreaseEditorFontSize(); }
+        );
+    }
+    if (IncreaseFontBtn)
+    {
+        IncreaseFontBtn.addEventListener
+        (
+            "click", () => { IncreaseEditorFontSize(); }
+        );
+    }
+    if (FontSizeDisplay)
+    {
+        FontSizeDisplay.addEventListener
+        (
+            "click", () => { ResetEditorFontSize(); }
+        );
+    }
+
     // Priority 2: Document Outline Controls
     const OutlineToggle = document.getElementById("StatusOutlineToggle");
     const OutlineClose = document.getElementById("CloseOutlineBtn");
@@ -4539,6 +5293,55 @@ function SetupEventListeners()
             {
                 if (E.target.id === "ShortcutsModal") { ToggleShortcutsModal(false); }
             }
+        );
+    }
+    const TabCheatSheet = document.getElementById("ShortcutsTabCheatSheet");
+    const TabKeybindings = document.getElementById("ShortcutsTabKeybindings");
+    const CheatSheetView = document.getElementById("ShortcutsCheatSheetView");
+    const KeybindingsView = document.getElementById("KeybindingsManagerView");
+    if (TabCheatSheet && TabKeybindings && CheatSheetView && KeybindingsView)
+    {
+        TabCheatSheet.addEventListener
+        (
+            "click",
+            () =>
+            {
+                TabCheatSheet.classList.add("Active");
+                TabKeybindings.classList.remove("Active");
+                CheatSheetView.style.display = "grid";
+                KeybindingsView.style.display = "none";
+                CancelRecordingKeybinding();
+            }
+        );
+        TabKeybindings.addEventListener
+        (
+            "click",
+            () =>
+            {
+                TabKeybindings.classList.add("Active");
+                TabCheatSheet.classList.remove("Active");
+                CheatSheetView.style.display = "none";
+                KeybindingsView.style.display = "flex";
+                RenderKeybindingsList();
+            }
+        );
+    }
+    const KeybindingsSearch = document.getElementById("KeybindingsSearchInput");
+    if (KeybindingsSearch)
+    {
+        KeybindingsSearch.addEventListener
+        (
+            "input",
+            (E) => { RenderKeybindingsList(E.target.value); }
+        );
+    }
+    const ResetAllBtn = document.getElementById("ResetAllKeybindingsBtn");
+    if (ResetAllBtn)
+    {
+        ResetAllBtn.addEventListener
+        (
+            "click",
+            () => { ResetAllKeybindings(); }
         );
     }
     // Export Options Sync & Persistence
@@ -4729,7 +5532,7 @@ function SetupEventListeners()
     );
     document.getElementById("ZoomDisplay").addEventListener
     (
-        "click", () => { SetZoom(1.0); }
+        "dblclick", () => { SetZoom(1.0); }
     );
     document.getElementById("ZoomFitWidthButton").addEventListener
     (
@@ -4907,13 +5710,82 @@ function SetupEventListeners()
             RenderDashboard(E.target.value);
         }
     );
-    // Window level Ctrl+S
+    // Global Keydown Handler with Dynamic Keybinding Support & Recording Mode
     window.addEventListener
     (
         "keydown", (E) =>
         {
-            // Priority 2 & 4 Global Shortcuts
-            if (E.altKey && E.key === "1")
+            if (ActiveRecordingCommandId)
+            {
+                E.preventDefault();
+                E.stopPropagation();
+                if (E.key === "Escape")
+                {
+                    CancelRecordingKeybinding();
+                    return ;
+                }
+                if (E.key === "Backspace" || E.key === "Delete")
+                {
+                    SaveKeybinding(ActiveRecordingCommandId, "");
+                    return ;
+                }
+                const Combo = NormalizeKeyboardEvent(E);
+                if (Combo)
+                {
+                    SaveKeybinding(ActiveRecordingCommandId, Combo);
+                }
+                return ;
+            }
+
+            if (E.key === "Escape")
+            {
+                ToggleShortcutsModal(false);
+                ToggleExportMenu(false);
+                const Drawer = document.getElementById("ErrorDrawer");
+                if (Drawer) { Drawer.classList.remove("Visible"); }
+                return ;
+            }
+
+            const PressedCombo = NormalizeKeyboardEvent(E);
+            if (PressedCombo)
+            {
+                const MatchedCmdId = FindCommandByBinding(PressedCombo);
+                if (MatchedCmdId)
+                {
+                    const ActiveEl = document.activeElement;
+                    const IsTextInput = ActiveEl && (ActiveEl.tagName === "INPUT" || ActiveEl.tagName === "TEXTAREA" || ActiveEl.isContentEditable);
+                    if (IsTextInput && !E.ctrlKey && !E.altKey && !E.metaKey && !E.key.startsWith("F"))
+                    {
+                        return ;
+                    }
+                    E.preventDefault();
+                    ExecuteStudioCommand(MatchedCmdId);
+                    return ;
+                }
+            }
+
+            // Fallback for native default shortcuts
+            if (E.key === "F11")
+            {
+                E.preventDefault();
+                ToggleFullscreen();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && (E.key === "=" || E.key === "+"))
+            {
+                E.preventDefault();
+                IncreaseEditorFontSize();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && (E.key === "-" || E.key === "_"))
+            {
+                E.preventDefault();
+                DecreaseEditorFontSize();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && E.key === "0")
+            {
+                E.preventDefault();
+                ResetEditorFontSize();
+            }
+            else if (E.altKey && E.key === "1")
             {
                 E.preventDefault();
                 SetViewportLayout("split");
@@ -4948,14 +5820,7 @@ function SetupEventListeners()
                 E.preventDefault();
                 ToggleShortcutsModal();
             }
-            else if (E.key === "Escape")
-            {
-                ToggleShortcutsModal(false);
-                ToggleExportMenu(false);
-                const Drawer = document.getElementById("ErrorDrawer");
-                if (Drawer) { Drawer.classList.remove("Visible"); }
-            }
-            if ( (E.ctrlKey || E.metaKey) && E.key === "s")
+            else if ( (E.ctrlKey || E.metaKey) && (E.key === "s" || E.key === "S"))
             {
                 E.preventDefault();
                 SaveCurrentFile();
@@ -6021,13 +6886,13 @@ function HandlePreviewClick(Event)
     {
         let Related = ActiveSyncMap.filter
         (
-            (Elem) => Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line)
+            (Elem) => (Elem.page === BestElem.page) && (Elem.span === BestElem.span || (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line && Math.abs(Elem.y - BestElem.y) < 90.0))
         );
         if (BestElem.line === BestElem.end_line)
         {
             const SameLineElems = ActiveSyncMap.filter
             (
-                (Elem) => Elem.line === BestElem.line && Elem.end_line === BestElem.end_line
+                (Elem) => (Elem.page === BestElem.page) && (Elem.line === BestElem.line && Elem.end_line === BestElem.end_line && Math.abs(Elem.y - BestElem.y) < 90.0)
             );
             if (SameLineElems.length > Related.length)
             {
@@ -6462,27 +7327,32 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                 {
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
-                    const PadX = 2.0;
-                    const TopShift = Math.max(2.8, Box.height * 0.32);
-                    const RectHeight = Math.max(8.0, Box.height * 0.90);
-                    Rect.setAttribute("x", (Box.x - PadX).toFixed(2));
-                    Rect.setAttribute("y", (Box.y + TopShift).toFixed(2));
+                    const PadX = 2.5;
+                    const PadTop = 1.5;
+                    const PadBottom = 2.5;
+                    const RectX = Box.x - PadX;
+                    const RectY = Box.y - PadTop;
+                    const RectW = Box.width + (PadX * 2.0);
+                    const RectH = Box.height + PadTop + PadBottom;
+
+                    Rect.setAttribute("x", RectX.toFixed(2));
+                    Rect.setAttribute("y", RectY.toFixed(2));
                     Rect.setAttribute
                     (
-                        "width", (Box.width + (PadX * 2.0)).toFixed(2)
+                        "width", Math.max(4.0, RectW).toFixed(2)
                     );
                     Rect.setAttribute
                     (
-                        "height", RectHeight.toFixed(2)
+                        "height", Math.max(4.0, RectH).toFixed(2)
                     );
                     Rect.setAttribute("rx", "3");
                     Rect.setAttribute("ry", "3");
 
                     HighlightLayer.appendChild(Rect);
 
-                    if (PageNum === ScrollTargetPage && (Box.y + TopShift) < PrimaryTopY)
+                    if (PageNum === ScrollTargetPage && RectY < PrimaryTopY)
                     {
-                        PrimaryTopY = Box.y + TopShift;
+                        PrimaryTopY = RectY;
                     }
                 }
             }
@@ -7023,6 +7893,86 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
                 return ;
             }
         }
+
+        // Check for footnote calls on this line: #footnote[...] or #footnote(...)
+        const FootnoteRegex = /#footnote(?:\s*\[|\s*\()/g;
+        let FnMatch;
+        const FootnoteRanges = [];
+        while ((FnMatch = FootnoteRegex.exec(LineText)) !== null)
+        {
+            const StartIdx = FnMatch.index + 1;
+            const OpenBracket = LineText[FnMatch.index + FnMatch[0].length - 1];
+            const CloseBracket = OpenBracket === "[" ? "]" : ")";
+            let Depth = 1;
+            let EndIdx = FnMatch.index + FnMatch[0].length;
+            while (EndIdx < LineText.length && Depth > 0)
+            {
+                if (LineText[EndIdx] === OpenBracket) Depth++;
+                else if (LineText[EndIdx] === CloseBracket) Depth--;
+                EndIdx++;
+            }
+            FootnoteRanges.push({ StartCol: StartIdx, EndCol: EndIdx });
+        }
+
+        if (FootnoteRanges.length > 0)
+        {
+            const ActiveFootnote = FootnoteRanges.find( (R) => Col >= R.StartCol && Col <= R.EndCol);
+            if (ActiveFootnote)
+            {
+                // Cursor is inside footnote: highlight only the footnote element(s)
+                const FootnoteElems = SameLineCandidates.filter
+                (
+                    (Elem) => (Elem.col >= ActiveFootnote.StartCol && Elem.end_col <= ActiveFootnote.EndCol + 2) || (Elem.y > 650 && Elem.line === Line)
+                );
+                if (FootnoteElems.length > 0)
+                {
+                    const GroupedBoxes = GroupElementsIntoVisualBoxes(FootnoteElems);
+                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+            else
+            {
+                // Cursor is outside footnote: filter out footnote elements from line candidates
+                SameLineCandidates = SameLineCandidates.filter
+                (
+                    (Elem) =>
+                    {
+                        const InsideFn = FootnoteRanges.some( (R) => Elem.col >= R.StartCol && Elem.end_col <= R.EndCol + 2);
+                        return !InsideFn && Elem.y < 700;
+                    }
+                );
+            }
+        }
+
+        // Vertical proximity filtering: ensure highlighted elements belong to the same visual vertical band as target element
+        if (SameLineCandidates.length > 1)
+        {
+            let PivotElem = SameLineCandidates[0];
+            let BestDist = Infinity;
+            for (const Elem of SameLineCandidates)
+            {
+                if (Col >= Elem.col && Col <= Elem.end_col)
+                {
+                    PivotElem = Elem;
+                    break;
+                }
+                const Mid = (Elem.col + Elem.end_col) / 2;
+                const Dist = Math.abs(Col - Mid);
+                if (Dist < BestDist)
+                {
+                    BestDist = Dist;
+                    PivotElem = Elem;
+                }
+            }
+
+            const PivotPage = PivotElem.page || 1;
+            SameLineCandidates = SameLineCandidates.filter
+            (
+                (Elem) => (Elem.page || 1) === PivotPage && Math.abs(Elem.y - PivotElem.y) < 90.0
+            );
+        }
+
         // Highlight everything on this line in that same hierarchy
         const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
         // If line contains a math vector/matrix, expand to frame outer delimiters
@@ -7064,6 +8014,15 @@ window.RemoveWorkspaceDirectory = RemoveWorkspaceDirectory;
 window.DeleteWorkspaceFile = DeleteWorkspaceFile;
 window.SelectDashboardDirectory = SelectDashboardDirectory;
 window.PickFolderFromDisk = PickFolderFromDisk;
+window.SetEditorFontSize = SetEditorFontSize;
+window.IncreaseEditorFontSize = IncreaseEditorFontSize;
+window.DecreaseEditorFontSize = DecreaseEditorFontSize;
+window.ResetEditorFontSize = ResetEditorFontSize;
+window.ToggleFullscreen = ToggleFullscreen;
+window.SetZoom = SetZoom;
+window.FitWidth = FitWidth;
+window.FitPage = FitPage;
+window.ToggleShortcutsModal = ToggleShortcutsModal;
 
 window.addEventListener
 (
@@ -7076,11 +8035,19 @@ window.addEventListener
         SetupEventListeners();
         SetupAppearanceEventListeners();
         UpdateBlackPageMode();
+        UpdateFontSizeUI();
+        UpdateFullscreenUI(false);
+        SetupZoomControls();
+        UpdateCheatSheetBadges();
         InitializeMonaco();
         InitializeSyncTex();
         LoadWorkspaceInfo();
         LoadAvailableFonts();
         SetupAssetDragAndDrop();
         SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
+        if (localStorage.getItem("TypstStudio_OutlineVisible") === "true")
+        {
+            ToggleDocumentOutline(true);
+        }
     }
 );

@@ -106,6 +106,25 @@ if (!FS.existsSync(TEMP_DIR))
     FS.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
+function GetLocalFontArgs()
+{
+    const Args = [];
+    const CandidateDirs =
+    [
+        Path.join(PUBLIC_DIR, "fonts"),
+        Path.resolve(__dirname, "..", "assets", "fonts"),
+        Path.resolve(__dirname, "assets", "fonts")
+    ];
+    for (const Dir of CandidateDirs)
+    {
+        if (FS.existsSync(Dir))
+        {
+            Args.push("--font-path", Dir);
+        }
+    }
+    return Args;
+}
+
 function ApplySecurityHeaders(Response)
 {
     Response.setHeader("X-Content-Type-Options", "nosniff");
@@ -1878,7 +1897,7 @@ async function HandleCompile(Request, Response)
 
         const CompileResult = await ExecuteCompile
         (
-            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "svg", "-", OutputPattern], { cwd: JobDir, timeout: 20000 },
+            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern], { cwd: JobDir, timeout: 20000 },
             SourceToCompile
         );
 
@@ -2477,7 +2496,7 @@ async function HandleExportPdf(Request, Response)
 
         const CompileResult = await ExecuteCommand
         (
-            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "pdf", "-", OutputPath], { cwd: JobDir, timeout: 30000 },
+            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "pdf", ...GetLocalFontArgs(), "-", OutputPath], { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
 
@@ -2576,7 +2595,7 @@ async function HandleExportPng(Request, Response)
         const CompileResult = await ExecuteCommand
         (
             TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "png", "--ppi", "300", "-", OutputPattern],
+            ["compile", "--root", DocRoot, "--format", "png", "--ppi", "300", ...GetLocalFontArgs(), "-", OutputPattern],
             { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
@@ -2709,7 +2728,7 @@ async function HandleExportSvg(Request, Response)
         const CompileResult = await ExecuteCommand
         (
             TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "svg", "-", OutputPattern],
+            ["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern],
             { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
@@ -3373,10 +3392,15 @@ function ServeStatic(Request, Response, FilePath)
         const Stat = FS.statSync(NormalizedPath);
         if (Stat.isDirectory())
         {
-            const CandidateIndex = Path.join(NormalizedPath, "Index.html");
+            const CandidateIndex = Path.join(NormalizedPath, "index.html");
+            const CandidateIndexAlt = Path.join(NormalizedPath, "Index.html");
             if (FS.existsSync(CandidateIndex) && FS.statSync(CandidateIndex).isFile())
             {
                 NormalizedPath = CandidateIndex;
+            }
+            else if (FS.existsSync(CandidateIndexAlt) && FS.statSync(CandidateIndexAlt).isFile())
+            {
+                NormalizedPath = CandidateIndexAlt;
             }
             else
             {
@@ -3687,7 +3711,7 @@ async function ScanAllSystemFonts()
             {
                 ChildProcess.execFile
                 (
-                    TYPST_BINARY,["fonts", "--variants"], { maxBuffer: 50 * 1024 * 1024, windowsHide: true },
+                    TYPST_BINARY,["fonts", "--variants", ...GetLocalFontArgs()], { maxBuffer: 50 * 1024 * 1024, windowsHide: true },
                     (Err, Stdout) =>
                     {
                         Resolve(Stdout || "");
@@ -4203,7 +4227,11 @@ const Server = HTTP.createServer
         }
 
         const DecodedPathname = decodeURIComponent(Pathname);
-        let TargetFile = Path.join(PUBLIC_DIR, DecodedPathname === "/" ? "Index.html": DecodedPathname);
+        let TargetFile = Path.join(PUBLIC_DIR, DecodedPathname === "/" ? "index.html": DecodedPathname);
+        if (!FS.existsSync(TargetFile) && DecodedPathname === "/")
+        {
+            TargetFile = Path.join(PUBLIC_DIR, "Index.html");
+        }
         ServeStatic(Request, Response, TargetFile);
     }
 );
