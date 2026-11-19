@@ -14,171 +14,163 @@ pub struct Compile_Response
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct File_Entry
-{
-    pub name: String,
-    pub path: String,
-    pub is_dir: bool,
-    pub size: u64,
-}
+{ pub name: String, pub path: String, pub is_dir: bool , pub size: u64, }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Workspace_File
 {
-    #[serde(rename = "Name")]
+   #[serde(rename = "Name")]
     pub Name: String,
-    #[serde(rename = "Path")]
+   #[serde(rename = "Path")]
     pub Path: String,
-    #[serde(rename = "RelativePath")]
+   #[serde(rename = "RelativePath")]
     pub RelativePath: String,
-    #[serde(rename = "Directory")]
+   #[serde(rename = "Directory")]
     pub Directory: String,
-    #[serde(rename = "Size")]
+   #[serde(rename = "Size")]
     pub Size: u64,
-    #[serde(rename = "Modified")]
+   #[serde(rename = "Modified")]
     pub Modified: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Workspace_Folder
 {
-    #[serde(rename = "Name")]
+   #[serde(rename = "Name")]
     pub Name: String,
-    #[serde(rename = "Path")]
+   #[serde(rename = "Path")]
     pub Path: String,
-    #[serde(rename = "FileCount")]
+   #[serde(rename = "FileCount")]
     pub FileCount: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Workspace_Info_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "Directories")]
+   #[serde(rename = "Directories")]
     pub Directories: Vec<String>,
-    #[serde(rename = "Files")]
+   #[serde(rename = "Files")]
     pub Files: Vec<Workspace_File>,
-    #[serde(rename = "Folders")]
+   #[serde(rename = "Folders")]
     pub Folders: Vec<Workspace_Folder>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 struct Workspace_Config_Data
-{
-    #[serde(rename = "Directories")]
-    pub Directories: Vec<String>,
-}
+{#[serde(rename = "Directories")] pub Directories: Vec<String>, }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct Font_Detail
 {
-    #[serde(rename = "Name")]
+   #[serde(rename = "Name")]
     pub Name: String,
-    #[serde(rename = "Family")]
+   #[serde(rename = "Family")]
     pub Family: String,
-    #[serde(rename = "Weight")]
+   #[serde(rename = "Weight")]
     pub Weight: String,
-    #[serde(rename = "Style")]
+   #[serde(rename = "Style")]
     pub Style: String,
-    #[serde(rename = "Stretch")]
+   #[serde(rename = "Stretch")]
     pub Stretch: String,
-    #[serde(rename = "FilePath")]
+   #[serde(rename = "FilePath")]
     pub FilePath: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Available_Fonts_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "Fonts")]
+   #[serde(rename = "Fonts")]
     pub Fonts: Vec<String>,
-    #[serde(rename = "FontDetails")]
+   #[serde(rename = "FontDetails")]
     pub FontDetails: Vec<Font_Detail>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct System_Status_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "TypstVersion")]
+   #[serde(rename = "TypstVersion")]
     pub TypstVersion: String,
-    #[serde(rename = "TypstBinary")]
+   #[serde(rename = "TypstBinary")]
     pub TypstBinary: String,
-    #[serde(rename = "Platform")]
+   #[serde(rename = "Platform")]
     pub Platform: String,
-    #[serde(rename = "UptimeSecs")]
+   #[serde(rename = "UptimeSecs")]
     pub UptimeSecs: u64,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Sync_Click_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "Found")]
+   #[serde(rename = "Found")]
     pub Found: bool,
-    #[serde(rename = "Line")]
+   #[serde(rename = "Line")]
     pub Line: Option<usize>,
-    #[serde(rename = "Column")]
+   #[serde(rename = "Column")]
     pub Column: Option<usize>,
-    #[serde(rename = "EndLine")]
+   #[serde(rename = "EndLine")]
     pub EndLine: Option<usize>,
-    #[serde(rename = "EndColumn")]
+   #[serde(rename = "EndColumn")]
     pub EndColumn: Option<usize>,
-    #[serde(rename = "Start")]
+   #[serde(rename = "Start")]
     pub Start: Option<usize>,
-    #[serde(rename = "End")]
+   #[serde(rename = "End")]
     pub End: Option<usize>,
-    #[serde(rename = "Span")]
+   #[serde(rename = "Span")]
     pub Span: Option<serde_json::Value>,
-    #[serde(rename = "Error")]
+   #[serde(rename = "Error")]
     pub Error: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Sync_Cursor_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "Found")]
+   #[serde(rename = "Found")]
     pub Found: bool,
-    #[serde(rename = "Page")]
+   #[serde(rename = "Page")]
     pub Page: Option<usize>,
-    #[serde(rename = "X")]
+   #[serde(rename = "X")]
     pub X: Option<f64>,
-    #[serde(rename = "Y")]
+   #[serde(rename = "Y")]
     pub Y: Option<f64>,
-    #[serde(rename = "Width")]
+   #[serde(rename = "Width")]
     pub Width: Option<f64>,
-    #[serde(rename = "Height")]
+   #[serde(rename = "Height")]
     pub Height: Option<f64>,
-    #[serde(rename = "Line")]
+   #[serde(rename = "Line")]
     pub Line: Option<usize>,
-    #[serde(rename = "Column")]
+   #[serde(rename = "Column")]
     pub Column: Option<usize>,
-    #[serde(rename = "Error")]
+   #[serde(rename = "Error")]
     pub Error: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Format_Typst_Response
 {
-    #[serde(rename = "Success")]
+   #[serde(rename = "Success")]
     pub Success: bool,
-    #[serde(rename = "Formatted")]
+   #[serde(rename = "Formatted")]
     pub Formatted: String,
-    #[serde(rename = "HasError")]
+   #[serde(rename = "HasError")]
     pub HasError: bool,
-    #[serde(rename = "Error")]
+   #[serde(rename = "Error")]
     pub Error: Option<String>,
 }
 
-static LAST_ACTIVE_SYNC_MAP: std::sync::Mutex<Vec<serde_json::Value>> = std::sync::Mutex::new(Vec::new());
-static APP_START_TIME: std::sync::LazyLock<std::time::Instant> = std::sync::LazyLock::new(std::time::Instant::now);
+static LAST_ACTIVE_SYNC_MAP: std::sync::Mutex<Vec<serde_json::Value>> = std::sync::Mutex:: new (Vec::new ());
+static APP_START_TIME: std::sync::LazyLock<std::time::Instant> = std::sync::LazyLock:: new (std::time::Instant::now);
 
-fn ConvertColorHex(Hex: &str) -> String
+fn InvertShapeColorHex(Hex: & str) -> String
 {
     let mut CleanHex = Hex.trim_start_matches('#').to_string();
     if CleanHex.len() == 3
@@ -186,22 +178,18 @@ fn ConvertColorHex(Hex: &str) -> String
         let Chars: Vec<char> = CleanHex.chars().collect();
         CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
     }
-    if CleanHex.eq_ignore_ascii_case("ffffff")
-    {
-        return "FFFFFF".to_string();
-    }
     if CleanHex.len() != 6
     {
         return CleanHex.to_uppercase();
     }
 
-    let R = u8::from_str_radix(&CleanHex[0..2], 16).unwrap_or(0);
-    let G = u8::from_str_radix(&CleanHex[2..4], 16).unwrap_or(0);
-    let B = u8::from_str_radix(&CleanHex[4..6], 16).unwrap_or(0);
+    let R = u8::from_str_radix( & CleanHex[0..2], 16).unwrap_or(0);
+    let G = u8::from_str_radix( & CleanHex[2..4], 16).unwrap_or(0);
+    let B = u8::from_str_radix( & CleanHex[4..6], 16).unwrap_or(0);
 
     let MaxDelta = (R as i16 - G as i16).abs()
-        .max((G as i16 - B as i16).abs())
-        .max((B as i16 - R as i16).abs());
+   .max((G as i16 - B as i16).abs())
+   .max((B as i16 - R as i16).abs());
 
     if MaxDelta > 22
     {
@@ -209,16 +197,17 @@ fn ConvertColorHex(Hex: &str) -> String
     }
 
     let Avg = ((R as f64) + (G as f64) + (B as f64)) / 3.0;
-    let MapComp = |L: f64| -> f64
+    let MapComp = | L: f64 | -> f64
     {
-        if L >= 254.5 { return 0.0; }
         let D = 255.0 - L;
+        if D <= 3.0 { return 24.0; }
         if D <= 8.0 { return (30.0 + D * 0.8).round(); }
         if D <= 18.0 { return (46.0 + (D - 8.0) * 1.2).round(); }
         if D <= 32.0 { return (68.0 + (D - 18.0) * 1.2).round(); }
         if D <= 55.0 { return (86.0 + (D - 32.0) * 0.6).round(); }
-        if L <= 30.0 { return 255.0; }
-        (255.0 - L).round()
+        if L <= 30.0 { return 68.0; }
+        (255.0 - L)
+       .round()
     };
 
     let BaseDark = MapComp(Avg);
@@ -229,15 +218,56 @@ fn ConvertColorHex(Hex: &str) -> String
     format!("{:02X}{:02X}{:02X}", OutR, OutG, OutB)
 }
 
-fn ConvertTypstSourceToDarkMode(Source: &str, Transparent: bool) -> String
+fn InvertGlyphColorHex(Hex: & str) -> String
+{
+    let mut CleanHex = Hex.trim_start_matches('#').to_string();
+    if CleanHex.len() == 3
+    {
+        let Chars: Vec<char> = CleanHex.chars().collect();
+        CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
+    }
+    if CleanHex.len() != 6
+    {
+        return CleanHex.to_uppercase();
+    }
+
+    let R = u8::from_str_radix( & CleanHex[0..2], 16).unwrap_or(0);
+    let G = u8::from_str_radix( & CleanHex[2..4], 16).unwrap_or(0);
+    let B = u8::from_str_radix( & CleanHex[4..6], 16).unwrap_or(0);
+
+    let MaxDelta = (R as i16 - G as i16).abs()
+   .max((G as i16 - B as i16).abs())
+   .max((B as i16 - R as i16).abs());
+
+    if MaxDelta > 22
+    {
+        return CleanHex.to_uppercase();
+    }
+
+    let Avg = ((R as f64) + (G as f64) + (B as f64)) / 3.0;
+    if Avg >= 240.0 || Avg <= 50.0
+    {
+        return "FFFFFF".to_string();
+    }
+
+    let Inv = (255.0 - Avg).round().clamp(0.0, 255.0) as u8;
+    format!("{:02X}{:02X}{:02X}", Inv, Inv, Inv)
+}
+
+fn ConvertColorHex(Hex: & str) -> String
+{
+    InvertShapeColorHex(Hex)
+}
+
+fn ConvertTypstSourceToDarkMode(Source: & str, Transparent: bool) -> String
 {
     let mut Output = String::with_capacity(Source.len() + 128);
     let mut Rest = Source;
 
     while let Some(StartPos) = Rest.find("rgb(")
     {
-        Output.push_str(&Rest[..StartPos]);
-        let After = &Rest[StartPos + 4..];
+        Output.push_str( & Rest[..StartPos]);
+        let After = & Rest[StartPos + 4..];
         if let Some(EndPos) = After.find(')')
         {
             let Inside = After[..EndPos].trim();
@@ -245,36 +275,29 @@ fn ConvertTypstSourceToDarkMode(Source: &str, Transparent: bool) -> String
             {
                 let ColorVal = Inside[1..Inside.len() - 1].trim();
                 let Converted = ConvertColorHex(ColorVal);
-                Output.push_str(&format!("rgb(\"#{}\")", Converted));
+                Output.push_str( & format ! ("rgb(\"#{}\")", Converted));
             }
             else if Inside.contains(',')
             {
-                let Parts: Vec<&str> = Inside.split(',').collect();
+                let Parts: Vec< & str> = Inside.split(',').collect();
                 if Parts.len() >= 3
                 {
                     let R = Parts[0].trim().parse::<u8>().unwrap_or(0);
                     let G = Parts[1].trim().parse::<u8>().unwrap_or(0);
                     let B = Parts[2].trim().parse::<u8>().unwrap_or(0);
                     let Hex = format!("{:02X}{:02X}{:02X}", R, G, B);
-                    let Converted = ConvertColorHex(&Hex);
-                    Output.push_str(&format!("rgb(\"#{}\")", Converted));
+                    let Converted = ConvertColorHex( & Hex);
+                    Output.push_str( & format ! ("rgb(\"#{}\")", Converted));
                 }
                 else
-                {
-                    Output.push_str(&format!("rgb({})", Inside));
-                }
+                { Output.push_str( & format ! ("rgb({})", Inside)); }
             }
             else
-            {
-                Output.push_str(&format!("rgb({})", Inside));
-            }
-            Rest = &After[EndPos + 1..];
+            { Output.push_str( & format ! ("rgb({})", Inside)); }
+            Rest = & After[EndPos + 1..];
         }
         else
-        {
-            Output.push_str("rgb(");
-            Rest = After;
-        }
+        { Output.push_str("rgb("); Rest = After; }
     }
     Output.push_str(Rest);
 
@@ -282,7 +305,7 @@ fn ConvertTypstSourceToDarkMode(Source: &str, Transparent: bool) -> String
     format!("#set page(fill: {})\n#set text(fill: rgb(\"#FFFFFF\"))\n\n{}", PageFill, Output)
 }
 
-fn ConvertSvgToDarkMode(Svg: &str) -> String
+fn ConvertSvgToDarkMode(Svg: & str) -> String
 {
     let mut Result = Svg.to_string();
 
@@ -291,46 +314,95 @@ fn ConvertSvgToDarkMode(Svg: &str) -> String
         if let Some(FillPos) = Result[..Pos].rfind("fill=\"")
         {
             let FillEnd = FillPos + 6 + Result[FillPos + 6..].find('"').unwrap_or(0);
-            Result = format!("{}{}__CANVAS_BLACK_SENTINEL__{}", &Result[..FillPos + 6], "", &Result[FillEnd..]);
+            Result = format!("{}{}__CANVAS_BLACK_SENTINEL__{}", & Result[..FillPos + 6], "", & Result[FillEnd..]);
         }
     }
 
     let mut FinalSvg = String::with_capacity(Result.len());
     let mut Rest = Result.as_str();
 
-    while let Some(MatchPos) = Rest.find("fill=\"").or_else(|| Rest.find("stroke=\""))
+    while let Some(TagStart) = Rest.find('<')
     {
-        let IsFill = Rest[MatchPos..].starts_with("fill=\"");
-        let AttrName = if IsFill { "fill" } else { "stroke" };
-        let ValueStart = MatchPos + AttrName.len() + 2;
-        FinalSvg.push_str(&Rest[..MatchPos]);
+        FinalSvg.push_str( & Rest[..TagStart]);
+        let AfterStart = & Rest[TagStart + 1..];
 
-        let SubRest = &Rest[ValueStart..];
-        if let Some(QuoteEnd) = SubRest.find('"')
+        if let Some(TagEnd) = AfterStart.find('>')
         {
-            let ColorVal = &SubRest[..QuoteEnd];
-            if ColorVal == "__CANVAS_BLACK_SENTINEL__"
+            let TagBody = & AfterStart[..TagEnd];
+            let FullTag = & Rest[TagStart..TagStart + 1 + TagEnd + 1];
+
+            let TagName = TagBody.split_whitespace().next().unwrap_or("").trim_start_matches('/');
+            let IsGlyph = TagName.eq_ignore_ascii_case("use")
+            || TagName.eq_ignore_ascii_case("text")
+            || TagName.eq_ignore_ascii_case("tspan");
+            let IsShape = TagName.eq_ignore_ascii_case("path")
+            || TagName.eq_ignore_ascii_case("rect")
+            || TagName.eq_ignore_ascii_case("polygon")
+            || TagName.eq_ignore_ascii_case("circle")
+            || TagName.eq_ignore_ascii_case("ellipse")
+            || TagName.eq_ignore_ascii_case("line")
+            || TagName.eq_ignore_ascii_case("g");
+
+            if IsGlyph || IsShape
             {
-                FinalSvg.push_str(&format!("{}=\"#000000\"", AttrName));
-            }
-            else if ColorVal.starts_with('#')
-            {
-                let Converted = ConvertColorHex(ColorVal);
-                FinalSvg.push_str(&format!("{}=\"#{}\"", AttrName, Converted));
+                let mut ProcessedTag = String::with_capacity(FullTag.len());
+                let mut TagRest = FullTag;
+
+                while let Some(AttrPos) = TagRest.find("fill=\"").or_else( || TagRest.find("stroke=\""))
+                {
+                    let IsFill = TagRest[AttrPos..].starts_with("fill=\"");
+                    let AttrName = if IsFill { "fill" } else { "stroke" };
+                    let ValueStart = AttrPos + AttrName.len() + 2;
+                    ProcessedTag.push_str( & TagRest[..AttrPos]);
+
+                    let SubRest = & TagRest[ValueStart..];
+                    if let Some(QuoteEnd) = SubRest.find('"')
+                    {
+                        let ColorVal = & SubRest[..QuoteEnd];
+                        if ColorVal == "__CANVAS_BLACK_SENTINEL__"
+                        {
+                            ProcessedTag.push_str( & format ! ("{}=\"#000000\"", AttrName));
+                        }
+                        else if ColorVal.starts_with('#')
+                        {
+                            let Converted = if IsGlyph
+                            {
+                                InvertGlyphColorHex(ColorVal)
+                            }
+                            else
+                            {
+                                InvertShapeColorHex(ColorVal)
+                            };
+                            ProcessedTag.push_str( & format ! ("{}=\"#{}\"", AttrName, Converted));
+                        }
+                        else
+                        {
+                            ProcessedTag.push_str( & format ! ("{}=\"{}\"", AttrName, ColorVal));
+                        }
+                        TagRest = & SubRest[QuoteEnd + 1..];
+                    }
+                    else
+                    {
+                        ProcessedTag.push_str( & TagRest[AttrPos..ValueStart]);
+                        TagRest = SubRest;
+                    }
+                }
+                ProcessedTag.push_str(TagRest);
+                FinalSvg.push_str( & ProcessedTag);
             }
             else
             {
-                FinalSvg.push_str(&format!("{}=\"{}\"", AttrName, ColorVal));
+                FinalSvg.push_str(FullTag);
             }
-            Rest = &SubRest[QuoteEnd + 1..];
+
+            Rest = & AfterStart[TagEnd + 1..];
         }
         else
         {
-            FinalSvg.push_str(&Rest[MatchPos..ValueStart]);
-            Rest = SubRest;
+            FinalSvg.push_str( & Rest[TagStart..]);
+            break;
         }
     }
-    FinalSvg.push_str(Rest);
     FinalSvg
 }
 
@@ -341,56 +413,38 @@ fn FindTypstBinary() -> std::path::PathBuf
         if let Some(ExeDir) = ExePath.parent()
         {
             let Candidate1 = ExeDir.join("bin").join("typst.exe");
-            if Candidate1.exists()
-            {
-                return Candidate1;
-            }
+            if Candidate1 .exists()
+            { return Candidate1; }
             let CandidateRes = ExeDir.join("resources").join("bin").join("typst.exe");
             if CandidateRes.exists()
-            {
-                return CandidateRes;
-            }
+            { return CandidateRes; }
             let CandidateRes2 = ExeDir.join("resources").join("typst.exe");
-            if CandidateRes2.exists()
-            {
-                return CandidateRes2;
-            }
+            if CandidateRes2 .exists()
+            { return CandidateRes2; }
             let Candidate2 = ExeDir.join("typst.exe");
-            if Candidate2.exists()
-            {
-                return Candidate2;
-            }
+            if Candidate2 .exists()
+            { return Candidate2; }
             let DevCandidate = ExeDir.join("../../../bin/typst.exe");
             if DevCandidate.exists()
-            {
-                return DevCandidate;
-            }
+            { return DevCandidate; }
         }
     }
 
-    for Rel in &["bin/typst.exe", "../bin/typst.exe", "TypstStudio/bin/typst.exe"]
+    for Rel in & ["bin/typst.exe", "../bin/typst.exe", "TypstStudio/bin/typst.exe"]
     {
         let Cand = std::path::PathBuf::from(Rel);
         if Cand.exists()
-        {
-            return Cand;
-        }
+        { return Cand; }
     }
 
     let Fixed = std::path::PathBuf::from(r"E:\Typst\TypstStudio\bin\typst.exe");
     if Fixed.exists()
-    {
-        return Fixed;
-    }
+    { return Fixed; }
 
     if cfg!(windows)
-    {
-        std::path::PathBuf::from("typst.exe")
-    }
+    { std::path::PathBuf::from("typst.exe") }
     else
-    {
-        std::path::PathBuf::from("typst")
-    }
+    { std::path::PathBuf::from("typst") }
 }
 
 #[tauri::command]
@@ -407,157 +461,92 @@ fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Resp
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all(&JobDir);
+    let _ = std::fs::create_dir_all( & JobDir);
 
     let DocRoot = if let Some(ref Path) = FilePath
     {
-        let P = std::path::Path::new(Path);
+        let P = std::path::Path:: new (Path);
         if P.exists() && P.is_file()
-        {
-            P.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.clone())
-        }
+        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
         else if P.exists() && P.is_dir()
-        {
-            P.to_path_buf()
-        }
+        { P.to_path_buf() }
         else
-        {
-            JobDir.clone()
-        }
+        { JobDir.clone() }
     }
     else
-    {
-        JobDir.clone()
-    };
+    { JobDir.clone() };
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = std::process::Command::new(&TypstBin);
-    Command.args
-    ([
-        "compile",
-        "--root",
-        DocRoot.to_str().unwrap_or("."),
-        "--format",
-        "svg",
-        "-",
-        OutputPattern.to_str().unwrap_or("page-{p}.svg"),
-    ]);
-    Command.current_dir(&JobDir);
+    let mut Command = std::process::Command:: new ( & TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    (
-        |Error| format!("Failed to spawn typst binary at {:?}: {}", TypstBin, Error)
-    )?;
+    ( | Error | format ! ("Failed to spawn typst binary at {:?}: {}", TypstBin, Error))
+    ?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    {
-        let _ = Stdin.write_all(Source.as_bytes());
-    }
+    { let _ = Stdin.write_all(Source.as_bytes()); }
 
     let Output = Child.wait_with_output().map_err
-    (
-        |Error| format!("Typst execution failed: {}", Error)
-    )?;
+    ( | Error | format ! ("Typst execution failed: {}", Error))
+    ?;
     let DurationMs = StartTime.elapsed().as_millis();
 
-    if !Output.status.success()
+    if ! Output.status.success()
     {
-        let Stderr = String::from_utf8_lossy(&Output.stderr).to_string();
-        let Stdout = String::from_utf8_lossy(&Output.stdout).to_string();
-        let ErrorMsg = if !Stderr.trim().is_empty() { Stderr } else { Stdout };
-        let _ = std::fs::remove_dir_all(&JobDir);
+        let Stderr = String::from_utf8_lossy( & Output.stderr).to_string();
+        let Stdout = String::from_utf8_lossy( & Output.stdout).to_string();
+        let ErrorMsg = if ! Stderr.trim().is_empty() { Stderr } else { Stdout };
+        let _ = std::fs::remove_dir_all( & JobDir);
         return Ok
         (
             Compile_Response
-            {
-                success: false,
-                pages: Vec::new(),
-                page_count: 0,
-                sync_map: Vec::new(),
-                error: Some(ErrorMsg),
-                duration_ms: DurationMs,
-            }
+            { success: false, pages: Vec::new (), page_count: 0, sync_map: Vec::new (), error: Some(ErrorMsg), duration_ms: DurationMs, }
         );
     }
 
-    let mut SvgFiles = Vec::new();
-    if let Ok(Entries) = std::fs::read_dir(&JobDir)
+    let mut SvgFiles = Vec:: new ();
+    if let Ok(Entries) = std::fs::read_dir( & JobDir)
     {
         for Entry in Entries.flatten()
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".svg")
             {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then(|S| S.strip_suffix(".svg"))
-                {
-                    if let Ok(PageNum) = NumPart.parse::<usize>()
-                    {
-                        SvgFiles.push((PageNum, Entry.path()));
-                    }
-                }
+                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg"))
+                { if let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); } }
             }
         }
     }
-    SvgFiles.sort_by_key(|Item| Item.0);
+    SvgFiles.sort_by_key( | Item | Item.0);
 
-    let mut Pages = Vec::new();
-    for (_, Path) in &SvgFiles
-    {
-        if let Ok(Content) = std::fs::read_to_string(Path)
-        {
-            Pages.push(Content);
-        }
-    }
+    let mut Pages = Vec:: new ();
+    for (_, Path) in & SvgFiles
+    { if let Ok(Content) = std::fs::read_to_string(Path) { Pages.push(Content); } }
 
     let SynctexPath = JobDir.join("synctex.json");
-    let mut SyncMap = Vec::new();
+    let mut SyncMap = Vec:: new ();
     if SynctexPath.exists()
     {
-        if let Ok(RawSync) = std::fs::read_to_string(&SynctexPath)
-        {
-            if let Ok(Parsed) = serde_json::from_str::<Vec<serde_json::Value>>(&RawSync)
-            {
-                SyncMap = Parsed;
-            }
-        }
+        if let Ok(RawSync) = std::fs::read_to_string( & SynctexPath)
+        { if let Ok(Parsed) = serde_json::from_str::<Vec<serde_json::Value>>( & RawSync) { SyncMap = Parsed; } }
     }
 
     if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock()
-    {
-        if !SyncMap.is_empty()
-        {
-            *Guard = SyncMap.clone();
-        }
-    }
+    { if ! SyncMap.is_empty() { * Guard = SyncMap.clone(); } }
 
-    let _ = std::fs::remove_dir_all(&JobDir);
+    let _ = std::fs::remove_dir_all( & JobDir);
 
-    Ok
-    (
-        Compile_Response
-        {
-            page_count: Pages.len(),
-            success: true,
-            pages: Pages,
-            sync_map: SyncMap,
-            error: None,
-            duration_ms: DurationMs,
-        }
-    )
+    Ok(Compile_Response { page_count: Pages.len(), success: true, pages: Pages, sync_map: SyncMap, error: None, duration_ms: DurationMs, })
 }
 
 #[tauri::command]
-fn ExportPdf
-(
-    Source: String,
-    FilePath: Option<String>,
-    BlackMode: Option<bool>,
-    Transparent: Option<bool>,
-) -> Result<Vec<u8>, String>
+fn ExportPdf(Source: String, FilePath: Option<String>, BlackMode: Option<bool>, Transparent: Option<bool>,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -568,97 +557,64 @@ fn ExportPdf
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all(&JobDir);
+    let _ = std::fs::create_dir_all( & JobDir);
 
     let DocRoot = if let Some(ref Path) = FilePath
     {
-        let P = std::path::Path::new(Path);
+        let P = std::path::Path:: new (Path);
         if P.exists() && P.is_file()
-        {
-            P.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.clone())
-        }
+        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
         else if P.exists() && P.is_dir()
-        {
-            P.to_path_buf()
-        }
+        { P.to_path_buf() }
         else
-        {
-            JobDir.clone()
-        }
+        { JobDir.clone() }
     }
     else
-    {
-        JobDir.clone()
-    };
+    { JobDir.clone() };
 
     let mut SourceToCompile = Source;
     if BlackMode.unwrap_or(false)
-    {
-        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent.unwrap_or(false));
-    }
+    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent.unwrap_or(false)); }
     else if Transparent.unwrap_or(false)
-    {
-        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
-    }
+    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
 
     let OutputPdf = JobDir.join("output.pdf");
 
-    let mut Command = std::process::Command::new(&TypstBin);
-    Command.args
-    ([
-        "compile",
-        "--root",
-        DocRoot.to_str().unwrap_or("."),
-        "--format",
-        "pdf",
-        "-",
-        OutputPdf.to_str().unwrap_or("output.pdf"),
-    ]);
-    Command.current_dir(&JobDir);
+    let mut Command = std::process::Command:: new ( & TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf"),]);
+    Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    (
-        |Error| format!("Failed to spawn typst: {}", Error)
-    )?;
+    ( | Error | format ! ("Failed to spawn typst: {}", Error))
+    ?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
-    }
+    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
 
     let Output = Child.wait_with_output().map_err
-    (
-        |Error| format!("Typst execution failed: {}", Error)
-    )?;
+    ( | Error | format ! ("Typst execution failed: {}", Error))
+    ?;
 
-    if !Output.status.success()
+    if ! Output.status.success()
     {
-        let Stderr = String::from_utf8_lossy(&Output.stderr).to_string();
-        let _ = std::fs::remove_dir_all(&JobDir);
+        let Stderr = String::from_utf8_lossy( & Output.stderr).to_string();
+        let _ = std::fs::remove_dir_all( & JobDir);
         return Err(Stderr);
     }
 
-    let PdfBytes = std::fs::read(&OutputPdf).map_err
-    (
-        |Error| format!("Failed to read generated PDF: {}", Error)
-    )?;
-    let _ = std::fs::remove_dir_all(&JobDir);
+    let PdfBytes = std::fs::read( & OutputPdf).map_err
+    ( | Error | format ! ("Failed to read generated PDF: {}", Error))
+    ?;
+    let _ = std::fs::remove_dir_all( & JobDir);
 
     Ok(PdfBytes)
 }
 
 #[tauri::command]
-fn ExportPng
-(
-    Source: String,
-    FilePath: Option<String>,
-    BaseDocName: String,
-    BlackMode: bool,
-    Transparent: bool,
-) -> Result<Vec<u8>, String>
+fn ExportPng(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -669,42 +625,30 @@ fn ExportPng
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all(&JobDir);
+    let _ = std::fs::create_dir_all( & JobDir);
 
     let DocRoot = if let Some(ref Path) = FilePath
     {
-        let P = std::path::Path::new(Path);
+        let P = std::path::Path:: new (Path);
         if P.exists() && P.is_file()
-        {
-            P.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.clone())
-        }
+        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
         else if P.exists() && P.is_dir()
-        {
-            P.to_path_buf()
-        }
+        { P.to_path_buf() }
         else
-        {
-            JobDir.clone()
-        }
+        { JobDir.clone() }
     }
     else
-    {
-        JobDir.clone()
-    };
+    { JobDir.clone() };
 
     let mut SourceToCompile = Source;
     if BlackMode
-    {
-        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
-    }
+    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent); }
     else if Transparent
-    {
-        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
-    }
+    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
 
     let OutputPattern = JobDir.join("page-{p}.png");
 
-    let mut Command = std::process::Command::new(&TypstBin);
+    let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args
     ([
         "compile",
@@ -717,90 +661,71 @@ fn ExportPng
         "-",
         OutputPattern.to_str().unwrap_or("page-{p}.png"),
     ]);
-    Command.current_dir(&JobDir);
+    Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    (
-        |Error| format!("Failed to spawn typst: {}", Error)
-    )?;
+    ( | Error | format ! ("Failed to spawn typst: {}", Error))
+    ?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
-    }
+    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
 
     let Output = Child.wait_with_output().map_err
-    (
-        |Error| format!("Typst execution failed: {}", Error)
-    )?;
+    ( | Error | format ! ("Typst execution failed: {}", Error))
+    ?;
 
-    if !Output.status.success()
+    if ! Output.status.success()
     {
-        let Stderr = String::from_utf8_lossy(&Output.stderr).to_string();
-        let _ = std::fs::remove_dir_all(&JobDir);
+        let Stderr = String::from_utf8_lossy( & Output.stderr).to_string();
+        let _ = std::fs::remove_dir_all( & JobDir);
         return Err(Stderr);
     }
 
-    let mut PngFiles = Vec::new();
-    if let Ok(Entries) = std::fs::read_dir(&JobDir)
+    let mut PngFiles = Vec:: new ();
+    if let Ok(Entries) = std::fs::read_dir( & JobDir)
     {
         for Entry in Entries.flatten()
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".png")
             {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then(|S| S.strip_suffix(".png"))
-                {
-                    if let Ok(PageNum) = NumPart.parse::<usize>()
-                    {
-                        PngFiles.push((PageNum, Entry.path()));
-                    }
-                }
+                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".png"))
+                { if let Ok(PageNum) = NumPart.parse::<usize>() { PngFiles.push((PageNum, Entry.path())); } }
             }
         }
     }
-    PngFiles.sort_by_key(|Item| Item.0);
+    PngFiles.sort_by_key( | Item | Item.0);
 
     if PngFiles.is_empty()
-    {
-        let _ = std::fs::remove_dir_all(&JobDir);
-        return Err("No PNG pages were generated.".to_string());
-    }
+    { let _ = std::fs::remove_dir_all( & JobDir); return Err("No PNG pages were generated.".to_string()); }
 
     use std::io::Cursor;
-    use zip::write::{SimpleFileOptions, ZipWriter};
+    use zip::write:: { SimpleFileOptions, ZipWriter };
 
-    let mut ZipBuffer = Vec::new();
+    let mut ZipBuffer = Vec:: new ();
     {
-        let mut Zip = ZipWriter::new(Cursor::new(&mut ZipBuffer));
-        let Options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let mut Zip = ZipWriter:: new (Cursor::new ( & mut ZipBuffer));
+        let Options = SimpleFileOptions:: default().compression_method(zip::CompressionMethod::Deflated);
 
         for (Idx, (_, PngPath)) in PngFiles.iter().enumerate()
         {
             let EntryName = format!("{}_page_{}.png", BaseDocName, Idx + 1);
-            Zip.start_file(EntryName, Options).map_err(|Error| format!("Zip error: {}", Error))?;
-            let PageData = std::fs::read(PngPath).map_err(|Error| format!("Failed to read PNG: {}", Error))?;
-            Zip.write_all(&PageData).map_err(|Error| format!("Zip write error: {}", Error))?;
+            Zip.start_file(EntryName, Options).map_err( | Error | format ! ("Zip error: {}", Error))?;
+            let PageData = std::fs::read(PngPath).map_err( | Error | format ! ("Failed to read PNG: {}", Error))?;
+            Zip.write_all( & PageData).map_err( | Error | format ! ("Zip write error: {}", Error))?;
         }
-        Zip.finish().map_err(|Error| format!("Zip finish error: {}", Error))?;
+        Zip.finish().map_err( | Error | format ! ("Zip finish error: {}", Error))?;
     }
 
-    let _ = std::fs::remove_dir_all(&JobDir);
+    let _ = std::fs::remove_dir_all( & JobDir);
     Ok(ZipBuffer)
 }
 
 #[tauri::command]
-fn ExportSvg
-(
-    Source: String,
-    FilePath: Option<String>,
-    BaseDocName: String,
-    BlackMode: bool,
-    Transparent: bool,
-) -> Result<Vec<u8>, String>
+fn ExportSvg(Source: String, FilePath: Option<String>, BaseDocName: String, BlackMode: bool , Transparent: bool ,) -> Result<Vec<u8>, String>
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
@@ -811,126 +736,90 @@ fn ExportSvg
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all(&JobDir);
+    let _ = std::fs::create_dir_all( & JobDir);
 
     let DocRoot = if let Some(ref Path) = FilePath
     {
-        let P = std::path::Path::new(Path);
+        let P = std::path::Path:: new (Path);
         if P.exists() && P.is_file()
-        {
-            P.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.clone())
-        }
+        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
         else if P.exists() && P.is_dir()
-        {
-            P.to_path_buf()
-        }
+        { P.to_path_buf() }
         else
-        {
-            JobDir.clone()
-        }
+        { JobDir.clone() }
     }
     else
-    {
-        JobDir.clone()
-    };
+    { JobDir.clone() };
 
     let mut SourceToCompile = Source;
     if BlackMode
-    {
-        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
-    }
+    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent); }
     else if Transparent
-    {
-        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
-    }
+    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = std::process::Command::new(&TypstBin);
-    Command.args
-    ([
-        "compile",
-        "--root",
-        DocRoot.to_str().unwrap_or("."),
-        "--format",
-        "svg",
-        "-",
-        OutputPattern.to_str().unwrap_or("page-{p}.svg"),
-    ]);
-    Command.current_dir(&JobDir);
+    let mut Command = std::process::Command:: new ( & TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    Command.current_dir( & JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    (
-        |Error| format!("Failed to spawn typst: {}", Error)
-    )?;
+    ( | Error | format ! ("Failed to spawn typst: {}", Error))
+    ?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
-    }
+    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
 
     let Output = Child.wait_with_output().map_err
-    (
-        |Error| format!("Typst execution failed: {}", Error)
-    )?;
+    ( | Error | format ! ("Typst execution failed: {}", Error))
+    ?;
 
-    if !Output.status.success()
+    if ! Output.status.success()
     {
-        let Stderr = String::from_utf8_lossy(&Output.stderr).to_string();
-        let _ = std::fs::remove_dir_all(&JobDir);
+        let Stderr = String::from_utf8_lossy( & Output.stderr).to_string();
+        let _ = std::fs::remove_dir_all( & JobDir);
         return Err(Stderr);
     }
 
-    let mut SvgFiles = Vec::new();
-    if let Ok(Entries) = std::fs::read_dir(&JobDir)
+    let mut SvgFiles = Vec:: new ();
+    if let Ok(Entries) = std::fs::read_dir( & JobDir)
     {
         for Entry in Entries.flatten()
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".svg")
             {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then(|S| S.strip_suffix(".svg"))
-                {
-                    if let Ok(PageNum) = NumPart.parse::<usize>()
-                    {
-                        SvgFiles.push((PageNum, Entry.path()));
-                    }
-                }
+                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg"))
+                { if let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); } }
             }
         }
     }
-    SvgFiles.sort_by_key(|Item| Item.0);
+    SvgFiles.sort_by_key( | Item | Item.0);
 
     if SvgFiles.is_empty()
-    {
-        let _ = std::fs::remove_dir_all(&JobDir);
-        return Err("No SVG pages were generated.".to_string());
-    }
+    { let _ = std::fs::remove_dir_all( & JobDir); return Err("No SVG pages were generated.".to_string()); }
 
     use std::io::Cursor;
-    use zip::write::{SimpleFileOptions, ZipWriter};
+    use zip::write:: { SimpleFileOptions, ZipWriter };
 
-    let mut ZipBuffer = Vec::new();
+    let mut ZipBuffer = Vec:: new ();
     {
-        let mut Zip = ZipWriter::new(Cursor::new(&mut ZipBuffer));
-        let Options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let mut Zip = ZipWriter:: new (Cursor::new ( & mut ZipBuffer));
+        let Options = SimpleFileOptions:: default().compression_method(zip::CompressionMethod::Deflated);
 
         for (Idx, (_, SvgPath)) in SvgFiles.iter().enumerate()
         {
             let EntryName = format!("{}_page_{}.svg", BaseDocName, Idx + 1);
-            Zip.start_file(EntryName, Options).map_err(|Error| format!("Zip error: {}", Error))?;
+            Zip.start_file(EntryName, Options).map_err( | Error | format ! ("Zip error: {}", Error))?;
             let mut SvgContent = std::fs::read_to_string(SvgPath).map_err
-            (
-                |Error| format!("Failed to read SVG: {}", Error)
-            )?;
+            ( | Error | format ! ("Failed to read SVG: {}", Error))
+            ?;
 
             if BlackMode
-            {
-                SvgContent = ConvertSvgToDarkMode(&SvgContent);
-            }
+            { SvgContent = ConvertSvgToDarkMode( & SvgContent); }
 
             if Transparent
             {
@@ -939,90 +828,58 @@ fn ExportSvg
                 SvgContent = SvgContent.replace("fill=\"#FFFFFF\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
             }
 
-            Zip.write_all(SvgContent.as_bytes()).map_err(|Error| format!("Zip write error: {}", Error))?;
+            Zip.write_all(SvgContent.as_bytes()).map_err( | Error | format ! ("Zip write error: {}", Error))?;
         }
-        Zip.finish().map_err(|Error| format!("Zip finish error: {}", Error))?;
+        Zip.finish().map_err( | Error | format ! ("Zip finish error: {}", Error))?;
     }
 
-    let _ = std::fs::remove_dir_all(&JobDir);
+    let _ = std::fs::remove_dir_all( & JobDir);
     Ok(ZipBuffer)
 }
 
 #[tauri::command]
 fn PickFolder() -> Result<Option<String>, String>
 {
-    let Selected = rfd::FileDialog::new()
-        .set_title("Select Typst Project Folder")
-        .pick_folder();
+    let Selected = rfd::FileDialog:: new ()
+   .set_title("Select Typst Project Folder")
+   .pick_folder();
 
-    Ok(Selected.map(|P| P.to_string_lossy().to_string()))
+    Ok(Selected.map( | P | P.to_string_lossy().to_string()))
 }
 
 #[tauri::command]
 fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
-{
-    std::fs::read_to_string(&PathStr).map_err
-    (
-        |Error| format!("Failed to read file: {}", Error)
-    )
-}
+{ std::fs::read_to_string( & PathStr).map_err( | Error | format ! ("Failed to read file: {}", Error)) }
 
 #[tauri::command]
-fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result<(), String>
+fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result < (), String >
 {
-    if let Some(Parent) = std::path::Path::new(&PathStr).parent()
-    {
-        let _ = std::fs::create_dir_all(Parent);
-    }
-    std::fs::write(&PathStr, Content).map_err
-    (
-        |Error| format!("Failed to save file: {}", Error)
-    )
+    if let Some(Parent) = std::path::Path:: new ( & PathStr).parent()
+    { let _ = std::fs::create_dir_all(Parent); }
+    std::fs::write( & PathStr, Content).map_err( | Error | format ! ("Failed to save file: {}", Error))
 }
 
 #[tauri::command]
 fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String>
 {
-    let TargetDir = DirPath.map(std::path::PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
-    let mut Results = Vec::new();
+    let TargetDir = DirPath.map(std::path::PathBuf::from).unwrap_or_else( || std::env::current_dir().unwrap_or_default());
+    let mut Results = Vec:: new ();
 
-    if let Ok(Entries) = std::fs::read_dir(&TargetDir)
+    if let Ok(Entries) = std::fs::read_dir( & TargetDir)
     {
         for Entry in Entries.flatten()
         {
             let Meta = Entry.metadata().ok();
-            let IsDir = Meta.as_ref().map(|M| M.is_dir()).unwrap_or(false);
-            let Size = Meta.as_ref().map(|M| M.len()).unwrap_or(0);
+            let IsDir = Meta.as_ref().map( | M | M.is_dir()).unwrap_or(false);
+            let Size = Meta.as_ref().map( | M | M.len()).unwrap_or(0);
             let Name = Entry.file_name().to_string_lossy().to_string();
             let Path = Entry.path().to_string_lossy().to_string();
 
-            Results.push
-            (
-                File_Entry
-                {
-                    name: Name,
-                    path: Path,
-                    is_dir: IsDir,
-                    size: Size,
-                }
-            );
+            Results.push(File_Entry { name: Name, path: Path, is_dir: IsDir, size: Size, });
         }
     }
 
-    Results.sort_by
-    (
-        |A, B|
-        {
-            if A.is_dir != B.is_dir
-            {
-                B.is_dir.cmp(&A.is_dir)
-            }
-            else
-            {
-                A.name.to_lowercase().cmp(&B.name.to_lowercase())
-            }
-        }
-    );
+    Results.sort_by( | A, B | { if A.is_dir != B.is_dir { B.is_dir.cmp( & A.is_dir) } else { A.name.to_lowercase().cmp( & B.name.to_lowercase()) } });
 
     Ok(Results)
 }
@@ -1030,18 +887,11 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
 fn FindWorkspaceConfigFile() -> std::path::PathBuf
 {
     for Rel in &
-    [
-        ".workspace_config.json",
-        "TypstStudio/.workspace_config.json",
-        "../.workspace_config.json",
-        "../../.workspace_config.json",
-    ]
+    [".workspace_config.json", "TypstStudio/.workspace_config.json", "../.workspace_config.json", "../../.workspace_config.json",]
     {
         let P = std::path::PathBuf::from(Rel);
         if P.exists()
-        {
-            return P;
-        }
+        { return P; }
     }
 
     if let Ok(Exe) = std::env::current_exe()
@@ -1050,14 +900,10 @@ fn FindWorkspaceConfigFile() -> std::path::PathBuf
         {
             let Candidate = Dir.join(".workspace_config.json");
             if Candidate.exists()
-            {
-                return Candidate;
-            }
+            { return Candidate; }
             let DevCandidate = Dir.join("../../../.workspace_config.json");
             if DevCandidate.exists()
-            {
-                return DevCandidate;
-            }
+            { return DevCandidate; }
         }
     }
 
@@ -1069,68 +915,38 @@ fn GetTrackedDirectories() -> Vec<String>
     let ConfigPath = FindWorkspaceConfigFile();
     if ConfigPath.exists()
     {
-        if let Ok(Content) = std::fs::read_to_string(&ConfigPath)
+        if let Ok(Content) = std::fs::read_to_string( & ConfigPath)
         {
-            if let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>(&Content)
-            {
-                if !Data.Directories.is_empty()
-                {
-                    return Data.Directories;
-                }
-            }
+            if let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>( & Content)
+            { if ! Data.Directories.is_empty() { return Data.Directories; } }
         }
     }
 
     vec![r"e:\Typst\projects".to_string()]
 }
 
-fn SaveTrackedDirectories(Dirs: &[String]) -> Result<(), String>
+fn SaveTrackedDirectories(Dirs: & [String]) -> Result < (), String >
 {
     let ConfigPath = FindWorkspaceConfigFile();
     let Data = Workspace_Config_Data
-    {
-        Directories: Dirs.to_vec(),
-    };
-    let Json = serde_json::to_string_pretty(&Data).map_err
-    (
-        |Error| format!("Serialize error: {}", Error)
-    )?;
-    std::fs::write(&ConfigPath, Json).map_err
-    (
-        |Error| format!("Write config error: {}", Error)
-    )?;
+    { Directories: Dirs.to_vec(), };
+    let Json = serde_json::to_string_pretty( & Data).map_err
+    ( | Error | format ! ("Serialize error: {}", Error))
+    ?;
+    std::fs::write( & ConfigPath, Json).map_err( | Error | format ! ("Write config error: {}", Error))?;
     Ok(())
 }
 
-fn ScanDirectoryRecursive
-(
-    BaseDir: &std::path::Path,
-    CurrentDir: &std::path::Path,
-    Files: &mut Vec<Workspace_File>,
-    Folders: &mut Vec<Workspace_Folder>,
-)
+fn ScanDirectoryRecursive(BaseDir: & std::path::Path, CurrentDir: & std::path::Path, Files: & mut Vec<Workspace_File>, Folders: & mut Vec<Workspace_Folder>,)
 {
     let Entries = match std::fs::read_dir(CurrentDir)
-    {
-        Ok(E) => E,
-        Err(_) => return,
-    };
+    { Ok(E) => E, Err(_) => return , };
 
     let CurrentStr = CurrentDir.to_string_lossy().to_string();
-    let FolderName = CurrentDir.file_name().map( |N| N.to_string_lossy().to_string()).unwrap_or_default();
+    let FolderName = CurrentDir.file_name().map( | N | N.to_string_lossy().to_string()).unwrap_or_default();
 
     if CurrentDir != BaseDir
-    {
-        Folders.push
-        (
-            Workspace_Folder
-            {
-                Name: FolderName,
-                Path: CurrentStr.clone(),
-                FileCount: 0,
-            }
-        );
-    }
+    { Folders.push(Workspace_Folder { Name: FolderName, Path: CurrentStr.clone(), FileCount: 0, }); }
 
     for Entry in Entries.flatten()
     {
@@ -1138,42 +954,31 @@ fn ScanDirectoryRecursive
         let Name = Entry.file_name().to_string_lossy().to_string();
 
         if Name.starts_with('.') || Name == "node_modules" || Name == "target" || Name == ".temp"
-        {
-            continue;
-        }
+        { continue ; }
 
         if Path.is_dir()
-        {
-            ScanDirectoryRecursive(BaseDir, &Path, Files, Folders);
-        }
+        { ScanDirectoryRecursive(BaseDir, & Path, Files, Folders); }
         else if Path.is_file() && Name.ends_with(".typ")
         {
             let Meta = Entry.metadata().ok();
-            let Size = Meta.as_ref().map( |M| M.len()).unwrap_or(0);
+            let Size = Meta.as_ref().map( | M | M.len()).unwrap_or(0);
             let Modified = Meta
-                .and_then( |M| M.modified().ok())
-                .and_then( |T| T.duration_since(std::time::UNIX_EPOCH).ok())
-                .map( |D| D.as_millis() as u64)
-                .unwrap_or(0);
+           .and_then( | M | M.modified().ok())
+           .and_then( | T | T.duration_since(std::time::UNIX_EPOCH).ok())
+           .map( | D | D.as_millis() as u64)
+           .unwrap_or(0);
 
             let Rel = Path
-                .strip_prefix(BaseDir)
-                .map( |P| P.to_string_lossy().to_string())
-                .unwrap_or_else( |_| Name.clone());
+           .strip_prefix(BaseDir)
+           .map( | P | P.to_string_lossy().to_string())
+           .unwrap_or_else( | _ | Name.clone());
 
-            let ParentDir = Path.parent().map( |P| P.to_string_lossy().to_string()).unwrap_or_default();
+            let ParentDir = Path.parent().map( | P | P.to_string_lossy().to_string()).unwrap_or_default();
 
             Files.push
             (
                 Workspace_File
-                {
-                    Name: Name,
-                    Path: Path.to_string_lossy().to_string(),
-                    RelativePath: Rel,
-                    Directory: ParentDir,
-                    Size: Size,
-                    Modified: Modified,
-                }
+                { Name: Name, Path: Path.to_string_lossy().to_string(), RelativePath: Rel, Directory: ParentDir, Size: Size, Modified: Modified, }
             );
         }
     }
@@ -1183,98 +988,68 @@ fn ScanDirectoryRecursive
 fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
 {
     let Dirs = GetTrackedDirectories();
-    let mut AllFiles = Vec::new();
-    let mut AllFolders = Vec::new();
+    let mut AllFiles = Vec:: new ();
+    let mut AllFolders = Vec:: new ();
 
-    for DirStr in &Dirs
+    for DirStr in & Dirs
     {
-        let Base = std::path::Path::new(DirStr);
+        let Base = std::path::Path:: new (DirStr);
         if Base.exists() && Base.is_dir()
-        {
-            ScanDirectoryRecursive(Base, Base, &mut AllFiles, &mut AllFolders);
-        }
+        { ScanDirectoryRecursive(Base, Base, & mut AllFiles, & mut AllFolders); }
     }
 
-    let mut SeenFiles = std::collections::HashSet::new();
-    let mut UniqueFiles = Vec::new();
+    let mut SeenFiles = std::collections::HashSet:: new ();
+    let mut UniqueFiles = Vec:: new ();
     for File in AllFiles
     {
         let Key = File.Path.to_lowercase();
-        if !SeenFiles.contains(&Key)
-        {
-            SeenFiles.insert(Key);
-            UniqueFiles.push(File);
-        }
+        if ! SeenFiles.contains( & Key)
+        { SeenFiles.insert(Key); UniqueFiles.push(File); }
     }
 
-    let mut SeenFolders = std::collections::HashSet::new();
-    let mut UniqueFolders = Vec::new();
+    let mut SeenFolders = std::collections::HashSet:: new ();
+    let mut UniqueFolders = Vec:: new ();
     for mut Folder in AllFolders
     {
         let Key = Folder.Path.to_lowercase();
-        if !SeenFolders.contains(&Key)
+        if ! SeenFolders.contains( & Key)
         {
             SeenFolders.insert(Key.clone());
             let FolderPrefix = format!("{}\\", Key);
             let FolderPrefixAlt = format!("{}/", Key);
             Folder.FileCount = UniqueFiles
-                .iter()
-                .filter
-                (
-                    |F|
-                    {
-                        let FDir = F.Directory.to_lowercase();
-                        FDir == Key || FDir.starts_with(&FolderPrefix) || FDir.starts_with(&FolderPrefixAlt)
-                    }
-                )
-                .count();
+           .iter()
+           .filter( | F | { let FDir = F.Directory.to_lowercase(); FDir == Key || FDir.starts_with( & FolderPrefix) || FDir.starts_with( & FolderPrefixAlt) })
+           .count();
             UniqueFolders.push(Folder);
         }
     }
 
-    UniqueFiles.sort_by( |A, B| B.Modified.cmp(&A.Modified));
+    UniqueFiles.sort_by( | A, B | B.Modified.cmp( & A.Modified));
 
-    Ok
-    (
-        Workspace_Info_Response
-        {
-            Success: true,
-            Directories: Dirs,
-            Files: UniqueFiles,
-            Folders: UniqueFolders,
-        }
-    )
+    Ok(Workspace_Info_Response { Success: true, Directories: Dirs, Files: UniqueFiles, Folders: UniqueFolders, })
 }
 
 #[tauri::command]
-fn CreateWorkspaceFile
-(
-    Directory: Option<String>,
-    FileName: String,
-    Content: Option<String>,
-) -> Result<String, String>
+fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Option<String>,) -> Result<String, String>
 {
     let Dirs = GetTrackedDirectories();
     let TargetDir = Directory
-        .filter( |D| !D.trim().is_empty())
-        .or_else( || Dirs.first().cloned())
-        .unwrap_or_else( || ".".to_string());
+   .filter( | D | ! D.trim().is_empty())
+   .or_else( || Dirs.first().cloned())
+   .unwrap_or_else( || ".".to_string());
 
-    let mut CleanName = std::path::Path::new(&FileName)
-        .file_name()
-        .map( |N| N.to_string_lossy().to_string())
-        .unwrap_or_else( || "Untitled.typ".to_string());
+    let mut CleanName = std::path::Path:: new ( & FileName)
+   .file_name()
+   .map( | N | N.to_string_lossy().to_string())
+   .unwrap_or_else( || "Untitled.typ".to_string());
 
-    if !CleanName.ends_with(".typ")
-    {
-        CleanName.push_str(".typ");
-    }
+    if ! CleanName.ends_with(".typ")
+    { CleanName.push_str(".typ"); }
 
-    let FullPath = std::path::Path::new(&TargetDir).join(&CleanName);
+    let FullPath = std::path::Path:: new ( & TargetDir).join( & CleanName);
     if let Some(Parent) = FullPath.parent()
-    {
-        let _ = std::fs::create_dir_all(Parent);
-    }
+    { let _ = std::fs::create_dir_all(Parent); }
 
     let InitialContent = Content.unwrap_or_else
     (
@@ -1284,133 +1059,98 @@ fn CreateWorkspaceFile
         }
     );
 
-    std::fs::write(&FullPath, InitialContent).map_err
-    (
-        |Error| format!("Failed to create file: {}", Error)
-    )?;
+    std::fs::write( & FullPath, InitialContent).map_err( | Error | format ! ("Failed to create file: {}", Error))?;
     Ok(FullPath.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-fn DeleteWorkspaceFile(PathStr: String) -> Result<(), String>
+fn DeleteWorkspaceFile(PathStr: String) -> Result < (), String >
 {
-    let P = std::path::Path::new(&PathStr);
+    let P = std::path::Path:: new ( & PathStr);
     if P.exists()
-    {
-        std::fs::remove_file(P).map_err
-        (
-            |Error| format!("Failed to delete file: {}", Error)
-        )?;
-    }
+    { std::fs::remove_file(P).map_err( | Error | format ! ("Failed to delete file: {}", Error))?; }
     Ok(())
 }
 
 #[tauri::command]
-fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
+fn AddWorkspaceDirectory(PathStr: String) -> Result < (), String >
 {
-    let P = std::path::Path::new(&PathStr);
-    if !P.exists()
-    {
-        let _ = std::fs::create_dir_all(P);
-    }
+    let P = std::path::Path:: new ( & PathStr);
+    if ! P.exists()
+    { let _ = std::fs::create_dir_all(P); }
 
     let mut Dirs = GetTrackedDirectories();
     let Canonical = P.to_string_lossy().to_string();
-    if !Dirs.iter().any( |D| D.eq_ignore_ascii_case(&Canonical))
-    {
-        Dirs.push(Canonical);
-        SaveTrackedDirectories(&Dirs)?;
-    }
+    if ! Dirs.iter().any( | D | D.eq_ignore_ascii_case( & Canonical))
+    { Dirs.push(Canonical); SaveTrackedDirectories( & Dirs)?; }
     Ok(())
 }
 
 #[tauri::command]
-fn RemoveWorkspaceDirectory(PathStr: String) -> Result<(), String>
+fn RemoveWorkspaceDirectory(PathStr: String) -> Result < (), String >
 {
     let mut Dirs = GetTrackedDirectories();
-    Dirs.retain( |D| !D.eq_ignore_ascii_case(&PathStr));
-    SaveTrackedDirectories(&Dirs)?;
+    Dirs.retain( | D | ! D.eq_ignore_ascii_case( & PathStr));
+    SaveTrackedDirectories( & Dirs)?;
     Ok(())
 }
 
 #[tauri::command]
-fn UploadAsset
-(
-    Directory: Option<String>,
-    FileName: String,
-    Base64Data: String,
-) -> Result<String, String>
+fn UploadAsset(Directory: Option<String>, FileName: String, Base64Data: String,) -> Result<String, String>
 {
     let Dirs = GetTrackedDirectories();
     let TargetDir = Directory
-        .filter( |D| !D.trim().is_empty())
-        .or_else( || Dirs.first().cloned())
-        .unwrap_or_else( || ".".to_string());
+   .filter( | D | ! D.trim().is_empty())
+   .or_else( || Dirs.first().cloned())
+   .unwrap_or_else( || ".".to_string());
 
-    let CleanName = std::path::Path::new(&FileName)
-        .file_name()
-        .map( |N| N.to_string_lossy().to_string())
-        .unwrap_or_else( || "asset.png".to_string());
+    let CleanName = std::path::Path:: new ( & FileName)
+   .file_name()
+   .map( | N | N.to_string_lossy().to_string())
+   .unwrap_or_else( || "asset.png".to_string());
 
-    let OutPath = std::path::Path::new(&TargetDir).join(&CleanName);
+    let OutPath = std::path::Path:: new ( & TargetDir).join( & CleanName);
     if let Some(Parent) = OutPath.parent()
-    {
-        let _ = std::fs::create_dir_all(Parent);
-    }
+    { let _ = std::fs::create_dir_all(Parent); }
 
     let CleanBase64 = if let Some(Pos) = Base64Data.find(";base64,")
-    {
-        &Base64Data[Pos + 8..]
-    }
+    { & Base64Data[Pos + 8..] }
     else
-    {
-        &Base64Data
-    };
+    { & Base64Data };
 
     use base64::Engine;
     let Decoded = base64::engine::general_purpose::STANDARD
-        .decode(CleanBase64.trim())
-        .map_err
-        (
-            |Error| format!("Base64 decode error: {}", Error)
-        )?;
+   .decode(CleanBase64 .trim())
+   .map_err( | Error | format ! ("Base64 decode error: {}", Error))?;
 
-    std::fs::write(&OutPath, Decoded).map_err
-    (
-        |Error| format!("Failed to write asset: {}", Error)
-    )?;
+    std::fs::write( & OutPath, Decoded).map_err( | Error | format ! ("Failed to write asset: {}", Error))?;
     Ok(OutPath.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 {
-    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
-    let SyncMap = &*Guard;
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
+    let SyncMap = & * Guard;
 
-    let mut BestElem: Option<&serde_json::Value> = None;
+    let mut BestElem: Option< & serde_json::Value> = None;
     let mut MinDist = f64::INFINITY;
 
     for Elem in SyncMap
     {
-        if Elem.get("page").and_then(|Val| Val.as_u64()).map(|Val| Val as usize) != Some(Page)
-        {
-            continue;
-        }
+        if Elem. get("page").and_then( | Val | Val.as_u64()).map( | Val | Val as usize) != Some(Page)
+        { continue ; }
 
-        let ElemX = Elem.get("x").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
-        let ElemY = Elem.get("y").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
-        let ElemW = Elem.get("width").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
-        let ElemH = Elem.get("height").and_then(|Val| Val.as_f64()).unwrap_or(0.0);
+        let ElemX = Elem. get("x").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
+        let ElemY = Elem. get("y").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
+        let ElemW = Elem. get("width").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
+        let ElemH = Elem. get("height").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
 
         let InX = X >= ElemX && X <= (ElemX + ElemW);
         let InY = Y >= ElemY && Y <= (ElemY + ElemH);
 
         if InX && InY
-        {
-            BestElem = Some(Elem);
-            break;
-        }
+        { BestElem = Some(Elem); break ; }
 
         let CenterX = ElemX + (ElemW / 2.0);
         let CenterY = ElemY + (ElemH / 2.0);
@@ -1419,10 +1159,7 @@ fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
         let DistSq = (Dx * Dx) + (Dy * Dy);
 
         if DistSq < MinDist
-        {
-            MinDist = DistSq;
-            BestElem = Some(Elem);
-        }
+        { MinDist = DistSq; BestElem = Some(Elem); }
     }
 
     if let Some(Elem) = BestElem
@@ -1433,13 +1170,13 @@ fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
             {
                 Success: true,
                 Found: true,
-                Line: Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                Column: Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                EndLine: Elem.get("end_line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                EndColumn: Elem.get("end_col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                Start: Elem.get("start").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                End: Elem.get("end").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                Span: Elem.get("span").cloned(),
+                Line: Elem. get("line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                Column: Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                EndLine: Elem. get("end_line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                EndColumn: Elem. get("end_col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                Start: Elem. get("start").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                End: Elem. get("end").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                Span: Elem. get("span").cloned(),
                 Error: None,
             }
         )
@@ -1468,43 +1205,37 @@ fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 #[tauri::command]
 fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
 {
-    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
-    let SyncMap = &*Guard;
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
+    let SyncMap = & * Guard;
 
-    let mut BestElem: Option<&serde_json::Value> = None;
+    let mut BestElem: Option< & serde_json::Value> = None;
     let mut MinColDist = usize::MAX;
 
     for Elem in SyncMap
     {
-        let ElemLine = Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
-        let ElemEndLine = Elem.get("end_line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(ElemLine);
-        let ElemCol = Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
-        let ElemEndCol = Elem.get("end_col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(ElemCol);
+        let ElemLine = Elem. get("line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
+        let ElemEndLine = Elem. get("end_line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(ElemLine);
+        let ElemCol = Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
+        let ElemEndCol = Elem. get("end_col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(ElemCol);
 
         let StartsBefore = ElemLine < Line || (ElemLine == Line && ElemCol <= Col);
         let EndsAfter = ElemEndLine > Line || (ElemEndLine == Line && ElemEndCol >= Col);
 
         if StartsBefore && EndsAfter
-        {
-            BestElem = Some(Elem);
-            break;
-        }
+        { BestElem = Some(Elem); break ; }
     }
 
     if BestElem.is_none()
     {
         for Elem in SyncMap
         {
-            let ElemLine = Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+            let ElemLine = Elem. get("line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
             if ElemLine == Line
             {
-                let ElemCol = Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize).unwrap_or(0);
+                let ElemCol = Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
                 let Dist = (ElemCol as isize - Col as isize).unsigned_abs();
                 if Dist < MinColDist
-                {
-                    MinColDist = Dist;
-                    BestElem = Some(Elem);
-                }
+                { MinColDist = Dist; BestElem = Some(Elem); }
             }
         }
     }
@@ -1517,13 +1248,13 @@ fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
             {
                 Success: true,
                 Found: true,
-                Page: Elem.get("page").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                X: Elem.get("x").and_then(|Val| Val.as_f64()),
-                Y: Elem.get("y").and_then(|Val| Val.as_f64()),
-                Width: Elem.get("width").and_then(|Val| Val.as_f64()),
-                Height: Elem.get("height").and_then(|Val| Val.as_f64()),
-                Line: Elem.get("line").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
-                Column: Elem.get("col").and_then(|Val| Val.as_u64()).map(|Val| Val as usize),
+                Page: Elem. get("page").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                X: Elem. get("x").and_then( | Val | Val.as_f64()),
+                Y: Elem. get("y").and_then( | Val | Val.as_f64()),
+                Width: Elem. get("width").and_then( | Val | Val.as_f64()),
+                Height: Elem. get("height").and_then( | Val | Val.as_f64()),
+                Line: Elem. get("line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
+                Column: Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize),
                 Error: None,
             }
         )
@@ -1552,16 +1283,11 @@ fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
 #[tauri::command]
 fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
 {
-    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err(|Error| Error.to_string())?;
-    for Elem in &*Guard
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
+    for Elem in & * Guard
     {
-        if let Some(Val) = Elem.get("span").and_then(|S| S.as_str())
-        {
-            if Val == Span
-            {
-                return Ok(Some(Elem.clone()));
-            }
-        }
+        if let Some(Val) = Elem. get("span").and_then( | S | S.as_str())
+        { if Val == Span { return Ok(Some(Elem.clone())); } }
     }
     Ok(None)
 }
@@ -1570,24 +1296,22 @@ fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
 fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
 {
     let TypstBin = FindTypstBinary();
-    let mut Command = std::process::Command::new(&TypstBin);
+    let mut Command = std::process::Command:: new ( & TypstBin);
     Command.args(["fonts", "--variants"]);
-    let Output = Command.output().map_err(|Error| format!("Failed to query fonts: {}", Error))?;
-    let Stdout = String::from_utf8_lossy(&Output.stdout);
+    let Output = Command.output().map_err( | Error | format ! ("Failed to query fonts: {}", Error))?;
+    let Stdout = String::from_utf8_lossy( & Output.stdout);
 
-    let mut FontSet = std::collections::BTreeSet::new();
-    let mut FontDetails = Vec::new();
-    let mut CurrentFamily = String::new();
+    let mut FontSet = std::collections::BTreeSet:: new ();
+    let mut FontDetails = Vec:: new ();
+    let mut CurrentFamily = String:: new ();
 
     for Line in Stdout.lines()
     {
         let Trimmed = Line.trim();
         if Trimmed.is_empty()
-        {
-            continue;
-        }
+        { continue ; }
 
-        if !Line.starts_with(' ') && !Line.starts_with('\t') && !Line.starts_with('│') && !Line.starts_with('├') && !Line.starts_with('└')
+        if ! Line.starts_with(' ') && ! Line.starts_with('\t') && ! Line.starts_with('│') && ! Line.starts_with('├') && ! Line.starts_with('└')
         {
             CurrentFamily = Trimmed.to_string();
             FontSet.insert(CurrentFamily.clone());
@@ -1596,14 +1320,14 @@ fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
 
         if Line.contains('├') || Line.contains('└')
         {
-            let Clean = Line.trim_start_matches(|C: char| C == ' ' || C == '│' || C == '├' || C == '└' || C == '─').trim();
-            if !Clean.is_empty()
+            let Clean = Line.trim_start_matches( | C: char | C == ' ' || C == '│' || C == '├' || C == '└' || C == '─').trim();
+            if ! Clean.is_empty()
             {
                 let FilePart = Clean.split('(').next().unwrap_or(Clean).trim();
-                let Name = std::path::Path::new(FilePart)
-                    .file_stem()
-                    .map(|Stem| Stem.to_string_lossy().to_string())
-                    .unwrap_or_else(|| Clean.to_string());
+                let Name = std::path::Path:: new (FilePart)
+               .file_stem()
+               .map( | Stem | Stem.to_string_lossy().to_string())
+               .unwrap_or_else( || Clean.to_string());
 
                 FontDetails.push
                 (
@@ -1621,9 +1345,9 @@ fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
         }
     }
 
-    for SearchDir in &["assets/fonts", "public/fonts", "TypstStudio/public/fonts"]
+    for SearchDir in & ["assets/fonts", "public/fonts", "TypstStudio/public/fonts"]
     {
-        let DirPath = std::path::Path::new(SearchDir);
+        let DirPath = std::path::Path:: new (SearchDir);
         if DirPath.exists() && DirPath.is_dir()
         {
             if let Ok(Entries) = std::fs::read_dir(DirPath)
@@ -1631,11 +1355,11 @@ fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
                 for Entry in Entries.flatten()
                 {
                     let Path = Entry.path();
-                    if let Some(Ext) = Path.extension().and_then(|E| E.to_str())
+                    if let Some(Ext) = Path.extension().and_then( | E | E.to_str())
                     {
                         if Ext.eq_ignore_ascii_case("ttf") || Ext.eq_ignore_ascii_case("otf") || Ext.eq_ignore_ascii_case("ttc")
                         {
-                            if let Some(Stem) = Path.file_stem().and_then(|S| S.to_str())
+                            if let Some(Stem) = Path.file_stem().and_then( | S | S.to_str())
                             {
                                 FontSet.insert(Stem.to_string());
                                 FontDetails.push
@@ -1658,26 +1382,18 @@ fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
         }
     }
 
-    Ok
-    (
-        Available_Fonts_Response
-        {
-            Success: true,
-            Fonts: FontSet.into_iter().collect(),
-            FontDetails: FontDetails,
-        }
-    )
+    Ok(Available_Fonts_Response { Success: true, Fonts: FontSet.into_iter().collect(), FontDetails: FontDetails, })
 }
 
 #[tauri::command]
 fn GetSystemStatus() -> Result<System_Status_Response, String>
 {
     let TypstBin = FindTypstBinary();
-    let VersionOutput = std::process::Command::new(&TypstBin)
-        .arg("--version")
-        .output()
-        .map(|Out| String::from_utf8_lossy(&Out.stdout).trim().to_string())
-        .unwrap_or_else(|_| "typst unknown".to_string());
+    let VersionOutput = std::process::Command:: new ( & TypstBin)
+   .arg("--version")
+   .output()
+   .map( | Out | String::from_utf8_lossy( & Out.stdout).trim().to_string())
+   .unwrap_or_else( | _ | "typst unknown".to_string());
 
     let Uptime = APP_START_TIME.elapsed().as_secs();
 
@@ -1697,184 +1413,162 @@ fn GetSystemStatus() -> Result<System_Status_Response, String>
 #[tauri::command]
 fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
 {
-    let Lines: Vec<&str> = Source.lines().collect();
-    let mut ResultLines = Vec::new();
+    let Lines: Vec< & str> = Source.lines().collect();
+    let mut ResultLines = Vec:: new ();
     let mut InRaw = false;
 
     for Line in Lines
     {
         let Trimmed = Line.trim();
         if Trimmed.starts_with("```")
-        {
-            InRaw = !InRaw;
-            ResultLines.push(Line.to_string());
-            continue;
-        }
+        { InRaw = ! InRaw; ResultLines.push(Line.to_string()); continue ; }
 
         if InRaw
-        {
-            ResultLines.push(Line.to_string());
-            continue;
-        }
+        { ResultLines.push(Line.to_string()); continue ; }
 
         ResultLines.push(Line.to_string());
     }
 
-    Ok
-    (
-        Format_Typst_Response
-        {
-            Success: true,
-            Formatted: ResultLines.join("\n"),
-            HasError: false,
-            Error: None,
-        }
-    )
+    Ok(Format_Typst_Response { Success: true, Formatted: ResultLines.join("\n"), HasError: false, Error: None, })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_shell::init())
-        .invoke_handler
-        (
-            tauri::generate_handler!
-            [
-                CompileTypst,
-                ExportPdf,
-                ExportPng,
-                ExportSvg,
-                PickFolder,
-                ReadWorkspaceFile,
-                SaveWorkspaceFile,
-                ListWorkspaceFiles,
-                GetWorkspaceInfo,
-                CreateWorkspaceFile,
-                DeleteWorkspaceFile,
-                AddWorkspaceDirectory,
-                RemoveWorkspaceDirectory,
-                UploadAsset,
-                GetAvailableFonts,
-                GetSystemStatus,
-                SyncClick,
-                SyncCursor,
-                ResolveSpan,
-                FormatTypst
-            ]
-        )
-        .setup
-        (
-            |app|
+    tauri::Builder:: default()
+   .plugin(tauri_plugin_dialog::init ())
+   .plugin(tauri_plugin_fs::init ())
+   .plugin(tauri_plugin_shell::init ())
+   .invoke_handler
+    (
+        tauri::generate_handler!
+        [
+            CompileTypst,
+            ExportPdf,
+            ExportPng,
+            ExportSvg,
+            PickFolder,
+            ReadWorkspaceFile,
+            SaveWorkspaceFile,
+            ListWorkspaceFiles,
+            GetWorkspaceInfo,
+            CreateWorkspaceFile,
+            DeleteWorkspaceFile,
+            AddWorkspaceDirectory,
+            RemoveWorkspaceDirectory,
+            UploadAsset,
+            GetAvailableFonts,
+            GetSystemStatus,
+            SyncClick,
+            SyncCursor,
+            ResolveSpan,
+            FormatTypst
+        ]
+    )
+   .setup
+    (
+        | app |
+        {
+            if cfg!(debug_assertions)
             {
-                if cfg!(debug_assertions)
-                {
-                    app.handle().plugin
-                    (
-                        tauri_plugin_log::Builder::default()
-                            .level(log::LevelFilter::Info)
-                            .build(),
-                    )?;
-                }
-                Ok(())
+                app.handle().plugin(tauri_plugin_log::Builder::default ().level(log::LevelFilter::Info).build(),)?;
             }
-        )
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+            Ok(())
+        }
+    )
+   .run(tauri::generate_context ! ())
+   .expect("error while building tauri application");
 }
 
 #[cfg(test)]
 mod tests
 {
-    use super::*;
+    use super:: * ;
 
-    #[test]
+   #[test]
     fn TestCompileTypst()
     {
         let Source = "= Hello Typst\nTesting Tauri command.".to_string();
         let Resp = CompileTypst(Source, None).expect("CompileTypst should succeed");
         assert!(Resp.success);
         assert_eq!(Resp.page_count, 1);
-        assert!(!Resp.pages.is_empty());
+        assert!( ! Resp.pages.is_empty());
     }
 
-    #[test]
+   #[test]
     fn TestExportPdf()
     {
         let Source = "= Test Document\nTesting PDF export.".to_string();
         let PdfData = ExportPdf(Source, None, None, None).expect("ExportPdf should succeed");
-        assert!(!PdfData.is_empty());
+        assert!( ! PdfData.is_empty());
         assert!(PdfData.starts_with(b"%PDF"));
     }
 
-    #[test]
+   #[test]
     fn TestDarkColorConversion()
     {
-        assert_eq!(ConvertColorHex("FAFAFA"), "222222");
-        assert_eq!(ConvertColorHex("000000"), "FFFFFF");
-        assert_eq!(ConvertColorHex("FFFFFF"), "FFFFFF");
-        assert_eq!(ConvertColorHex("16A34A"), "16A34A");
+        assert_eq!(InvertShapeColorHex("FAFAFA"), "222222");
+        assert_eq!(InvertShapeColorHex("FFFFFF"), "181818");
+        assert_eq!(InvertShapeColorHex("E4E9F0"), "42474E");
+        assert_eq!(InvertShapeColorHex("F1F3F6"), "303235");
+        assert_eq!(InvertGlyphColorHex("000000"), "FFFFFF");
+        assert_eq!(InvertGlyphColorHex("FFFFFF"), "FFFFFF");
+        assert_eq!(InvertGlyphColorHex("16A34A"), "16A34A");
     }
 
-    #[test]
+   #[test]
     fn TestGetSystemStatus()
     {
         let Status = GetSystemStatus().expect("GetSystemStatus should succeed");
         assert!(Status.Success);
-        assert!(!Status.TypstVersion.is_empty());
+        assert!( ! Status.TypstVersion.is_empty());
     }
 
-    #[test]
+   #[test]
     fn TestFormatTypst()
     {
         let Formatted = FormatTypst("= Title\n".to_string()).expect("FormatTypst should succeed");
         assert!(Formatted.Success);
     }
 
-    #[test]
+   #[test]
     fn TestExportPngZip()
     {
         let Source = "= Page 1\n#pagebreak()\n= Page 2".to_string();
         let ZipData = ExportPng(Source, None, "test_doc".to_string(), false, false).expect("ExportPng should succeed");
-        assert!(!ZipData.is_empty());
-        let Reader = std::io::Cursor::new(ZipData);
-        let mut Archive = zip::ZipArchive::new(Reader).expect("Valid ZIP archive");
+        assert!( ! ZipData.is_empty());
+        let Reader = std::io::Cursor:: new (ZipData);
+        let mut Archive = zip::ZipArchive:: new (Reader).expect("Valid ZIP archive");
         assert_eq!(Archive.len(), 2);
         assert_eq!(Archive.by_index(0).unwrap().name().unwrap(), "test_doc_page_1.png");
         assert_eq!(Archive.by_index(1).unwrap().name().unwrap(), "test_doc_page_2.png");
     }
 
-    #[test]
+   #[test]
     fn TestExportSvgZip()
     {
         let Source = "= Vector Page 1\n#pagebreak()\n= Vector Page 2".to_string();
         let ZipData = ExportSvg(Source, None, "vector_doc".to_string(), true, true).expect("ExportSvg should succeed");
-        assert!(!ZipData.is_empty());
-        let Reader = std::io::Cursor::new(ZipData);
-        let mut Archive = zip::ZipArchive::new(Reader).expect("Valid ZIP archive");
+        assert!( ! ZipData.is_empty());
+        let Reader = std::io::Cursor:: new (ZipData);
+        let mut Archive = zip::ZipArchive:: new (Reader).expect("Valid ZIP archive");
         assert_eq!(Archive.len(), 2);
         assert_eq!(Archive.by_index(0).unwrap().name().unwrap(), "vector_doc_page_1.svg");
         assert_eq!(Archive.by_index(1).unwrap().name().unwrap(), "vector_doc_page_2.svg");
     }
 
-    #[test]
+   #[test]
     fn TestWorkspaceFileOperations()
     {
-        let TempDir = std::env::temp_dir().join(format!("test_ws_{}", std::process::id()));
-        let _ = std::fs::create_dir_all(&TempDir);
+        let TempDir = std::env::temp_dir().join(format ! ("test_ws_{}", std::process::id()));
+        let _ = std::fs::create_dir_all( & TempDir);
         let TempDirStr = TempDir.to_string_lossy().to_string();
 
         let CreatedPath = CreateWorkspaceFile
-        (
-            Some(TempDirStr.clone()),
-            "MyTestDoc.typ".to_string(),
-            Some("= Test Content".to_string()),
-        )
-        .expect("CreateWorkspaceFile should succeed");
+        (Some(TempDirStr.clone()), "MyTestDoc.typ".to_string(), Some("= Test Content".to_string()),)
+       .expect("CreateWorkspaceFile should succeed");
 
-        assert!(std::path::Path::new(&CreatedPath).exists());
+        assert!(std::path::Path::new ( & CreatedPath).exists());
 
         let ReadContent = ReadWorkspaceFile(CreatedPath.clone()).expect("ReadWorkspaceFile should succeed");
         assert_eq!(ReadContent, "= Test Content");
@@ -1884,16 +1578,16 @@ mod tests
         assert_eq!(UpdatedContent, "= Updated Content");
 
         DeleteWorkspaceFile(CreatedPath.clone()).expect("DeleteWorkspaceFile should succeed");
-        assert!(!std::path::Path::new(&CreatedPath).exists());
+        assert!( ! std::path::Path::new ( & CreatedPath).exists());
 
-        let _ = std::fs::remove_dir_all(&TempDir);
+        let _ = std::fs::remove_dir_all( & TempDir);
     }
 
-    #[test]
+   #[test]
     fn TestGetWorkspaceInfo()
     {
         let Info = GetWorkspaceInfo().expect("GetWorkspaceInfo should succeed");
         assert!(Info.Success);
-        assert!(!Info.Directories.is_empty());
+        assert!( ! Info.Directories.is_empty());
     }
 }

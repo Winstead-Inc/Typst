@@ -3,7 +3,7 @@
     "productName": "TypstStudio",
     "version": "0.1.0",
     "identifier": "com.winstead.typststudio",
-    "build": { "frontendDist": "../public", "devUrl": "http://localhost:3000" },
+    "build": { "frontendDist": "../public" },
     "app":
     {
         "withGlobalTauri": true,

@@ -2287,7 +2287,7 @@ async function HandleCursorSpan(Request, Response)
     }
 }
 
-function ConvertColorHex(Hex)
+function InvertShapeColorHex(Hex)
 {
     let CleanHex = Hex.replace(/^#/, "");
     if (CleanHex.length === 3)
@@ -2295,46 +2295,30 @@ function ConvertColorHex(Hex)
         CleanHex = CleanHex[0] + CleanHex[0] + CleanHex[1] + CleanHex[1] + CleanHex[2] + CleanHex[2];
     }
     const LowerHex = CleanHex.toLowerCase();
-    // Author-defined pure white (e.g. text on colored containers like #4338ca) must remain white!
     if (LowerHex === "ffffff")
     {
-        return "ffffff";
+        return "181818";
     }
 
     const Red = parseInt(CleanHex.slice(0, 2), 16);
     const Green = parseInt(CleanHex.slice(2, 4), 16);
     const Blue = parseInt(CleanHex.slice(4, 6), 16);
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
-    if (MaxDelta > 18)
+    if (MaxDelta > 22)
     {
-        return CleanHex;
-        // Keep vibrant saturated hue!
+        return CleanHex.toUpperCase();
     }
 
     const Avg = (Red + Green + Blue) / 3;
     const MapComp = (L) =>
     {
-        if (L >= 254.5) { return 0; }
         const D = 255 - L;
+        if (D <= 3) { return 24; }
         if (D <= 8) { return Math.round(30 + D * 0.8); }
-        // 30 - 36 (#1e1e1e - #242424) clearly visible subtle alternating rows
-        if (D <= 18)
-        {
-            return Math.round(46 + (D - 8) * 1.2);
-        }
-        // 46 - 58 (#2e2e2e - #3a3a3a) distinct card/box backgrounds
-        if (D <= 32)
-        {
-            return Math.round(68 + (D - 18) * 1.2);
-        }
-        // 68 - 85 (#444444 - #555555) prominent table header
-        if (D <= 55)
-        {
-            return Math.round(86 + (D - 32) * 0.6);
-        }
-        // 86 - 100 (#565656 - #646464) visible borders & dividers
-        if (L <= 30) { return 245; }
-        // crisp legible white text
+        if (D <= 18) { return Math.round(46 + (D - 8) * 1.2); }
+        if (D <= 32) { return Math.round(68 + (D - 18) * 1.2); }
+        if (D <= 55) { return Math.round(86 + (D - 32) * 0.6); }
+        if (L <= 30) { return 68; }
         return Math.round(255 - L);
     };
 
@@ -2346,7 +2330,7 @@ function ConvertColorHex(Hex)
             255, Math.round(BaseDark + (Red - Avg))
         )
     )
-    .toString(16).padStart(2, "0");
+    .toString(16).padStart(2, "0").toUpperCase();
     const OutG = Math.max
     (
         0, Math.min
@@ -2354,7 +2338,7 @@ function ConvertColorHex(Hex)
             255, Math.round(BaseDark + (Green - Avg))
         )
     )
-    .toString(16).padStart(2, "0");
+    .toString(16).padStart(2, "0").toUpperCase();
     const OutB = Math.max
     (
         0, Math.min
@@ -2362,8 +2346,45 @@ function ConvertColorHex(Hex)
             255, Math.round(BaseDark + (Blue - Avg))
         )
     )
-    .toString(16).padStart(2, "0");
+    .toString(16).padStart(2, "0").toUpperCase();
     return `${OutR}${OutG}${OutB}`;
+}
+
+function InvertGlyphColorHex(Hex)
+{
+    let CleanHex = Hex.replace(/^#/, "");
+    if (CleanHex.length === 3)
+    {
+        CleanHex = CleanHex[0] + CleanHex[0] + CleanHex[1] + CleanHex[1] + CleanHex[2] + CleanHex[2];
+    }
+    const LowerHex = CleanHex.toLowerCase();
+    if (LowerHex === "ffffff")
+    {
+        return "FFFFFF";
+    }
+
+    const Red = parseInt(CleanHex.slice(0, 2), 16);
+    const Green = parseInt(CleanHex.slice(2, 4), 16);
+    const Blue = parseInt(CleanHex.slice(4, 6), 16);
+    const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
+    if (MaxDelta > 22)
+    {
+        return CleanHex.toUpperCase();
+    }
+
+    const Avg = (Red + Green + Blue) / 3;
+    if (Avg >= 240 || Avg <= 50)
+    {
+        return "FFFFFF";
+    }
+    const Inv = Math.min(255, Math.max(0, Math.round(255 - Avg)));
+    const H = Inv.toString(16).padStart(2, "0").toUpperCase();
+    return `${H}${H}${H}`;
+}
+
+function ConvertColorHex(Hex)
+{
+    return InvertShapeColorHex(Hex);
 }
 
 function ConvertTypstSourceToDarkMode(Source, Transparent = false)

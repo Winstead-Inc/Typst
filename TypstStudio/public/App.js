@@ -1834,6 +1834,20 @@ function ApplyFormattingToEditor()
 async function InitializeMonaco()
 {
     await EnsureSessionAuthToken();
+
+    window.MonacoEnvironment =
+    {
+        getWorkerUrl: function(WorkerId, Label)
+        {
+            return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+                self.MonacoEnvironment = {
+                    baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/'
+                };
+                importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');
+            `)}`;
+        }
+    };
+
     window.require.config
     ({
         paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" }
@@ -2720,7 +2734,9 @@ async function TriggerCompileNow()
             (
                 "CompileTypst",
                 {
+                    source: Source,
                     Source: Source,
+                    filePath: CurrentFilePath || null,
                     FilePath: CurrentFilePath || null
                 }
             );
@@ -2817,14 +2833,20 @@ async function TriggerCompileNow()
     }
     catch (Exception)
     {
-        if (Exception.name === "AbortError")
+        if (Exception && Exception.name === "AbortError")
         {
             // Fetch aborted cleanly by a newer compile trigger
             return ;
         }
         StatusDot.className = "StatusDot Error";
         StatusText.textContent = "Offline";
-        ShowCompilationError(Exception.message);
+        const ErrMsg = (Exception && Exception.message) ? Exception.message : String(Exception || "Compilation failed.");
+        ShowCompilationError(ErrMsg);
+        const Splash = document.getElementById("LoadingSplash");
+        if (Splash)
+        {
+            Splash.remove();
+        }
     }
     finally
     {
@@ -2853,17 +2875,18 @@ function FastHash(Str)
     return (Hash >>> 0).toString(36) + "_" + Str.length;
 }
 
-const InvertColorCache = new Map();
+const InvertShapeColorCache = new Map();
+const InvertGlyphColorCache = new Map();
 const SvgDarkModeCache = new Map();
 
-function InvertMonochromeColor(ColorStr)
+function InvertShapeColor(ColorStr)
 {
     if (!ColorStr)
     {
         return ColorStr;
     }
 
-    const Cached = InvertColorCache.get(ColorStr);
+    const Cached = InvertShapeColorCache.get(ColorStr);
     if (Cached !== undefined)
     {
         return Cached;
@@ -2875,7 +2898,7 @@ function InvertMonochromeColor(ColorStr)
         Trimmed.startsWith("url(") || ["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase())
     )
     {
-        InvertColorCache.set(ColorStr, ColorStr);
+        InvertShapeColorCache.set(ColorStr, ColorStr);
         return ColorStr;
     }
 
@@ -2934,7 +2957,7 @@ function InvertMonochromeColor(ColorStr)
         }
         else
         {
-            InvertColorCache.set(ColorStr, ColorStr);
+            InvertShapeColorCache.set(ColorStr, ColorStr);
             return ColorStr;
         }
     }
@@ -2943,18 +2966,9 @@ function InvertMonochromeColor(ColorStr)
         const RgbMatch = Trimmed.match(/^rgba?\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+))?\s*\)$/i);
         if (RgbMatch)
         {
-            Red = Math.round
-            (
-                parseFloat(RgbMatch[1])
-            );
-            Green = Math.round
-            (
-                parseFloat(RgbMatch[2])
-            );
-            Blue = Math.round
-            (
-                parseFloat(RgbMatch[3])
-            );
+            Red = Math.round(parseFloat(RgbMatch[1]));
+            Green = Math.round(parseFloat(RgbMatch[2]));
+            Blue = Math.round(parseFloat(RgbMatch[3]));
             if (RgbMatch[4] !== undefined)
             {
                 const AlphaVal = parseFloat(RgbMatch[4]);
@@ -2963,41 +2977,41 @@ function InvertMonochromeColor(ColorStr)
         }
         else
         {
-            InvertColorCache.set(ColorStr, ColorStr);
+            InvertShapeColorCache.set(ColorStr, ColorStr);
             return ColorStr;
         }
     }
 
     if (isNaN(Red) || isNaN(Green) || isNaN(Blue))
     {
-        InvertColorCache.set(ColorStr, ColorStr);
+        InvertShapeColorCache.set(ColorStr, ColorStr);
         return ColorStr;
     }
 
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 22)
     {
-        InvertColorCache.set(ColorStr, ColorStr);
+        InvertShapeColorCache.set(ColorStr, ColorStr);
         return ColorStr;
     }
 
-    if (Lower === "rgb(12, 12, 12)" || Lower === "#0c0c0c")
+    if (Lower === "rgb(12, 12, 12)" || Lower === "#0c0c0c" || Lower === "#0C0C0C")
     {
-        const DarkPageColor = Trimmed.startsWith("#") ? "#000000" : "rgb(0, 0, 0)";
-        InvertColorCache.set(ColorStr, DarkPageColor);
+        const DarkPageColor = Trimmed.startsWith("#") ? "#000000": "rgb(0, 0, 0)";
+        InvertShapeColorCache.set(ColorStr, DarkPageColor);
         return DarkPageColor;
     }
 
     const Avg = (Red + Green + Blue) / 3;
     const MapComp = (L) =>
     {
-        if (L >= 254.5) { return 255; }
         const D = 255 - L;
+        if (D <= 3) { return 24; }
         if (D <= 8) { return Math.round(30 + D * 0.8); }
         if (D <= 18) { return Math.round(46 + (D - 8) * 1.2); }
         if (D <= 32) { return Math.round(68 + (D - 18) * 1.2); }
         if (D <= 55) { return Math.round(86 + (D - 32) * 0.6); }
-        if (L <= 30) { return 255; }
+        if (L <= 30) { return 68; }
         return Math.round(255 - L);
     };
 
@@ -3011,7 +3025,7 @@ function InvertMonochromeColor(ColorStr)
         const FinalColor = Alpha !== ""
             ? `rgba(${InvertedR}, ${InvertedG}, ${InvertedB}, ${(parseInt(Alpha, 16) / 255).toFixed(3).replace(/\.?0+$/, "")})`
             : `rgb(${InvertedR}, ${InvertedG}, ${InvertedB})`;
-        InvertColorCache.set(ColorStr, FinalColor);
+        InvertShapeColorCache.set(ColorStr, FinalColor);
         return FinalColor;
     }
 
@@ -3020,8 +3034,102 @@ function InvertMonochromeColor(ColorStr)
     const HexB = InvertedB.toString(16).padStart(2, "0").toUpperCase();
 
     const FinalColor = `#${HexR}${HexG}${HexB}${Alpha.toUpperCase()}`;
-    InvertColorCache.set(ColorStr, FinalColor);
+    InvertShapeColorCache.set(ColorStr, FinalColor);
     return FinalColor;
+}
+
+function InvertGlyphColor(ColorStr)
+{
+    if (!ColorStr)
+    {
+        return ColorStr;
+    }
+
+    const Cached = InvertGlyphColorCache.get(ColorStr);
+    if (Cached !== undefined)
+    {
+        return Cached;
+    }
+
+    const Trimmed = ColorStr.trim();
+    if (["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase()))
+    {
+        InvertGlyphColorCache.set(ColorStr, ColorStr);
+        return ColorStr;
+    }
+
+    let Red = 0;
+    let Green = 0;
+    let Blue = 0;
+    const Lower = Trimmed.toLowerCase();
+
+    if (Lower === "white" || Lower === "#ffffff" || Lower === "#fff")
+    {
+        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
+        return "#FFFFFF";
+    }
+
+    if (Trimmed.startsWith("#"))
+    {
+        const Hex = Trimmed.slice(1);
+        if (Hex.length === 3)
+        {
+            Red = parseInt(Hex[0] + Hex[0], 16);
+            Green = parseInt(Hex[1] + Hex[1], 16);
+            Blue = parseInt(Hex[2] + Hex[2], 16);
+        }
+        else if (Hex.length >= 6)
+        {
+            Red = parseInt(Hex.slice(0, 2), 16);
+            Green = parseInt(Hex.slice(2, 4), 16);
+            Blue = parseInt(Hex.slice(4, 6), 16);
+        }
+    }
+    else
+    {
+        const RgbMatch = Trimmed.match(/^rgba?\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+        if (RgbMatch)
+        {
+            Red = Math.round(parseFloat(RgbMatch[1]));
+            Green = Math.round(parseFloat(RgbMatch[2]));
+            Blue = Math.round(parseFloat(RgbMatch[3]));
+        }
+        else
+        {
+            InvertGlyphColorCache.set(ColorStr, ColorStr);
+            return ColorStr;
+        }
+    }
+
+    const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
+    if (MaxDelta > 22)
+    {
+        InvertGlyphColorCache.set(ColorStr, ColorStr);
+        return ColorStr;
+    }
+
+    const Avg = (Red + Green + Blue) / 3;
+    if (Avg >= 240)
+    {
+        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
+        return "#FFFFFF";
+    }
+    if (Avg <= 50)
+    {
+        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
+        return "#FFFFFF";
+    }
+
+    const Inv = Math.min(255, Math.max(0, Math.round(255 - Avg)));
+    const H = Inv.toString(16).padStart(2, "0").toUpperCase();
+    const FinalColor = `#${H}${H}${H}`;
+    InvertGlyphColorCache.set(ColorStr, FinalColor);
+    return FinalColor;
+}
+
+function InvertMonochromeColor(ColorStr)
+{
+    return InvertShapeColor(ColorStr);
 }
 
 function ConvertSvgToTransparent(Svg)
@@ -3055,10 +3163,9 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
         return Cached;
     }
 
-    // High-performance string replacement for native Typst SVG output
     let Result = Svg;
 
-    // 1. Mark the page canvas background with a sentinel so it is not affected by text/glyph inversions
+    // 1. Mark canvas background with sentinel
     let CanvasFound = false;
     Result = Result.replace
     (
@@ -3089,28 +3196,57 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
         Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="__CANVAS_BLACK_SENTINEL__" fill-rule="nonzero" d="M 0 0v');
     }
 
-    // 2. High-performance single-pass inversion of all monochrome and tinted-gray fills and strokes
-    // (Inverts text #000000 -> #FFFFFF, light table/card backgrounds #FAFAFA/#F1F3F6/#E4E9F0 -> dark #050505/#0E0C09/#1B160F,
-    // and borders #CCCCCC/#BBBBBB/#DDDDDD -> #333333/#444444/#222222, while preserving chromatic accents)
+    // 2. Invert <use> text glyph fills
     Result = Result.replace
     (
-        /\b(fill|stroke)\s*=\s*(["'])([^"']+)\2/gi,
-        (Match, Attr, Quote, Color) =>
+        /<use\b([^>]*)>/gi, (Match, Attrs) =>
         {
-            if (Color === "__CANVAS_BLACK_SENTINEL__")
-            {
-                return Match;
-            }
-            const Inverted = InvertMonochromeColor(Color);
-            return Inverted === Color ? Match: `${Attr}=${Quote}${Inverted}${Quote}`;
+            const UpdatedAttrs = Attrs.replace
+            (
+                /\bfill\s*=\s*(["'])([^"']+)\1/gi, (FillMatch, Quote, Color) =>
+                {
+                    const Inverted = InvertGlyphColor(Color);
+                    return `fill=${Quote}${Inverted}${Quote}`;
+                }
+            );
+            return `<use${UpdatedAttrs}>`;
         }
     );
 
-    // 3. Resolve the canvas sentinel to pure pitch black #000000 or none
+    // 3. Invert shapes (<path>, <rect>, <polygon>, <circle>, <ellipse>, <line>) fills and strokes
+    Result = Result.replace
+    (
+        /<(path|rect|polygon|circle|ellipse|line)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
+        {
+            let Updated = Attrs.replace
+            (
+                /\bfill\s*=\s*(["'])([^"']+)\1/gi, (FillMatch, Quote, Color) =>
+                {
+                    if (Color === "__CANVAS_BLACK_SENTINEL__")
+                    {
+                        return FillMatch;
+                    }
+                    const Inverted = InvertShapeColor(Color);
+                    return `fill=${Quote}${Inverted}${Quote}`;
+                }
+            );
+            Updated = Updated.replace
+            (
+                /\bstroke\s*=\s*(["'])([^"']+)\1/gi, (StrokeMatch, Quote, Color) =>
+                {
+                    const Inverted = InvertShapeColor(Color);
+                    return `stroke=${Quote}${Inverted}${Quote}`;
+                }
+            );
+            return `<${Tag}${Updated}>`;
+        }
+    );
+
+    // 4. Resolve the canvas sentinel to pure pitch black #000000 or none
     const CanvasFill = Transparent ? 'fill="none"': 'fill="#000000"';
     Result = Result.replaceAll('fill="__CANVAS_BLACK_SENTINEL__"', CanvasFill);
 
-    // 4. Handle any custom style="" attributes only if present
+    // 5. Handle custom inline styles
     if (Result.includes('style="') || Result.includes("style='"))
     {
         Result = Result.replace
@@ -3125,7 +3261,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
                     /\b(fill|stroke|color)\s*:\s*([^;"]+)/gi,
                     (PropMatch, Prop, Color) =>
                     {
-                        const Inverted = InvertMonochromeColor(Color.trim());
+                        const Inverted = InvertShapeColor(Color.trim());
                         return `${Prop}: ${Inverted}`;
                     }
                 );
@@ -3144,6 +3280,12 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
 
 function RenderPages(Pages)
 {
+    const Splash = document.getElementById("LoadingSplash");
+    if (Splash)
+    {
+        Splash.remove();
+    }
+
     const Viewport = document.getElementById("PreviewViewport");
     const PrevScrollTop = Viewport ? Viewport.scrollTop: 0;
     const PrevScrollLeft = Viewport ? Viewport.scrollLeft: 0;
@@ -3453,9 +3595,13 @@ async function ExportPdf()
             (
                 "ExportPdf",
                 {
+                    source: Source,
                     Source: Source,
+                    filePath: CurrentFilePath || null,
                     FilePath: CurrentFilePath || null,
+                    blackMode: BlackMode,
                     BlackMode: BlackMode,
+                    transparent: Transparent,
                     Transparent: Transparent
                 }
             );
@@ -3549,10 +3695,15 @@ async function ExportSvg()
             (
                 "ExportSvg",
                 {
+                    source: Source,
                     Source: Source,
+                    filePath: CurrentFilePath || null,
                     FilePath: CurrentFilePath || null,
+                    baseDocName: BaseDocName,
                     BaseDocName: BaseDocName,
+                    blackMode: BlackMode,
                     BlackMode: BlackMode,
+                    transparent: Transparent,
                     Transparent: Transparent
                 }
             );
@@ -3701,10 +3852,15 @@ async function ExportPng()
             (
                 "ExportPng",
                 {
+                    source: Source,
                     Source: Source,
+                    filePath: CurrentFilePath || null,
                     FilePath: CurrentFilePath || null,
+                    baseDocName: BaseDocName,
                     BaseDocName: BaseDocName,
+                    blackMode: BlackMode,
                     BlackMode: BlackMode,
+                    transparent: Transparent,
                     Transparent: Transparent
                 }
             );
@@ -4127,8 +4283,11 @@ async function HandleDroppedAssetFile(File)
                 (
                     "UploadAsset",
                     {
+                        directory: TargetDir,
                         Directory: TargetDir,
+                        fileName: File.name,
                         FileName: File.name,
+                        base64Data: Base64Data,
                         Base64Data: Base64Data
                     }
                 );
@@ -5079,7 +5238,7 @@ async function OpenFileFromWorkspace(FilePath)
         let Content;
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { PathStr: FilePath });
+            Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
         }
         else
         {
@@ -5157,7 +5316,7 @@ async function SaveCurrentFile()
     {
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            await window.__TAURI__.core.invoke("SaveWorkspaceFile", { PathStr: TargetPath, Content: Content });
+            await window.__TAURI__.core.invoke("SaveWorkspaceFile", { pathStr: TargetPath, PathStr: TargetPath, content: Content, Content: Content });
             MarkDocumentClean(Content);
             ShowToast("Saved to disk", "success");
             if (SaveBtn && Label)
@@ -5252,8 +5411,11 @@ async function CreateNewWorkspaceFile()
             (
                 "CreateWorkspaceFile",
                 {
+                    directory: TargetDir || null,
                     Directory: TargetDir || null,
+                    fileName: CleanName,
                     FileName: CleanName,
+                    content: InitialContent,
                     Content: InitialContent
                 }
             );
@@ -5306,7 +5468,7 @@ async function AddWorkspaceDirectory()
     {
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            await window.__TAURI__.core.invoke("AddWorkspaceDirectory", { PathStr: DirPath });
+            await window.__TAURI__.core.invoke("AddWorkspaceDirectory", { pathStr: DirPath, PathStr: DirPath });
             Input.value = "";
             await LoadWorkspaceInfo();
             return ;
@@ -5349,7 +5511,7 @@ async function RemoveWorkspaceDirectory(DirPath)
     {
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            await window.__TAURI__.core.invoke("RemoveWorkspaceDirectory", { PathStr: DirPath });
+            await window.__TAURI__.core.invoke("RemoveWorkspaceDirectory", { pathStr: DirPath, PathStr: DirPath });
             await LoadWorkspaceInfo();
             return ;
         }
@@ -5390,7 +5552,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
     {
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            await window.__TAURI__.core.invoke("DeleteWorkspaceFile", { PathStr: FilePath });
+            await window.__TAURI__.core.invoke("DeleteWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
             await LoadWorkspaceInfo();
             if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
             {
@@ -5899,7 +6061,7 @@ function HandlePreviewClick(Event)
 
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
     {
-        window.__TAURI__.core.invoke("SyncClick", { Page: PageNum, X: ClickPtX, Y: ClickPtY })
+        window.__TAURI__.core.invoke("SyncClick", { page: PageNum, Page: PageNum, x: ClickPtX, X: ClickPtX, y: ClickPtY, Y: ClickPtY })
             .then
             (
                 (Result) =>
