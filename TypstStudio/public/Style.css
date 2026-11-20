@@ -5988,12 +5988,17 @@ body.UIMode_Focus .PreviewToolbar:hover
     .ThemeControls
     {
         gap: 3px;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
     }
 
     .NavButton
     {
         padding: 3px 6px;
         font-size: 11px;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        flex-shrink: 0 !important;
     }
 
     .PageIndicator,
@@ -6001,6 +6006,14 @@ body.UIMode_Focus .PreviewToolbar:hover
     {
         padding: 0 4px;
         font-size: 11px;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        flex-shrink: 0 !important;
+    }
+
+    .PageIndicator .PageLabel
+    {
+        display: none;
     }
 
     .PaperColorModeSelector
@@ -6014,6 +6027,8 @@ body.UIMode_Focus .PreviewToolbar:hover
         padding: 3px 6px;
         font-size: 10.5px;
         gap: 3px;
+        white-space: nowrap !important;
+        flex-shrink: 0 !important;
     }
 
     .PaperModeBtn .ModeText
@@ -6025,6 +6040,7 @@ body.UIMode_Focus .PreviewToolbar:hover
     {
         padding: 0 10px;
         gap: 6px;
+        max-width: calc(100% - 16px);
     }
 }
 
@@ -6038,12 +6054,17 @@ body.UIMode_Focus .PreviewToolbar:hover
 .LayoutSplit .ThemeControls
 {
     gap: 3px;
+    flex-shrink: 0 !important;
+    white-space: nowrap !important;
 }
 
 .LayoutSplit .NavButton
 {
     padding: 3px 6px;
     font-size: 11px;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    flex-shrink: 0 !important;
 }
 
 .LayoutSplit .PageIndicator,
@@ -6051,6 +6072,14 @@ body.UIMode_Focus .PreviewToolbar:hover
 {
     padding: 0 4px;
     font-size: 11px;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    flex-shrink: 0 !important;
+}
+
+.LayoutSplit .PageIndicator .PageLabel
+{
+    display: none;
 }
 
 .LayoutSplit .PaperColorModeSelector
@@ -6064,6 +6093,8 @@ body.UIMode_Focus .PreviewToolbar:hover
     padding: 3px 6px;
     font-size: 10.5px;
     gap: 3px;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
 }
 
 .LayoutSplit .PaperModeBtn .ModeText
@@ -6083,12 +6114,17 @@ body.UIMode_Focus .PreviewToolbar:hover
     .ThemeControls
     {
         gap: 3px;
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
     }
 
     .NavButton
     {
         padding: 3px 6px;
         font-size: 11px;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        flex-shrink: 0 !important;
     }
 
     .PageIndicator,
@@ -6096,6 +6132,14 @@ body.UIMode_Focus .PreviewToolbar:hover
     {
         padding: 0 4px;
         font-size: 11px;
+        white-space: nowrap !important;
+        word-break: keep-all !important;
+        flex-shrink: 0 !important;
+    }
+
+    .PageIndicator .PageLabel
+    {
+        display: none;
     }
 
     .PaperColorModeSelector

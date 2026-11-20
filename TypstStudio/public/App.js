@@ -608,6 +608,10 @@ let IsSyncTexEnabled = localStorage.getItem("typst_synctex_enabled") !== "false"
 let ActiveSpanMap = {};
 let ActiveSyncMap = [];
 let ActiveSyncMapByLine = new Map();
+let MonotonicSyncAnchors = [];
+let RepeatedSyncLines = new Set();
+let RepeatedSyncSpans = new Set();
+let FirstDocumentBodyLine = 1;
 let ActiveHighlightLayers = new Set();
 let LastTypingTimestamp = 0;
 let ActiveHighlightSpan = null;
@@ -1403,16 +1407,26 @@ function EnrichReferences(SyncMap, SourceCode)
 function RebuildSyncMapIndex(SyncMap)
 {
     ActiveSyncMapByLine = new Map();
+    RepeatedSyncLines = new Set();
+    RepeatedSyncSpans = new Set();
+    FirstDocumentBodyLine = 1;
+
     if (!SyncMap || !Array.isArray(SyncMap))
     {
+        MonotonicSyncAnchors = [];
         return ;
     }
+
+    const LinePages = new Map();
+    const SpanPages = new Map();
 
     for (let I = 0; I < SyncMap.length; I ++)
     {
         const Elem = SyncMap[I];
         const StartLine = Elem.line || 1;
         const EndLine = Elem.end_line || StartLine;
+        const PageNum = Elem.page || 1;
+
         for (let L = StartLine; L <= EndLine; L ++)
         {
             let LineList = ActiveSyncMapByLine.get(L);
@@ -1422,8 +1436,57 @@ function RebuildSyncMapIndex(SyncMap)
                 ActiveSyncMapByLine.set(L, LineList);
             }
             LineList.push(Elem);
+
+            if (!LinePages.has(L))
+            {
+                LinePages.set(L, new Set());
+            }
+            LinePages.get(L).add(PageNum);
+        }
+
+        if (Elem.span)
+        {
+            if (!SpanPages.has(Elem.span))
+            {
+                SpanPages.set(Elem.span, new Set());
+            }
+            SpanPages.get(Elem.span).add(PageNum);
         }
     }
+
+    // Layer A: Detect all lines and spans that repeat across more than 1 distinct page
+    for (const [L, Pages] of LinePages.entries())
+    {
+        if (Pages.size > 1)
+        {
+            RepeatedSyncLines.add(L);
+        }
+    }
+
+    for (const [S, Pages] of SpanPages.entries())
+    {
+        if (Pages.size > 1)
+        {
+            RepeatedSyncSpans.add(S);
+        }
+    }
+
+    // Layer B: Detect FirstDocumentBodyLine (minimum source line on Page 1 not in repeated template chrome)
+    let MinBodyLine = Infinity;
+    for (let I = 0; I < SyncMap.length; I ++)
+    {
+        const Elem = SyncMap[I];
+        const PageNum = Elem.page || 1;
+        const LineNum = Elem.line || 1;
+        if (PageNum === 1 && !RepeatedSyncLines.has(LineNum))
+        {
+            if (LineNum < MinBodyLine)
+            {
+                MinBodyLine = LineNum;
+            }
+        }
+    }
+    FirstDocumentBodyLine = (MinBodyLine !== Infinity) ? MinBodyLine : 1;
 }
 
 async function EnsureSessionAuthToken()
@@ -3998,8 +4061,377 @@ CheckAndInit();
 );
 }
 
-let ActiveScrollSource = null;
-let ScrollSyncClearTimer = null;
+let ActiveScrollOwner = null;
+let ScrollOwnerClearTimer = null;
+let IsProgrammaticScrollSync = false;
+let ScrollSyncRafId = null;
+
+function SetScrollOwner(Owner)
+{
+    ActiveScrollOwner = Owner;
+    if (ScrollOwnerClearTimer)
+    {
+        clearTimeout(ScrollOwnerClearTimer);
+    }
+    ScrollOwnerClearTimer = setTimeout
+    (
+        () =>
+        {
+            ActiveScrollOwner = null;
+            ScrollOwnerClearTimer = null;
+        },
+        220
+    );
+}
+
+function RebuildMonotonicSyncAnchors()
+{
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport || !ActiveSyncMap || ActiveSyncMap.length === 0)
+    {
+        MonotonicSyncAnchors = [];
+        return ;
+    }
+
+    const PageSheets = document.querySelectorAll(".PageSheet");
+    if (!PageSheets || PageSheets.length === 0)
+    {
+        MonotonicSyncAnchors = [];
+        return ;
+    }
+
+    const ViewportRect = Viewport.getBoundingClientRect();
+    const PageMetrics = [];
+
+    for (let I = 0; I < PageSheets.length; I ++)
+    {
+        const Sheet = PageSheets[I];
+        const Rect = Sheet.getBoundingClientRect();
+        const BaseHeight = parseFloat(Sheet.dataset.baseHeight) || 864;
+        const TopInContent = (Rect.top - ViewportRect.top) + Viewport.scrollTop;
+        const ScaleY = BaseHeight > 0 ? (Rect.height / BaseHeight): 1;
+
+        PageMetrics.push
+        ({
+            PageNum: I + 1,
+            Top: TopInContent,
+            Height: Rect.height,
+            BaseHeight: BaseHeight,
+            ScaleY: ScaleY
+        });
+    }
+
+    const RawCandidates = [];
+
+    for (let I = 0; I < ActiveSyncMap.length; I ++)
+    {
+        const E = ActiveSyncMap[I];
+        const P = E.page || 1;
+        const L = E.line || 1;
+
+        // Layer A: Exclude repeated lines and repeated spans (running headers, footers, page numbers)
+        if (RepeatedSyncLines.has(L))
+        {
+            continue;
+        }
+        if (E.span && RepeatedSyncSpans.has(E.span))
+        {
+            continue;
+        }
+
+        // Layer B: Spatial margin guard: on pages >= 2, any line <= FirstDocumentBodyLine is preamble chrome
+        if (P >= 2 && L <= FirstDocumentBodyLine)
+        {
+            continue;
+        }
+
+        const Metric = PageMetrics[P - 1];
+        if (!Metric)
+        {
+            continue;
+        }
+
+        // Running header / footer zone guard: top 10% or bottom 10% margins with outlier lines
+        const IsTopMargin = E.y < (Metric.BaseHeight * 0.10);
+        const IsBottomMargin = E.y > (Metric.BaseHeight * 0.90);
+        if ((IsTopMargin || IsBottomMargin) && P >= 2 && L <= FirstDocumentBodyLine + 5)
+        {
+            continue;
+        }
+
+        const PreviewY = Metric.Top + (E.y * Metric.ScaleY);
+        RawCandidates.push
+        ({
+            previewY: PreviewY,
+            line: L
+        });
+    }
+
+    if (RawCandidates.length === 0)
+    {
+        MonotonicSyncAnchors = [];
+        return ;
+    }
+
+    RawCandidates.sort( (A, B) => A.previewY - B.previewY);
+
+    const TotalDocLines = (MonacoInstance && MonacoInstance.getModel()) ? MonacoInstance.getModel().getLineCount(): 1000;
+    const MaxPreviewY = Math.max(Viewport.scrollHeight, 1);
+
+    const Anchors = [];
+    Anchors.push
+    ({
+        previewY: 0,
+        line: 1
+    });
+
+    let LastLine = 1;
+    let LastY = 0;
+
+    for (let I = 0; I < RawCandidates.length; I ++)
+    {
+        const Cand = RawCandidates[I];
+
+        // Layer C: Outlier rejection: if line jumps backwards by > 8 lines, reject
+        if (Cand.line < LastLine)
+        {
+            if ((LastLine - Cand.line) > 8)
+            {
+                continue;
+            }
+            // Minor backward fluctuation (e.g. table columns): clamp to LastLine to preserve monotonicity
+            Cand.line = LastLine;
+        }
+
+        if (Math.abs(Cand.previewY - LastY) < 3 && Cand.line === LastLine)
+        {
+            continue;
+        }
+
+        Anchors.push
+        ({
+            previewY: Cand.previewY,
+            line: Cand.line
+        });
+
+        LastLine = Cand.line;
+        LastY = Cand.previewY;
+    }
+
+    if (Anchors[Anchors.length - 1].previewY < MaxPreviewY)
+    {
+        Anchors.push
+        ({
+            previewY: MaxPreviewY,
+            line: TotalDocLines
+        });
+    }
+
+    MonotonicSyncAnchors = Anchors;
+}
+
+function ExecutePreviewToEditorSync()
+{
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport || !MonacoInstance)
+    {
+        return ;
+    }
+
+    const ScrollTop = Viewport.scrollTop;
+    const ViewportHeight = Viewport.clientHeight;
+    const MaxPreviewScroll = Math.max(0, Viewport.scrollHeight - ViewportHeight);
+
+    if (ScrollTop <= 15)
+    {
+        if (MonacoInstance.getScrollTop() > 5)
+        {
+            IsProgrammaticScrollSync = true;
+            MonacoInstance.setScrollTop(0);
+            requestAnimationFrame
+            (
+                () => { IsProgrammaticScrollSync = false; }
+            );
+        }
+        return ;
+    }
+
+    const EditorLayout = MonacoInstance.getLayoutInfo();
+    const MaxEditorScroll = Math.max(0, MonacoInstance.getScrollHeight() - EditorLayout.height);
+
+    if (MaxPreviewScroll > 0 && ScrollTop >= MaxPreviewScroll - 15)
+    {
+        if (Math.abs(MonacoInstance.getScrollTop() - MaxEditorScroll) > 5)
+        {
+            IsProgrammaticScrollSync = true;
+            MonacoInstance.setScrollTop(MaxEditorScroll);
+            requestAnimationFrame
+            (
+                () => { IsProgrammaticScrollSync = false; }
+            );
+        }
+        return ;
+    }
+
+    if (!MonotonicSyncAnchors || MonotonicSyncAnchors.length === 0)
+    {
+        return ;
+    }
+
+    const ProbeY = ScrollTop + (ViewportHeight * 0.25);
+
+    let Low = 0;
+    let High = MonotonicSyncAnchors.length - 1;
+
+    while (Low <= High)
+    {
+        const Mid = Math.floor((Low + High) / 2);
+        if (MonotonicSyncAnchors[Mid].previewY <= ProbeY)
+        {
+            Low = Mid + 1;
+        }
+        else
+        {
+            High = Mid - 1;
+        }
+    }
+
+    const AnchorA = MonotonicSyncAnchors[High] || MonotonicSyncAnchors[0];
+    const AnchorB = MonotonicSyncAnchors[Low] || MonotonicSyncAnchors[MonotonicSyncAnchors.length - 1];
+
+    let InterpolatedLine = AnchorA.line;
+    if (AnchorA && AnchorB && AnchorA !== AnchorB && AnchorB.previewY > AnchorA.previewY)
+    {
+        const T = Math.max(0, Math.min(1, (ProbeY - AnchorA.previewY) / (AnchorB.previewY - AnchorA.previewY)));
+        InterpolatedLine = AnchorA.line + (T * (AnchorB.line - AnchorA.line));
+    }
+
+    const LineHeight = MonacoInstance.getOption(monaco.editor.EditorOption.lineHeight) || 22;
+    const TargetEditorTop = Math.max(0, Math.min((InterpolatedLine - 1) * LineHeight - (EditorLayout.height * 0.25), MaxEditorScroll));
+
+    if (Math.abs(MonacoInstance.getScrollTop() - TargetEditorTop) > 3)
+    {
+        IsProgrammaticScrollSync = true;
+        MonacoInstance.setScrollTop(TargetEditorTop);
+        requestAnimationFrame
+        (
+            () => { IsProgrammaticScrollSync = false; }
+        );
+    }
+}
+
+function ExecuteEditorToPreviewSync()
+{
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport || !MonacoInstance)
+    {
+        return ;
+    }
+
+    const ScrollTop = MonacoInstance.getScrollTop();
+    const Layout = MonacoInstance.getLayoutInfo();
+    const ScrollHeight = MonacoInstance.getScrollHeight();
+    const MaxEditorScroll = Math.max(0, ScrollHeight - Layout.height);
+
+    if (ScrollTop <= 10)
+    {
+        if (Viewport.scrollTop > 5)
+        {
+            IsProgrammaticScrollSync = true;
+            Viewport.scrollTop = 0;
+            requestAnimationFrame
+            (
+                () => { IsProgrammaticScrollSync = false; }
+            );
+        }
+        return ;
+    }
+
+    const ViewportHeight = Viewport.clientHeight;
+    const MaxPreviewScroll = Math.max(0, Viewport.scrollHeight - ViewportHeight);
+
+    if (MaxEditorScroll > 0 && ScrollTop >= MaxEditorScroll - 15)
+    {
+        if (Math.abs(Viewport.scrollTop - MaxPreviewScroll) > 5)
+        {
+            IsProgrammaticScrollSync = true;
+            Viewport.scrollTop = MaxPreviewScroll;
+            requestAnimationFrame
+            (
+                () => { IsProgrammaticScrollSync = false; }
+            );
+        }
+        return ;
+    }
+
+    if (!MonotonicSyncAnchors || MonotonicSyncAnchors.length === 0)
+    {
+        return ;
+    }
+
+    const LineHeight = MonacoInstance.getOption(monaco.editor.EditorOption.lineHeight) || 22;
+    const ReferenceLine = (ScrollTop + (Layout.height * 0.25)) / LineHeight + 1;
+
+    let TargetPreviewY = 0;
+
+    // Layer 2: Preamble protection
+    if (ReferenceLine <= FirstDocumentBodyLine)
+    {
+        const FirstBodyAnchor = MonotonicSyncAnchors.find( (A) => A.line >= FirstDocumentBodyLine) || MonotonicSyncAnchors[1];
+        if (FirstBodyAnchor && FirstBodyAnchor.line > 1)
+        {
+            const T = Math.max(0, Math.min(1, (ReferenceLine - 1) / (FirstBodyAnchor.line - 1)));
+            TargetPreviewY = T * FirstBodyAnchor.previewY;
+        }
+        else
+        {
+            TargetPreviewY = 0;
+        }
+    }
+    else
+    {
+        let Low = 0;
+        let High = MonotonicSyncAnchors.length - 1;
+
+        while (Low <= High)
+        {
+            const Mid = Math.floor((Low + High) / 2);
+            if (MonotonicSyncAnchors[Mid].line <= ReferenceLine)
+            {
+                Low = Mid + 1;
+            }
+            else
+            {
+                High = Mid - 1;
+            }
+        }
+
+        const AnchorA = MonotonicSyncAnchors[High] || MonotonicSyncAnchors[0];
+        const AnchorB = MonotonicSyncAnchors[Low] || MonotonicSyncAnchors[MonotonicSyncAnchors.length - 1];
+
+        if (AnchorA && AnchorB && AnchorA !== AnchorB && AnchorB.line > AnchorA.line)
+        {
+            const T = Math.max(0, Math.min(1, (ReferenceLine - AnchorA.line) / (AnchorB.line - AnchorA.line)));
+            TargetPreviewY = AnchorA.previewY + (T * (AnchorB.previewY - AnchorA.previewY));
+        }
+        else if (AnchorA)
+        {
+            TargetPreviewY = AnchorA.previewY;
+        }
+    }
+
+    const TargetScrollTop = Math.max(0, Math.min(TargetPreviewY - (ViewportHeight * 0.25), MaxPreviewScroll));
+
+    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 3)
+    {
+        IsProgrammaticScrollSync = true;
+        Viewport.scrollTop = TargetScrollTop;
+        requestAnimationFrame
+        (
+            () => { IsProgrammaticScrollSync = false; }
+        );
+    }
+}
 
 function SetupBidirectionalScrollSync()
 {
@@ -4009,7 +4441,67 @@ function SetupBidirectionalScrollSync()
         return ;
     }
 
-    // 1. Monaco -> Preview scroll sync (tied to Real-Time toggle)
+    const EditorDomNode = MonacoInstance.getDomNode();
+    if (EditorDomNode)
+    {
+        EditorDomNode.addEventListener
+        (
+            "wheel",
+            () => { SetScrollOwner("editor"); },
+            { passive: true }
+        );
+        EditorDomNode.addEventListener
+        (
+            "pointerdown",
+            () => { SetScrollOwner("editor"); },
+            { passive: true }
+        );
+        EditorDomNode.addEventListener
+        (
+            "keydown",
+            (E) =>
+            {
+                if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(E.key))
+                {
+                    SetScrollOwner("editor");
+                }
+            },
+            { passive: true }
+        );
+    }
+
+    Viewport.addEventListener
+    (
+        "wheel",
+        () => { SetScrollOwner("preview"); },
+        { passive: true }
+    );
+    Viewport.addEventListener
+    (
+        "pointerdown",
+        () => { SetScrollOwner("preview"); },
+        { passive: true }
+    );
+    Viewport.addEventListener
+    (
+        "touchstart",
+        () => { SetScrollOwner("preview"); },
+        { passive: true }
+    );
+    Viewport.addEventListener
+    (
+        "keydown",
+        (E) =>
+        {
+            if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(E.key))
+            {
+                SetScrollOwner("preview");
+            }
+        },
+        { passive: true }
+    );
+
+    // 1. Monaco -> Preview scroll sync
     MonacoInstance.onDidScrollChange
     (
         (Event) =>
@@ -4020,97 +4512,37 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            // Suppress echo if the preview was the source of this scroll
-            if (ActiveScrollSource === "preview")
+            if (IsProgrammaticScrollSync)
             {
                 return ;
             }
 
-            ActiveScrollSource = "editor";
-            clearTimeout(ScrollSyncClearTimer);
-            ScrollSyncClearTimer = setTimeout
+            if (ActiveScrollOwner === "preview")
+            {
+                return ;
+            }
+
+            if (!ActiveScrollOwner)
+            {
+                SetScrollOwner("editor");
+            }
+
+            if (ScrollSyncRafId)
+            {
+                cancelAnimationFrame(ScrollSyncRafId);
+            }
+
+            ScrollSyncRafId = requestAnimationFrame
             (
-                () => { ActiveScrollSource = null; },
-                200
-            );
-
-            const ScrollTop = MonacoInstance.getScrollTop();
-            if (ScrollTop < 10)
-            {
-                Viewport.scrollTo
-                ({
-                    top: 0,
-                    behavior: "auto"
-                });
-                return ;
-            }
-
-            const Layout = MonacoInstance.getLayoutInfo();
-            const ScrollHeight = MonacoInstance.getScrollHeight();
-            if (ScrollTop + Layout.height >= ScrollHeight - 15)
-            {
-                Viewport.scrollTo
-                ({
-                    top: Viewport.scrollHeight,
-                    behavior: "auto"
-                });
-                return ;
-            }
-
-            const VisibleRanges = MonacoInstance.getVisibleRanges();
-            if (!VisibleRanges || VisibleRanges.length === 0)
-            {
-                return ;
-            }
-
-            const TopLine = VisibleRanges[0].startLineNumber;
-            let TargetElem = null;
-
-            for (let L = TopLine; L <= TopLine + 25; L ++)
-            {
-                if (ActiveSyncMapByLine && ActiveSyncMapByLine.has(L))
+                () =>
                 {
-                    const List = ActiveSyncMapByLine.get(L);
-                    if (List && List.length > 0)
-                    {
-                        TargetElem = List[0];
-                        break;
-                    }
+                    ExecuteEditorToPreviewSync();
                 }
-            }
-
-            if (!TargetElem)
-            {
-                return ;
-            }
-
-            const PageNum = TargetElem.page || 1;
-            const PageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
-            if (!PageSheet)
-            {
-                return ;
-            }
-
-            const VbH = parseFloat(PageSheet.dataset.baseHeight) || 864;
-            const PageRect = PageSheet.getBoundingClientRect();
-            const ViewportRect = Viewport.getBoundingClientRect();
-            const ScaleY = PageRect.height / VbH;
-
-            const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
-            const TargetScrollTop = SheetTopInContent + (TargetElem.y * ScaleY) - 50;
-
-            if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 30)
-            {
-                Viewport.scrollTo
-                ({
-                    top: Math.max(0, TargetScrollTop),
-                    behavior: "auto"
-                });
-            }
+            );
         }
     );
 
-    // 2. Preview -> Monaco scroll sync (tied to Real-Time toggle)
+    // 2. Preview -> Monaco scroll sync
     Viewport.addEventListener
     (
         "scroll",
@@ -4122,85 +4554,33 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            // Suppress echo if the editor was the source of this scroll
-            if (ActiveScrollSource === "editor")
+            if (IsProgrammaticScrollSync)
             {
                 return ;
             }
 
-            ActiveScrollSource = "preview";
-            clearTimeout(ScrollSyncClearTimer);
-            ScrollSyncClearTimer = setTimeout
+            if (ActiveScrollOwner === "editor")
+            {
+                return ;
+            }
+
+            if (!ActiveScrollOwner)
+            {
+                SetScrollOwner("preview");
+            }
+
+            if (ScrollSyncRafId)
+            {
+                cancelAnimationFrame(ScrollSyncRafId);
+            }
+
+            ScrollSyncRafId = requestAnimationFrame
             (
-                () => { ActiveScrollSource = null; },
-                200
+                () =>
+                {
+                    ExecutePreviewToEditorSync();
+                }
             );
-
-            if (Viewport.scrollTop < 15)
-            {
-                MonacoInstance.revealLine(1);
-                return ;
-            }
-
-            const PageSheets = document.querySelectorAll(".PageSheet");
-            if (!PageSheets || PageSheets.length === 0 || !ActiveSyncMap || ActiveSyncMap.length === 0)
-            {
-                return ;
-            }
-
-            const ViewportRect = Viewport.getBoundingClientRect();
-            let ActiveSheet = PageSheets[0];
-            let ActivePageNum = 1;
-
-            for (let I = 0; I < PageSheets.length; I ++)
-            {
-                const Sheet = PageSheets[I];
-                const SheetRect = Sheet.getBoundingClientRect();
-                const SheetBottomInViewport = SheetRect.bottom - ViewportRect.top;
-                if (SheetBottomInViewport > 80)
-                {
-                    ActiveSheet = Sheet;
-                    ActivePageNum = I + 1;
-                    break;
-                }
-            }
-
-            const VbH = parseFloat(ActiveSheet.dataset.baseHeight) || 864;
-            const SheetRect = ActiveSheet.getBoundingClientRect();
-            const ScaleY = SheetRect.height / VbH;
-            const RelativeY = (ViewportRect.top + 80 - SheetRect.top) / ScaleY;
-
-            if (RelativeY < 0 && ActivePageNum === 1)
-            {
-                return ;
-            }
-
-            const PageElems = ActiveSyncMap.filter( (E) => (E.page || 1) === ActivePageNum);
-            if (PageElems.length === 0)
-            {
-                return ;
-            }
-
-            let ClosestElem = null;
-            let MinDist = Infinity;
-            for (const Elem of PageElems)
-            {
-                const Dist = Math.abs(Elem.y - RelativeY);
-                if (Dist < MinDist)
-                {
-                    MinDist = Dist;
-                    ClosestElem = Elem;
-                }
-            }
-
-            if (ClosestElem && ClosestElem.line && ClosestElem.line > 0)
-            {
-                const CurrentTopLine = MonacoInstance.getVisibleRanges()[0] ? MonacoInstance.getVisibleRanges()[0].startLineNumber: 1;
-                if (Math.abs(CurrentTopLine - ClosestElem.line) > 3)
-                {
-                    MonacoInstance.revealLineInCenterIfOutsideViewport(ClosestElem.line);
-                }
-            }
         },
         { passive: true }
     );
@@ -4384,6 +4764,7 @@ async function TriggerCompileNow()
             ActiveSyncMap = RawSyncMap;
             RebuildSyncMapIndex(ActiveSyncMap);
             RenderPages(Result.Pages);
+            RebuildMonotonicSyncAnchors();
             UpdatePagination();
             if (ActiveHighlightBoxes && ActiveHighlightBoxes.length > 0)
             {
@@ -4990,11 +5371,58 @@ function RenderPages(Pages)
     {
         PagesContainer.removeChild(PagesContainer.lastChild);
     }
-    // Render the first 2 pages immediately
-    const InitialBatchCount = Math.min(Pages.length, 2);
-    for (let I = 0; I < InitialBatchCount; I ++)
+
+    // Ensure layout container shells for ALL pages exist immediately with explicit dimensions
+    // This prevents scrollHeight collapse, keeps scroll offsets valid, and avoids blank viewport flashing
+    for (let I = 0; I < Pages.length; I ++)
+    {
+        const PageId = `PageSheet_${I + 1}`;
+        let PageDiv = document.getElementById(PageId);
+        if (!PageDiv)
+        {
+            PageDiv = document.createElement("div");
+            PageDiv.className = "PageSheet";
+            PageDiv.id = PageId;
+            PagesContainer.appendChild(PageDiv);
+        }
+
+        const SvgContent = Pages[I];
+        const VbMatch = SvgContent.match(/viewBox\s*=\s*["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i);
+        let BaseWidthPx = 576;
+        let BaseHeightPx = 864;
+
+        if (VbMatch)
+        {
+            const WidthPt = parseFloat(VbMatch[3]);
+            const HeightPt = parseFloat(VbMatch[4]);
+            BaseWidthPx = WidthPt * (96 / 72);
+            BaseHeightPx = HeightPt * (96 / 72);
+        }
+
+        PageDiv.dataset.baseWidth = BaseWidthPx;
+        PageDiv.dataset.baseHeight = BaseHeightPx;
+
+        const ScaledWidth = Math.round(BaseWidthPx * CurrentZoomLevel);
+        const ScaledHeight = Math.round(BaseHeightPx * CurrentZoomLevel);
+
+        PageDiv.style.width = `${ScaledWidth}px`;
+        PageDiv.style.height = `${ScaledHeight}px`;
+    }
+
+    // Render pages in the active viewport and overscan zones immediately
+    const ApproxPageH = (864 * CurrentZoomLevel) + 24;
+    const CurrentPageEst = Math.max(0, Math.floor(PrevScrollTop / ApproxPageH));
+    const ImmediateStart = Math.max(0, CurrentPageEst - 1);
+    const ImmediateEnd = Math.min(Pages.length, CurrentPageEst + 3);
+
+    for (let I = ImmediateStart; I < ImmediateEnd; I ++)
     {
         UpdateOrCreatePageElement(Pages[I], I);
+    }
+
+    if (ImmediateStart > 0)
+    {
+        UpdateOrCreatePageElement(Pages[0], 0);
     }
 
     if (Viewport && (PrevScrollTop > 0 || PrevScrollLeft > 0))
@@ -5002,32 +5430,41 @@ function RenderPages(Pages)
         Viewport.scrollTop = PrevScrollTop;
         Viewport.scrollLeft = PrevScrollLeft;
     }
-    // If more pages exist, stream them progressively via requestAnimationFrame
-    if (Pages.length > InitialBatchCount)
+
+    // If more unpopulated pages exist, stream them progressively via requestAnimationFrame
+    let NextStreamIndex = 0;
+    function RenderRemainingPages()
     {
-        let CurrentIndex = InitialBatchCount;
-        function RenderNextBatch()
+        if (CurrentToken !== RenderToken)
         {
-            if (CurrentToken !== RenderToken)
-            {
-                return ;
-                // Newer render has started
-            }
-            const ChunkSize = Pages.length > 20 ? 2: 3;
-            const ChunkLimit = Math.min(Pages.length, CurrentIndex + ChunkSize);
-            for (; CurrentIndex < ChunkLimit; CurrentIndex ++)
-            {
-                UpdateOrCreatePageElement(Pages[CurrentIndex], CurrentIndex);
-            }
-            if (CurrentIndex < Pages.length)
-            {
-                requestAnimationFrame(RenderNextBatch);
-            }
+            return ;
+            // Newer render has started
         }
-        requestAnimationFrame(RenderNextBatch);
+        let ProcessedCount = 0;
+        while (NextStreamIndex < Pages.length && ProcessedCount < 3)
+        {
+            const PageDiv = document.getElementById(`PageSheet_${NextStreamIndex + 1}`);
+            if (!PageDiv || PageDiv.children.length === 0)
+            {
+                UpdateOrCreatePageElement(Pages[NextStreamIndex], NextStreamIndex);
+                ProcessedCount ++;
+            }
+            NextStreamIndex ++;
+        }
+
+        if (NextStreamIndex < Pages.length)
+        {
+            requestAnimationFrame(RenderRemainingPages);
+        }
+        else
+        {
+            RebuildMonotonicSyncAnchors();
+        }
     }
+    requestAnimationFrame(RenderRemainingPages);
 
     UpdateBlackPageMode();
+    RebuildMonotonicSyncAnchors();
 }
 
 function ShowCompilationError(ErrorMessage)
@@ -5109,6 +5546,7 @@ function ApplyZoom()
         }
     );
     document.getElementById("ZoomDisplay").textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+    RebuildMonotonicSyncAnchors();
 }
 
 function RecalculateScale()
@@ -6797,7 +7235,29 @@ function SetupSplitResizer()
                     }
                     catch (Ignored) {}
                 }
+                RebuildMonotonicSyncAnchors();
             }
+        }
+    );
+
+    let SplitResizeDebounceTimer = null;
+    window.addEventListener
+    (
+        "resize",
+        () =>
+        {
+            if (SplitResizeDebounceTimer)
+            {
+                clearTimeout(SplitResizeDebounceTimer);
+            }
+            SplitResizeDebounceTimer = setTimeout
+            (
+                () =>
+                {
+                    RebuildMonotonicSyncAnchors();
+                },
+                150
+            );
         }
     );
 }
@@ -10757,7 +11217,10 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
     }
 
     const ScrollTargetPage = Boxes[0].page || 1;
-    let PrimaryPageSheet = document.getElementById(`PageSheet_${ScrollTargetPage}`) || document.querySelectorAll(".PageSheet")[ScrollTargetPage - 1];
+    const FirstBoxLine = Boxes[0].line || 0;
+    const IsPreambleOrRepeated = FirstBoxLine > 0 && (FirstBoxLine <= FirstDocumentBodyLine || RepeatedSyncLines.has(FirstBoxLine));
+    const EffectiveTargetPage = IsPreambleOrRepeated ? 1: ScrollTargetPage;
+    let PrimaryPageSheet = document.getElementById(`PageSheet_${EffectiveTargetPage}`) || document.querySelectorAll(".PageSheet")[EffectiveTargetPage - 1];
     let PrimaryTopY = Infinity;
 
     for (const[PageNum, PageBoxes] of PageBoxesMap.entries())
@@ -10863,7 +11326,16 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             // Invariant Sheet top relative to scroll container content
             const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
             const TargetContentY = SheetTopInContent + (PrimaryTopY * ScaleY);
-            const TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
+            let TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
+            if (IsPreambleOrRepeated)
+            {
+                TargetScrollTop = 0;
+            }
+            else
+            {
+                const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
+                TargetScrollTop = Math.max(0, Math.min(TargetScrollTop, MaxScroll));
+            }
 
             // Only scroll if difference is noticeable (> 60px) to prevent scroll bounce/jitter
             const CurrentDiff = Math.abs(Viewport.scrollTop - TargetScrollTop);
@@ -11206,6 +11678,27 @@ function ScrollPreviewToNearestLine(TargetLine)
         return ;
     }
 
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport)
+    {
+        return ;
+    }
+
+    // Preamble guard: if target line is <= FirstDocumentBodyLine or in RepeatedSyncLines, anchor cleanly to Page 1 top
+    if (TargetLine <= FirstDocumentBodyLine || RepeatedSyncLines.has(TargetLine))
+    {
+        if (Viewport.scrollTop > 10)
+        {
+            const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+            Viewport.scrollTo
+            ({
+                top: 0,
+                behavior: ScrollBehavior
+            });
+        }
+        return ;
+    }
+
     let BestLine = null;
     let BestDist = Infinity;
 
@@ -11215,7 +11708,7 @@ function ScrollPreviewToNearestLine(TargetLine)
         const CheckLines = [TargetLine + Offset, TargetLine - Offset];
         for (const CL of CheckLines)
         {
-            if (CL >= 1 && ActiveSyncMapByLine.has(CL))
+            if (CL >= 1 && ActiveSyncMapByLine.has(CL) && CL > FirstDocumentBodyLine && !RepeatedSyncLines.has(CL))
             {
                 const Candidates = ActiveSyncMapByLine.get(CL);
                 if (Candidates && Candidates.length > 0)
@@ -11251,12 +11744,6 @@ function ScrollPreviewToNearestLine(TargetLine)
         return ;
     }
 
-    const Viewport = document.getElementById("PreviewViewport");
-    if (!Viewport)
-    {
-        return ;
-    }
-
     const ViewportRect = Viewport.getBoundingClientRect();
     const PageRect = TargetPageSheet.getBoundingClientRect();
     const VbH = parseFloat(TargetPageSheet.dataset.baseHeight) || 864;
@@ -11265,7 +11752,8 @@ function ScrollPreviewToNearestLine(TargetLine)
     // Invariant Sheet top relative to scroll container content
     const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
     const TargetContentY = SheetTopInContent + (FirstElem.y * ScaleY);
-    const TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
+    const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
+    const TargetScrollTop = Math.max(0, Math.min(TargetContentY - (Viewport.clientHeight / 2), MaxScroll));
 
     if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 60)
     {
@@ -11283,6 +11771,25 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
     {
         ClearSyncHighlights();
+        return ;
+    }
+
+    if (Line <= FirstDocumentBodyLine || RepeatedSyncLines.has(Line))
+    {
+        ClearSyncHighlights();
+        if (ForceAutoScroll)
+        {
+            const Viewport = document.getElementById("PreviewViewport");
+            if (Viewport && Viewport.scrollTop > 10)
+            {
+                const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+                Viewport.scrollTo
+                ({
+                    top: 0,
+                    behavior: ScrollBehavior
+                });
+            }
+        }
         return ;
     }
 
@@ -11405,6 +11912,10 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     (
         (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
     );
+    if (RepeatedSyncLines.has(Line))
+    {
+        SameLineCandidates = SameLineCandidates.filter( (Elem) => (Elem.page || 1) === 1);
+    }
 
     if (SameLineCandidates.length > 0)
     {
