@@ -6226,7 +6226,8 @@ body.UIMode_Focus .PreviewToolbar:hover
 #KeybindingsManagerView,
 #KeybindingsRecordingBanner,
 #CommandPaletteModal,
-#LigaturesModal
+#LigaturesModal,
+#TimeMachineModal
 {
     display: none;
 }

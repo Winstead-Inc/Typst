@@ -1248,7 +1248,7 @@
     </div>
 
     <!-- Time Machine for Words Modal (Phase 7.5) -->
-    <div Class = "ModalOverlay" Id = "TimeMachineModal" Role = "dialog" Aria-Label = "Time Machine for Words">
+    <div Class = "ModalOverlay" Id = "TimeMachineModal" Role = "dialog" Aria-Label = "Time Machine for Words" Style = "display: none;">
         <div Class = "ModalDialog TimeMachineModalDialog">
             <div Class = "ModalHeader">
                 <div Class = "ModalHeaderTitle">
@@ -1258,7 +1258,7 @@
                 </div>
                 <div Class = "TimeMachineHeaderActions">
                     <span Id = "TimeMachineWordDeltaBadge" Class = "TimeMachineDeltaBadge">+0 words</span>
-                    <button Type = "button" Id = "CloseTimeMachineModalBtn" Class = "MiniCloseBtn" Title = "Close Time Machine (Escape)" Aria-Label = "Close Time Machine">×</button>
+                    <button Type = "button" Id = "CloseTimeMachineModalBtn" Class = "MiniCloseBtn" onclick = "CloseTimeMachine()" Title = "Close Time Machine (Escape)" Aria-Label = "Close Time Machine">×</button>
                 </div>
             </div>
             <div Class = "ModalBody TimeMachineModalBody">
@@ -1295,7 +1295,7 @@
                 <div Class = "TimeMachineModalFooter">
                     <button Type = "button" Id = "CopyTimeMachineSnapshotBtn" Class = "Button Secondary" Title = "Copy snapshot content to clipboard" Aria-Label = "Copy Snapshot Text">Copy Snapshot Text</button>
                     <div Class = "TimeMachineFooterRight">
-                        <button Type = "button" Id = "CancelTimeMachineBtn" Class = "Button Secondary" Title = "Cancel and close Time Machine" Aria-Label = "Cancel">Cancel</button>
+                        <button Type = "button" Id = "CancelTimeMachineBtn" Class = "Button Secondary" onclick = "CloseTimeMachine()" Title = "Cancel and close Time Machine" Aria-Label = "Cancel">Cancel</button>
                         <button Type = "button" Id = "RestoreTimeMachineSnapshotBtn" Class = "Button Primary" Title = "Safely restore document to this version (creates a safety checkpoint first)" Aria-Label = "Restore This Version">Restore This Version</button>
                     </div>
                 </div>

@@ -8513,6 +8513,7 @@ async function OpenTimeMachine()
     }
 
     Modal.classList.add("Active");
+    Modal.style.display = "flex";
 
     let Snapshots = [];
     if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
@@ -8571,6 +8572,7 @@ function CloseTimeMachine()
     if (Modal)
     {
         Modal.classList.remove("Active");
+        Modal.style.display = "none";
     }
 }
 
@@ -11808,7 +11810,7 @@ function SetupEventListeners()
             else if (E.key === "Escape")
             {
                 const TimeMachineModalEl = document.getElementById("TimeMachineModal");
-                if (TimeMachineModalEl && TimeMachineModalEl.classList.contains("Active"))
+                if (TimeMachineModalEl && (TimeMachineModalEl.classList.contains("Active") || TimeMachineModalEl.style.display === "flex" || getComputedStyle(TimeMachineModalEl).display !== "none"))
                 {
                     E.preventDefault();
                     CloseTimeMachine();
