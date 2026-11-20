@@ -582,6 +582,8 @@ if (isNaN(CurrentZoomLevel) || CurrentZoomLevel < 0.25 || CurrentZoomLevel > 5.0
 let IsCompiling = false;
 let HasPendingCompile = false;
 let CompileGeneration = 0;
+let ActiveCompileGeneration = 0;
+let ActiveDocumentCanonicalPath = "";
 let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
@@ -4811,6 +4813,8 @@ async function TriggerCompileNow()
     }
     IsCompiling = true;
     const ThisCompileGen = ++ CompileGeneration;
+    ActiveCompileGeneration = ThisCompileGen;
+    const RequestDocPath = ActiveDocumentCanonicalPath || CurrentFilePath || "";
 
     // Cancel any in-flight compilation request to avoid network and backend queue collisions
     if (ActiveAbortController)
@@ -4877,7 +4881,7 @@ async function TriggerCompileNow()
                 }
             );
 
-            if (ThisCompileGen !== CompileGeneration)
+            if (ThisCompileGen !== CompileGeneration || RequestDocPath !== (ActiveDocumentCanonicalPath || CurrentFilePath || ""))
             {
                 return ;
             }
@@ -4917,6 +4921,11 @@ async function TriggerCompileNow()
             );
 
             Result = await Response.json();
+
+            if (ThisCompileGen !== CompileGeneration || RequestDocPath !== (ActiveDocumentCanonicalPath || CurrentFilePath || ""))
+            {
+                return ;
+            }
         }
 
         if (Result.Aborted)
@@ -5034,14 +5043,27 @@ function FastHash(Str)
     }
 
     let Hash = 2166136261;
-    const Step = Math.max(1, Math.floor(Str.length / 500));
-    for (let I = 0; I < Str.length; I += Step)
+    const Len = Str.length;
+    const PrefixLen = Math.min(Len, 128);
+    for (let I = 0; I < PrefixLen; I ++)
+    {
+        Hash ^= Str.charCodeAt(I);
+        Hash = Math.imul(Hash, 16777619);
+    }
+    const Step = Math.max(1, Math.floor(Len / 300));
+    for (let I = PrefixLen; I < Len - 128; I += Step)
+    {
+        Hash ^= Str.charCodeAt(I);
+        Hash = Math.imul(Hash, 16777619);
+    }
+    const SuffixStart = Math.max(0, Len - 128);
+    for (let I = SuffixStart; I < Len; I ++)
     {
         Hash ^= Str.charCodeAt(I);
         Hash = Math.imul(Hash, 16777619);
     }
 
-    return (Hash >>> 0).toString(36) + "_" + Str.length;
+    return (Hash >>> 0).toString(36) + "_" + Len;
 }
 
 const InvertShapeColorCache = new Map();
@@ -5334,7 +5356,8 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         return Svg;
     }
 
-    const SvgKey = FastHash(Svg) + "_" + Mode + (Transparent ? "_trans": "_solid");
+    const DocPrefix = ActiveDocumentCanonicalPath || CurrentFilePath || "doc";
+    const SvgKey = `${DocPrefix}::${FastHash(Svg)}_${Mode}${Transparent ? "_trans": "_solid"}`;
     const Cached = SvgDarkModeCache.get(SvgKey);
     if (Cached)
     {
@@ -5521,10 +5544,16 @@ function RenderPages(Pages)
         let PageDiv = document.getElementById(PageId);
         const ContentHash = FastHash(SvgContent);
         const ModeKey = CurrentPaperColorMode;
+        const CurrentDocKey = ActiveDocumentCanonicalPath || CurrentFilePath || "";
+        const CurrentGenKey = String(ActiveCompileGeneration || CompileGeneration);
 
         if (PageDiv)
         {
-            if (PageDiv.dataset.svgHash === ContentHash && PageDiv.dataset.svgMode === ModeKey)
+            if (
+                PageDiv.dataset.docPath === CurrentDocKey &&
+                PageDiv.dataset.svgHash === ContentHash &&
+                PageDiv.dataset.svgMode === ModeKey
+            )
             {
                 // Unchanged page! Skip DOM recreation completely
                 return PageDiv;
@@ -5539,6 +5568,8 @@ function RenderPages(Pages)
             PagesContainer.appendChild(PageDiv);
         }
 
+        PageDiv.dataset.docPath = CurrentDocKey;
+        PageDiv.dataset.compileGen = CurrentGenKey;
         PageDiv.dataset.svgHash = ContentHash;
         PageDiv.dataset.svgMode = ModeKey;
 
@@ -5649,7 +5680,12 @@ function RenderPages(Pages)
         while (NextStreamIndex < Pages.length && ProcessedCount < 3)
         {
             const PageDiv = document.getElementById(`PageSheet_${NextStreamIndex + 1}`);
-            if (!PageDiv || PageDiv.children.length === 0)
+            const CurrentDocKey = ActiveDocumentCanonicalPath || CurrentFilePath || "";
+            const NeedsRender = !PageDiv ||
+                PageDiv.children.length === 0 ||
+                PageDiv.dataset.docPath !== CurrentDocKey;
+
+            if (NeedsRender)
             {
                 UpdateOrCreatePageElement(Pages[NextStreamIndex], NextStreamIndex);
                 ProcessedCount ++;
@@ -11996,6 +12032,7 @@ async function OpenFileFromWorkspace(FilePath)
         if (Content !== undefined)
         {
             CurrentFilePath = FilePath;
+            ActiveDocumentCanonicalPath = FilePath;
             const FileName = FilePath.split(/[\\/]/).pop();
             const TitleInput = document.getElementById("DocumentTitleInput");
             if (TitleInput)
@@ -12622,18 +12659,38 @@ function SwitchToTab(FilePath)
         return ;
     }
 
-    ActiveTabPath = FilePath;
-    localStorage.setItem("TypstStudio_ActiveTab", FilePath);
+    const Normalized = FilePath.trim();
+    ActiveTabPath = Normalized;
+    ActiveDocumentCanonicalPath = Normalized;
+    CurrentFilePath = Normalized;
+    ActiveCompileGeneration ++;
+    CompileGeneration ++;
+    RenderToken ++;
+
+    localStorage.setItem("TypstStudio_ActiveTab", Normalized);
     RenderEditorTabs();
-    HighlightActiveTreeFile(FilePath);
+    HighlightActiveTreeFile(Normalized);
 
     const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
-    if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase() && CurrentContent.length > 0)
+    if (CurrentFilePath && CurrentFilePath.toLowerCase() === Normalized.toLowerCase() && CurrentContent.length > 0)
     {
         return ;
     }
 
-    OpenFileFromWorkspace(FilePath);
+    // Teardown stale document preview state to prevent cross-document contamination
+    const PagesContainer = document.getElementById("PagesContainer");
+    if (PagesContainer)
+    {
+        PagesContainer.innerHTML = "";
+    }
+    LastCompiledPages = [];
+    ActiveSyncMap = [];
+    ActiveSpanMap = {};
+    ActiveSyncMapByLine = new Map();
+    MonotonicSyncAnchors = [];
+    ClearSyncHighlights();
+
+    OpenFileFromWorkspace(Normalized);
 }
 
 function CloseTab(FilePath)
