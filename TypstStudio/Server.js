@@ -3046,6 +3046,66 @@ async function HandleRemoveDirectory(Request, Response)
     }
 }
 
+async function HandleListFiles(Request, Response, TargetDir)
+{
+    try
+    {
+        const Dirs = GetTrackedDirectories();
+        const BaseDir = TargetDir || Dirs[0] || process.cwd();
+        const Entries = await FSPromises.readdir(BaseDir, { withFileTypes: true });
+        const Results = [];
+
+        for (const Entry of Entries)
+        {
+            if (Entry.name === ".git" || Entry.name === "target" || Entry.name === "node_modules")
+            {
+                continue;
+            }
+            const FullPath = Path.join(BaseDir, Entry.name);
+            const IsDir = Entry.isDirectory();
+            let Size = 0;
+            if (!IsDir)
+            {
+                try
+                {
+                    const Stat = await FSPromises.stat(FullPath);
+                    Size = Stat.size;
+                }
+                catch (Ignored)
+                {
+                }
+            }
+            Results.push
+            ({
+                name: Entry.name,
+                path: FullPath,
+                is_dir: IsDir,
+                size: Size
+            });
+        }
+
+        Results.sort
+        (
+            (A, B) =>
+            {
+                if (A.is_dir !== B.is_dir)
+                {
+                    return B.is_dir ? - 1: 1;
+                }
+                return A.name.toLowerCase().localeCompare(B.name.toLowerCase());
+            }
+        );
+
+        Response.writeHead(200, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify( { Success: true, Files: Results }));
+    }
+    catch (E)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify( { Success: false, Error: E.message, Files: [] }));
+    }
+}
+
 async function HandleReadFile(Request, Response, FilePath)
 {
     try
@@ -3496,7 +3556,7 @@ async function HandlePickFolder(Request, Response)
             {
                 const PickerResult = await ExecuteCommand
                 (
-                    WinPickerBin,["Select Typst Projects Directory"], { timeout: 180000, windowsHide: false }
+                    WinPickerBin,["Select Typst Projects Directory"], { timeout: 180000, windowsHide: true }
                 );
                 Selected = (PickerResult.Stdout || "").trim();
             }
@@ -3529,7 +3589,7 @@ async function HandlePickFolder(Request, Response)
 
                 let Result = await ExecuteCommand
                 (
-                    "powershell",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: false }
+                    "powershell",["-NoProfile", "-STA", "-Command", PsCommand], { timeout: 180000, windowsHide: true }
                 );
 
                 Selected = (Result.Stdout || "").trim();
@@ -4162,6 +4222,13 @@ const Server = HTTP.createServer
         if (Request.method === "DELETE" && Pathname === "/api/workspace/directory")
         {
             await HandleRemoveDirectory(Request, Response);
+            return ;
+        }
+
+        if (Request.method === "GET" && Pathname === "/api/workspace/list")
+        {
+            const TargetDir = URLInstance.searchParams.get("dir");
+            await HandleListFiles(Request, Response, TargetDir);
             return ;
         }
 

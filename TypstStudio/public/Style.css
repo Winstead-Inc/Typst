@@ -1,5 +1,221 @@
 @font-face
 {
+    font-family: "iA Writer Duo";
+    src: local("iA Writer Duo"),
+         local("iA Writer Duo S"),
+         local("iAWriterDuoS-Regular"),
+         url("fonts/iAWriterDuoS-Regular.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo";
+    src: local("iA Writer Duo Italic"),
+         local("iA Writer Duo S Italic"),
+         local("iAWriterDuoS-Italic"),
+         url("fonts/iAWriterDuoS-Italic.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Italic.ttf") format("truetype");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo";
+    src: local("iA Writer Duo Bold"),
+         local("iA Writer Duo S Bold"),
+         local("iAWriterDuoS-Bold"),
+         url("fonts/iAWriterDuoS-Bold.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo";
+    src: local("iA Writer Duo Bold Italic"),
+         local("iA Writer Duo S Bold Italic"),
+         local("iAWriterDuoS-BoldItalic"),
+         url("fonts/iAWriterDuoS-BoldItalic.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-BoldItalic.ttf") format("truetype");
+    font-weight: 700;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo S";
+    src: local("iA Writer Duo S"),
+         local("iA Writer Duo"),
+         local("iAWriterDuoS-Regular"),
+         url("fonts/iAWriterDuoS-Regular.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo S";
+    src: local("iA Writer Duo S Italic"),
+         local("iA Writer Duo Italic"),
+         local("iAWriterDuoS-Italic"),
+         url("fonts/iAWriterDuoS-Italic.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Italic.ttf") format("truetype");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo S";
+    src: local("iA Writer Duo S Bold"),
+         local("iA Writer Duo Bold"),
+         local("iAWriterDuoS-Bold"),
+         url("fonts/iAWriterDuoS-Bold.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "iA Writer Duo S";
+    src: local("iA Writer Duo S Bold Italic"),
+         local("iA Writer Duo Bold Italic"),
+         local("iAWriterDuoS-BoldItalic"),
+         url("fonts/iAWriterDuoS-BoldItalic.woff2") format("woff2"),
+         url("fonts/iAWriterDuoS-BoldItalic.ttf") format("truetype");
+    font-weight: 700;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "XITS Math";
+    src: url("fonts/XITSMath-Regular.otf") format("opentype"),
+         local("XITS Math"),
+         local("XITSMath-Regular");
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "STIX Two Text";
+    src: local("STIX Two Text"),
+         local("STIXTwoText"),
+         local("STIXTwoText-Regular"),
+         url("fonts/STIXTwoText-Regular.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "STIX Two Text";
+    src: local("STIX Two Text Italic"),
+         local("STIXTwoText-Italic"),
+         url("fonts/STIXTwoText-Italic.otf") format("opentype");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "STIX Two Text";
+    src: local("STIX Two Text Bold"),
+         local("STIXTwoText-Bold"),
+         url("fonts/STIXTwoText-Bold.otf") format("opentype");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "STIX Two Text";
+    src: local("STIX Two Text Bold Italic"),
+         local("STIXTwoText-BoldItalic"),
+         url("fonts/STIXTwoText-BoldItalic.otf") format("opentype");
+    font-weight: 700;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "STIX Two Math";
+    src: local("STIX Two Math"),
+         local("STIXTwoMath"),
+         local("STIXTwoMath-Regular"),
+         url("fonts/STIXTwoMath-Regular.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "EB Garamond";
+    src: local("EB Garamond"),
+         local("EBGaramond-Regular"),
+         url("fonts/EBGaramond-Variable.ttf") format("truetype");
+    font-weight: 400 800;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "EB Garamond";
+    src: local("EB Garamond Italic"),
+         local("EBGaramond-Italic"),
+         url("fonts/EBGaramond-Italic-Variable.ttf") format("truetype");
+    font-weight: 400 800;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "Inter";
+    src: local("Inter"),
+         local("Inter-Regular"),
+         url("fonts/Inter-Variable.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face
+{
+    font-family: "Inter";
+    src: local("Inter Italic"),
+         local("Inter-Italic"),
+         url("fonts/Inter-Italic-Variable.ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face
+{
     font-family: "TT Lakes Neue";
     src: local("TT Lakes Neue Trial Condensed Medium"),
          local("TT Lakes Neue Trl Cnd Md"),
@@ -178,20 +394,20 @@
     --text-primary: #ffffff;
     --text-secondary: #999999;
     --text-dim: #555555;
-    --accent-primary: #ffffff;
-    --accent-primary-text: #000000;
-    --accent-hover: #e0e0e0;
+    --accent-primary: #7100FF;
+    --accent-primary-text: #FFFFFF;
+    --accent-hover: #8214FF;
     --accent-neutral: #888888;
     --status-ready: #ffffff;
     --status-compiling: #777777;
     --status-error: #ffffff;
     --paper-shadow: 0 16px 36px rgba(0, 0, 0, 0.85), 0 2px 8px rgba(0, 0, 0, 0.7);
 
-    /* UI Font & Typography Settings */
-    --ui-font-family: "TT Lakes Neue", "TT Lakes Neue Trial Condensed Medium", "TT Lakes Neue Trl Cnd", "TTLakesNeueTrial", "TT Lakes Neue Trl Cnd Md", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    --ui-font-weight: 500;
+    /* UI Font & Typography Settings - Modern Humanist Sans */
+    --ui-font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    --ui-font-weight: 450;
     --ui-font-style: normal;
-    --ui-letter-spacing: 0.3px;
+    --ui-letter-spacing: -0.1px;
 
     /* Base Dimensions: 100% Normal / Default Scale */
     --ui-font-body: 16px;
@@ -239,7 +455,7 @@
     --ui-font-card-btn: 11px;
     --ui-font-empty: 12px;
 
-    --ui-height-header: 48px;
+    --ui-height-header: 38px;
     --ui-height-statusbar: 24px;
     --ui-height-toolbar: 36px;
     --ui-pad-status: 3px 8px;
@@ -331,26 +547,117 @@ button, input, select, textarea,
 
 .BrandTitle
 {
-    font-size: var(--ui-font-brand);
-    letter-spacing: 0px;
-    background: linear-gradient(135deg, #ffffff 0%, #e9d5ff 25%, #a855f7 50%, #6366f1 75%, #38bdf8 100%);
+    font-size: 14.5px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    background: linear-gradient(135deg, #FFFFFF 0%, #C084FC 25%, #A855F7 50%, #6366F1 75%, #38BDF8 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 12px rgba(124, 58, 237, 0.3));
+    filter: drop-shadow(0 0 12px rgba(124, 58, 237, 0.35));
+    display: inline-block;
+}
+
+.HeaderBreadcrumb
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 4px;
+}
+
+.BreadcrumbBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: #a1a1aa;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.BreadcrumbBtn:hover
+{
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
+.BreadcrumbSep
+{
+    color: #52525b;
+    font-size: 12px;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.CompilationErrorIndicator
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background-color: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 9px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.CompilationErrorIndicator:hover
+{
+    background-color: rgba(239, 68, 68, 0.25);
+    border-color: #ef4444;
+    color: #ffffff;
+}
+
+.ErrorIndicatorDot
+{
+    color: #ef4444;
+    font-size: 9px;
+}
+
+.HeaderActionBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: #a1a1aa;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.HeaderActionBtn:hover
+{
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.HeaderActionBtn.Active
+{
+    color: #f4f4f5;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.12);
 }
 
 .EngineTag
 {
-    font-size: var(--ui-font-engine-tag);
-    font-family: "JetBrains Mono", Consolas, monospace;
-    font-weight: 500;
-    background: linear-gradient(135deg, #09090b 0%, #1e1b4b 60%, #2e1065 100%);
-    color: #e0e7ff;
-    padding: 2px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(139, 92, 246, 0.5);
-    box-shadow: 0 0 8px rgba(67, 56, 202, 0.35);
-    letter-spacing: 0.4px;
+    display: none !important;
 }
 
 .DocumentInfoDropdownGroup
@@ -763,9 +1070,9 @@ button, input, select, textarea,
 
 .SelectDropdown
 {
-    appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
+    appearance: none;
     background-color: var(--bg-subtle);
     border: 1px solid #3f3f46;
     color: var(--text-primary);
@@ -798,10 +1105,15 @@ button, input, select, textarea,
 /* Buttons */
 .Button
 {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: var(--ui-pad-btn);
+    height: 28px;
+    padding: 0 10px;
+    box-sizing: border-box;
+    white-space: nowrap !important;
+    flex-shrink: 0;
     border-radius: 6px;
     font-size: var(--ui-font-btn);
     font-weight: 800 !important;
@@ -925,10 +1237,15 @@ button, input, select, textarea,
 
 .IconButton
 {
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
-    padding: var(--ui-pad-icon-btn);
+    height: 28px;
+    padding: 0 10px;
+    box-sizing: border-box;
+    white-space: nowrap !important;
+    flex-shrink: 0;
     background-color: var(--bg-subtle);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -951,6 +1268,8 @@ button, input, select, textarea,
     background-color: rgba(168, 85, 247, 0.12);
     border: 1px solid rgba(168, 85, 247, 0.45);
     color: #c084fc;
+    height: 28px;
+    white-space: nowrap !important;
 }
 
 .IconButton.AccentBtn svg
@@ -1065,6 +1384,17 @@ button, input, select, textarea,
     transform: translateZ(0);
     will-change: transform;
     contain: strict;
+    font-family: "iA Writer Duo", "iA Writer Duo S", "JetBrains Mono", Consolas, monospace !important;
+}
+
+.monaco-editor,
+.monaco-editor .inputarea,
+.monaco-editor-background,
+.monaco-editor .view-line,
+.monaco-editor .view-lines,
+.monaco-editor .margin
+{
+    font-family: "iA Writer Duo", "iA Writer Duo S", "JetBrains Mono", Consolas, monospace !important;
 }
 
 /* Rainbow Indentation & Bracket Guides (Matching Monaco Bracket Pairs Palette) */
@@ -1386,7 +1716,7 @@ button, input, select, textarea,
 .SplitResizer:hover,
 .SplitResizer.Dragging
 {
-    background-color: #ffffff;
+    background-color: #7100FF;
 }
 
 /* --- PREVIEW PANE --- */
@@ -1398,6 +1728,8 @@ button, input, select, textarea,
     background-color: var(--bg-canvas);
     position: relative;
     overflow: hidden;
+    container-type: inline-size;
+    container-name: PreviewContainer;
 }
 
 .PreviewToolbar
@@ -1411,6 +1743,14 @@ button, input, select, textarea,
     border-bottom: 1px solid var(--border-color);
     -webkit-user-select: none;
     user-select: none;
+    box-sizing: border-box;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+}
+
+.PreviewToolbar::-webkit-scrollbar
+{
+    display: none;
 }
 
 .PaginationControls,
@@ -1420,6 +1760,8 @@ button, input, select, textarea,
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .NavButton
@@ -1434,6 +1776,9 @@ button, input, select, textarea,
     letter-spacing: var(--ui-letter-spacing);
     cursor: pointer;
     transition: all 0.15s ease;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .NavButton:hover
@@ -1457,13 +1802,16 @@ button, input, select, textarea,
     cursor: pointer;
     border-radius: 4px;
     transition: all 0.15s ease;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+    box-sizing: border-box;
 }
 
 .ModeToggleButton.Active
 {
     background-color: #242424;
     border-color: #696969;
-    color: #ffffff;
+    color: #FFFFFF;
 }
 
 .PageIndicator,
@@ -1473,6 +1821,11 @@ button, input, select, textarea,
     color: var(--text-secondary);
     padding: 0 8px;
     font-family: "JetBrains Mono", Consolas, monospace;
+    white-space: nowrap !important;
+    flex-shrink: 0;
+    min-width: max-content;
+    text-align: center;
+    box-sizing: border-box;
 }
 
 .PreviewViewport
@@ -1495,14 +1848,38 @@ button, input, select, textarea,
 }
 
 /* Custom Scrollbars */
-.PreviewViewport,
-.DashboardView,
-.DocDropdownList,
-.DirectoriesList,
-.FilesCardsGrid
+@supports (scrollbar-width: thin)
 {
-    scrollbar-width: thin;
-    scrollbar-color: #2a2a2a #0a0a0a;
+    .PreviewViewport,
+    .DashboardView,
+    .DocDropdownList,
+    .DirectoriesList,
+    .FilesCardsGrid
+    {
+        scrollbar-width: thin;
+        scrollbar-color: #2A2A2A #0A0A0A;
+    }
+
+    .ErrorContent
+    {
+        scrollbar-width: thin;
+        scrollbar-color: #7F1D1D #1A0507;
+    }
+
+    .OutlineList
+    {
+        scrollbar-width: thin;
+        scrollbar-color: #3F3F46 #121214;
+    }
+}
+
+@supports (scrollbar-width: none)
+{
+    .PreviewToolbar,
+    body.UIMode_Focus .PreviewToolbar
+    {
+        scrollbar-width: none;
+    }
 }
 
 .PreviewViewport::-webkit-scrollbar,
@@ -1623,12 +2000,97 @@ button, input, select, textarea,
     display: block !important;
 }
 
-/* Black Page Mode (Completely Black Page, preserved non-monochrome colors, inverted monochrome) */
-.PreviewViewport.BlackPageMode .PageSheet,
-.PagesContainer.BlackPageMode .PageSheet
+/* --- THREE PAPER MODES (JOBS EDITORIAL ENGINE) --- */
+
+/* 1. Light Mode (Natural Paper) */
+.PreviewViewport.PaperMode_Light .PageSheet,
+.PagesContainer.PaperMode_Light .PageSheet
 {
-    background-color: #000000 !important; /* Completely Black page color */
-    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.85), 0 0 0 1px #2E2E36;
+    background-color: #FFFFFF !important;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    border: none !important;
+}
+
+.PreviewViewport.PaperMode_Light
+{
+    background-color: #141416 !important;
+}
+
+/* 2. Optimized Pitch Black (Anti-Halation Night Edition) */
+.PreviewViewport.PaperMode_Optimized .PageSheet,
+.PagesContainer.PaperMode_Optimized .PageSheet
+{
+    background-color: #0D0D0F !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85), 0 0 0 1px #232328 !important;
+}
+
+.PreviewViewport.PaperMode_Optimized
+{
+    background-color: #16161A !important;
+}
+
+/* 3. Pure Black (OLED True Black Monochrome) */
+.PreviewViewport.PaperMode_PureBlack .PageSheet,
+.PagesContainer.PaperMode_PureBlack .PageSheet
+{
+    background-color: #000000 !important;
+    box-shadow: 0 16px 44px rgba(0, 0, 0, 0.95), 0 0 0 1px #2E2E36 !important;
+}
+
+.PreviewViewport.PaperMode_PureBlack
+{
+    background-color: #0C0C0E !important;
+}
+
+/* Paper Color Mode Selector in Toolbar */
+.PaperColorModeSelector
+{
+    display: inline-flex;
+    align-items: center;
+    background-color: rgba(24, 24, 27, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.PaperModeBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: #a1a1aa;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.PaperModeBtn:hover
+{
+    color: #f4f4f5;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.PaperModeBtn.Active
+{
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.14);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.PaperModeBtn .ModeIcon
+{
+    font-size: 11px;
+    line-height: 1;
 }
 
 /* Loading Splash */
@@ -1820,8 +2282,6 @@ button, input, select, textarea,
     overflow-y: auto;
     white-space: pre-wrap;
     line-height: 1.55;
-    scrollbar-width: thin;
-    scrollbar-color: #7f1d1d #1a0507;
 }
 
 .ErrorContent::-webkit-scrollbar
@@ -1892,6 +2352,7 @@ button, input, select, textarea,
     letter-spacing: 0.5px;
     background: linear-gradient(135deg, #ffffff 0%, #d4d4d8 60%, #a855f7 100%);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
@@ -2098,6 +2559,66 @@ button, input, select, textarea,
     font-family: "JetBrains Mono", Consolas, monospace;
 }
 
+.SettingDescription
+{
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: #A1A1AA;
+}
+
+.SettingLinksRow
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.SettingLinkBadge
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 12px;
+    background-color: rgba(168, 85, 247, 0.08);
+    border: 1px solid rgba(168, 85, 247, 0.28);
+    border-radius: 6px;
+    color: #E9D5FF;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.SettingLinkBadge:hover
+{
+    background-color: rgba(168, 85, 247, 0.18);
+    border-color: #A855F7;
+    color: #FFFFFF;
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.25);
+    transform: translateY(-1px);
+}
+
+.SettingLinkBadge svg
+{
+    flex-shrink: 0;
+}
+
+.SettingLinkBadge .ExternalIcon
+{
+    opacity: 0.65;
+    transition: opacity 0.15s ease;
+}
+
+.SettingLinkBadge:hover .ExternalIcon
+{
+    opacity: 1;
+}
+
 .ScalePresetRow
 {
     display: flex;
@@ -2156,6 +2677,7 @@ button, input, select, textarea,
 {
     flex: 1;
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
     height: 6px;
     background: #27272a;
@@ -2167,6 +2689,7 @@ button, input, select, textarea,
 .SettingRangeSlider::-webkit-slider-thumb
 {
     -webkit-appearance: none;
+    -moz-appearance: none;
     appearance: none;
     width: 16px;
     height: 16px;
@@ -2573,7 +3096,6 @@ button, input, select, textarea,
 {
     border-color: #3f3f4e;
     background-color: #16161c;
-    transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
@@ -2676,8 +3198,8 @@ button, input, select, textarea,
 
 .FileCardOpenBtn:hover
 {
-    background-color: #ffffff;
-    color: #000000;
+    background-color: #7100FF;
+    color: #FFFFFF;
 }
 
 .FileCardTrashBtn
@@ -2933,8 +3455,8 @@ button, input, select, textarea,
 {
     display: inline-flex;
     align-items: center;
-    background-color: #18181B;
-    border: 1px solid #27272A;
+    background-color: rgba(24, 24, 27, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 6px;
     padding: 2px;
     gap: 2px;
@@ -2945,10 +3467,10 @@ button, input, select, textarea,
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 8px;
+    padding: 3px 10px;
     font-size: 11px;
     font-weight: 500;
-    color: #A1A1AA;
+    color: #9ca3af;
     background: transparent;
     border: none;
     border-radius: 4px;
@@ -2960,16 +3482,16 @@ button, input, select, textarea,
 
 .LayoutTabBtn:hover
 {
-    color: #F4F4F5;
-    background-color: #27272A;
+    color: #f4f4f5;
+    background-color: rgba(255, 255, 255, 0.06);
 }
 
 .LayoutTabBtn.Active
 {
-    color: #FFFFFF;
-    background-color: #3F3F46;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.14);
     font-weight: 600;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
 
 /* Viewport Layout States on MainSplitArea */
@@ -3088,8 +3610,6 @@ button, input, select, textarea,
     flex: 1;
     overflow-y: auto;
     padding: 6px 0;
-    scrollbar-width: thin;
-    scrollbar-color: #3F3F46 #121214;
 }
 
 .OutlineList::-webkit-scrollbar
@@ -3218,6 +3738,7 @@ button, input, select, textarea,
     font-weight: 600;
     font-size: 11px;
     border-radius: 3px;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -3228,6 +3749,7 @@ button, input, select, textarea,
     min-width: 32px;
     text-align: center;
     cursor: pointer;
+    -webkit-user-select: none;
     user-select: none;
     font-variant-numeric: tabular-nums;
 }
@@ -3237,13 +3759,16 @@ button, input, select, textarea,
     color: #FFFFFF;
 }
 
-/* Fullscreen Toggle Header Button */
-.FullscreenBtn
+/* Fullscreen & Help Header Buttons */
+.FullscreenBtn,
+.HelpBtn
 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 6px 10px;
+    height: 28px;
+    padding: 0 10px;
+    box-sizing: border-box;
 }
 
 .FullscreenBtn svg
@@ -3480,26 +4005,35 @@ kbd
 {
     position: relative;
     display: inline-flex;
-    align-items: stretch;
+    align-items: center;
+    height: 28px;
     z-index: 1002;
 }
 
 .ExportMainBtn
 {
+    height: 28px !important;
     border-top-right-radius: 0 !important;
     border-bottom-right-radius: 0 !important;
     border-right: 1px solid rgba(0, 0, 0, 0.15) !important;
-    padding: 6px 10px !important;
+    padding: 0 10px !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    flex-shrink: 0;
 }
 
 .ExportMenuToggleBtn
 {
+    height: 28px !important;
     border-top-left-radius: 0 !important;
     border-bottom-left-radius: 0 !important;
-    padding: 6px 7px !important;
+    padding: 0 7px !important;
+    box-sizing: border-box !important;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    white-space: nowrap !important;
+    flex-shrink: 0;
 }
 
 .ExportMenuDropdown
@@ -3747,6 +4281,7 @@ kbd
     padding: 2px 6px;
     border: 1px solid transparent;
     transition: background 0.15s, border-color 0.15s;
+    -webkit-user-select: text;
     user-select: text;
 }
 
@@ -3762,6 +4297,30 @@ kbd
     background-color: #18181B;
     border-color: #7100FF;
     box-shadow: 0 0 0 2px rgba(113, 0, 255, 0.25);
+}
+
+.SettingValueBadge[contenteditable="true"]
+{
+    cursor: text;
+    -webkit-user-select: text;
+    user-select: text;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.SettingValueBadge[contenteditable="true"]:hover
+{
+    background-color: rgba(168, 85, 247, 0.25);
+    border-color: rgba(168, 85, 247, 0.6);
+    color: #FFFFFF;
+}
+
+.SettingValueBadge[contenteditable="true"]:focus
+{
+    outline: none;
+    background-color: #18181B;
+    border-color: #A855F7;
+    color: #FFFFFF;
+    box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.35);
 }
 
 .ShortcutsTabs
@@ -4018,4 +4577,1621 @@ kbd
 {
     border-color: #3F3F46;
     color: #E4E4E7;
+}
+
+/* --- EXPLORER SIDEBAR (VS CODE / ANTIGRAVITY STYLE) --- */
+.ExplorerSidebar
+{
+    width: 250px;
+    min-width: 160px;
+    max-width: 600px;
+    background-color: #0D0D0F;
+    border-right: 1px solid #1E1E24;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+    transition: opacity 0.18s ease;
+    z-index: 6;
+}
+
+.ExplorerSidebar.Collapsed
+{
+    display: none !important;
+}
+
+/* Sidebar Resizer Splitter */
+.SidebarResizeHandle
+{
+    width: 6px;
+    margin-left: -3px;
+    margin-right: -3px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background-color 0.15s ease;
+    z-index: 10;
+    flex-shrink: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.SidebarResizeHandle:hover,
+.SidebarResizeHandle.Dragging
+{
+    background-color: #7100FF;
+}
+
+.ExplorerSidebar.Collapsed + .SidebarResizeHandle
+{
+    display: none !important;
+}
+
+.TabsExplorerBtn
+{
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    color: #A1A1AA;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-right: 4px;
+    margin-left: 2px;
+    flex-shrink: 0;
+    transition: all 0.12s ease;
+}
+
+.TabsExplorerBtn:hover
+{
+    background-color: #1F1F24;
+    color: #FFFFFF;
+}
+
+.TabsExplorerBtn.Active
+{
+    color: #C084FC;
+    background-color: rgba(113, 0, 255, 0.15);
+}
+
+.ExplorerHeader
+{
+    height: 38px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #1F1F23;
+    background-color: #121215;
+    flex-shrink: 0;
+}
+
+.ExplorerHeaderTitle
+{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #E4E4E7;
+}
+
+.ExplorerActions
+{
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.ExplorerMiniBtn
+{
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #9CA3AF;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    padding: 0;
+}
+
+.ExplorerMiniBtn:hover
+{
+    background-color: #27272A;
+    color: #FFFFFF;
+}
+
+.ExplorerProjectHeader
+{
+    height: 28px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #A1A1AA;
+    background-color: #101013;
+    border-bottom: 1px solid #1A1A1F;
+    -webkit-user-select: none;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.ExplorerProjectArrow
+{
+    font-size: 10px;
+    color: #71717A;
+    transition: transform 0.15s ease;
+}
+
+.ExplorerProjectName
+{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ExplorerTreeRoot
+{
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 4px 0 12px 0;
+}
+
+.ExplorerTreeRoot::-webkit-scrollbar
+{
+    width: 4px;
+}
+
+.ExplorerTreeRoot::-webkit-scrollbar-thumb
+{
+    background: #27272A;
+    border-radius: 2px;
+}
+
+.TreeNode
+{
+    display: flex;
+    flex-direction: column;
+}
+
+.TreeNodeRow
+{
+    display: flex;
+    align-items: center;
+    height: 24px;
+    padding-right: 10px;
+    font-size: 12.5px;
+    color: #D4D4D8;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    border-left: 2px solid transparent;
+    transition: background-color 0.1s ease, color 0.1s ease;
+    white-space: nowrap;
+}
+
+.TreeNodeRow:hover
+{
+    background-color: #17171C;
+    color: #FFFFFF;
+}
+
+.TreeNodeRow.Active
+{
+    background-color: rgba(113, 0, 255, 0.18);
+    border-left-color: #7100FF;
+    color: #FFFFFF;
+    font-weight: 500;
+}
+
+.TreeNodeChevron
+{
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #71717A;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.TreeNodeChevron.Expanded
+{
+    transform: rotate(90deg);
+}
+
+.TreeNodeIcon
+{
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+.TreeNodeLabel
+{
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.TreeNodeChildren
+{
+    display: flex;
+    flex-direction: column;
+}
+
+.TreeNodeChildren.Collapsed
+{
+    display: none;
+}
+
+/* --- EDITOR TABS BAR (VS CODE / ANTIGRAVITY STYLE) --- */
+.EditorTabsBar
+{
+    height: 35px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: #0E0E12;
+    border-bottom: 1px solid #1E1E24;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.EditorTabsList
+{
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex: 1;
+}
+
+.EditorTabsList::-webkit-scrollbar
+{
+    height: 2px;
+}
+
+.EditorTabsList::-webkit-scrollbar-thumb
+{
+    background: #3F3F46;
+}
+
+.EditorTab
+{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 12px;
+    font-size: 12.5px;
+    color: #9CA3AF;
+    background-color: #101014;
+    border-right: 1px solid #1A1A20;
+    border-top: 2px solid transparent;
+    cursor: pointer;
+    transition: background-color 0.12s ease, color 0.12s ease, border-top-color 0.12s ease;
+    max-width: 240px;
+    min-width: 90px;
+    white-space: nowrap;
+    position: relative;
+}
+
+.EditorTab:hover
+{
+    background-color: #15151A;
+    color: #E4E4E7;
+}
+
+.EditorTab.Active
+{
+    background-color: #181820;
+    color: #FFFFFF;
+    border-top-color: #7100FF;
+    font-weight: 500;
+}
+
+.TabIcon
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.TabTitle
+{
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.TabDirtyDot
+{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #A855F7;
+    display: none;
+    flex-shrink: 0;
+    margin-right: 2px;
+}
+
+.TabDirtyDot.Visible
+{
+    display: inline-block;
+}
+
+.TabCloseBtn
+{
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: #71717A;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 3px;
+    transition: all 0.1s ease;
+}
+
+.TabCloseBtn:hover
+{
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+}
+
+.EditorTabsActions
+{
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    gap: 3px;
+    flex-shrink: 0;
+}
+
+.TabActionBtn
+{
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    border: none;
+    background: transparent;
+    color: #9CA3AF;
+    font-size: 15px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.12s ease;
+}
+
+.TabActionBtn:hover
+{
+    background-color: #27272A;
+    color: #FFFFFF;
+}
+
+/* --- WORKSPACE PROJECTS DASHBOARD (CARDS & DETAIL VIEW) --- */
+.ProjectsCardsGrid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 16px;
+    max-height: 620px;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.ProjectsCardsGrid::-webkit-scrollbar
+{
+    width: 5px;
+}
+
+.ProjectsCardsGrid::-webkit-scrollbar-thumb
+{
+    background: #27272A;
+    border-radius: 3px;
+}
+
+.ProjectCard
+{
+    background-color: #131317;
+    border: 1px solid #23232A;
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    transition: all 0.18s ease;
+}
+
+.ProjectCard:hover
+{
+    border-color: #7100FF;
+    box-shadow: 0 4px 20px rgba(113, 0, 255, 0.18);
+}
+
+.ProjectCard.IsActiveProject
+{
+    border-color: #7100FF;
+    background: linear-gradient(180deg, #181524 0%, #131317 100%);
+    box-shadow: 0 0 0 1px rgba(113, 0, 255, 0.35);
+}
+
+.ProjectCardHeader
+{
+    display: flex;
+    align-items: center;
+    gap: 11px;
+}
+
+.ProjectCardIcon
+{
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: rgba(113, 0, 255, 0.15);
+    color: #C084FC;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border: 1px solid rgba(113, 0, 255, 0.25);
+}
+
+.ProjectCardTitleGroup
+{
+    flex: 1;
+    min-width: 0;
+}
+
+.ProjectCardName
+{
+    font-size: 15px;
+    font-weight: 600;
+    color: #FFFFFF;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ProjectCardPath
+{
+    font-size: 11px;
+    color: #71717A;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+.ProjectDocCountBadge
+{
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 12px;
+    background: rgba(168, 85, 247, 0.12);
+    color: #C084FC;
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    flex-shrink: 0;
+}
+
+.ProjectFilesList
+{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #0B0B0E;
+    border: 1px solid #1C1C22;
+    border-radius: 6px;
+    padding: 8px;
+    max-height: 140px;
+    overflow-y: auto;
+}
+
+.ProjectFilesList::-webkit-scrollbar
+{
+    width: 3px;
+}
+
+.ProjectFilesList::-webkit-scrollbar-thumb
+{
+    background: #27272A;
+}
+
+.ProjectFileRow
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: #D4D4D8;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.ProjectFileRow:hover
+{
+    background-color: #1A1A22;
+    color: #FFFFFF;
+}
+
+.ProjectFileIcon
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ProjectFileName
+{
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ProjectFileSize
+{
+    font-size: 11px;
+    color: #71717A;
+}
+
+.ProjectFileOpenBtn
+{
+    background: transparent;
+    border: 1px solid #3F3F46;
+    color: #A1A1AA;
+    border-radius: 4px;
+    font-size: 10.5px;
+    padding: 2px 7px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+}
+
+.ProjectFileRow:hover .ProjectFileOpenBtn
+{
+    border-color: #7100FF;
+    color: #C084FC;
+    background: rgba(113, 0, 255, 0.12);
+}
+
+.ProjectCardFooter
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 4px;
+}
+
+/* --- EXPERIENCE MODE SWITCHER (FOCUS VS. STUDIO) --- */
+.ModeSwitcherNav
+{
+    display: inline-flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.ModeSwitchBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.ModeSwitchBtn:hover
+{
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.ModeSwitchBtn.Active
+{
+    background: #7100FF;
+    color: #FFFFFF;
+    box-shadow: 0 1px 4px rgba(113, 0, 255, 0.35);
+}
+
+.ModeSwitchIcon
+{
+    font-size: 11px;
+}
+
+/* --- DUAL EXPERIENCE STATES (FOCUS VS. STUDIO) --- */
+body.UIMode_Focus .ExplorerSidebar,
+body.UIMode_Focus .OutlineSidebar,
+body.UIMode_Focus .SidebarResizeHandle,
+body.UIMode_Focus .StatusBarLeft,
+body.UIMode_Focus #ToggleExplorerBtn
+{
+    display: none !important;
+}
+
+body.UIMode_Focus .PreviewToolbar
+{
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    height: 38px;
+    padding: 0 14px;
+    gap: 10px;
+    justify-content: center;
+    width: max-content;
+    max-width: calc(100% - 24px);
+    box-sizing: border-box;
+    background: rgba(18, 18, 22, 0.88);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 9999px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    opacity: 0.95;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+}
+
+body.UIMode_Focus .PreviewToolbar::-webkit-scrollbar
+{
+    display: none;
+}
+
+body.UIMode_Focus .PreviewToolbar.HUD_Idle
+{
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(8px);
+}
+
+body.UIMode_Focus .PreviewToolbar:hover
+{
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* --- STRUCTURED STATUS BAR (VS CODE TELEMETRY) --- */
+.EditorStatusBar
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: var(--ui-height-statusbar);
+    padding: 0 12px;
+    background-color: var(--bg-header);
+    border-top: 1px solid var(--border-color);
+    font-size: var(--ui-font-statusbar);
+    color: var(--text-secondary);
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.StatusBarLeft,
+.StatusBarRight
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.StatusBarPillBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.14s ease;
+}
+
+.StatusBarPillBtn:hover
+{
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.16);
+    color: var(--text-primary);
+}
+
+.StatusBarPillBtn.Active
+{
+    color: #A855F7;
+    border-color: rgba(168, 85, 247, 0.35);
+    background: rgba(168, 85, 247, 0.09);
+}
+
+.StatusBarPillBtn .PillIcon
+{
+    font-size: 11px;
+}
+
+.StatusBarDuration
+{
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+/* --- EXPORT SHEET MODAL (PHASE 3) --- */
+.ExportSheetDialog
+{
+    max-width: 780px;
+    width: 90vw;
+}
+
+.ExportSheetBody
+{
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    padding: 20px;
+}
+
+.ExportSheetPreviewColumn
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.ExportSheetMiniPreview
+{
+    width: 100%;
+    aspect-ratio: 1 / 1.414;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #18181B;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.4);
+}
+
+.MiniPreviewPaper
+{
+    width: 85%;
+    height: 88%;
+    background: #FFFFFF;
+    border-radius: 3px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.MiniPreviewPaper.Paper_Dark
+{
+    background: #0D0D0F;
+    border: 1px solid #232328;
+}
+
+.MiniPreviewPaper.Paper_Clear
+{
+    background: repeating-conic-gradient(#27272A 0% 25%, #18181B 0% 50%) 50% / 12px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.MiniPreviewContent
+{
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: center center;
+}
+
+.MiniPreviewContent svg
+{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.ExportSheetPageMeta
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    gap: 2px;
+}
+
+.ExportSheetDocTitleText
+{
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.ExportSheetOptionsColumn
+{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.ExportSheetSection
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ExportSectionLabel
+{
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+}
+
+.ExportFormatSegmented,
+.ExportDpiSegmented,
+.ExportScopeSegmented
+{
+    display: flex;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 3px;
+    gap: 4px;
+}
+
+.FormatTabBtn,
+.DpiTabBtn,
+.ScopeTabBtn
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.FormatTabBtn:hover,
+.DpiTabBtn:hover,
+.ScopeTabBtn:hover
+{
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-primary);
+}
+
+.FormatTabBtn.Active,
+.DpiTabBtn.Active,
+.ScopeTabBtn.Active
+{
+    background: #7100FF;
+    color: #FFFFFF;
+    box-shadow: 0 1px 6px rgba(113, 0, 255, 0.35);
+}
+
+.FormatTabBtn .FormatBadge
+{
+    font-weight: 600;
+}
+
+.FormatTabBtn .FormatSub
+{
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.ExportSwatchesGrid
+{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.ExportSwatchCard
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ExportSwatchCard:hover
+{
+    border-color: rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.ExportSwatchCard.Active
+{
+    border-color: #A855F7;
+    background: rgba(168, 85, 247, 0.12);
+    box-shadow: 0 0 0 1px #A855F7;
+}
+
+.SwatchMiniCanvas
+{
+    width: 38px;
+    height: 38px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+}
+
+.Swatch_Light
+{
+    background: #FFFFFF;
+    color: #000000;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.Swatch_Dark
+{
+    background: #0D0D0F;
+    color: #D6D3CD;
+    border: 1px solid #232328;
+}
+
+.Swatch_ClearDark
+{
+    background: repeating-conic-gradient(#52525B 0% 25%, #3F3F46 0% 50%) 50% / 8px 8px;
+    color: #000000;
+}
+
+.Swatch_ClearLight
+{
+    background: repeating-conic-gradient(#3F3F46 0% 25%, #27272A 0% 50%) 50% / 8px 8px;
+    color: #FFFFFF;
+}
+
+.ExportSwatchCard .SwatchLabel
+{
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.ExportSwatchCard .SwatchSub
+{
+    font-size: 9.5px;
+    color: var(--text-dim);
+}
+
+.ExportRangeInput
+{
+    margin-top: 6px;
+    padding: 6px 10px;
+    background: var(--bg-canvas);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.ExportSheetActionsRow
+{
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* --- SETTINGS MODAL (PHASE 4 & 5) --- */
+.SettingsModalDialog
+{
+    max-width: 680px;
+    width: 90vw;
+}
+
+.SettingsTabs
+{
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 auto 0 16px;
+}
+
+.SettingsTabBtn
+{
+    padding: 5px 12px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.SettingsTabBtn:hover
+{
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.SettingsTabBtn.Active
+{
+    color: #FFFFFF;
+    background: rgba(168, 85, 247, 0.18);
+    border-color: rgba(168, 85, 247, 0.4);
+    font-weight: 500;
+}
+
+.SettingsModalBody
+{
+    padding: 20px;
+}
+
+.SettingsTabView
+{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.DashboardProjectsOnly .ProjectsPanel.FullWidth
+{
+    grid-column: 1 / -1;
+    width: 100%;
+}
+
+/* --- SETTINGS TYPOGRAPHY SECTION HEADERS & CONTROLS --- */
+.SettingSectionHeader
+{
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.SettingSectionTitle
+{
+    font-size: 14px;
+    font-weight: 600;
+    color: #F4F4F5;
+    letter-spacing: -0.01em;
+}
+
+.SettingSectionSubtitle
+{
+    font-size: 11.5px;
+    color: #A1A1AA;
+    margin-top: 2px;
+}
+
+.CheckboxSettingRow
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+    font-size: var(--ui-font-ctrl);
+    color: #E4E4E7;
+}
+
+.SettingCheckbox
+{
+    accent-color: #A855F7;
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+.SettingCheckboxLabel strong
+{
+    color: #C084FC;
+}
+
+.SettingSubField
+{
+    padding-left: 20px;
+    border-left: 2px solid rgba(168, 85, 247, 0.3);
+}
+
+.LineHeightPresetBtn,
+.LigaturePresetBtn
+{
+    flex: 1;
+    min-width: 60px;
+    padding: 4px 8px;
+    background-color: #141418;
+    border: 1px solid #27272A;
+    border-radius: 5px;
+    color: #A1A1AA;
+    font-size: var(--ui-font-ctrl);
+    font-family: var(--ui-font-family);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s ease;
+}
+
+.LineHeightPresetBtn:hover,
+.LigaturePresetBtn:hover
+{
+    background-color: #1C1C24;
+    border-color: #52525B;
+    color: #FFFFFF;
+}
+
+.LineHeightPresetBtn.Active,
+.LigaturePresetBtn.Active
+{
+    background-color: rgba(168, 85, 247, 0.18);
+    border-color: #A855F7;
+    color: #FFFFFF;
+    font-weight: 500;
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+}
+
+/* --- TWO-PAGE FACING BOOK SPREAD MODE (ALT+S) --- */
+.PagesContainer.SpreadMode
+{
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    gap: 16px 24px !important;
+}
+
+.PagesContainer.SpreadMode .PageSheet
+{
+    margin: 0 !important;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.PagesContainer.SpreadMode .PageSheet:first-child
+{
+    margin-left: auto !important;
+    margin-right: auto !important;
+}
+
+#SpreadModeToggleBtn.Active
+{
+    background-color: rgba(168, 85, 247, 0.2) !important;
+    border-color: #A855F7 !important;
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+}
+
+/* --- COMMAND PALETTE MODAL (⌘K / CTRL+K) --- */
+.CommandPaletteDialog
+{
+    max-width: 580px;
+    width: 90vw;
+    background: rgba(18, 18, 22, 0.95);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(168, 85, 247, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 10vh;
+}
+
+.CommandPaletteSearchRow
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.CommandPaletteInput
+{
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #FFFFFF;
+    font-size: 15px;
+    font-family: var(--ui-font-family);
+    letter-spacing: -0.01em;
+}
+
+.CommandPaletteInput::placeholder
+{
+    color: #71717A;
+}
+
+.CommandPaletteKbd
+{
+    font-size: 11px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    color: #71717A;
+    background: #141418;
+    border: 1px solid #27272A;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.CommandPaletteList
+{
+    max-height: 380px;
+    overflow-y: auto;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.CommandCategoryHeader
+{
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #71717A;
+    padding: 8px 12px 4px 12px;
+}
+
+.CommandPaletteItem
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    color: #D4D4D8;
+    font-size: 13px;
+}
+
+.CommandPaletteItem:hover,
+.CommandPaletteItem.Selected
+{
+    background-color: rgba(168, 85, 247, 0.16);
+    color: #FFFFFF;
+}
+
+.CommandPaletteItem.Selected
+{
+    box-shadow: inset 2px 0 0 #A855F7;
+}
+
+.CommandItemLeft
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.CommandItemIcon
+{
+    font-size: 14px;
+    width: 18px;
+    text-align: center;
+    color: #A855F7;
+}
+
+.CommandItemTitle
+{
+    font-weight: 450;
+}
+
+.CommandItemShortcut
+{
+    font-size: 11px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    color: #71717A;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+.CommandPaletteEmpty
+{
+    padding: 24px 12px;
+    text-align: center;
+    color: #71717A;
+    font-size: 13px;
+}
+
+/* --- RESPONSIVE PREVIEW TOOLBAR & SPLIT VIEW GEOMETRY (<1318PX) --- */
+
+@media (max-width: 1318px)
+{
+    .PreviewToolbar
+    {
+        padding: 0 8px;
+    }
+
+    .PaginationControls,
+    .ZoomControls,
+    .ThemeControls
+    {
+        gap: 3px;
+    }
+
+    .NavButton
+    {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+
+    .PageIndicator,
+    .ZoomDisplay
+    {
+        padding: 0 4px;
+        font-size: 11px;
+    }
+
+    .PaperColorModeSelector
+    {
+        padding: 1px;
+        gap: 1px;
+    }
+
+    .PaperModeBtn
+    {
+        padding: 3px 6px;
+        font-size: 10.5px;
+        gap: 3px;
+    }
+
+    .PaperModeBtn .ModeText
+    {
+        display: none;
+    }
+
+    body.UIMode_Focus .PreviewToolbar
+    {
+        padding: 0 10px;
+        gap: 6px;
+    }
+}
+
+.LayoutSplit .PreviewToolbar
+{
+    padding: 0 8px;
+}
+
+.LayoutSplit .PaginationControls,
+.LayoutSplit .ZoomControls,
+.LayoutSplit .ThemeControls
+{
+    gap: 3px;
+}
+
+.LayoutSplit .NavButton
+{
+    padding: 3px 6px;
+    font-size: 11px;
+}
+
+.LayoutSplit .PageIndicator,
+.LayoutSplit .ZoomDisplay
+{
+    padding: 0 4px;
+    font-size: 11px;
+}
+
+.LayoutSplit .PaperColorModeSelector
+{
+    padding: 1px;
+    gap: 1px;
+}
+
+.LayoutSplit .PaperModeBtn
+{
+    padding: 3px 6px;
+    font-size: 10.5px;
+    gap: 3px;
+}
+
+.LayoutSplit .PaperModeBtn .ModeText
+{
+    display: none;
+}
+
+@container PreviewContainer (max-width: 820px)
+{
+    .PreviewToolbar
+    {
+        padding: 0 8px;
+    }
+
+    .PaginationControls,
+    .ZoomControls,
+    .ThemeControls
+    {
+        gap: 3px;
+    }
+
+    .NavButton
+    {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+
+    .PageIndicator,
+    .ZoomDisplay
+    {
+        padding: 0 4px;
+        font-size: 11px;
+    }
+
+    .PaperColorModeSelector
+    {
+        padding: 1px;
+        gap: 1px;
+    }
+
+    .PaperModeBtn
+    {
+        padding: 3px 6px;
+        font-size: 10.5px;
+        gap: 3px;
+    }
+
+    .PaperModeBtn .ModeText
+    {
+        display: none;
+    }
+
+    body.UIMode_Focus .PreviewToolbar
+    {
+        padding: 0 10px;
+        gap: 6px;
+    }
+}
+
+@container PreviewContainer (max-width: 580px)
+{
+    .PageIndicator .PageLabel
+    {
+        display: none;
+    }
+
+    .NavButton
+    {
+        padding: 2px 5px;
+        font-size: 10.5px;
+    }
+
+    .PaginationControls,
+    .ZoomControls,
+    .ThemeControls
+    {
+        gap: 2px;
+    }
+
+    body.UIMode_Focus .PreviewToolbar
+    {
+        padding: 0 8px;
+        gap: 4px;
+    }
+}
+
+/* --- INITIAL HIDDEN & STRUCTURAL STATES (ZERO INLINE STYLES FOR STRICT CSP) --- */
+
+.HeaderHiddenPlumbing,
+#BlackPageToggle
+{
+    display: none !important;
+}
+
+#DocumentNameInput,
+#UnsavedDirtyDot,
+#DocDropdownMenu,
+#CompilationErrorIndicator,
+#JumpToPrimaryErrorBtn,
+#ExportMenuDropdown,
+#FullscreenIconExit,
+#OutlineSidebar,
+#PreviewLoadingOverlay,
+#DashboardView,
+#ExportSheetModal,
+#ExportPngResolutionSection,
+#ExportCustomRangeInput,
+#SettingsModal,
+#CustomFontInputGroup,
+#CustomEditorFontInputGroup,
+#FocusFontSelectorWrapper,
+#SettingsViewPaper,
+#SettingsViewDirectories,
+#SettingsViewLafs,
+#ShortcutsModal,
+#KeybindingsManagerView,
+#KeybindingsRecordingBanner,
+#CommandPaletteModal
+{
+    display: none;
+}
+
+.SettingSectionHeader.EditorSection
+{
+    margin-top: 24px;
+}
+
+#FocusFontSelectorWrapper
+{
+    margin-top: 8px;
 }

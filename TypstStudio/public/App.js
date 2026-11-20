@@ -37,7 +37,7 @@ const TEMPLATES =
 
 #set text
 (
-  font: ("Linux Libertine", "Times New Roman", "Georgia"),
+  font: ("EB Garamond", "Linux Libertine", "Times New Roman", "Georgia"),
   size: 10.5pt,
   lang: "en"
 )
@@ -109,7 +109,7 @@ from within the accretion boundary. Decryption has begun."
 
 #set text
 (
-  font: ("Times New Roman", "Segoe UI"),
+  font: ("STIX Two Text", "Linux Libertine", "Times New Roman"),
   size: 10pt
 )
 
@@ -155,7 +155,7 @@ from within the accretion boundary. Decryption has begun."
 
 #set text
 (
-  font: ("Segoe UI", "Arial"),
+  font: ("Inter", "Segoe UI", "Arial"),
   size: 10pt
 )
 
@@ -265,10 +265,12 @@ Hello World!
 
 #set text
 (
-  font: ("TT Lakes Neue Trl Cnd", "Times New Roman"),
+  font: ("Times New Roman", "XITS Math"),
   size: 10.5pt,
   lang: "en"
 )
+
+#show math.equation: set text(font: ("XITS Math", "Times New Roman"))
 
 #set par
 (
@@ -583,7 +585,21 @@ let CompileGeneration = 0;
 let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
-let IsBlackPageMode = localStorage.getItem("typst_black_page_mode") === "true";
+let CurrentPaperColorMode = ( () =>
+{
+    const Saved = localStorage.getItem("typst_paper_color_mode");
+    if (Saved === "light" || Saved === "optimized" || Saved === "pure_black")
+    {
+        return Saved;
+    }
+    const LegacyBlack = localStorage.getItem("typst_black_page_mode");
+    if (LegacyBlack === "true")
+    {
+        return "optimized";
+    }
+    return "light";
+})();
+let IsBlackPageMode = CurrentPaperColorMode !== "light";
 const IsTauriDesktop = Boolean(typeof window !== "undefined" && (window.__TAURI_INTERNALS__ || window.__TAURI__));
 let ActiveAbortController = null;
 let RenderToken = 0;
@@ -606,6 +622,17 @@ if (isNaN(CurrentEditorFontSize) || CurrentEditorFontSize < 9 || CurrentEditorFo
     CurrentEditorFontSize = 14;
 }
 let IsAppFullscreen = false;
+let PendingInitialFileContent = null;
+let CurrentEditorFont = localStorage.getItem("TypstStudio_EditorFont") || "iA Writer Duo";
+let CurrentFocusEditorFont = localStorage.getItem("TypstStudio_FocusEditorFont") || "iA Writer Duo";
+let UseDifferentFocusFont = localStorage.getItem("TypstStudio_UseDifferentFocusFont") === "true";
+let CurrentEditorLineHeight = parseFloat(localStorage.getItem("TypstStudio_EditorLineHeight") || "1.55");
+if (isNaN(CurrentEditorLineHeight) || CurrentEditorLineHeight < 1.0 || CurrentEditorLineHeight > 2.5)
+{
+    CurrentEditorLineHeight = 1.55;
+}
+let CurrentEditorLigatures = localStorage.getItem("TypstStudio_EditorLigatures") !== "false";
+let IsSpreadMode = localStorage.getItem("TypstStudio_SpreadMode") === "true";
 
 const DEFAULT_KEYBINDINGS =
 {
@@ -619,6 +646,7 @@ const DEFAULT_KEYBINDINGS =
     "layout_preview": "Alt+3",
     "toggle_outline": "Alt+O",
     "toggle_fullscreen": "F11",
+    "toggle_devtools": "F12",
     "open_shortcuts": "Ctrl+/",
     "editor_font_zoom_in": "Ctrl+=",
     "editor_font_zoom_out": "Ctrl+-",
@@ -627,7 +655,12 @@ const DEFAULT_KEYBINDINGS =
     "preview_zoom_out": "Ctrl+Alt+-",
     "preview_zoom_fit_width": "Alt+W",
     "preview_zoom_fit_page": "Alt+P",
-    "toggle_dark_page": "Alt+D"
+    "toggle_dark_page": "Alt+D",
+    "toggle_ui_mode": "Ctrl+Shift+M",
+    "toggle_spread_mode": "Alt+S",
+    "open_command_palette": "Ctrl+K",
+    "open_settings": "Ctrl+,",
+    "open_export_sheet": "Ctrl+E"
 };
 
 const APPLICATION_COMMANDS_META =
@@ -637,11 +670,17 @@ const APPLICATION_COMMANDS_META =
     { Id: "format_lafs", Label: "Format Code to LAFS Standard", Category: "Document & Compilation", Source: "App" },
     { Id: "export_pdf", Label: "Export Document to PDF", Category: "Document & Compilation", Source: "App" },
     { Id: "print_document", Label: "Print Document", Category: "Document & Compilation", Source: "App" },
+    { Id: "open_export_sheet", Label: "Open Visual Export Sheet", Category: "Document & Compilation", Source: "App" },
     { Id: "layout_split", Label: "Split View (50/50)", Category: "Views & Navigation", Source: "App" },
     { Id: "layout_editor", Label: "Editor Only (Focus Code)", Category: "Views & Navigation", Source: "App" },
     { Id: "layout_preview", Label: "Preview Only (Focus Output)", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_ui_mode", Label: "Toggle Focus vs. Studio Mode", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_spread_mode", Label: "Toggle Facing Two-Page Spread", Category: "Views & Navigation", Source: "App" },
+    { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
+    { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_fullscreen", Label: "Toggle Fullscreen Mode", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_devtools", Label: "Toggle Developer Tools", Category: "Views & Navigation", Source: "App" },
     { Id: "open_shortcuts", Label: "Open Shortcuts / Keybindings Dialog", Category: "Views & Navigation", Source: "App" },
     { Id: "editor_font_zoom_in", Label: "Editor Font Zoom In", Category: "Editor", Source: "App" },
     { Id: "editor_font_zoom_out", Label: "Editor Font Zoom Out", Category: "Editor", Source: "App" },
@@ -685,7 +724,7 @@ function SetEditorFontSize(NewSize)
     localStorage.setItem("TypstStudio_EditorFontSize", String(NewSize));
     if (MonacoInstance)
     {
-        const NewLineHeight = Math.round(NewSize * 1.55);
+        const NewLineHeight = Math.round(NewSize * CurrentEditorLineHeight);
         MonacoInstance.updateOptions
         ({
             fontSize: NewSize,
@@ -768,6 +807,597 @@ function UpdateFullscreenUI(IsFs)
     {
         Btn.title = IsFs ? "Exit Fullscreen (F11 or Esc)": "Toggle Fullscreen (F11)";
     }
+}
+
+async function ToggleDevTools()
+{
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            await window.__TAURI__.core.invoke("ToggleDevTools");
+            return ;
+        }
+        catch (Err)
+        {
+            console.warn("Tauri ToggleDevTools invoke error:", Err);
+        }
+    }
+    console.log("ToggleDevTools requested (in browser environment use DevTools via F12 or Inspect)");
+}
+
+window.ToggleDevTools = ToggleDevTools;
+
+const PREDEFINED_MATH_OPERATORS = new Set
+([
+    "arccos", "arcsin", "arctan", "arg", "cos", "cosh", "cot", "coth",
+    "csc", "csch", "ctg", "deg", "det", "dim", "exp", "gcd", "lcm",
+    "hom", "id", "im", "inf", "ker", "lg", "lim", "liminf", "limsup",
+    "ln", "log", "max", "min", "mod", "Pr", "sec", "sech", "sin",
+    "sinc", "sinh", "sup", "tan", "tanh", "tg", "tr", "dif", "Dif"
+]);
+
+function GetMathIntervals(Source)
+{
+    const Intervals = [];
+    const Regex = /(?<!\\)\$(?:[^$]|\\\$)*\$/g;
+    let Match;
+
+    while
+    (
+        (Match = Regex.exec(Source)) !== null
+    )
+    {
+        Intervals.push
+        ({
+            Start: Match.index, End: Match.index + Match[0].length
+        });
+    }
+
+    return Intervals;
+}
+
+function EnrichMathSyncMap(SyncMap, Source, SvgPages)
+{
+    if (!SyncMap || !Source)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = Source.split(/\r?\n/);
+    const MathIntervals = GetMathIntervals(Source);
+    let ByteOffset = 0;
+    const ClaimedGroups = new Map();
+
+    const LineMap = new Map();
+    for (const E of Enriched)
+    {
+        if (!LineMap.has(E.line))
+        {
+            LineMap.set(E.line, []);
+        }
+        LineMap.get(E.line).push(E);
+    }
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    {
+        const LineText = Lines[LineIdx];
+        const LineNum = LineIdx + 1;
+
+        const Regex = /\b([a-zA-Z_]+)\b/g;
+        let Match;
+
+        while
+        (
+            (Match = Regex.exec(LineText)) !== null
+        )
+        {
+            const Ident = Match[1];
+            if (!PREDEFINED_MATH_OPERATORS.has(Ident))
+            {
+                continue;
+            }
+
+            const Col = Match.index + 1;
+            const EndCol = Col + Ident.length;
+            const Start = ByteOffset + Match.index;
+            const End = Start + Ident.length;
+
+            const InsideMath = MathIntervals.some((Int) => Start >= Int.Start && End <= Int.End);
+            if (!InsideMath)
+            {
+                continue;
+            }
+
+            const LineElems = LineMap.get(LineNum) || [];
+            const Exists = LineElems.some
+            (
+                (E) => Math.abs(E.col - Col) <= 1 && Math.abs(E.end_col - EndCol) <= 1
+            );
+
+            if (Exists)
+            {
+                continue;
+            }
+
+            LineElems.sort((A, B) => A.col - B.col);
+
+            let PageNum = 1;
+            let EstY = null;
+            let EstH = 11.0;
+            let EstX = null;
+            let EstW = Ident.length * 5.3;
+
+            const NextElem = LineElems.find((E) => E.col >= EndCol);
+            const PrevElem = [...LineElems].reverse().find((E) => E.end_col <= Col);
+
+            if (NextElem)
+            {
+                PageNum = NextElem.page || 1;
+                EstY = NextElem.y;
+                EstH = NextElem.height;
+                EstX = NextElem.x - EstW - 1.0;
+            }
+            else if (PrevElem)
+            {
+                PageNum = PrevElem.page || 1;
+                EstY = PrevElem.y;
+                EstH = PrevElem.height;
+                EstX = PrevElem.x + PrevElem.width + 1.0;
+            }
+            else
+            {
+                const EqElems = Enriched.filter((E) => LineNum >= E.line && LineNum <= E.end_line);
+                if (EqElems.length > 0)
+                {
+                    PageNum = EqElems[0].page || 1;
+                    EstY = EqElems[0].y;
+                    EstH = EqElems[0].height;
+                }
+            }
+
+            if (SvgPages && SvgPages[PageNum - 1])
+            {
+                const Svg = SvgPages[PageNum - 1];
+                if (!ClaimedGroups.has(PageNum))
+                {
+                    ClaimedGroups.set(PageNum, new Set());
+                }
+                const Claimed = ClaimedGroups.get(PageNum);
+
+                const GroupRegex = /<g transform="matrix\(1 0 0 -1 ([^ ]+) ([^)]+)\)">([\s\S]*?)<\/g>/g;
+                let GMatch;
+                let BestGroup = null;
+                let BestDist = Infinity;
+                let BestMatchIndex = - 1;
+
+                while
+                (
+                    (GMatch = GroupRegex.exec(Svg)) !== null
+                )
+                {
+                    const GroupIndex = GMatch.index;
+                    if (Claimed.has(GroupIndex))
+                    {
+                        continue;
+                    }
+
+                    const Tx = parseFloat(GMatch[1]);
+                    const Ty = parseFloat(GMatch[2]);
+                    const Uses = [...GMatch[3].matchAll(/<use[^>]*x="([^"]*)"/g)].map
+                    (
+                        (U) => parseFloat(U[1])
+                    );
+
+                    if (Uses.length === Ident.length)
+                    {
+                        const GroupY = Ty - EstH;
+                        const YDist = EstY !== null ? Math.abs(GroupY - EstY): 0;
+                        const XDist = EstX !== null ? Math.abs(Tx - EstX): 0;
+                        const TotalDist = (YDist * 10) + XDist;
+
+                        if (YDist < 4.0 && TotalDist < BestDist)
+                        {
+                            BestDist = TotalDist;
+                            const MinUseX = Math.min(...Uses);
+                            const MaxUseX = Math.max(...Uses);
+                            BestGroup =
+                            {
+                                X: Tx + MinUseX,
+                                Y: GroupY,
+                                Width: (MaxUseX - MinUseX) + 5.5,
+                                Height: EstH
+                            };
+                            BestMatchIndex = GroupIndex;
+                        }
+                    }
+                }
+
+                if (BestGroup)
+                {
+                    Claimed.add(BestMatchIndex);
+                    EstX = BestGroup.X;
+                    EstY = BestGroup.Y;
+                    EstW = BestGroup.Width;
+                    EstH = BestGroup.Height;
+                }
+            }
+
+            if (EstX !== null && EstY !== null)
+            {
+                Enriched.push
+                ({
+                    page: PageNum,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    x: EstX,
+                    y: EstY,
+                    width: EstW,
+                    height: EstH,
+                    span: `synth_math_${LineNum}_${Col}`
+                });
+            }
+        }
+
+        ByteOffset += LineText.length + 1;
+    }
+
+    return Enriched;
+}
+
+function EnrichFunctionCalls(SyncMap, SourceCode)
+{
+    if (!SyncMap || !SourceCode)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = SourceCode.split(/\r?\n/);
+
+    const DefRegex = /#let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*=/g;
+    let DefMatch;
+    const Definitions = [];
+
+    while
+    (
+        (DefMatch = DefRegex.exec(SourceCode)) !== null
+    )
+    {
+        const FuncName = DefMatch[1];
+        const Params = DefMatch[2].split(",").map((P) => P.trim());
+        const DefOffset = DefMatch.index;
+
+        let DefLine = 1;
+        let CurrOff = 0;
+        for (let I = 0; I < Lines.length; I ++)
+        {
+            if (CurrOff + Lines[I].length + 1 > DefOffset)
+            {
+                DefLine = I + 1;
+                break;
+            }
+            CurrOff += Lines[I].length + 1;
+        }
+
+        let OpenChar = "";
+        let CloseChar = "";
+        let BodyStart = - 1;
+        for (let I = DefMatch.index + DefMatch[0].length; I < SourceCode.length; I ++)
+        {
+            if (SourceCode[I] === "{" || SourceCode[I] === "(")
+            {
+                OpenChar = SourceCode[I];
+                CloseChar = OpenChar === "{" ? "}": ")";
+                BodyStart = I;
+                break;
+            }
+        }
+        if (BodyStart === - 1)
+        {
+            continue;
+        }
+
+        let Depth = 1;
+        let BodyEnd = - 1;
+        for (let I = BodyStart + 1; I < SourceCode.length; I ++)
+        {
+            if (SourceCode[I] === OpenChar)
+            {
+                Depth ++;
+            }
+            else if (SourceCode[I] === CloseChar)
+            {
+                Depth --;
+                if (Depth === 0)
+                {
+                    BodyEnd = I;
+                    break;
+                }
+            }
+        }
+        if (BodyEnd === - 1)
+        {
+            continue;
+        }
+
+        let EndLine = 1;
+        CurrOff = 0;
+        for (let I = 0; I < Lines.length; I ++)
+        {
+            if (CurrOff + Lines[I].length + 1 > BodyEnd)
+            {
+                EndLine = I + 1;
+                break;
+            }
+            CurrOff += Lines[I].length + 1;
+        }
+
+        Definitions.push
+        ({
+            Name: FuncName,
+            Params: Params,
+            DefOffset: DefOffset,
+            DefEndOffset: BodyEnd,
+            DefLineStart: DefLine,
+            DefLineEnd: EndLine
+        });
+    }
+
+    for (const Def of Definitions)
+    {
+        const BodyElems = SyncMap.filter((E) => E.line >= Def.DefLineStart && E.end_line <= Def.DefLineEnd);
+        const RawRects = BodyElems.filter((E) => E.width > 50 && E.height > 20);
+        const UniqueRects = [];
+
+        for (const R of RawRects)
+        {
+            const Exists = UniqueRects.some
+            (
+                (U) => (U.page || 1) === (R.page || 1) && Math.abs(U.x - R.x) < 2 && Math.abs(U.y - R.y) < 2
+            );
+            if (!Exists)
+            {
+                UniqueRects.push(R);
+            }
+        }
+
+        UniqueRects.sort
+        (
+            (A, B) => ((A.page || 1) - (B.page || 1)) || (A.y - B.y) || (A.x - B.x)
+        );
+
+        const CallRegex = new RegExp("\\b" + Def.Name + "\\s*\\(([^)]*)\\)", "g");
+        let CallMatch;
+        let InstanceIndex = 0;
+
+        while
+        (
+            (CallMatch = CallRegex.exec(SourceCode)) !== null
+        )
+        {
+            if (CallMatch.index < Def.DefEndOffset)
+            {
+                continue;
+            }
+
+            const CallStart = CallMatch.index;
+            const CallEnd = CallStart + CallMatch[0].length;
+            const ArgsText = CallMatch[1];
+
+            let CallLine = 1;
+            let LineStartOff = 0;
+            for (let I = 0; I < Lines.length; I ++)
+            {
+                if (LineStartOff + Lines[I].length + 1 > CallStart)
+                {
+                    CallLine = I + 1;
+                    break;
+                }
+                LineStartOff += Lines[I].length + 1;
+            }
+            const CallCol = CallStart - LineStartOff + 1;
+            const CallEndCol = CallCol + CallMatch[0].length;
+
+            if (InstanceIndex < UniqueRects.length)
+            {
+                const InstanceRect = UniqueRects[InstanceIndex];
+                const PageNum = InstanceRect.page || 1;
+
+                const InstElems = BodyElems.filter
+                (
+                    (E) => (E.page || 1) === PageNum &&
+                    E.x >= InstanceRect.x - 2 && (E.x + E.width) <= (InstanceRect.x + InstanceRect.width + 2) &&
+                    E.y >= InstanceRect.y - 2 && (E.y + E.height) <= (InstanceRect.y + InstanceRect.height + 2)
+                );
+
+                Enriched.push
+                ({
+                    page: PageNum,
+                    line: CallLine,
+                    col: CallCol,
+                    end_line: CallLine,
+                    end_col: CallEndCol,
+                    start: CallStart,
+                    end: CallEnd,
+                    x: InstanceRect.x,
+                    y: InstanceRect.y,
+                    width: InstanceRect.width,
+                    height: InstanceRect.height,
+                    span: "call_box_" + CallLine + "_" + CallCol
+                });
+
+                const ArgRegex = /"([^"]*)"|(\b\d+\b)/g;
+                let ArgMatch;
+
+                while
+                (
+                    (ArgMatch = ArgRegex.exec(ArgsText)) !== null
+                )
+                {
+                    const ArgOffsetInCall = CallMatch[0].indexOf(ArgMatch[0]);
+                    const ArgStart = CallStart + ArgOffsetInCall;
+                    const ArgEnd = ArgStart + ArgMatch[0].length;
+                    const ArgCol = CallCol + ArgOffsetInCall;
+                    const ArgEndCol = ArgCol + ArgMatch[0].length;
+
+                    if (ArgMatch[1] !== undefined)
+                    {
+                        const TextElem = InstElems.find
+                        (
+                            (E) => E.line === Def.DefLineStart + 6 ||
+                            (
+                                E.height < 15 && E.width > 20 && E.x < InstanceRect.x + InstanceRect.width * 0.5
+                            )
+                        );
+                        if (TextElem)
+                        {
+                            Enriched.push
+                            ({
+                                page: PageNum,
+                                line: CallLine,
+                                col: ArgCol,
+                                end_line: CallLine,
+                                end_col: ArgEndCol,
+                                start: ArgStart,
+                                end: ArgEnd,
+                                x: TextElem.x,
+                                y: TextElem.y,
+                                width: TextElem.width,
+                                height: TextElem.height,
+                                span: "call_arg_" + CallLine + "_" + ArgCol
+                            });
+                        }
+                    }
+                    else if (ArgMatch[2] !== undefined)
+                    {
+                        const ScoreElems = InstElems.filter((E) => E.x > InstanceRect.x + InstanceRect.width * 0.5 && E.height < 15);
+                        if (ScoreElems.length > 0)
+                        {
+                            const MinX = Math.min(...ScoreElems.map((E) => E.x));
+                            const MaxX = Math.max(...ScoreElems.map((E) => E.x + E.width));
+                            const MinY = Math.min(...ScoreElems.map((E) => E.y));
+                            const MaxY = Math.max(...ScoreElems.map((E) => E.y + E.height));
+
+                            Enriched.push
+                            ({
+                                page: PageNum,
+                                line: CallLine,
+                                col: ArgCol,
+                                end_line: CallLine,
+                                end_col: ArgEndCol,
+                                start: ArgStart,
+                                end: ArgEnd,
+                                x: MinX,
+                                y: MinY,
+                                width: MaxX - MinX,
+                                height: MaxY - MinY,
+                                span: "call_arg_" + CallLine + "_" + ArgCol
+                            });
+                        }
+                    }
+                }
+            }
+
+            InstanceIndex ++;
+        }
+    }
+
+    return Enriched;
+}
+
+function EnrichReferences(SyncMap, SourceCode)
+{
+    if (!SyncMap || !SourceCode)
+    {
+        return SyncMap || [];
+    }
+
+    const Enriched = [...SyncMap];
+    const Lines = SourceCode.split(/\r?\n/);
+    let ByteOffset = 0;
+
+    const LineMap = new Map();
+    for (const E of Enriched)
+    {
+        if (!LineMap.has(E.line))
+        {
+            LineMap.set(E.line, []);
+        }
+        LineMap.get(E.line).push(E);
+    }
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    {
+        const LineText = Lines[LineIdx];
+        const LineNum = LineIdx + 1;
+        const RefRegex = /@([a-zA-Z0-9_\-:]+)/g;
+        let Match;
+
+        while
+        (
+            (Match = RefRegex.exec(LineText)) !== null
+        )
+        {
+            const Label = Match[1];
+            const Col = Match.index + 1;
+            const EndCol = Col + Match[0].length;
+            const Start = ByteOffset + Match.index;
+            const End = Start + Match[0].length;
+
+            const LineElems = LineMap.get(LineNum) || [];
+            const Before = LineElems.filter((E) => E.start <= Start + 2).sort((A, B) => B.start - A.start)[0];
+            const After = LineElems.filter((E) => E.start >= End - 1).sort((A, B) => A.start - B.start)[0];
+
+            if (Before && After && (Before.page || 1) === (After.page || 1) && Math.abs(Before.y - After.y) < 3.0)
+            {
+                const GapX = Before.x + Before.width;
+                const GapW = Math.max(12.0, After.x - GapX);
+                Enriched.push
+                ({
+                    page: Before.page || 1,
+                    x: GapX,
+                    y: Before.y,
+                    width: GapW,
+                    height: Before.height,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    span: `ref_${Label}`
+                });
+            }
+            else if (Before)
+            {
+                Enriched.push
+                ({
+                    page: Before.page || 1,
+                    x: Before.x + Before.width,
+                    y: Before.y,
+                    width: 35.0,
+                    height: Before.height,
+                    line: LineNum,
+                    col: Col,
+                    end_line: LineNum,
+                    end_col: EndCol,
+                    start: Start,
+                    end: End,
+                    span: `ref_${Label}`
+                });
+            }
+        }
+
+        ByteOffset += LineText.length + 1;
+    }
+
+    return Enriched;
 }
 
 function RebuildSyncMapIndex(SyncMap)
@@ -987,12 +1617,6 @@ const UI_FONT_PRESETS =
         Weight: "500",
         LetterSpacing: "0.2px"
     },
-    "Teko":
-    {
-        Family: '"Teko", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        Weight: "300",
-        LetterSpacing: "0.8px"
-    },
     "Inter":
     {
         Family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -1020,6 +1644,12 @@ const UI_FONT_PRESETS =
     "JetBrains Mono":
     {
         Family: '"JetBrains Mono", Consolas, monospace',
+        Weight: "400",
+        LetterSpacing: "0px"
+    },
+    "iA Writer Duo":
+    {
+        Family: '"iA Writer Duo", "iA Writer Duo S", monospace',
         Weight: "400",
         LetterSpacing: "0px"
     },
@@ -1125,7 +1755,14 @@ function LoadUISettings()
             }
             if (typeof Parsed.Font === "string")
             {
-                CurrentUISettings.Font = Parsed.Font;
+                if (Parsed.Font === "Teko")
+                {
+                    CurrentUISettings.Font = "TT Lakes Neue";
+                }
+                else
+                {
+                    CurrentUISettings.Font = Parsed.Font;
+                }
             }
             if (typeof Parsed.CustomFont === "string")
             {
@@ -1220,7 +1857,7 @@ function UpdateSettingsPanelUI()
     const CustomFontGroup = document.getElementById("CustomFontInputGroup");
     const CustomFontInput = document.getElementById("CustomFontInput");
 
-    if (ScaleBadge)
+    if (ScaleBadge && document.activeElement !== ScaleBadge)
     {
         let Label = `${CurrentUISettings.Scale}%`;
         if (CurrentUISettings.Scale === 100)
@@ -1273,10 +1910,204 @@ function UpdateSettingsPanelUI()
             CustomFontGroup.style.display = "none";
         }
     }
+
+    UpdateEditorTypographyUI();
+}
+
+function GetEditorFontStack(FontName)
+{
+    switch (FontName)
+    {
+        case "iA Writer Duo":
+            return "'iA Writer Duo', 'iA Writer Duo S', 'JetBrains Mono', Consolas, monospace";
+        case "JetBrains Mono":
+            return "'JetBrains Mono', 'Cascadia Code', Consolas, monospace";
+        case "Cascadia Code":
+            return "'Cascadia Code', 'JetBrains Mono', Consolas, monospace";
+        case "Fira Code":
+            return "'Fira Code', 'JetBrains Mono', Consolas, monospace";
+        case "Consolas":
+            return "Consolas, 'Courier New', monospace";
+        default:
+            return `'${FontName}', 'iA Writer Duo', monospace`;
+    }
+}
+
+function ApplyEditorTypography()
+{
+    const EffectiveFont = (CurrentUIMode === "focus" && UseDifferentFocusFont)
+        ? CurrentFocusEditorFont
+        : CurrentEditorFont;
+
+    const FontStack = GetEditorFontStack(EffectiveFont);
+
+    if (MonacoInstance)
+    {
+        MonacoInstance.updateOptions
+        ({
+            fontFamily: FontStack,
+            fontSize: CurrentEditorFontSize,
+            lineHeight: Math.round(CurrentEditorFontSize * CurrentEditorLineHeight),
+            fontLigatures: CurrentEditorLigatures
+        });
+    }
+
+    const EditorHost = document.querySelector(".EditorHost");
+    if (EditorHost)
+    {
+        EditorHost.style.fontFamily = FontStack;
+    }
+
+    UpdateEditorTypographyUI();
+}
+
+function UpdateEditorTypographyUI()
+{
+    const EditorFontSelect = document.getElementById("EditorFontSelect");
+    const EditorFontBadge = document.getElementById("EditorFontBadge");
+    const CustomGroup = document.getElementById("CustomEditorFontInputGroup");
+    const CustomInput = document.getElementById("CustomEditorFontInput");
+    const FocusCheckbox = document.getElementById("UseDifferentFocusFontCheckbox");
+    const FocusWrapper = document.getElementById("FocusFontSelectorWrapper");
+    const FocusSelect = document.getElementById("FocusFontSelect");
+    const LineHeightBadge = document.getElementById("EditorLineHeightBadge");
+
+    if (EditorFontSelect)
+    {
+        if (["iA Writer Duo", "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas"].includes(CurrentEditorFont))
+        {
+            EditorFontSelect.value = CurrentEditorFont;
+            if (CustomGroup)
+            {
+                CustomGroup.style.display = "none";
+            }
+        }
+        else
+        {
+            EditorFontSelect.value = "Custom";
+            if (CustomGroup)
+            {
+                CustomGroup.style.display = "flex";
+            }
+            if (CustomInput)
+            {
+                CustomInput.value = CurrentEditorFont;
+            }
+        }
+    }
+
+    if (EditorFontBadge)
+    {
+        EditorFontBadge.textContent = CurrentEditorFont;
+    }
+
+    if (FocusCheckbox)
+    {
+        FocusCheckbox.checked = UseDifferentFocusFont;
+    }
+
+    if (FocusWrapper)
+    {
+        FocusWrapper.style.display = UseDifferentFocusFont ? "block" : "none";
+    }
+
+    if (FocusSelect)
+    {
+        FocusSelect.value = CurrentFocusEditorFont;
+    }
+
+    if (LineHeightBadge)
+    {
+        const Descriptor = CurrentEditorLineHeight === 1.55 ? "Comfortable" : CurrentEditorLineHeight < 1.5 ? "Compact" : "Relaxed";
+        LineHeightBadge.textContent = `${CurrentEditorLineHeight.toFixed(2)} (${Descriptor})`;
+    }
+
+    document.querySelectorAll(".LineHeightPresetBtn").forEach
+    (
+        (Btn) =>
+        {
+            const Val = parseFloat(Btn.getAttribute("DataLineHeight"));
+            Btn.classList.toggle("Active", Math.abs(Val - CurrentEditorLineHeight) < 0.05);
+        }
+    );
+
+    document.querySelectorAll(".LigaturePresetBtn").forEach
+    (
+        (Btn) =>
+        {
+            const Val = Btn.getAttribute("DataLigatures") === "true";
+            Btn.classList.toggle("Active", Val === CurrentEditorLigatures);
+        }
+    );
 }
 
 function SetupAppearanceEventListeners()
 {
+    // Editable UI Scale Badge
+    const ScaleBadge = document.getElementById("UIScaleValueBadge");
+    if (ScaleBadge)
+    {
+        ScaleBadge.addEventListener
+        (
+            "focus",
+            () =>
+            {
+                ScaleBadge.textContent = `${CurrentUISettings.Scale}%`;
+                const Range = document.createRange();
+                Range.selectNodeContents(ScaleBadge);
+                const Selection = window.getSelection();
+                if (Selection)
+                {
+                    Selection.removeAllRanges();
+                    Selection.addRange(Range);
+                }
+            }
+        );
+        ScaleBadge.addEventListener
+        (
+            "keydown",
+            (Event) =>
+            {
+                if (Event.key === "Enter")
+                {
+                    Event.preventDefault();
+                    ScaleBadge.blur();
+                }
+                else if (Event.key === "Escape")
+                {
+                    Event.preventDefault();
+                    UpdateSettingsPanelUI();
+                    ScaleBadge.blur();
+                }
+            }
+        );
+        ScaleBadge.addEventListener
+        (
+            "blur",
+            () =>
+            {
+                const RawText = ScaleBadge.textContent.replace(/[^0-9.]/g, "").trim();
+                const Parsed = parseFloat(RawText);
+                if (!isNaN(Parsed))
+                {
+                    let TargetScale = Parsed;
+                    if (TargetScale > 0 && TargetScale <= 2.5)
+                    {
+                        TargetScale = TargetScale * 100;
+                    }
+                    TargetScale = Math.round(TargetScale);
+                    if (TargetScale >= 50 && TargetScale <= 250)
+                    {
+                        CurrentUISettings.Scale = TargetScale;
+                        ApplyUISettings();
+                        return;
+                    }
+                }
+                UpdateSettingsPanelUI();
+            }
+        );
+    }
+
     // Preset Buttons
     const PresetButtons = document.querySelectorAll(".ScalePresetBtn");
     PresetButtons.forEach
@@ -1380,6 +2211,148 @@ function SetupAppearanceEventListeners()
             }
         );
     }
+
+    // --- Editor Typography Controls ---
+    const EditorFontSelect = document.getElementById("EditorFontSelect");
+    const CustomEditorFontGroup = document.getElementById("CustomEditorFontInputGroup");
+    const CustomEditorFontInput = document.getElementById("CustomEditorFontInput");
+
+    if (EditorFontSelect)
+    {
+        EditorFontSelect.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                const Chosen = E.target.value;
+                if (Chosen === "Custom")
+                {
+                    if (CustomEditorFontGroup)
+                    {
+                        CustomEditorFontGroup.style.display = "flex";
+                    }
+                    if (CustomEditorFontInput)
+                    {
+                        CustomEditorFontInput.focus();
+                    }
+                }
+                else
+                {
+                    if (CustomEditorFontGroup)
+                    {
+                        CustomEditorFontGroup.style.display = "none";
+                    }
+                    CurrentEditorFont = Chosen;
+                    localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+                    ApplyEditorTypography();
+                }
+            }
+        );
+    }
+
+    if (CustomEditorFontInput)
+    {
+        const CommitCustomEditorFont = () =>
+        {
+            const Val = CustomEditorFontInput.value.trim();
+            if (Val)
+            {
+                CurrentEditorFont = Val;
+                localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+                ApplyEditorTypography();
+            }
+        };
+
+        CustomEditorFontInput.addEventListener("blur", CommitCustomEditorFont);
+        CustomEditorFontInput.addEventListener
+        (
+            "keydown",
+            (E) =>
+            {
+                if (E.key === "Enter")
+                {
+                    CommitCustomEditorFont();
+                }
+            }
+        );
+    }
+
+    const FocusCheckbox = document.getElementById("UseDifferentFocusFontCheckbox");
+    const FocusWrapper = document.getElementById("FocusFontSelectorWrapper");
+    const FocusSelect = document.getElementById("FocusFontSelect");
+
+    if (FocusCheckbox)
+    {
+        FocusCheckbox.addEventListener
+        (
+            "change",
+            () =>
+            {
+                UseDifferentFocusFont = FocusCheckbox.checked;
+                localStorage.setItem("TypstStudio_UseDifferentFocusFont", String(UseDifferentFocusFont));
+                if (FocusWrapper)
+                {
+                    FocusWrapper.style.display = UseDifferentFocusFont ? "block" : "none";
+                }
+                ApplyEditorTypography();
+            }
+        );
+    }
+
+    if (FocusSelect)
+    {
+        FocusSelect.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                CurrentFocusEditorFont = E.target.value;
+                localStorage.setItem("TypstStudio_FocusEditorFont", CurrentFocusEditorFont);
+                ApplyEditorTypography();
+            }
+        );
+    }
+
+    const LineHeightBtns = document.querySelectorAll(".LineHeightPresetBtn");
+    LineHeightBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener
+            (
+                "click",
+                () =>
+                {
+                    const Val = parseFloat(Btn.getAttribute("DataLineHeight"));
+                    if (!isNaN(Val))
+                    {
+                        CurrentEditorLineHeight = Val;
+                        localStorage.setItem("TypstStudio_EditorLineHeight", String(Val));
+                        ApplyEditorTypography();
+                    }
+                }
+            );
+        }
+    );
+
+    const LigatureBtns = document.querySelectorAll(".LigaturePresetBtn");
+    LigatureBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener
+            (
+                "click",
+                () =>
+                {
+                    CurrentEditorLigatures = Btn.getAttribute("DataLigatures") === "true";
+                    localStorage.setItem("TypstStudio_EditorLigatures", String(CurrentEditorLigatures));
+                    ApplyEditorTypography();
+                }
+            );
+        }
+    );
+
     // Reset Button
     const ResetBtn = document.getElementById("ResetAppearanceBtn");
     if (ResetBtn)
@@ -1392,9 +2365,25 @@ function SetupAppearanceEventListeners()
                 CurrentUISettings.Font = DEFAULT_UI_SETTINGS.Font;
                 CurrentUISettings.CustomFont = DEFAULT_UI_SETTINGS.CustomFont;
                 ApplyUISettings();
+
+                CurrentEditorFont = "iA Writer Duo";
+                CurrentFocusEditorFont = "iA Writer Duo";
+                UseDifferentFocusFont = false;
+                CurrentEditorLineHeight = 1.55;
+                CurrentEditorLigatures = true;
+                localStorage.setItem("TypstStudio_EditorFont", "iA Writer Duo");
+                localStorage.setItem("TypstStudio_FocusEditorFont", "iA Writer Duo");
+                localStorage.setItem("TypstStudio_UseDifferentFocusFont", "false");
+                localStorage.setItem("TypstStudio_EditorLineHeight", "1.55");
+                localStorage.setItem("TypstStudio_EditorLigatures", "true");
+                SetEditorFontSize(14);
+                ApplyEditorTypography();
+                ShowToast("Restored all interface and typography settings to defaults", "info");
             }
         );
     }
+
+    UpdateEditorTypographyUI();
 }
 
 function DetectKnrSlop(Source, FileName = "main.typ")
@@ -2013,31 +3002,67 @@ function ApplyFormattingToEditor()
     }
 }
 
-async function InitializeMonaco()
+function InitializeMonaco()
 {
-    await EnsureSessionAuthToken();
-
-    window.MonacoEnvironment =
-    {
-        getWorkerUrl: function(WorkerId, Label)
-        {
-            return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
-                self.MonacoEnvironment = {
-                    baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/'
-                };
-                importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');
-            `)}`;
-        }
-    };
-
-    window.require.config
-    ({
-        paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" }
-    });
-
-    window.require
+    return new Promise
     (
-        ["vs/editor/editor.main"], () =>
+        async (Resolve) =>
+        {
+            if (MonacoInstance)
+            {
+                Resolve(MonacoInstance);
+                return ;
+            }
+
+            await EnsureSessionAuthToken();
+
+            let Attempts = 0;
+            const MaxAttempts = 100;
+
+            const CheckAndInit = () =>
+            {
+                Attempts ++;
+                if (typeof window.require !== "undefined" && typeof window.require.config === "function")
+                {
+                    const RootBaseUrl = new URL(".", window.location.href).href;
+                    const WorkerMainUrl = new URL("vs/base/worker/workerMain.js", window.location.href).href;
+                    window.MonacoEnvironment =
+                    {
+                        baseUrl: RootBaseUrl,
+                        getWorkerUrl: function(WorkerId, Label)
+                        {
+                            return `data:text/javascript;charset=utf-8,${encodeURIComponent(`
+                                self.MonacoEnvironment = {
+                                    baseUrl: '${RootBaseUrl}'
+                                };
+                                try
+                                {
+                                    importScripts('${WorkerMainUrl}');
+                                }
+                                catch (IgnoredWorkerErr)
+                                {
+                                    importScripts('https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/base/worker/workerMain.js');
+                                }
+                            `)}`;
+                        }
+                    };
+
+                    try
+                    {
+                        window.require.config
+                        ({
+                            paths: { vs: "vs" }
+                        });
+                    }
+                    catch (ConfigErr)
+                    {
+                        console.warn("Monaco local path config error:", ConfigErr);
+                    }
+
+                    window.require
+                    (
+                        ["vs/editor/editor.main"],
+                        () =>
         {
             monaco.languages.register( { id: "typst" });
 
@@ -2440,11 +3465,11 @@ async function InitializeMonaco()
                     theme: "typst-vibrant",
                     automaticLayout: true,
                     fontSize: CurrentEditorFontSize,
-                    lineHeight: Math.round(CurrentEditorFontSize * 1.55),
+                    lineHeight: Math.round(CurrentEditorFontSize * CurrentEditorLineHeight),
                     mouseWheelZoom: true,
-                    fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
+                    fontFamily: GetEditorFontStack(CurrentUIMode === "focus" && UseDifferentFocusFont ? CurrentFocusEditorFont : CurrentEditorFont),
                     fontWeight: "400",
-                    fontLigatures: true,
+                    fontLigatures: CurrentEditorLigatures,
                     minimap:
                     {
                         enabled: true,
@@ -2494,6 +3519,13 @@ async function InitializeMonaco()
 
             window.MonacoInstance = MonacoInstance;
 
+            if (PendingInitialFileContent && PendingInitialFileContent.Content !== undefined)
+            {
+                MonacoInstance.setValue(PendingInitialFileContent.Content);
+                MarkDocumentClean(PendingInitialFileContent.Content);
+                PendingInitialFileContent = null;
+            }
+
             SyncLineDecorations = MonacoInstance.createDecorationsCollection([]);
 
             MonacoInstance.onDidChangeConfiguration
@@ -2528,6 +3560,30 @@ async function InitializeMonaco()
             (
                 monaco.KeyMod.CtrlCmd | monaco.KeyCode.Digit0,
                 () => { ResetEditorFontSize(); }
+            );
+
+            MonacoInstance.onMouseDown
+            (
+                (Event) =>
+                {
+                    if (!IsSyncTexEnabled || SuppressForwardSync)
+                    {
+                        return ;
+                    }
+                    if (Event && Event.target && Event.target.position)
+                    {
+                        const ClickPos = Event.target.position;
+                        clearTimeout(ForwardSyncDebounceTimer);
+                        ForwardSyncDebounceTimer = setTimeout
+                        (
+                            () =>
+                            {
+                                PerformForwardSync(ClickPos.lineNumber, ClickPos.column, true);
+                            },
+                            60
+                        );
+                    }
+                }
             );
 
             MonacoInstance.onDidChangeCursorPosition
@@ -2871,21 +3927,305 @@ async function InitializeMonaco()
                 monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyP, () => { TriggerDocumentPrint(); }
             );
 
+            MonacoInstance.addCommand
+            (
+                monaco.KeyCode.F12, () => { ToggleDevTools(); }
+            );
+
+            MonacoInstance.addCommand
+            (
+                monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyI, () => { ToggleDevTools(); }
+            );
+
+            MonacoInstance.addAction
+            ({
+                id: "toggle_devtools",
+                label: "Developer: Toggle Developer Tools",
+                keybindings: [monaco.KeyCode.F12, monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyI],
+                run: () => { ToggleDevTools(); }
+            });
+
             UpdateStatusBar();
             TriggerCompileNow();
             MarkDocumentClean(MonacoInstance ? MonacoInstance.getValue(): "");
             UpdateDocumentOutline();
+            SetupBidirectionalScrollSync();
+            Resolve(MonacoInstance);
+        },
+        (RequireErr) =>
+        {
+            console.error("Local Monaco loader error, trying CDN fallback:", RequireErr);
+            try
+            {
+                window.require.config
+                ({
+                    paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" }
+                });
+                window.require
+                (
+                    ["vs/editor/editor.main"],
+                    () =>
+                    {
+                        Resolve(MonacoInstance);
+                    },
+                    (CdnErr) =>
+                    {
+                        console.error("Monaco CDN loader error:", CdnErr);
+                        Resolve(null);
+                    }
+                );
+            }
+            catch (CdnConfigErr)
+            {
+                Resolve(null);
+            }
         }
+    );
+    }
+    else if (Attempts < MaxAttempts)
+    {
+        setTimeout(CheckAndInit, 50);
+    }
+    else
+    {
+        console.error("Monaco loader failed to load after 5 seconds");
+        Resolve(null);
+    }
+};
+
+CheckAndInit();
+}
+);
+}
+
+let ActiveScrollSource = null;
+let ScrollSyncClearTimer = null;
+
+function SetupBidirectionalScrollSync()
+{
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport || !MonacoInstance)
+    {
+        return ;
+    }
+
+    // 1. Monaco -> Preview scroll sync (tied to Real-Time toggle)
+    MonacoInstance.onDidScrollChange
+    (
+        (Event) =>
+        {
+            const AutoCompile = document.getElementById("AutoCompileToggle") ? document.getElementById("AutoCompileToggle").checked: true;
+            if (!AutoCompile || !IsSyncTexEnabled || !Event.scrollTopChanged)
+            {
+                return ;
+            }
+
+            // Suppress echo if the preview was the source of this scroll
+            if (ActiveScrollSource === "preview")
+            {
+                return ;
+            }
+
+            ActiveScrollSource = "editor";
+            clearTimeout(ScrollSyncClearTimer);
+            ScrollSyncClearTimer = setTimeout
+            (
+                () => { ActiveScrollSource = null; },
+                200
+            );
+
+            const ScrollTop = MonacoInstance.getScrollTop();
+            if (ScrollTop < 10)
+            {
+                Viewport.scrollTo
+                ({
+                    top: 0,
+                    behavior: "auto"
+                });
+                return ;
+            }
+
+            const Layout = MonacoInstance.getLayoutInfo();
+            const ScrollHeight = MonacoInstance.getScrollHeight();
+            if (ScrollTop + Layout.height >= ScrollHeight - 15)
+            {
+                Viewport.scrollTo
+                ({
+                    top: Viewport.scrollHeight,
+                    behavior: "auto"
+                });
+                return ;
+            }
+
+            const VisibleRanges = MonacoInstance.getVisibleRanges();
+            if (!VisibleRanges || VisibleRanges.length === 0)
+            {
+                return ;
+            }
+
+            const TopLine = VisibleRanges[0].startLineNumber;
+            let TargetElem = null;
+
+            for (let L = TopLine; L <= TopLine + 25; L ++)
+            {
+                if (ActiveSyncMapByLine && ActiveSyncMapByLine.has(L))
+                {
+                    const List = ActiveSyncMapByLine.get(L);
+                    if (List && List.length > 0)
+                    {
+                        TargetElem = List[0];
+                        break;
+                    }
+                }
+            }
+
+            if (!TargetElem)
+            {
+                return ;
+            }
+
+            const PageNum = TargetElem.page || 1;
+            const PageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
+            if (!PageSheet)
+            {
+                return ;
+            }
+
+            const VbH = parseFloat(PageSheet.dataset.baseHeight) || 864;
+            const PageRect = PageSheet.getBoundingClientRect();
+            const ViewportRect = Viewport.getBoundingClientRect();
+            const ScaleY = PageRect.height / VbH;
+
+            const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+            const TargetScrollTop = SheetTopInContent + (TargetElem.y * ScaleY) - 50;
+
+            if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 30)
+            {
+                Viewport.scrollTo
+                ({
+                    top: Math.max(0, TargetScrollTop),
+                    behavior: "auto"
+                });
+            }
+        }
+    );
+
+    // 2. Preview -> Monaco scroll sync (tied to Real-Time toggle)
+    Viewport.addEventListener
+    (
+        "scroll",
+        () =>
+        {
+            const AutoCompile = document.getElementById("AutoCompileToggle") ? document.getElementById("AutoCompileToggle").checked: true;
+            if (!AutoCompile || !IsSyncTexEnabled)
+            {
+                return ;
+            }
+
+            // Suppress echo if the editor was the source of this scroll
+            if (ActiveScrollSource === "editor")
+            {
+                return ;
+            }
+
+            ActiveScrollSource = "preview";
+            clearTimeout(ScrollSyncClearTimer);
+            ScrollSyncClearTimer = setTimeout
+            (
+                () => { ActiveScrollSource = null; },
+                200
+            );
+
+            if (Viewport.scrollTop < 15)
+            {
+                MonacoInstance.revealLine(1);
+                return ;
+            }
+
+            const PageSheets = document.querySelectorAll(".PageSheet");
+            if (!PageSheets || PageSheets.length === 0 || !ActiveSyncMap || ActiveSyncMap.length === 0)
+            {
+                return ;
+            }
+
+            const ViewportRect = Viewport.getBoundingClientRect();
+            let ActiveSheet = PageSheets[0];
+            let ActivePageNum = 1;
+
+            for (let I = 0; I < PageSheets.length; I ++)
+            {
+                const Sheet = PageSheets[I];
+                const SheetRect = Sheet.getBoundingClientRect();
+                const SheetBottomInViewport = SheetRect.bottom - ViewportRect.top;
+                if (SheetBottomInViewport > 80)
+                {
+                    ActiveSheet = Sheet;
+                    ActivePageNum = I + 1;
+                    break;
+                }
+            }
+
+            const VbH = parseFloat(ActiveSheet.dataset.baseHeight) || 864;
+            const SheetRect = ActiveSheet.getBoundingClientRect();
+            const ScaleY = SheetRect.height / VbH;
+            const RelativeY = (ViewportRect.top + 80 - SheetRect.top) / ScaleY;
+
+            if (RelativeY < 0 && ActivePageNum === 1)
+            {
+                return ;
+            }
+
+            const PageElems = ActiveSyncMap.filter( (E) => (E.page || 1) === ActivePageNum);
+            if (PageElems.length === 0)
+            {
+                return ;
+            }
+
+            let ClosestElem = null;
+            let MinDist = Infinity;
+            for (const Elem of PageElems)
+            {
+                const Dist = Math.abs(Elem.y - RelativeY);
+                if (Dist < MinDist)
+                {
+                    MinDist = Dist;
+                    ClosestElem = Elem;
+                }
+            }
+
+            if (ClosestElem && ClosestElem.line && ClosestElem.line > 0)
+            {
+                const CurrentTopLine = MonacoInstance.getVisibleRanges()[0] ? MonacoInstance.getVisibleRanges()[0].startLineNumber: 1;
+                if (Math.abs(CurrentTopLine - ClosestElem.line) > 3)
+                {
+                    MonacoInstance.revealLineInCenterIfOutsideViewport(ClosestElem.line);
+                }
+            }
+        },
+        { passive: true }
     );
 }
 
 function UpdateStatusBar()
 {
-    if (!MonacoInstance) { return; }
-    // High-performance O(1) character count without copying or allocating strings
+    if (!MonacoInstance) { return ; }
     const Model = MonacoInstance.getModel();
-    const Length = Model ? Model.getValueLength(): 0;
-    document.getElementById("CharacterCount").textContent = `${Length} chars`;
+    if (!Model) { return ; }
+    const Length = Model.getValueLength();
+    const CharCountEl = document.getElementById("CharacterCount");
+    if (CharCountEl)
+    {
+        CharCountEl.textContent = `${Length.toLocaleString()} chars`;
+    }
+
+    const WordCountEl = document.getElementById("WordCountDisplay");
+    if (WordCountEl)
+    {
+        const Source = Model.getValue();
+        const WordMatches = Source ? Source.match(/\b[\w'-]+\b/g) : null;
+        const WordCount = WordMatches ? WordMatches.length : 0;
+        WordCountEl.textContent = `${WordCount.toLocaleString()} words`;
+    }
 }
 
 function ScheduleCompile(DelayMs)
@@ -2931,6 +4271,11 @@ async function TriggerCompileNow()
     if (LAFSValidation && LAFSValidation.HasError)
     {
         IsCompiling = false;
+        const Splash = document.getElementById("LoadingSplash");
+        if (Splash)
+        {
+            Splash.remove();
+        }
         const PagesContainer = document.getElementById("PagesContainer");
         if (PagesContainer)
         {
@@ -2943,6 +4288,7 @@ async function TriggerCompileNow()
         StatusDot.className = "StatusDot Error";
         StatusText.textContent = "Error";
         DurationText.textContent = "0ms";
+        SetStatusPill("Error", "Error", 0);
         ShowCompilationError
         (
             `Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: ${LAFSValidation.Errors[0] ? LAFSValidation.Errors[0].Reason : "Violation of LAFS"}`
@@ -2952,6 +4298,7 @@ async function TriggerCompileNow()
 
     StatusDot.className = "StatusDot Compiling";
     StatusText.textContent = "Compiling...";
+    SetStatusPill("Compiling", "Compiling...", undefined);
 
     try
     {
@@ -3019,15 +4366,22 @@ async function TriggerCompileNow()
 
         if (Result.Success)
         {
-            StatusDot.className = "StatusDot";
-            StatusText.textContent = "Ready";
-            DurationText.textContent = `${Result.DurationMs}ms`;
+            if (StatusDot) { StatusDot.className = "StatusDot"; }
+            if (StatusText) { StatusText.textContent = "Ready"; }
+            if (DurationText) { DurationText.textContent = `${Result.DurationMs}ms`; }
+            SetStatusPill("", "Ready", Result.DurationMs);
             ErrorDrawer.classList.remove("Visible");
+            const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
+            if (ErrorIndicator) { ErrorIndicator.style.display = "none"; }
 
             LastCompiledPages = Result.Pages;
             CurrentPageCount = Result.PageCount;
             ActiveSpanMap = Result.SpanMap || {};
-            ActiveSyncMap = Result.SyncMap || [];
+            let RawSyncMap = Result.SyncMap || [];
+            RawSyncMap = EnrichMathSyncMap(RawSyncMap, Source, Result.Pages || []);
+            RawSyncMap = EnrichFunctionCalls(RawSyncMap, Source);
+            RawSyncMap = EnrichReferences(RawSyncMap, Source);
+            ActiveSyncMap = RawSyncMap;
             RebuildSyncMapIndex(ActiveSyncMap);
             RenderPages(Result.Pages);
             UpdatePagination();
@@ -3045,9 +4399,16 @@ async function TriggerCompileNow()
         }
         else
         {
+            const Splash = document.getElementById("LoadingSplash");
+            if (Splash)
+            {
+                Splash.remove();
+            }
+
             StatusDot.className = "StatusDot Error";
             StatusText.textContent = "Error";
             DurationText.textContent = `${Result.DurationMs}ms`;
+            SetStatusPill("Error", "Error", Result.DurationMs);
 
             if (Result.KnrSlop)
             {
@@ -3074,6 +4435,7 @@ async function TriggerCompileNow()
         }
         StatusDot.className = "StatusDot Error";
         StatusText.textContent = "Offline";
+        SetStatusPill("Error", "Offline", 0);
         const ErrMsg = (Exception && Exception.message) ? Exception.message : String(Exception || "Compilation failed.");
         ShowCompilationError(ErrMsg);
         const Splash = document.getElementById("LoadingSplash");
@@ -3282,14 +4644,15 @@ function InvertShapeColor(ColorStr)
     return FinalColor;
 }
 
-function InvertGlyphColor(ColorStr)
+function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
 {
     if (!ColorStr)
     {
         return ColorStr;
     }
 
-    const Cached = InvertGlyphColorCache.get(ColorStr);
+    const CacheKey = ColorStr + "_" + Mode;
+    const Cached = InvertGlyphColorCache.get(CacheKey);
     if (Cached !== undefined)
     {
         return Cached;
@@ -3298,9 +4661,11 @@ function InvertGlyphColor(ColorStr)
     const Trimmed = ColorStr.trim();
     if (["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase()))
     {
-        InvertGlyphColorCache.set(ColorStr, ColorStr);
+        InvertGlyphColorCache.set(CacheKey, ColorStr);
         return ColorStr;
     }
+
+    const TargetLightText = (Mode === "pure_black") ? "#FFFFFF": "#D6D3CD";
 
     let Red = 0;
     let Green = 0;
@@ -3309,8 +4674,8 @@ function InvertGlyphColor(ColorStr)
 
     if (Lower === "white" || Lower === "#ffffff" || Lower === "#fff")
     {
-        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
-        return "#FFFFFF";
+        InvertGlyphColorCache.set(CacheKey, TargetLightText);
+        return TargetLightText;
     }
 
     if (Trimmed.startsWith("#"))
@@ -3340,7 +4705,7 @@ function InvertGlyphColor(ColorStr)
         }
         else
         {
-            InvertGlyphColorCache.set(ColorStr, ColorStr);
+            InvertGlyphColorCache.set(CacheKey, ColorStr);
             return ColorStr;
         }
     }
@@ -3348,27 +4713,33 @@ function InvertGlyphColor(ColorStr)
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 22)
     {
-        InvertGlyphColorCache.set(ColorStr, ColorStr);
+        InvertGlyphColorCache.set(CacheKey, ColorStr);
         return ColorStr;
     }
 
     const Avg = (Red + Green + Blue) / 3;
-    if (Avg >= 240)
+    if (Avg >= 240 || Avg <= 50)
     {
-        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
-        return "#FFFFFF";
-    }
-    if (Avg <= 50)
-    {
-        InvertGlyphColorCache.set(ColorStr, "#FFFFFF");
-        return "#FFFFFF";
+        InvertGlyphColorCache.set(CacheKey, TargetLightText);
+        return TargetLightText;
     }
 
-    const Inv = Math.min(255, Math.max(0, Math.round(255 - Avg)));
-    const H = Inv.toString(16).padStart(2, "0").toUpperCase();
-    const FinalColor = `#${H}${H}${H}`;
-    InvertGlyphColorCache.set(ColorStr, FinalColor);
-    return FinalColor;
+    if (Mode === "pure_black")
+    {
+        const Inv = Math.min(255, Math.max(0, Math.round(255 - Avg)));
+        const H = Inv.toString(16).padStart(2, "0").toUpperCase();
+        const FinalColor = `#${H}${H}${H}`;
+        InvertGlyphColorCache.set(CacheKey, FinalColor);
+        return FinalColor;
+    }
+    else
+    {
+        const Inv = Math.min(220, Math.max(40, Math.round((255 - Avg) * 0.88)));
+        const H = Inv.toString(16).padStart(2, "0").toUpperCase();
+        const FinalColor = `#${H}${H}${H}`;
+        InvertGlyphColorCache.set(CacheKey, FinalColor);
+        return FinalColor;
+    }
 }
 
 function InvertMonochromeColor(ColorStr)
@@ -3393,14 +4764,14 @@ function ConvertSvgToTransparent(Svg)
     return Result;
 }
 
-function ConvertSvgToDarkMode(Svg, Transparent = false)
+function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColorMode)
 {
     if (!Svg)
     {
         return Svg;
     }
 
-    const SvgKey = FastHash(Svg) + (Transparent ? "_trans": "_solid");
+    const SvgKey = FastHash(Svg) + "_" + Mode + (Transparent ? "_trans": "_solid");
     const Cached = SvgDarkModeCache.get(SvgKey);
     if (Cached)
     {
@@ -3449,7 +4820,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
             (
                 /\bfill\s*=\s*(["'])([^"']+)\1/gi, (FillMatch, Quote, Color) =>
                 {
-                    const Inverted = InvertGlyphColor(Color);
+                    const Inverted = InvertGlyphColor(Color, Mode);
                     return `fill=${Quote}${Inverted}${Quote}`;
                 }
             );
@@ -3470,7 +4841,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
                     {
                         return FillMatch;
                     }
-                    const Inverted = InvertShapeColor(Color);
+                    const Inverted = InvertShapeColor(Color, Mode);
                     return `fill=${Quote}${Inverted}${Quote}`;
                 }
             );
@@ -3478,7 +4849,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
             (
                 /\bstroke\s*=\s*(["'])([^"']+)\1/gi, (StrokeMatch, Quote, Color) =>
                 {
-                    const Inverted = InvertShapeColor(Color);
+                    const Inverted = InvertShapeColor(Color, Mode);
                     return `stroke=${Quote}${Inverted}${Quote}`;
                 }
             );
@@ -3486,8 +4857,9 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
         }
     );
 
-    // 4. Resolve the canvas sentinel to pure pitch black #000000 or none
-    const CanvasFill = Transparent ? 'fill="none"': 'fill="#000000"';
+    // 4. Resolve the canvas sentinel to pure black #000000 or optimized #0D0D0F or none
+    const CanvasColor = (Mode === "pure_black") ? "#000000": "#0D0D0F";
+    const CanvasFill = Transparent ? 'fill="none"': `fill="${CanvasColor}"`;
     Result = Result.replaceAll('fill="__CANVAS_BLACK_SENTINEL__"', CanvasFill);
 
     // 5. Handle custom inline styles
@@ -3505,7 +4877,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
                     /\b(fill|stroke|color)\s*:\s*([^;"]+)/gi,
                     (PropMatch, Prop, Color) =>
                     {
-                        const Inverted = InvertShapeColor(Color.trim());
+                        const Inverted = InvertShapeColor(Color.trim(), Mode);
                         return `${Prop}: ${Inverted}`;
                     }
                 );
@@ -3514,7 +4886,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false)
         );
     }
 
-    if (SvgDarkModeCache.size > 200)
+    if (SvgDarkModeCache.size > 300)
     {
         SvgDarkModeCache.clear();
     }
@@ -3562,7 +4934,7 @@ function RenderPages(Pages)
         const PageId = `PageSheet_${Index + 1}`;
         let PageDiv = document.getElementById(PageId);
         const ContentHash = FastHash(SvgContent);
-        const ModeKey = IsBlackPageMode ? "dark": "light";
+        const ModeKey = CurrentPaperColorMode;
 
         if (PageDiv)
         {
@@ -3605,9 +4977,9 @@ function RenderPages(Pages)
         PageDiv.style.width = `${ScaledWidth}px`;
         PageDiv.style.height = `${ScaledHeight}px`;
 
-        const SvgToRender = IsBlackPageMode ? ConvertSvgToDarkMode(SvgContent): SvgContent;
+        const SvgToRender = (CurrentPaperColorMode !== "light") ? ConvertSvgToDarkMode(SvgContent, false, CurrentPaperColorMode): SvgContent;
         const ActiveLayer = document.createElement("div");
-        ActiveLayer.className = IsBlackPageMode ? "SvgLayer DarkSvgLayer": "SvgLayer LightSvgLayer";
+        ActiveLayer.className = (CurrentPaperColorMode !== "light") ? "SvgLayer DarkSvgLayer": "SvgLayer LightSvgLayer";
         ActiveLayer.innerHTML = NormalizeSvg(SvgToRender);
         PageDiv.appendChild(ActiveLayer);
 
@@ -3717,7 +5089,10 @@ function ErrorErrorMessageClean(RawMessage)
 function UpdatePagination()
 {
     const PageIndicator = document.getElementById("PageIndicator");
-    PageIndicator.textContent = `Page ${CurrentActivePage} / ${CurrentPageCount}`;
+    if (PageIndicator)
+    {
+        PageIndicator.innerHTML = `<span class="PageLabel">Page </span>${CurrentActivePage} / ${CurrentPageCount}`;
+    }
 }
 
 function ApplyZoom()
@@ -3827,8 +5202,9 @@ function FitWidth()
         return ;
     }
     const BaseW = parseFloat(FirstPage.dataset.baseWidth) || 576;
+    const TargetWidth = IsSpreadMode ? (BaseW * 2 + 48) : BaseW;
     const AvailableWidth = Math.max(300, Viewport.clientWidth - 80);
-    SetZoom(AvailableWidth / BaseW);
+    SetZoom(AvailableWidth / TargetWidth);
 }
 
 function FitPage()
@@ -3840,8 +5216,36 @@ function FitPage()
         return ;
     }
     const BaseH = parseFloat(FirstPage.dataset.baseHeight) || 864;
+    const BaseW = parseFloat(FirstPage.dataset.baseWidth) || 576;
     const AvailableHeight = Math.max(300, Viewport.clientHeight - 80);
-    SetZoom(AvailableHeight / BaseH);
+    const AvailableWidth = Math.max(300, Viewport.clientWidth - 80);
+    const TargetWidth = IsSpreadMode ? (BaseW * 2 + 48) : BaseW;
+    const ScaleH = AvailableHeight / BaseH;
+    const ScaleW = AvailableWidth / TargetWidth;
+    SetZoom(Math.min(ScaleH, ScaleW));
+}
+
+function SetPaperColorMode(NewMode)
+{
+    if (!["light", "optimized", "pure_black"].includes(NewMode))
+    {
+        NewMode = "light";
+    }
+    CurrentPaperColorMode = NewMode;
+    IsBlackPageMode = CurrentPaperColorMode !== "light";
+    localStorage.setItem("typst_paper_color_mode", CurrentPaperColorMode);
+    localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true": "false");
+
+    SvgDarkModeCache.clear();
+    InvertGlyphColorCache.clear();
+    InvertShapeColorCache.clear();
+
+    UpdateBlackPageMode();
+
+    if (LastCompiledPages && LastCompiledPages.length > 0)
+    {
+        RenderPages(LastCompiledPages);
+    }
 }
 
 function UpdateBlackPageMode()
@@ -3852,34 +5256,1112 @@ function UpdateBlackPageMode()
     const Label = document.getElementById("BlackPageLabel");
     const Button = document.getElementById("BlackPageToggle");
 
-    if (IsBlackPageMode)
+    if (Container)
     {
-        if (Container) { Container.classList.add("BlackPageMode"); }
-        if (Viewport) { Viewport.classList.add("BlackPageMode"); }
-        if (Icon) { Icon.textContent = "☀️"; }
-        if (Label) { Label.textContent = "Light Page"; }
+        Container.classList.remove("PaperMode_Light", "PaperMode_Optimized", "PaperMode_PureBlack", "BlackPageMode");
+    }
+    if (Viewport)
+    {
+        Viewport.classList.remove("PaperMode_Light", "PaperMode_Optimized", "PaperMode_PureBlack", "BlackPageMode");
+    }
+
+    if (CurrentPaperColorMode === "pure_black")
+    {
+        if (Container) { Container.classList.add("BlackPageMode", "PaperMode_PureBlack"); }
+        if (Viewport) { Viewport.classList.add("BlackPageMode", "PaperMode_PureBlack"); }
+        if (Icon) { Icon.textContent = "●"; }
+        if (Label) { Label.textContent = "Pure Black"; }
+        if (Button) { Button.classList.add("Active"); }
+    }
+    else if (CurrentPaperColorMode === "optimized")
+    {
+        if (Container) { Container.classList.add("BlackPageMode", "PaperMode_Optimized"); }
+        if (Viewport) { Viewport.classList.add("BlackPageMode", "PaperMode_Optimized"); }
+        if (Icon) { Icon.textContent = "◐"; }
+        if (Label) { Label.textContent = "Night (Soft)"; }
         if (Button) { Button.classList.add("Active"); }
     }
     else
     {
-        if (Container) { Container.classList.remove("BlackPageMode"); }
-        if (Viewport) { Viewport.classList.remove("BlackPageMode"); }
-        if (Icon) { Icon.textContent = "🌙"; }
-        if (Label) { Label.textContent = "Dark Page"; }
+        if (Container) { Container.classList.add("PaperMode_Light"); }
+        if (Viewport) { Viewport.classList.add("PaperMode_Light"); }
+        if (Icon) { Icon.textContent = "☀️"; }
+        if (Label) { Label.textContent = "Light Page"; }
         if (Button) { Button.classList.remove("Active"); }
+    }
+
+    // Sync button pills in selector
+    const Btns = document.querySelectorAll(".PaperModeBtn");
+    for (const Btn of Btns)
+    {
+        if (Btn.dataset.mode === CurrentPaperColorMode)
+        {
+            Btn.classList.add("Active");
+        }
+        else
+        {
+            Btn.classList.remove("Active");
+        }
+    }
+
+    // Sync Dashboard Appearance dropdown
+    const ExportPaperSelect = document.getElementById("ExportPaperModeSelect");
+    const ExportPaperBadge = document.getElementById("ExportPaperModeBadge");
+    if (ExportPaperSelect)
+    {
+        ExportPaperSelect.value = CurrentPaperColorMode;
+    }
+    if (ExportPaperBadge)
+    {
+        if (CurrentPaperColorMode === "pure_black")
+        {
+            ExportPaperBadge.textContent = "Pure Black (OLED)";
+        }
+        else if (CurrentPaperColorMode === "optimized")
+        {
+            ExportPaperBadge.textContent = "Optimized Pitch Black";
+        }
+        else
+        {
+            ExportPaperBadge.textContent = "Light Mode (Normal)";
+        }
     }
 }
 
 function ToggleBlackPageMode()
 {
-    IsBlackPageMode = ! IsBlackPageMode;
-    localStorage.setItem("typst_black_page_mode", IsBlackPageMode ? "true": "false");
-    SvgDarkModeCache.clear();
-    UpdateBlackPageMode();
-    if (LastCompiledPages && LastCompiledPages.length > 0)
+    if (CurrentPaperColorMode === "light")
     {
-        RenderPages(LastCompiledPages);
+        SetPaperColorMode("optimized");
     }
+    else if (CurrentPaperColorMode === "optimized")
+    {
+        SetPaperColorMode("pure_black");
+    }
+    else
+    {
+        SetPaperColorMode("light");
+    }
+}
+
+let CurrentUIMode = localStorage.getItem("typst_ui_experience_mode") || "focus";
+let CurrentExportFormat = "pdf";
+let CurrentExportSwatch = "light";
+let CurrentExportDpi = "2x";
+let CurrentExportScope = "all";
+let PreviewHUDTimer = null;
+
+function SetUIMode(NewMode)
+{
+    if (NewMode !== "focus" && NewMode !== "studio")
+    {
+        NewMode = "focus";
+    }
+
+    CurrentUIMode = NewMode;
+    try
+    {
+        localStorage.setItem("typst_ui_experience_mode", NewMode);
+    }
+    catch (Ignored) {}
+
+    document.body.classList.remove("UIMode_Focus", "UIMode_Studio");
+    document.body.classList.add(NewMode === "focus" ? "UIMode_Focus" : "UIMode_Studio");
+
+    const FocusBtn = document.getElementById("ModeFocusBtn");
+    const StudioBtn = document.getElementById("ModeStudioBtn");
+    if (FocusBtn)
+    {
+        FocusBtn.classList.toggle("Active", NewMode === "focus");
+    }
+    if (StudioBtn)
+    {
+        StudioBtn.classList.toggle("Active", NewMode === "studio");
+    }
+
+    if (MonacoInstance)
+    {
+        MonacoInstance.updateOptions
+        ({
+            minimap: { enabled: (NewMode === "studio") }
+        });
+    }
+
+    ApplyEditorTypography();
+
+    const PreviewToolbar = document.querySelector(".PreviewToolbar");
+    if (PreviewToolbar)
+    {
+        PreviewToolbar.classList.remove("HUD_Idle");
+    }
+}
+
+function SetStatusPill(State, Text, Duration)
+{
+    const Dot = document.getElementById("StatusBarDot");
+    const StatusTxt = document.getElementById("StatusBarCompileText");
+    const DurTxt = document.getElementById("StatusBarDuration");
+    if (Dot)
+    {
+        Dot.className = `StatusDot ${State || ""}`.trim();
+    }
+    if (StatusTxt)
+    {
+        StatusTxt.textContent = Text || "Ready";
+    }
+    if (DurTxt && Duration !== undefined)
+    {
+        DurTxt.textContent = `${Duration}ms`;
+    }
+}
+
+function OpenExportSheet()
+{
+    const Modal = document.getElementById("ExportSheetModal");
+    if (!Modal) { return ; }
+
+    const TitleInput = document.getElementById("DocumentTitleInput");
+    const DocTitle = TitleInput ? TitleInput.value.trim() : "document";
+    const DocTitleEl = document.getElementById("ExportSheetDocTitleText");
+    if (DocTitleEl)
+    {
+        DocTitleEl.textContent = DocTitle;
+    }
+
+    const PageCountEl = document.getElementById("ExportSheetPageCountText");
+    if (PageCountEl)
+    {
+        PageCountEl.textContent = `Page 1 of ${CurrentPageCount || 1}`;
+    }
+
+    const MiniContent = document.getElementById("MiniPreviewContent");
+    if (MiniContent && LastCompiledPages && LastCompiledPages.length > 0)
+    {
+        MiniContent.innerHTML = LastCompiledPages[0];
+    }
+
+    if (CurrentPaperColorMode === "optimized" || CurrentPaperColorMode === "pure_black")
+    {
+        SetExportSwatch("dark");
+    }
+    else
+    {
+        SetExportSwatch("light");
+    }
+
+    UpdateExportModalUI();
+    Modal.style.display = "flex";
+}
+
+function CloseExportSheet()
+{
+    const Modal = document.getElementById("ExportSheetModal");
+    if (Modal)
+    {
+        Modal.style.display = "none";
+    }
+}
+
+function SetExportFormat(Format)
+{
+    CurrentExportFormat = Format;
+    const SectionDpi = document.getElementById("ExportPngResolutionSection");
+    if (SectionDpi)
+    {
+        SectionDpi.style.display = (Format === "png") ? "flex" : "none";
+    }
+
+    const FormatBtns = document.querySelectorAll(".FormatTabBtn");
+    FormatBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.classList.toggle("Active", Btn.getAttribute("Data-Format") === Format);
+        }
+    );
+
+    UpdateExportModalUI();
+}
+
+function SetExportSwatch(Swatch)
+{
+    CurrentExportSwatch = Swatch;
+    const SwatchBtns = document.querySelectorAll(".ExportSwatchCard");
+    SwatchBtns.forEach
+    (
+        (Card) =>
+        {
+            Card.classList.toggle("Active", Card.getAttribute("Data-Swatch") === Swatch);
+        }
+    );
+
+    const MiniPaper = document.getElementById("MiniPreviewPaper");
+    if (MiniPaper)
+    {
+        MiniPaper.className = "MiniPreviewPaper";
+        if (Swatch === "dark")
+        {
+            MiniPaper.classList.add("Paper_Dark");
+        }
+        else if (Swatch === "clear_dark" || Swatch === "clear_light")
+        {
+            MiniPaper.classList.add("Paper_Clear");
+        }
+    }
+}
+
+function SetExportDpi(Dpi)
+{
+    CurrentExportDpi = Dpi;
+    const DpiBtns = document.querySelectorAll(".DpiTabBtn");
+    DpiBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.classList.toggle("Active", Btn.getAttribute("Data-Dpi") === Dpi);
+        }
+    );
+}
+
+function SetExportScope(Scope)
+{
+    CurrentExportScope = Scope;
+    const ScopeBtns = document.querySelectorAll(".ScopeTabBtn");
+    ScopeBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.classList.toggle("Active", Btn.getAttribute("Data-Scope") === Scope);
+        }
+    );
+
+    const RangeInput = document.getElementById("ExportCustomRangeInput");
+    if (RangeInput)
+    {
+        RangeInput.style.display = (Scope === "custom") ? "block" : "none";
+        if (Scope === "custom")
+        {
+            RangeInput.focus();
+        }
+    }
+
+    UpdateExportModalUI();
+}
+
+function UpdateExportModalUI()
+{
+    const PrimaryLabel = document.getElementById("ExportSheetPrimaryLabel");
+    if (!PrimaryLabel) { return ; }
+
+    const FormatUpper = CurrentExportFormat.toUpperCase();
+    if (CurrentExportScope === "all" && CurrentPageCount > 1 && CurrentExportFormat !== "pdf")
+    {
+        PrimaryLabel.textContent = `Export ${CurrentPageCount} ${FormatUpper}s (.zip)`;
+    }
+    else
+    {
+        PrimaryLabel.textContent = `Export ${FormatUpper}`;
+    }
+}
+
+async function ExecuteExportSheet()
+{
+    const BlackMode = (CurrentExportSwatch === "dark" || CurrentExportSwatch === "clear_light");
+    const Transparent = (CurrentExportSwatch === "clear_dark" || CurrentExportSwatch === "clear_light");
+
+    const BlackCheckbox = document.getElementById("ExportBlackModeCheckbox");
+    const TransCheckbox = document.getElementById("ExportTransparentCheckbox");
+    if (BlackCheckbox) { BlackCheckbox.checked = BlackMode; }
+    if (TransCheckbox) { TransCheckbox.checked = Transparent; }
+
+    CloseExportSheet();
+
+    if (CurrentExportFormat === "pdf")
+    {
+        await ExportPdf();
+    }
+    else if (CurrentExportFormat === "png")
+    {
+        await ExportPng();
+    }
+    else if (CurrentExportFormat === "svg")
+    {
+        await ExportSvg();
+    }
+}
+
+async function CopyExportToClipboard()
+{
+    if (!LastCompiledPages || LastCompiledPages.length === 0)
+    {
+        ShowToast("No compiled document to copy", "warning");
+        return ;
+    }
+
+    try
+    {
+        let SvgData = LastCompiledPages[0];
+        if (CurrentExportSwatch === "dark" || CurrentExportSwatch === "clear_light")
+        {
+            SvgData = ConvertSvgToDarkMode(SvgData, CurrentExportSwatch === "clear_light", CurrentPaperColorMode);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText)
+        {
+            await navigator.clipboard.writeText(SvgData);
+            ShowToast("Page SVG copied to clipboard!", "success");
+            CloseExportSheet();
+        }
+        else
+        {
+            ShowToast("Clipboard access not supported", "warning");
+        }
+    }
+    catch (Err)
+    {
+        ShowToast(`Failed to copy to clipboard: ${Err.message}`, "error");
+    }
+}
+
+function OpenSettingsModal(TabName)
+{
+    const Modal = document.getElementById("SettingsModal");
+    if (!Modal) { return ; }
+
+    SwitchSettingsTab(TabName || "appearance");
+    Modal.style.display = "flex";
+}
+
+function CloseSettingsModal()
+{
+    const Modal = document.getElementById("SettingsModal");
+    if (Modal)
+    {
+        Modal.style.display = "none";
+    }
+}
+
+function OpenExternalURL(TargetURL)
+{
+    if (IsTauriDesktop && window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)
+    {
+        try
+        {
+            window.__TAURI_INTERNALS__.invoke("OpenExternalUrl", { Url: TargetURL });
+            return ;
+        }
+        catch (Ignored) {}
+    }
+    window.open(TargetURL, "_blank");
+}
+
+function SwitchSettingsTab(TabKey)
+{
+    const TabIds =
+    {
+        appearance: "SettingsViewAppearance",
+        paper: "SettingsViewPaper",
+        directories: "SettingsViewDirectories",
+        lafs: "SettingsViewLafs"
+    };
+
+    const BtnIds =
+    {
+        appearance: "SettingsTabAppearance",
+        paper: "SettingsTabPaper",
+        directories: "SettingsTabDirectories",
+        lafs: "SettingsTabLafs"
+    };
+
+    Object.keys(TabIds).forEach
+    (
+        (Key) =>
+        {
+            const View = document.getElementById(TabIds[Key]);
+            if (View)
+            {
+                View.style.display = (Key === TabKey) ? "flex" : "none";
+            }
+            const Btn = document.getElementById(BtnIds[Key]);
+            if (Btn)
+            {
+                Btn.classList.toggle("Active", Key === TabKey);
+            }
+        }
+    );
+}
+
+function SetSpreadMode(Enabled)
+{
+    IsSpreadMode = ! ! Enabled;
+    try
+    {
+        localStorage.setItem("TypstStudio_SpreadMode", String(IsSpreadMode));
+    }
+    catch (Ignored) {}
+
+    const PagesContainer = document.getElementById("PagesContainer");
+    const Viewport = document.getElementById("PreviewViewport");
+    const SpreadBtn = document.getElementById("SpreadModeToggleBtn");
+
+    if (PagesContainer)
+    {
+        PagesContainer.classList.toggle("SpreadMode", IsSpreadMode);
+    }
+    if (Viewport)
+    {
+        Viewport.classList.toggle("SpreadMode", IsSpreadMode);
+    }
+    if (SpreadBtn)
+    {
+        SpreadBtn.classList.toggle("Active", IsSpreadMode);
+    }
+
+    if (IsSpreadMode)
+    {
+        FitWidth();
+    }
+}
+
+function ToggleSpreadMode()
+{
+    SetSpreadMode(!IsSpreadMode);
+    ShowToast(IsSpreadMode ? "Facing Two-Page Spread: Enabled" : "Facing Two-Page Spread: Disabled", "info");
+}
+
+function LoadTemplateDirect(TemplateKey)
+{
+    if (TEMPLATES[TemplateKey] && MonacoInstance)
+    {
+        MonacoInstance.setValue(TEMPLATES[TemplateKey]);
+        TriggerCompileNow();
+        ShowToast(`Loaded ${TemplateKey} template`, "info");
+    }
+}
+
+let CommandPaletteSelectedIndex = 0;
+let FilteredPaletteActions = [];
+
+const COMMAND_PALETTE_ACTIONS =
+[
+    {
+        Title: "Switch to Focus Mode",
+        Category: "Experience Mode",
+        Icon: "✦",
+        Shortcut: "Ctrl+Shift+M",
+        Action: () => { SetUIMode("focus"); }
+    },
+    {
+        Title: "Switch to Studio Mode",
+        Category: "Experience Mode",
+        Icon: "⊞",
+        Shortcut: "Ctrl+Shift+M",
+        Action: () => { SetUIMode("studio"); }
+    },
+    {
+        Title: "Paper: Light Mode (Natural Paper)",
+        Category: "Paper & Rendering",
+        Icon: "☀️",
+        Shortcut: "",
+        Action: () => { SetPaperColorMode("light"); }
+    },
+    {
+        Title: "Paper: Optimized Pitch Black (Anti-Halation Night)",
+        Category: "Paper & Rendering",
+        Icon: "◐",
+        Shortcut: "",
+        Action: () => { SetPaperColorMode("optimized"); }
+    },
+    {
+        Title: "Paper: Pure Black (OLED True Black)",
+        Category: "Paper & Rendering",
+        Icon: "●",
+        Shortcut: "",
+        Action: () => { SetPaperColorMode("pure_black"); }
+    },
+    {
+        Title: "Toggle Facing Two-Page Book Spread",
+        Category: "View & Layout",
+        Icon: "📖",
+        Shortcut: "Alt+S",
+        Action: () => { ToggleSpreadMode(); }
+    },
+    {
+        Title: "Layout: Split View (Editor & Preview)",
+        Category: "View & Layout",
+        Icon: "▥",
+        Shortcut: "Alt+1",
+        Action: () => { SetViewportLayout("split"); }
+    },
+    {
+        Title: "Layout: Code Editor Only",
+        Category: "View & Layout",
+        Icon: "📄",
+        Shortcut: "Alt+2",
+        Action: () => { SetViewportLayout("editor"); }
+    },
+    {
+        Title: "Layout: Document Preview Only",
+        Category: "View & Layout",
+        Icon: "👁️",
+        Shortcut: "Alt+3",
+        Action: () => { SetViewportLayout("preview"); }
+    },
+    {
+        Title: "Toggle Document Outline",
+        Category: "View & Layout",
+        Icon: "📋",
+        Shortcut: "Alt+O",
+        Action: () => { ToggleDocumentOutline(); }
+    },
+    {
+        Title: "Toggle File Explorer",
+        Category: "View & Layout",
+        Icon: "📁",
+        Shortcut: "Ctrl+B",
+        Action: () => { ToggleExplorerSidebar(); }
+    },
+    {
+        Title: "Open Visual Export Sheet",
+        Category: "Export & Sharing",
+        Icon: "📤",
+        Shortcut: "Ctrl+E",
+        Action: () => { OpenExportSheet(); }
+    },
+    {
+        Title: "Export Document to PDF",
+        Category: "Export & Sharing",
+        Icon: "📕",
+        Shortcut: "Ctrl+P",
+        Action: () => { ExportPdf(); }
+    },
+    {
+        Title: "Export Document to PNG",
+        Category: "Export & Sharing",
+        Icon: "🖼️",
+        Shortcut: "",
+        Action: () => { ExportPng(); }
+    },
+    {
+        Title: "Export Document to SVG",
+        Category: "Export & Sharing",
+        Icon: "📐",
+        Shortcut: "",
+        Action: () => { ExportSvg(); }
+    },
+    {
+        Title: "Editor Font: iA Writer Duo (Default)",
+        Category: "Typography",
+        Icon: "✍️",
+        Shortcut: "",
+        Action: () =>
+        {
+            CurrentEditorFont = "iA Writer Duo";
+            localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+            ApplyEditorTypography();
+        }
+    },
+    {
+        Title: "Editor Font: JetBrains Mono",
+        Category: "Typography",
+        Icon: "💻",
+        Shortcut: "",
+        Action: () =>
+        {
+            CurrentEditorFont = "JetBrains Mono";
+            localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+            ApplyEditorTypography();
+        }
+    },
+    {
+        Title: "Editor Font: Cascadia Code",
+        Category: "Typography",
+        Icon: "💻",
+        Shortcut: "",
+        Action: () =>
+        {
+            CurrentEditorFont = "Cascadia Code";
+            localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+            ApplyEditorTypography();
+        }
+    },
+    {
+        Title: "Editor Font: Fira Code",
+        Category: "Typography",
+        Icon: "💻",
+        Shortcut: "",
+        Action: () =>
+        {
+            CurrentEditorFont = "Fira Code";
+            localStorage.setItem("TypstStudio_EditorFont", CurrentEditorFont);
+            ApplyEditorTypography();
+        }
+    },
+    {
+        Title: "Open Preferences & Settings",
+        Category: "Settings",
+        Icon: "⚙️",
+        Shortcut: "Ctrl+,",
+        Action: () => { OpenSettingsModal("appearance"); }
+    },
+    {
+        Title: "Template: Scientific Research Paper (STIX Two)",
+        Category: "Templates",
+        Icon: "🔬",
+        Shortcut: "",
+        Action: () => { LoadTemplateDirect("paper"); }
+    },
+    {
+        Title: "Template: Book / Novel Spread (EB Garamond)",
+        Category: "Templates",
+        Icon: "📚",
+        Shortcut: "",
+        Action: () => { LoadTemplateDirect("novel"); }
+    },
+    {
+        Title: "Template: Professional Resume (Inter)",
+        Category: "Templates",
+        Icon: "👔",
+        Shortcut: "",
+        Action: () => { LoadTemplateDirect("resume"); }
+    }
+];
+
+function OpenCommandPalette()
+{
+    const Modal = document.getElementById("CommandPaletteModal");
+    const Input = document.getElementById("CommandPaletteInput");
+    if (!Modal)
+    {
+        return ;
+    }
+
+    Modal.style.display = "flex";
+    if (Input)
+    {
+        Input.value = "";
+        Input.focus();
+    }
+    CommandPaletteSelectedIndex = 0;
+    RenderCommandPaletteItems("");
+}
+
+function CloseCommandPalette()
+{
+    const Modal = document.getElementById("CommandPaletteModal");
+    if (Modal)
+    {
+        Modal.style.display = "none";
+    }
+}
+
+function RenderCommandPaletteItems(Query)
+{
+    const List = document.getElementById("CommandPaletteList");
+    if (!List)
+    {
+        return ;
+    }
+
+    const Q = (Query || "").trim().toLowerCase();
+    FilteredPaletteActions = COMMAND_PALETTE_ACTIONS.filter
+    (
+        (Item) =>
+        {
+            if (!Q)
+            {
+                return true;
+            }
+            return Item.Title.toLowerCase().includes(Q) ||
+                   Item.Category.toLowerCase().includes(Q) ||
+                   (Item.Shortcut && Item.Shortcut.toLowerCase().includes(Q));
+        }
+    );
+
+    if (CommandPaletteSelectedIndex >= FilteredPaletteActions.length)
+    {
+        CommandPaletteSelectedIndex = Math.max(0, FilteredPaletteActions.length - 1);
+    }
+
+    if (FilteredPaletteActions.length === 0)
+    {
+        List.innerHTML = `<div Class = "CommandPaletteEmpty">No commands found matching "${Query}"</div>`;
+        return ;
+    }
+
+    List.innerHTML = "";
+    let LastCategory = "";
+
+    FilteredPaletteActions.forEach
+    (
+        (Item, Index) =>
+        {
+            if (Item.Category !== LastCategory)
+            {
+                LastCategory = Item.Category;
+                const CatHeader = document.createElement("div");
+                CatHeader.className = "CommandCategoryHeader";
+                CatHeader.textContent = LastCategory;
+                List.appendChild(CatHeader);
+            }
+
+            const ItemEl = document.createElement("div");
+            ItemEl.className = `CommandPaletteItem ${Index === CommandPaletteSelectedIndex ? "Selected" : ""}`;
+            ItemEl.innerHTML = `
+                <div Class = "CommandItemLeft">
+                    <span Class = "CommandItemIcon">${Item.Icon}</span>
+                    <span Class = "CommandItemTitle">${Item.Title}</span>
+                </div>
+                ${Item.Shortcut ? `<span Class = "CommandItemShortcut">${Item.Shortcut}</span>` : ""}
+            `;
+
+            ItemEl.addEventListener
+            (
+                "click", () =>
+                {
+                    CloseCommandPalette();
+                    Item.Action();
+                }
+            );
+
+            ItemEl.addEventListener
+            (
+                "mouseenter", () =>
+                {
+                    CommandPaletteSelectedIndex = Index;
+                    document.querySelectorAll(".CommandPaletteItem").forEach
+                    (
+                        (El, I) => El.classList.toggle("Selected", I === Index)
+                    );
+                }
+            );
+
+            List.appendChild(ItemEl);
+        }
+    );
+
+    const SelectedEl = List.querySelectorAll(".CommandPaletteItem")[CommandPaletteSelectedIndex];
+    if (SelectedEl)
+    {
+        SelectedEl.scrollIntoView({ block: "nearest" });
+    }
+}
+
+function SetupDualModeAndExportEventListeners()
+{
+    const FocusBtn = document.getElementById("ModeFocusBtn");
+    const StudioBtn = document.getElementById("ModeStudioBtn");
+    if (FocusBtn)
+    {
+        FocusBtn.addEventListener("click", () => { SetUIMode("focus"); });
+    }
+    if (StudioBtn)
+    {
+        StudioBtn.addEventListener("click", () => { SetUIMode("studio"); });
+    }
+
+    const HeaderSettingsBtn = document.getElementById("HeaderSettingsBtn");
+    const DashboardSettingsBtn = document.getElementById("DashboardSettingsBtn");
+    const CloseSettingsBtn = document.getElementById("CloseSettingsModalBtn");
+    if (HeaderSettingsBtn)
+    {
+        HeaderSettingsBtn.addEventListener("click", () => { OpenSettingsModal("appearance"); });
+    }
+    if (DashboardSettingsBtn)
+    {
+        DashboardSettingsBtn.addEventListener("click", () => { OpenSettingsModal("appearance"); });
+    }
+    if (CloseSettingsBtn)
+    {
+        CloseSettingsBtn.addEventListener("click", () => { CloseSettingsModal(); });
+    }
+
+    const SettingsTabs =
+    [
+        { id: "SettingsTabAppearance", key: "appearance" },
+        { id: "SettingsTabPaper", key: "paper" },
+        { id: "SettingsTabDirectories", key: "directories" },
+        { id: "SettingsTabLafs", key: "lafs" }
+    ];
+    SettingsTabs.forEach
+    (
+        (Tab) =>
+        {
+            const El = document.getElementById(Tab.id);
+            if (El)
+            {
+                El.addEventListener("click", () => { SwitchSettingsTab(Tab.key); });
+            }
+        }
+    );
+
+    document.querySelectorAll(".SettingLinkBadge").forEach
+    (
+        (LinkBadge) =>
+        {
+            LinkBadge.addEventListener
+            (
+                "click",
+                (Event) =>
+                {
+                    const TargetURL = LinkBadge.getAttribute("href");
+                    if (TargetURL)
+                    {
+                        Event.preventDefault();
+                        OpenExternalURL(TargetURL);
+                    }
+                }
+            );
+        }
+    );
+
+    const CloseExportBtn = document.getElementById("CloseExportSheetBtn");
+    const ExportSubmitBtn = document.getElementById("ExportSheetPrimaryBtn");
+    const ExportCopyBtn = document.getElementById("ExportCopyClipboardBtn");
+    if (CloseExportBtn)
+    {
+        CloseExportBtn.addEventListener("click", () => { CloseExportSheet(); });
+    }
+    if (ExportSubmitBtn)
+    {
+        ExportSubmitBtn.addEventListener("click", () => { ExecuteExportSheet(); });
+    }
+    if (ExportCopyBtn)
+    {
+        ExportCopyBtn.addEventListener("click", () => { CopyExportToClipboard(); });
+    }
+
+    const FormatBtns = document.querySelectorAll(".FormatTabBtn");
+    FormatBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener("click", () => { SetExportFormat(Btn.getAttribute("Data-Format")); });
+        }
+    );
+
+    const SwatchBtns = document.querySelectorAll(".ExportSwatchCard");
+    SwatchBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener("click", () => { SetExportSwatch(Btn.getAttribute("Data-Swatch")); });
+        }
+    );
+
+    const DpiBtns = document.querySelectorAll(".DpiTabBtn");
+    DpiBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener("click", () => { SetExportDpi(Btn.getAttribute("Data-Dpi")); });
+        }
+    );
+
+    const ScopeBtns = document.querySelectorAll(".ScopeTabBtn");
+    ScopeBtns.forEach
+    (
+        (Btn) =>
+        {
+            Btn.addEventListener("click", () => { SetExportScope(Btn.getAttribute("Data-Scope")); });
+        }
+    );
+
+    // Bottom Status Bar buttons
+    const CompilePillBtn = document.getElementById("StatusBarCompileBtn");
+    const RealTimePillBtn = document.getElementById("StatusBarRealTimeBtn");
+    const SyncTexPillBtn = document.getElementById("StatusBarSyncTexBtn");
+    const LafsPillBtn = document.getElementById("StatusBarLafsBtn");
+
+    if (CompilePillBtn)
+    {
+        CompilePillBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                const Drawer = document.getElementById("ErrorDrawer");
+                const StatusTxt = document.getElementById("StatusBarCompileText");
+                if (StatusTxt && StatusTxt.textContent === "Error")
+                {
+                    if (Drawer) { Drawer.classList.toggle("Visible"); }
+                }
+                else
+                {
+                    TriggerCompileNow();
+                }
+            }
+        );
+    }
+
+    if (RealTimePillBtn)
+    {
+        RealTimePillBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                const Checkbox = document.getElementById("AutoCompileToggle");
+                if (Checkbox)
+                {
+                    Checkbox.checked = ! Checkbox.checked;
+                    RealTimePillBtn.classList.toggle("Active", Checkbox.checked);
+                    ShowToast(`Real-Time Compilation: ${Checkbox.checked ? "Enabled" : "Disabled"}`, "info");
+                }
+            }
+        );
+    }
+
+    if (SyncTexPillBtn)
+    {
+        SyncTexPillBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                const Checkbox = document.getElementById("SyncTexToggle");
+                if (Checkbox)
+                {
+                    Checkbox.checked = ! Checkbox.checked;
+                    IsSyncTexEnabled = Checkbox.checked;
+                    SyncTexPillBtn.classList.toggle("Active", IsSyncTexEnabled);
+                    ShowToast(`SyncTeX: ${IsSyncTexEnabled ? "Enabled" : "Disabled"}`, "info");
+                }
+            }
+        );
+    }
+
+    if (LafsPillBtn)
+    {
+        LafsPillBtn.addEventListener
+        (
+            "click",
+            () =>
+            {
+                const FormatBtn = document.getElementById("FormatLafsButton");
+                if (FormatBtn) { FormatBtn.click(); }
+            }
+        );
+    }
+
+    // Floating Preview HUD Auto-Fade on idle (Focus Mode)
+    const PreviewPane = document.getElementById("PreviewPane");
+    const PreviewToolbar = document.querySelector(".PreviewToolbar");
+    if (PreviewPane && PreviewToolbar)
+    {
+        PreviewPane.addEventListener
+        (
+            "mousemove",
+            () =>
+            {
+                if (CurrentUIMode !== "focus") { return ; }
+                PreviewToolbar.classList.remove("HUD_Idle");
+                if (PreviewHUDTimer)
+                {
+                    clearTimeout(PreviewHUDTimer);
+                }
+                PreviewHUDTimer = setTimeout
+                (
+                    () =>
+                    {
+                        if (CurrentUIMode === "focus")
+                        {
+                            PreviewToolbar.classList.add("HUD_Idle");
+                        }
+                    },
+                    2000
+                );
+            },
+            { passive: true }
+        );
+    }
+
+    // Spread Mode Toggle Button
+    const SpreadBtn = document.getElementById("SpreadModeToggleBtn");
+    if (SpreadBtn)
+    {
+        SpreadBtn.addEventListener
+        (
+            "click", () =>
+            {
+                ToggleSpreadMode();
+            }
+        );
+    }
+
+    // Command Palette Modal & Input
+    const PaletteModal = document.getElementById("CommandPaletteModal");
+    const PaletteInput = document.getElementById("CommandPaletteInput");
+    if (PaletteModal)
+    {
+        PaletteModal.addEventListener
+        (
+            "click",
+            (E) =>
+            {
+                if (E.target === PaletteModal)
+                {
+                    CloseCommandPalette();
+                }
+            }
+        );
+    }
+    if (PaletteInput)
+    {
+        PaletteInput.addEventListener
+        (
+            "input",
+            (E) =>
+            {
+                CommandPaletteSelectedIndex = 0;
+                RenderCommandPaletteItems(E.target.value);
+            }
+        );
+        PaletteInput.addEventListener
+        (
+            "keydown",
+            (E) =>
+            {
+                if (E.key === "ArrowDown")
+                {
+                    E.preventDefault();
+                    if (FilteredPaletteActions.length > 0)
+                    {
+                        CommandPaletteSelectedIndex = (CommandPaletteSelectedIndex + 1) % FilteredPaletteActions.length;
+                        RenderCommandPaletteItems(PaletteInput.value);
+                    }
+                }
+                else if (E.key === "ArrowUp")
+                {
+                    E.preventDefault();
+                    if (FilteredPaletteActions.length > 0)
+                    {
+                        CommandPaletteSelectedIndex = (CommandPaletteSelectedIndex - 1 + FilteredPaletteActions.length) % FilteredPaletteActions.length;
+                        RenderCommandPaletteItems(PaletteInput.value);
+                    }
+                }
+                else if (E.key === "Enter")
+                {
+                    E.preventDefault();
+                    if (FilteredPaletteActions.length > 0 && FilteredPaletteActions[CommandPaletteSelectedIndex])
+                    {
+                        const ActionItem = FilteredPaletteActions[CommandPaletteSelectedIndex];
+                        CloseCommandPalette();
+                        ActionItem.Action();
+                    }
+                }
+                else if (E.key === "Escape")
+                {
+                    E.preventDefault();
+                    CloseCommandPalette();
+                }
+            }
+        );
+    }
+
+    // Initialize Active Spread Mode and Typography
+    SetSpreadMode(IsSpreadMode);
+    ApplyEditorTypography();
 }
 
 async function ExportPdf()
@@ -5011,6 +7493,9 @@ function ExecuteStudioCommand(CommandId)
         case "toggle_fullscreen":
             ToggleFullscreen();
             break;
+        case "toggle_devtools":
+            ToggleDevTools();
+            break;
         case "open_shortcuts":
             ToggleShortcutsModal();
             break;
@@ -5038,6 +7523,21 @@ function ExecuteStudioCommand(CommandId)
         case "toggle_dark_page":
             ToggleBlackPageMode();
             break;
+        case "toggle_ui_mode":
+            SetUIMode(CurrentUIMode === "focus" ? "studio" : "focus");
+            break;
+        case "toggle_spread_mode":
+            ToggleSpreadMode();
+            break;
+        case "open_command_palette":
+            OpenCommandPalette();
+            break;
+        case "open_settings":
+            OpenSettingsModal("appearance");
+            break;
+        case "open_export_sheet":
+            OpenExportSheet();
+            break;
         default:
             if (MonacoInstance)
             {
@@ -5060,7 +7560,7 @@ function ToggleShortcutsModal(ForceOpen)
     const Modal = document.getElementById("ShortcutsModal");
     if (!Modal) { return; }
 
-    const IsOpen = Modal.style.display !== "none";
+    const IsOpen = Modal.style.display === "flex";
     const ShouldOpen = (typeof ForceOpen === "boolean") ? ForceOpen: ! IsOpen;
     Modal.style.display = ShouldOpen ? "flex": "none";
     if (ShouldOpen)
@@ -5355,8 +7855,11 @@ function SetupEventListeners()
     const InitialTrans = localStorage.getItem("typst_transparent_export") === "true";
     if (ExportBlackCb) { ExportBlackCb.checked = InitialBlack; }
     if (ExportTransCb) { ExportTransCb.checked = InitialTrans; }
-    if (ExportPaperSelect) { ExportPaperSelect.value = InitialBlack ? "black": "light"; }
-    if (ExportPaperBadge) { ExportPaperBadge.textContent = InitialBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
+    if (ExportPaperSelect) { ExportPaperSelect.value = CurrentPaperColorMode; }
+    if (ExportPaperBadge)
+    {
+        ExportPaperBadge.textContent = (CurrentPaperColorMode === "pure_black") ? "Pure Black (OLED)": (CurrentPaperColorMode === "optimized") ? "Optimized Pitch Black": "Light Mode (Normal)";
+    }
     if (DefaultBgSelect) { DefaultBgSelect.value = InitialTrans ? "transparent": "normal"; }
 
     if (ExportBlackCb)
@@ -5367,8 +7870,14 @@ function SetupEventListeners()
             {
                 const IsBlack = E.target.checked;
                 localStorage.setItem("typst_black_mode_export", IsBlack ? "true": "false");
-                if (ExportPaperSelect) { ExportPaperSelect.value = IsBlack ? "black": "light"; }
-                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
+                if (IsBlack && CurrentPaperColorMode === "light")
+                {
+                    SetPaperColorMode("optimized");
+                }
+                else if (!IsBlack && CurrentPaperColorMode !== "light")
+                {
+                    SetPaperColorMode("light");
+                }
                 ShowToast(`Export in Black mode: ${IsBlack ? "Enabled" : "Disabled"}`, "info");
             }
         );
@@ -5394,11 +7903,11 @@ function SetupEventListeners()
         (
             "change", (E) =>
             {
-                const IsBlack = E.target.value === "black";
-                localStorage.setItem("typst_black_mode_export", IsBlack ? "true": "false");
-                if (ExportBlackCb) { ExportBlackCb.checked = IsBlack; }
-                if (ExportPaperBadge) { ExportPaperBadge.textContent = IsBlack ? "Black Mode (Inverted)": "Light Mode (Normal)"; }
-                ShowToast(`Export paper mode set to ${IsBlack ? "Black" : "Light"}`, "info");
+                const SelectedMode = E.target.value;
+                SetPaperColorMode(SelectedMode);
+                if (ExportBlackCb) { ExportBlackCb.checked = (SelectedMode !== "light"); }
+                localStorage.setItem("typst_black_mode_export", (SelectedMode !== "light") ? "true": "false");
+                ShowToast(`Paper color mode set to ${SelectedMode === "pure_black" ? "Pure Black (OLED)" : SelectedMode === "optimized" ? "Optimized Pitch Black" : "Light Mode"}`, "info");
             }
         );
     }
@@ -5475,7 +7984,7 @@ function SetupEventListeners()
     );
     document.getElementById("ExportPdfButton").addEventListener
     (
-        "click", () => { ExportPdf(); }
+        "click", () => { OpenExportSheet(); }
     );
     document.getElementById("ExportSvgButton").addEventListener
     (
@@ -5501,6 +8010,44 @@ function SetupEventListeners()
     (
         "click", () => { ToggleBlackPageMode(); }
     );
+
+    const PaperModeButtons = document.querySelectorAll(".PaperModeBtn");
+    for (const Btn of PaperModeButtons)
+    {
+        Btn.addEventListener
+        (
+            "click", () =>
+            {
+                const Mode = Btn.dataset.mode;
+                if (Mode)
+                {
+                    SetPaperColorMode(Mode);
+                    ShowToast(`Paper mode: ${Mode === "pure_black" ? "Pure Black (OLED)" : Mode === "optimized" ? "Optimized Night Mode" : "Light Mode"}`, "info");
+                }
+            }
+        );
+    }
+
+    const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
+    if (ErrorIndicator)
+    {
+        ErrorIndicator.addEventListener
+        (
+            "click", () =>
+            {
+                const Drawer = document.getElementById("ErrorDrawer");
+                if (Drawer)
+                {
+                    Drawer.classList.toggle("Visible");
+                }
+                const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
+                if (JumpBtn && JumpBtn.style.display === "inline-flex")
+                {
+                    JumpBtn.click();
+                }
+            }
+        );
+    }
     document.getElementById("CloseErrorButton").addEventListener
     (
         "click", () =>
@@ -5650,6 +8197,18 @@ function SetupEventListeners()
         }
     );
 
+    const BackToEditor = document.getElementById("DashboardBackToEditorBtn");
+    if (BackToEditor)
+    {
+        BackToEditor.addEventListener
+        (
+            "click", () =>
+            {
+                SwitchView("editor");
+            }
+        );
+    }
+
     document.getElementById("StatResumeBtn").addEventListener
     (
         "click", () =>
@@ -5658,58 +8217,81 @@ function SetupEventListeners()
         }
     );
     // Dashboard Actions
-    document.getElementById("DashboardRefreshBtn").addEventListener
-    (
-        "click", () =>
-        {
-            LoadWorkspaceInfo();
-            MarkDocumentClean(Content);
-            ShowToast(`Saved ${TargetPath.split(/[\/\\]/).pop()}`, "success");
-        }
-    );
+    const DashboardRefresh = document.getElementById("DashboardRefreshBtn");
+    if (DashboardRefresh)
+    {
+        DashboardRefresh.addEventListener
+        (
+            "click", () =>
+            {
+                LoadWorkspaceInfo();
+                ShowToast("Workspace refreshed", "info");
+            }
+        );
+    }
 
-    document.getElementById("DashboardNewFileBtn").addEventListener
-    (
-        "click", () =>
-        {
-            CreateNewWorkspaceFile();
-        }
-    );
+    const DashboardNewFile = document.getElementById("DashboardNewFileBtn");
+    if (DashboardNewFile)
+    {
+        DashboardNewFile.addEventListener
+        (
+            "click", () =>
+            {
+                CreateNewWorkspaceFile();
+            }
+        );
+    }
 
-    document.getElementById("PickFolderBtn").addEventListener
-    (
-        "click", () =>
-        {
-            PickFolderFromDisk();
-        }
-    );
+    const PickFolder = document.getElementById("PickFolderBtn");
+    if (PickFolder)
+    {
+        PickFolder.addEventListener
+        (
+            "click", () =>
+            {
+                PickFolderFromDisk();
+            }
+        );
+    }
 
-    document.getElementById("AddDirectorySubmitBtn").addEventListener
-    (
-        "click", () =>
-        {
-            AddWorkspaceDirectory();
-        }
-    );
-
-    document.getElementById("NewDirectoryInput").addEventListener
-    (
-        "keydown", (E) =>
-        {
-            if (E.key === "Enter")
+    const AddDirBtn = document.getElementById("AddDirectorySubmitBtn");
+    if (AddDirBtn)
+    {
+        AddDirBtn.addEventListener
+        (
+            "click", () =>
             {
                 AddWorkspaceDirectory();
             }
-        }
-    );
+        );
+    }
 
-    document.getElementById("DashboardFileSearch").addEventListener
-    (
-        "input", (E) =>
-        {
-            RenderDashboard(E.target.value);
-        }
-    );
+    const NewDirInput = document.getElementById("NewDirectoryInput");
+    if (NewDirInput)
+    {
+        NewDirInput.addEventListener
+        (
+            "keydown", (E) =>
+            {
+                if (E.key === "Enter")
+                {
+                    AddWorkspaceDirectory();
+                }
+            }
+        );
+    }
+
+    const DashboardSearch = document.getElementById("DashboardProjectSearch") || document.getElementById("DashboardFileSearch");
+    if (DashboardSearch)
+    {
+        DashboardSearch.addEventListener
+        (
+            "input", (E) =>
+            {
+                RenderDashboard(E.target.value);
+            }
+        );
+    }
     // Global Keydown Handler with Dynamic Keybinding Support & Recording Mode
     window.addEventListener
     (
@@ -5741,6 +8323,9 @@ function SetupEventListeners()
             {
                 ToggleShortcutsModal(false);
                 ToggleExportMenu(false);
+                CloseExportSheet();
+                CloseSettingsModal();
+                CloseCommandPalette();
                 const Drawer = document.getElementById("ErrorDrawer");
                 if (Drawer) { Drawer.classList.remove("Visible"); }
                 return ;
@@ -5769,6 +8354,11 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 ToggleFullscreen();
+            }
+            else if (E.key === "F12" || ( (E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "I" || E.key === "i")))
+            {
+                E.preventDefault();
+                ToggleDevTools();
             }
             else if ( (E.ctrlKey || E.metaKey) && (E.key === "=" || E.key === "+"))
             {
@@ -5826,8 +8416,36 @@ function SetupEventListeners()
                 SaveCurrentFile();
                 TriggerCompileNow();
             }
+            else if ( (E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "M" || E.key === "m"))
+            {
+                E.preventDefault();
+                SetUIMode(CurrentUIMode === "focus" ? "studio" : "focus");
+                ShowToast(`Switched to ${CurrentUIMode === "focus" ? "✦ Focus Mode" : "⊞ Studio Mode"}`, "info");
+            }
+            else if ( (E.ctrlKey || E.metaKey) && E.key === ",")
+            {
+                E.preventDefault();
+                OpenSettingsModal();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && (E.key === "e" || E.key === "E"))
+            {
+                E.preventDefault();
+                OpenExportSheet();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && (E.key === "k" || E.key === "K"))
+            {
+                E.preventDefault();
+                OpenCommandPalette();
+            }
+            else if (E.altKey && (E.key === "s" || E.key === "S"))
+            {
+                E.preventDefault();
+                ToggleSpreadMode();
+            }
         }
     );
+
+    SetupDualModeAndExportEventListeners();
 }
 // --- WORKSPACE & DASHBOARD ARCHITECTURE ---
 
@@ -5840,7 +8458,7 @@ let IsDropdownOpen = false;
 function SelectDashboardDirectory(Dir)
 {
     ActiveSelectedDirectory = Dir;
-    const SearchInput = document.getElementById("DashboardFileSearch");
+    const SearchInput = document.getElementById("DashboardProjectSearch") || document.getElementById("DashboardFileSearch");
     RenderDashboard(SearchInput ? SearchInput.value: "");
 }
 
@@ -6098,52 +8716,134 @@ function RenderDocDropdownList(FilterQuery = "")
 
 async function OpenFileFromWorkspace(FilePath)
 {
+    if (!FilePath)
+    {
+        return ;
+    }
+
     try
     {
         let Content;
+        let ErrorMessage = null;
+
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
-            Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
-        }
-        else
-        {
-            const Response = await AuthenticatedFetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
-            const Data = await Response.json();
-            if (!Data.Success)
+            try
             {
-                throw new Error(Data.Message || "Unknown error");
+                Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
             }
-            Content = Data.Content;
+            catch (TauriErr)
+            {
+                ErrorMessage = String(TauriErr);
+            }
         }
 
-        if (Content !== undefined && MonacoInstance)
+        if (Content === undefined)
+        {
+            try
+            {
+                const Response = await AuthenticatedFetch(`/api/workspace/file?path=${encodeURIComponent(FilePath)}`);
+                const ResData = await Response.json();
+                if (ResData && ResData.Success)
+                {
+                    Content = ResData.Content;
+                }
+                else if (!ErrorMessage)
+                {
+                    ErrorMessage = ResData ? ResData.Message: "Could not read file from server";
+                }
+            }
+            catch (FetchErr)
+            {
+                if (!ErrorMessage)
+                {
+                    ErrorMessage = FetchErr.message || String(FetchErr);
+                }
+            }
+        }
+
+        if (Content !== undefined)
         {
             CurrentFilePath = FilePath;
             const FileName = FilePath.split(/[\\/]/).pop();
-            document.getElementById("DocumentTitleInput").value = FileName;
+            const TitleInput = document.getElementById("DocumentTitleInput");
+            if (TitleInput)
+            {
+                TitleInput.value = FileName;
+            }
             const ActiveDocStat = document.getElementById("StatActiveDoc");
             if (ActiveDocStat)
             {
                 ActiveDocStat.textContent = FileName;
             }
-            MonacoInstance.setValue(Content);
-            MarkDocumentClean(Content);
+
+            if (MonacoInstance)
+            {
+                MonacoInstance.setValue(Content);
+                MarkDocumentClean(Content);
+            }
+            else
+            {
+                PendingInitialFileContent = { Path: FilePath, Content: Content };
+            }
+
             ShowToast(`Loaded ${FileName}`, "info");
             CloseDocDropdown();
             SwitchView("editor");
             TriggerCompileNow();
             RenderDocDropdownList();
             RenderDashboard();
+
+            if (typeof OpenDocumentInTab === "function")
+            {
+                const ExistingTab = OpenTabs.find( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+                if (!ExistingTab)
+                {
+                    OpenTabs.push
+                    ({
+                        Path: FilePath,
+                        Name: FileName,
+                        Dirty: false
+                    });
+                    try
+                    {
+                        localStorage.setItem("TypstStudio_OpenTabs", JSON.stringify(OpenTabs));
+                    }
+                    catch (Ignored)
+                    {
+                    }
+                }
+                ActiveTabPath = FilePath;
+                try
+                {
+                    localStorage.setItem("TypstStudio_ActiveTab", FilePath);
+                }
+                catch (Ignored)
+                {
+                }
+                RenderEditorTabs();
+                HighlightActiveTreeFile(FilePath);
+            }
         }
         else
         {
-            alert("Could not load file: " + (Data.Message || "Unknown error"));
+            ShowToast("Could not load file: " + (ErrorMessage || "File not found"), "error");
+            const Splash = document.getElementById("LoadingSplash");
+            if (Splash)
+            {
+                Splash.remove();
+            }
         }
     }
     catch (Err)
     {
         console.error("Open file error:", Err);
-        alert("Failed to read file from disk.");
+        ShowToast("Failed to read file from disk: " + (Err.message || Err), "error");
+        const Splash = document.getElementById("LoadingSplash");
+        if (Splash)
+        {
+            Splash.remove();
+        }
     }
 }
 
@@ -6232,13 +8932,13 @@ async function SaveCurrentFile()
         }
         else
         {
-            alert("Save failed: " + (Data.Message || "Unknown error"));
+            ShowToast("Save failed: " + (Data ? Data.Message: "Unknown error"), "error");
         }
     }
     catch (Err)
     {
         console.error("Save error:", Err);
-        alert("Network error while saving file.");
+        ShowToast("Network error while saving file", "error");
     }
 }
 
@@ -6303,7 +9003,7 @@ async function CreateNewWorkspaceFile()
             }
             else
             {
-                alert("Create failed: " + (Data.Message || "Unknown error"));
+                ShowToast("Create failed: " + (Data ? Data.Message: "Unknown error"), "error");
                 return ;
             }
         }
@@ -6356,7 +9056,7 @@ async function AddWorkspaceDirectory()
         }
         else
         {
-            alert("Failed to add directory: " + (Data.Message || "Directory not found or inaccessible"));
+            ShowToast("Failed to add directory: " + (Data ? Data.Message: "Directory not found or inaccessible"), "error");
         }
     }
     catch (Err)
@@ -6397,7 +9097,7 @@ async function RemoveWorkspaceDirectory(DirPath)
         }
         else
         {
-            alert("Failed to remove directory: " + (Data.Message || "Error"));
+            ShowToast("Failed to remove directory: " + (Data ? Data.Message: "Error"), "error");
         }
     }
     catch (Err)
@@ -6450,7 +9150,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
         }
         else
         {
-            alert("Delete failed: " + (Data.Message || "Error"));
+            ShowToast("Delete failed: " + (Data ? Data.Message: "Error"), "error");
         }
     }
     catch (Err)
@@ -6459,34 +9159,836 @@ async function DeleteWorkspaceFile(FilePath, FileName)
     }
 }
 
+// --- EXPLORER SIDEBAR & EDITOR TABS ARCHITECTURE ---
+
+let OpenTabs = [];
+let ActiveTabPath = "";
+let ExplorerCurrentRoot = "";
+const ExplorerExpandedFolders = new Set();
+let ExplorerTreeCache = new Map();
+
+function GetFileIconSvg(FileName)
+{
+    const Lower = (FileName || "").toLowerCase();
+    if (Lower.endsWith(".typ"))
+    {
+        return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
+            <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline Points = "14 2 14 8 20 8" />
+            <line X1 = "16" Y1 = "13" X2 = "8" Y2 = "13" />
+            <line X1 = "16" Y1 = "17" X2 = "8" Y2 = "17" />
+        </svg>`;
+    }
+    if (Lower.endsWith(".pdf"))
+    {
+        return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#EF4444" Stroke-Width = "2">
+            <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline Points = "14 2 14 8 20 8" />
+            <path D = "M9 15h6" />
+        </svg>`;
+    }
+    if (Lower.endsWith(".png") || Lower.endsWith(".jpg") || Lower.endsWith(".jpeg") || Lower.endsWith(".svg") || Lower.endsWith(".webp"))
+    {
+        return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#C084FC" Stroke-Width = "2">
+            <rect X = "3" Y = "3" Width = "18" Height = "18" Rx = "2" Ry = "2" />
+            <circle Cx = "8.5" Cy = "8.5" R = "1.5" />
+            <polyline Points = "21 15 16 10 5 21" />
+        </svg>`;
+    }
+    if (Lower.endsWith(".js") || Lower.endsWith(".ts"))
+    {
+        return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#FBBF24" Stroke-Width = "2">
+            <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline Points = "14 2 14 8 20 8" />
+        </svg>`;
+    }
+    if (Lower.endsWith(".html") || Lower.endsWith(".css"))
+    {
+        return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#FB923C" Stroke-Width = "2">
+            <polyline Points = "16 18 22 12 16 6" />
+            <polyline Points = "8 6 2 12 8 18" />
+        </svg>`;
+    }
+    return `<svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#9CA3AF" Stroke-Width = "2">
+        <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline Points = "14 2 14 8 20 8" />
+    </svg>`;
+}
+
+async function ListFilesForTree(DirPath)
+{
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            const Results = await window.__TAURI__.core.invoke("ListWorkspaceFiles", { dirPath: DirPath, DirPath: DirPath });
+            return Results || [];
+        }
+        catch (Err)
+        {
+            console.warn("Failed to list files via Tauri:", Err);
+            return [];
+        }
+    }
+    else
+    {
+        try
+        {
+            const Token = await EnsureSessionAuthToken();
+            const Res = await AuthenticatedFetch(`/api/workspace/list?dir=${encodeURIComponent(DirPath || "")}`);
+            const Data = await Res.json();
+            return Data.Files || [];
+        }
+        catch (Err)
+        {
+            console.warn("Failed to list files via HTTP:", Err);
+            return [];
+        }
+    }
+}
+
+async function InitEditorTabs()
+{
+    try
+    {
+        const Saved = localStorage.getItem("TypstStudio_OpenTabs");
+        if (Saved)
+        {
+            OpenTabs = JSON.parse(Saved) || [];
+        }
+    }
+    catch (Ignored)
+    {
+        OpenTabs = [];
+    }
+
+    if (!Array.isArray(OpenTabs))
+    {
+        OpenTabs = [];
+    }
+
+    const SavedActive = localStorage.getItem("TypstStudio_ActiveTab");
+    let TargetPath = null;
+    if (SavedActive && OpenTabs.some( (T) => T.Path.toLowerCase() === SavedActive.toLowerCase()))
+    {
+        TargetPath = SavedActive;
+    }
+    else if (OpenTabs.length > 0)
+    {
+        TargetPath = OpenTabs[0].Path;
+    }
+    else if (CurrentFilePath)
+    {
+        TargetPath = CurrentFilePath;
+    }
+    else if (WorkspaceFiles.length > 0)
+    {
+        TargetPath = WorkspaceFiles[0].Path;
+    }
+
+    if (TargetPath)
+    {
+        ActiveTabPath = TargetPath;
+        if (!OpenTabs.some( (T) => T.Path.toLowerCase() === TargetPath.toLowerCase()))
+        {
+            OpenTabs.push
+            ({
+                Path: TargetPath,
+                Name: TargetPath.split(/[\\/]/).pop(),
+                Dirty: false
+            });
+        }
+        RenderEditorTabs();
+        await OpenFileFromWorkspace(TargetPath);
+    }
+    else
+    {
+        RenderEditorTabs();
+        TriggerCompileNow();
+    }
+
+    const NewBtn = document.getElementById("TabsNewFileBtn");
+    if (NewBtn)
+    {
+        NewBtn.onclick = () => { CreateNewWorkspaceFile(); };
+    }
+    const CloseAllBtn = document.getElementById("TabsCloseAllBtn");
+    if (CloseAllBtn)
+    {
+        CloseAllBtn.onclick = () => { CloseAllTabs(); };
+    }
+}
+
+function RenderEditorTabs()
+{
+    const ListEl = document.getElementById("EditorTabsList");
+    if (!ListEl)
+    {
+        return ;
+    }
+
+    if (OpenTabs.length === 0)
+    {
+        ListEl.innerHTML = `<span style = "color: #71717A; font-size: 11.5px; padding: 0 10px; display: inline-flex; align-items: center;">No open documents</span>`;
+        return ;
+    }
+
+    let Html = "";
+    for (const Tab of OpenTabs)
+    {
+        const IsActive = Tab.Path && (Tab.Path.toLowerCase() === (ActiveTabPath || "").toLowerCase());
+        const ActiveClass = IsActive ? "Active": "";
+        const EscapedPath = Tab.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const EscapedName = Tab.Name.replace(/'/g, "\\'");
+
+        Html += `
+            <div Class = "EditorTab ${ActiveClass}" onclick = "SwitchToTab('${EscapedPath}')" Title = "${EscapeHtml(Tab.Path)}">
+                <span Class = "TabIcon">${GetFileIconSvg(Tab.Name)}</span>
+                <span Class = "TabTitle">${EscapeHtml(Tab.Name)}</span>
+                <span Class = "TabDirtyDot ${Tab.Dirty ? "Visible" : ""}" Title = "Unsaved changes"></span>
+                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" onclick = "event.stopPropagation(); CloseTab('${EscapedPath}')">×</button>
+            </div>
+        `;
+    }
+
+    ListEl.innerHTML = Html;
+}
+
+function OpenDocumentInTab(FilePath, FileName = null)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+
+    const Normalized = FilePath.trim();
+    const Name = FileName || Normalized.split(/[\\/]/).pop();
+
+    const Existing = OpenTabs.find( (T) => T.Path.toLowerCase() === Normalized.toLowerCase());
+    if (!Existing)
+    {
+        OpenTabs.push
+        ({
+            Path: Normalized,
+            Name: Name,
+            Dirty: false
+        });
+        try
+        {
+            localStorage.setItem("TypstStudio_OpenTabs", JSON.stringify(OpenTabs));
+        }
+        catch (Ignored)
+        {
+        }
+    }
+
+    SwitchToTab(Normalized);
+}
+
+function SwitchToTab(FilePath)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+
+    ActiveTabPath = FilePath;
+    localStorage.setItem("TypstStudio_ActiveTab", FilePath);
+    RenderEditorTabs();
+    HighlightActiveTreeFile(FilePath);
+
+    const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
+    if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase() && CurrentContent.length > 0)
+    {
+        return ;
+    }
+
+    OpenFileFromWorkspace(FilePath);
+}
+
+function CloseTab(FilePath)
+{
+    const Index = OpenTabs.findIndex( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+    if (Index === - 1)
+    {
+        return ;
+    }
+
+    const WasActive = ActiveTabPath && (ActiveTabPath.toLowerCase() === FilePath.toLowerCase());
+    OpenTabs.splice(Index, 1);
+    try
+    {
+        localStorage.setItem("TypstStudio_OpenTabs", JSON.stringify(OpenTabs));
+    }
+    catch (Ignored)
+    {
+    }
+
+    if (OpenTabs.length === 0)
+    {
+        ActiveTabPath = "";
+        CurrentFilePath = "";
+        RenderEditorTabs();
+        HighlightActiveTreeFile("");
+        if (MonacoInstance)
+        {
+            MonacoInstance.setValue("// Start a new Typst document\n#set page(paper: \"a4\")\n#set text(font: (\"Times New Roman\", \"XITS Math\"), size: 11pt)\n\n= Welcome to Typst Studio\n");
+            TriggerCompileNow();
+        }
+        return ;
+    }
+
+    if (WasActive)
+    {
+        const NewIndex = Math.max(0, Index - 1);
+        SwitchToTab(OpenTabs[NewIndex].Path);
+    }
+    else
+    {
+        RenderEditorTabs();
+    }
+}
+
+function CloseAllTabs()
+{
+    OpenTabs = [];
+    ActiveTabPath = "";
+    CurrentFilePath = "";
+    try
+    {
+        localStorage.removeItem("TypstStudio_OpenTabs");
+        localStorage.removeItem("TypstStudio_ActiveTab");
+    }
+    catch (Ignored)
+    {
+    }
+    RenderEditorTabs();
+    HighlightActiveTreeFile("");
+}
+
+function SetTabDirty(FilePath, IsDirty)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+    const Tab = OpenTabs.find( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+    if (Tab && Tab.Dirty !== IsDirty)
+    {
+        Tab.Dirty = IsDirty;
+        RenderEditorTabs();
+    }
+}
+
+function ToggleExplorerSidebar(ForceState = null)
+{
+    const Sidebar = document.getElementById("ExplorerSidebar");
+    const Btn = document.getElementById("ToggleExplorerBtn");
+    const TabsBtn = document.getElementById("TabsToggleExplorerBtn");
+    if (!Sidebar)
+    {
+        return ;
+    }
+
+    const ShouldCollapse = (ForceState !== null) ? ! ForceState: ! Sidebar.classList.contains("Collapsed");
+    if (ShouldCollapse)
+    {
+        Sidebar.classList.add("Collapsed");
+        if (Btn)
+        {
+            Btn.classList.remove("Active");
+        }
+        if (TabsBtn)
+        {
+            TabsBtn.classList.remove("Active");
+        }
+        localStorage.setItem("TypstStudio_ExplorerVisible", "false");
+    }
+    else
+    {
+        Sidebar.classList.remove("Collapsed");
+        if (Btn)
+        {
+            Btn.classList.add("Active");
+        }
+        if (TabsBtn)
+        {
+            TabsBtn.classList.add("Active");
+        }
+        localStorage.setItem("TypstStudio_ExplorerVisible", "true");
+        RenderExplorerTree();
+    }
+
+    if (MonacoInstance)
+    {
+        setTimeout
+        (
+            () => { MonacoInstance.layout(); },
+            60
+        );
+    }
+}
+
+async function InitExplorer()
+{
+    const ToggleBtn = document.getElementById("ToggleExplorerBtn");
+    if (ToggleBtn)
+    {
+        ToggleBtn.onclick = () => { ToggleExplorerSidebar(); };
+    }
+    const TabsToggleBtn = document.getElementById("TabsToggleExplorerBtn");
+    if (TabsToggleBtn)
+    {
+        TabsToggleBtn.onclick = () => { ToggleExplorerSidebar(); };
+    }
+    const CloseBtn = document.getElementById("CloseExplorerBtn");
+    if (CloseBtn)
+    {
+        CloseBtn.onclick = () => { ToggleExplorerSidebar(false); };
+    }
+    const RefreshBtn = document.getElementById("ExplorerRefreshBtn");
+    if (RefreshBtn)
+    {
+        RefreshBtn.onclick = () => { ExplorerTreeCache.clear(); RenderExplorerTree(); };
+    }
+    const CollapseAllBtn = document.getElementById("ExplorerCollapseAllBtn");
+    if (CollapseAllBtn)
+    {
+        CollapseAllBtn.onclick = () =>
+        {
+            ExplorerExpandedFolders.clear();
+            if (ExplorerCurrentRoot)
+            {
+                ExplorerExpandedFolders.add(ExplorerCurrentRoot);
+            }
+            RenderExplorerTree();
+        };
+    }
+    const NewFileBtn = document.getElementById("ExplorerNewFileBtn");
+    if (NewFileBtn)
+    {
+        NewFileBtn.onclick = () => { CreateNewWorkspaceFile(); };
+    }
+
+    // Sidebar Resizing Support
+    const SavedWidth = localStorage.getItem("TypstStudio_ExplorerWidth");
+    if (SavedWidth)
+    {
+        const W = parseInt(SavedWidth, 10);
+        if (!isNaN(W) && W >= 160 && W <= 600)
+        {
+            const Sidebar = document.getElementById("ExplorerSidebar");
+            if (Sidebar)
+            {
+                Sidebar.style.width = `${W}px`;
+            }
+        }
+    }
+
+    const ResizeHandle = document.getElementById("SidebarResizeHandle");
+    if (ResizeHandle)
+    {
+        let IsDragging = false;
+        let StartX = 0;
+        let StartWidth = 250;
+
+        ResizeHandle.onmousedown = (E) =>
+        {
+            E.preventDefault();
+            IsDragging = true;
+            StartX = E.clientX;
+            const Sidebar = document.getElementById("ExplorerSidebar");
+            StartWidth = Sidebar ? Sidebar.getBoundingClientRect().width: 250;
+            ResizeHandle.classList.add("Dragging");
+            document.body.style.cursor = "col-resize";
+            document.body.style.userSelect = "none";
+        };
+
+        window.addEventListener
+        (
+            "mousemove",
+            (E) =>
+            {
+                if (!IsDragging)
+                {
+                    return ;
+                }
+                const Delta = E.clientX - StartX;
+                const NewWidth = Math.min(600, Math.max(160, StartWidth + Delta));
+                const Sidebar = document.getElementById("ExplorerSidebar");
+                if (Sidebar)
+                {
+                    Sidebar.style.width = `${NewWidth}px`;
+                }
+            }
+        );
+
+        window.addEventListener
+        (
+            "mouseup",
+            () =>
+            {
+                if (IsDragging)
+                {
+                    IsDragging = false;
+                    ResizeHandle.classList.remove("Dragging");
+                    document.body.style.cursor = "";
+                    document.body.style.userSelect = "";
+                    const Sidebar = document.getElementById("ExplorerSidebar");
+                    if (Sidebar)
+                    {
+                        const FinalWidth = Math.round(Sidebar.getBoundingClientRect().width);
+                        localStorage.setItem("TypstStudio_ExplorerWidth", String(FinalWidth));
+                    }
+                    if (MonacoInstance)
+                    {
+                        MonacoInstance.layout();
+                    }
+                }
+            }
+        );
+
+        ResizeHandle.ondblclick = () =>
+        {
+            const Sidebar = document.getElementById("ExplorerSidebar");
+            if (Sidebar)
+            {
+                Sidebar.style.width = "250px";
+                localStorage.setItem("TypstStudio_ExplorerWidth", "250");
+                if (MonacoInstance)
+                {
+                    MonacoInstance.layout();
+                }
+            }
+        };
+    }
+
+    const SavedVisible = localStorage.getItem("TypstStudio_ExplorerVisible");
+    if (SavedVisible === "false")
+    {
+        ToggleExplorerSidebar(false);
+    }
+    else
+    {
+        await RenderExplorerTree();
+    }
+}
+
+function SwitchExplorerRootPrompt()
+{
+    const Projects = GroupWorkspaceIntoProjects();
+    if (Projects.length <= 1 && ! WorkspaceDirectories.includes("e:\\Typst"))
+    {
+        ExplorerTreeCache.clear();
+        RenderExplorerTree();
+        return ;
+    }
+
+    if (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().includes("projects") && WorkspaceDirectories.length > 0)
+    {
+        ExplorerCurrentRoot = "e:\\Typst";
+    }
+    else if (Projects.length > 0)
+    {
+        ExplorerCurrentRoot = Projects[0].Path;
+    }
+    ExplorerTreeCache.clear();
+    RenderExplorerTree();
+}
+
+async function RenderExplorerTree()
+{
+    const RootEl = document.getElementById("ExplorerTreeRoot");
+    const NameEl = document.getElementById("ExplorerProjectName");
+    if (!RootEl)
+    {
+        return ;
+    }
+
+    if (!ExplorerCurrentRoot)
+    {
+        ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0]) ? WorkspaceDirectories[0]: "e:\\Typst";
+    }
+
+    const RootName = ExplorerCurrentRoot.split(/[\\/]/).filter(Boolean).pop() || ExplorerCurrentRoot;
+    if (NameEl)
+    {
+        NameEl.textContent = RootName;
+        NameEl.title = ExplorerCurrentRoot;
+    }
+
+    ExplorerExpandedFolders.add(ExplorerCurrentRoot);
+
+    RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">Loading tree...</div>`;
+    const Files = await ListFilesForTree(ExplorerCurrentRoot);
+    RootEl.innerHTML = "";
+    await RenderTreeLevel(Files, RootEl, 0);
+    HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath);
+}
+
+async function RenderTreeLevel(Files, ContainerEl, Depth = 0)
+{
+    if (!Files || Files.length === 0)
+    {
+        const EmptyEl = document.createElement("div");
+        EmptyEl.style.padding = `4px 12px 4px ${16 + Depth * 14}px`;
+        EmptyEl.style.color = "#71717A";
+        EmptyEl.style.fontSize = "11.5px";
+        EmptyEl.textContent = "(Empty folder)";
+        ContainerEl.appendChild(EmptyEl);
+        return ;
+    }
+
+    for (const File of Files)
+    {
+        const NodeEl = document.createElement("div");
+        NodeEl.className = "TreeNode";
+
+        const RowEl = document.createElement("div");
+        RowEl.className = "TreeNodeRow";
+        RowEl.style.paddingLeft = `${8 + Depth * 14}px`;
+        RowEl.dataset.path = File.path;
+
+        if (File.is_dir)
+        {
+            const IsExpanded = ExplorerExpandedFolders.has(File.path);
+            const ChevronEl = document.createElement("span");
+            ChevronEl.className = `TreeNodeChevron ${IsExpanded ? "Expanded" : ""}`;
+            ChevronEl.textContent = "›";
+
+            const IconEl = document.createElement("span");
+            IconEl.className = "TreeNodeIcon";
+            IconEl.innerHTML = IsExpanded ? `📂`: `📁`;
+
+            const LabelEl = document.createElement("span");
+            LabelEl.className = "TreeNodeLabel";
+            LabelEl.textContent = File.name;
+            LabelEl.title = File.path;
+
+            RowEl.appendChild(ChevronEl);
+            RowEl.appendChild(IconEl);
+            RowEl.appendChild(LabelEl);
+            NodeEl.appendChild(RowEl);
+
+            const ChildrenContainer = document.createElement("div");
+            ChildrenContainer.className = `TreeNodeChildren ${IsExpanded ? "" : "Collapsed"}`;
+            NodeEl.appendChild(ChildrenContainer);
+
+            if (IsExpanded)
+            {
+                let SubFiles = ExplorerTreeCache.get(File.path);
+                if (!SubFiles)
+                {
+                    SubFiles = await ListFilesForTree(File.path);
+                    ExplorerTreeCache.set(File.path, SubFiles);
+                }
+                await RenderTreeLevel(SubFiles, ChildrenContainer, Depth + 1);
+            }
+
+            RowEl.onclick = async (E) =>
+            {
+                E.stopPropagation();
+                const NowExpanded = ! ExplorerExpandedFolders.has(File.path);
+                if (NowExpanded)
+                {
+                    ExplorerExpandedFolders.add(File.path);
+                    ChevronEl.classList.add("Expanded");
+                    IconEl.innerHTML = `📂`;
+                    ChildrenContainer.classList.remove("Collapsed");
+                    if (ChildrenContainer.children.length === 0)
+                    {
+                        let Sub = ExplorerTreeCache.get(File.path);
+                        if (!Sub)
+                        {
+                            Sub = await ListFilesForTree(File.path);
+                            ExplorerTreeCache.set(File.path, Sub);
+                        }
+                        await RenderTreeLevel(Sub, ChildrenContainer, Depth + 1);
+                    }
+                }
+                else
+                {
+                    ExplorerExpandedFolders.delete(File.path);
+                    ChevronEl.classList.remove("Expanded");
+                    IconEl.innerHTML = `📁`;
+                    ChildrenContainer.classList.add("Collapsed");
+                }
+            };
+        }
+        else
+        {
+            const SpacerEl = document.createElement("span");
+            SpacerEl.className = "TreeNodeChevron";
+            SpacerEl.innerHTML = "";
+
+            const IconEl = document.createElement("span");
+            IconEl.className = "TreeNodeIcon";
+            IconEl.innerHTML = GetFileIconSvg(File.name);
+
+            const LabelEl = document.createElement("span");
+            LabelEl.className = "TreeNodeLabel";
+            LabelEl.textContent = File.name;
+            LabelEl.title = `${File.name} (${FormatFileSize(File.size)})`;
+
+            RowEl.appendChild(SpacerEl);
+            RowEl.appendChild(IconEl);
+            RowEl.appendChild(LabelEl);
+            NodeEl.appendChild(RowEl);
+
+            RowEl.onclick = () =>
+            {
+                const Ext = (File.name || "").toLowerCase().split(".").pop();
+                const NonTextExtensions = ["pdf", "png", "jpg", "jpeg", "webp", "gif", "ico", "exe", "zip", "tar", "gz", "otf", "ttf", "woff", "woff2"];
+                if (NonTextExtensions.includes(Ext))
+                {
+                    ShowToast(`Binary preview not supported for .${Ext} files`, "info", 2000);
+                    return ;
+                }
+                OpenDocumentInTab(File.path, File.name);
+            };
+        }
+
+        ContainerEl.appendChild(NodeEl);
+    }
+}
+
+function HighlightActiveTreeFile(FilePath)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+    const Norm = FilePath.toLowerCase();
+    document.querySelectorAll(".TreeNodeRow").forEach
+    (
+        (Row) =>
+        {
+            if (Row.dataset.path && Row.dataset.path.toLowerCase() === Norm)
+            {
+                Row.classList.add("Active");
+            }
+            else
+            {
+                Row.classList.remove("Active");
+            }
+        }
+    );
+}
+
+function GroupWorkspaceIntoProjects()
+{
+    const ProjectMap = new Map();
+
+    for (const File of WorkspaceFiles)
+    {
+        const Dir = File.Directory || "Workspace";
+        if (!ProjectMap.has(Dir))
+        {
+            const DirName = Dir.split(/[\\/]/).filter(Boolean).pop() || Dir;
+            ProjectMap.set(Dir, {
+                Name: DirName,
+                Path: Dir,
+                Files: [],
+                TotalSize: 0,
+                LatestModified: 0
+            });
+        }
+        const Proj = ProjectMap.get(Dir);
+        Proj.Files.push(File);
+        Proj.TotalSize += File.Size || 0;
+        if ((File.Modified || 0) > Proj.LatestModified)
+        {
+            Proj.LatestModified = File.Modified;
+        }
+    }
+
+    for (const Dir of WorkspaceDirectories)
+    {
+        if (!ProjectMap.has(Dir))
+        {
+            const DirName = Dir.split(/[\\/]/).filter(Boolean).pop() || Dir;
+            ProjectMap.set
+            (
+                Dir,
+                {
+                    Name: DirName,
+                    Path: Dir,
+                    Files: [],
+                    TotalSize: 0,
+                    LatestModified: 0
+                }
+            );
+        }
+    }
+
+    return Array.from(ProjectMap.values());
+}
+
+function OpenProjectInExplorer(ProjectPath)
+{
+    ExplorerCurrentRoot = ProjectPath;
+    ExplorerExpandedFolders.clear();
+    ExplorerExpandedFolders.add(ProjectPath);
+    ExplorerTreeCache.clear();
+
+    const Projects = GroupWorkspaceIntoProjects();
+    const TargetProj = Projects.find( (P) => P.Path.toLowerCase() === ProjectPath.toLowerCase());
+    if (TargetProj && TargetProj.Files.length > 0)
+    {
+        OpenDocumentInTab(TargetProj.Files[0].Path, TargetProj.Files[0].Name);
+    }
+
+    SwitchView("editor");
+    ToggleExplorerSidebar(true);
+    RenderExplorerTree();
+}
+
+function CreateFileInProject(ProjectPath)
+{
+    const FileName = prompt("Enter new Typst document name (e.g. Chapter1.typ):", "Document.typ");
+    if (!FileName || !FileName.trim())
+    {
+        return ;
+    }
+    const CleanName = FileName.trim().endsWith(".typ") ? FileName.trim(): `${FileName.trim()}.typ`;
+    const FullPath = `${ProjectPath}\\${CleanName}`;
+
+    SaveWorkspaceFile(FullPath, `= ${CleanName.replace(".typ", "")}\n\n// Start writing your Typst document here.\n`).then
+    (
+        () =>
+        {
+            LoadWorkspaceInfo().then( () => { OpenDocumentInTab(FullPath, CleanName); SwitchView("editor"); });
+        }
+    );
+}
+
 function SwitchView(ViewName)
 {
     const EditorView = document.getElementById("EditorMainView");
     const DashboardView = document.getElementById("DashboardView");
     const NavEditor = document.getElementById("NavEditorBtn");
     const NavDashboard = document.getElementById("NavDashboardBtn");
+    const LayoutSwitcherNav = document.getElementById("LayoutSwitcherNav");
 
     if (ViewName === "editor")
     {
         EditorView.style.display = "flex";
         DashboardView.style.display = "none";
-        NavEditor.classList.add("Active");
-        NavDashboard.classList.remove("Active");
+        if (NavEditor) { NavEditor.classList.add("Active"); }
+        if (NavDashboard) { NavDashboard.classList.remove("Active"); }
+        if (LayoutSwitcherNav) { LayoutSwitcherNav.style.display = "inline-flex"; }
         if (MonacoInstance)
         {
-            setTimeout
-            (
-                () => { MonacoInstance.layout(); },
-                50
-            );
+            setTimeout(() => { MonacoInstance.layout(); }, 50);
         }
     }
     else if (ViewName === "dashboard")
     {
         EditorView.style.display = "none";
         DashboardView.style.display = "block";
-        NavEditor.classList.remove("Active");
-        NavDashboard.classList.add("Active");
+        if (NavEditor) { NavEditor.classList.remove("Active"); }
+        if (NavDashboard) { NavDashboard.classList.add("Active"); }
+        if (LayoutSwitcherNav) { LayoutSwitcherNav.style.display = "none"; }
         RenderDashboard();
     }
 }
@@ -6495,12 +9997,14 @@ function RenderDashboard(FilterQuery = "")
 {
     const DirCountElem = document.getElementById("StatDirCount");
     const FileCountElem = document.getElementById("StatFileCount");
-    const BadgeElem = document.getElementById("FilesCountBadge");
+    const BadgeElem = document.getElementById("ProjectsCountBadge");
     const ActiveDocElem = document.getElementById("StatActiveDoc");
+
+    const Projects = GroupWorkspaceIntoProjects();
 
     if (DirCountElem)
     {
-        DirCountElem.textContent = WorkspaceDirectories.length;
+        DirCountElem.textContent = Projects.length;
     }
     if (FileCountElem)
     {
@@ -6510,12 +10014,12 @@ function RenderDashboard(FilterQuery = "")
     {
         ActiveDocElem.textContent = CurrentFilePath ? CurrentFilePath.split(/[\\/]/).pop(): "None";
     }
+
     // Render Tracked Directories
     const DirListContainer = document.getElementById("TrackedDirectoryList");
     if (DirListContainer)
     {
         let DirHtml = "";
-        // All Folders Option
         const IsAllActive = ! ActiveSelectedDirectory;
         DirHtml += `
             <div Class = "DirectoryItem ${IsAllActive ? "IsActiveDirectory" : ""}" onclick = "SelectDashboardDirectory(null)" Title = "View files from all tracked folders">
@@ -6526,33 +10030,24 @@ function RenderDashboard(FilterQuery = "")
                         </svg>
                         <span>All Tracked Folders</span>
                     </span>
-                    <span Class = "DirectoryCountBadge">${WorkspaceFiles.length} Typst files</span>
+                    <span Class = "DirectoryCountBadge">${Projects.length} Projects</span>
                 </div>
             </div>
         `;
 
         for (const Dir of WorkspaceDirectories)
         {
-            const FilesInDir = WorkspaceFiles.filter
-            (
-                (F) =>
-                {
-                    const NormalizedDir = Dir.toLowerCase();
-                    return F.Directory.toLowerCase().startsWith(NormalizedDir) || F.Path.toLowerCase().startsWith(NormalizedDir);
-                }
-            )
-            .length;
-
+            const ProjCount = Projects.filter((P) => P.Path.toLowerCase().startsWith(Dir.toLowerCase())).length;
             const EscapedDir = Dir.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
             const CanDelete = WorkspaceDirectories.length > 1;
             const IsSelected = ActiveSelectedDirectory && (ActiveSelectedDirectory.toLowerCase() === Dir.toLowerCase());
             const ActiveClass = IsSelected ? "IsActiveDirectory": "";
 
             DirHtml += `
-                <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory('${EscapedDir}')" Title = "Filter files in this directory">
+                <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory('${EscapedDir}')" Title = "Filter projects in this directory">
                     <div Class = "DirectoryItemInfo">
                         <span Class = "DirectoryPathText" Title = "${EscapeHtml(Dir)}">${EscapeHtml(Dir)}</span>
-                        <span Class = "DirectoryCountBadge">${FilesInDir} Typst files</span>
+                        <span Class = "DirectoryCountBadge">${ProjCount} Projects</span>
                     </div>
                     ${CanDelete ? `
                         <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" onclick = "event.stopPropagation(); RemoveWorkspaceDirectory('${EscapedDir}')">
@@ -6567,39 +10062,31 @@ function RenderDashboard(FilterQuery = "")
         }
         DirListContainer.innerHTML = DirHtml;
     }
-    // Render Files Grid
-    const FilesGridContainer = document.getElementById("DashboardFilesGrid");
-    if (FilesGridContainer)
+
+    // Render Projects Grid
+    const ProjectsGridContainer = document.getElementById("DashboardProjectsGrid");
+    if (ProjectsGridContainer)
     {
-        let FilteredFiles = WorkspaceFiles;
+        let FilteredProjects = Projects;
 
         if (ActiveSelectedDirectory)
         {
             const NormDir = ActiveSelectedDirectory.toLowerCase();
-            FilteredFiles = FilteredFiles.filter
-            (
-                (F) =>
-                {
-                    return F.Directory.toLowerCase().startsWith(NormDir) || F.Path.toLowerCase().startsWith(NormDir);
-                }
-            );
+            FilteredProjects = FilteredProjects.filter((P) => P.Path.toLowerCase().startsWith(NormDir));
         }
 
         const Query = FilterQuery.toLowerCase().trim();
         if (Query)
         {
-            FilteredFiles = FilteredFiles.filter
+            FilteredProjects = FilteredProjects.filter
             (
-                (F) =>
-                {
-                    return F.Name.toLowerCase().includes(Query) || F.Path.toLowerCase().includes(Query);
-                }
+                (P) => P.Name.toLowerCase().includes(Query) || P.Path.toLowerCase().includes(Query)
             );
         }
 
         if (BadgeElem)
         {
-            BadgeElem.textContent = FilteredFiles.length;
+            BadgeElem.textContent = FilteredProjects.length;
         }
 
         let BannerHtml = "";
@@ -6620,55 +10107,71 @@ function RenderDashboard(FilterQuery = "")
             `;
         }
 
-        if (FilteredFiles.length === 0)
+        if (FilteredProjects.length === 0)
         {
-            FilesGridContainer.innerHTML = BannerHtml + `<div Class = "EmptyNotice">No Typst (.typ) files found in this folder</div>`;
+            ProjectsGridContainer.innerHTML = BannerHtml + `<div Class = "EmptyNotice">No Typst projects found in this directory</div>`;
             return ;
         }
 
-        let FilesHtml = BannerHtml;
-        for (const File of FilteredFiles)
+        let ProjectsHtml = BannerHtml;
+        for (const Proj of FilteredProjects)
         {
-            const IsActive = CurrentFilePath && (File.Path.toLowerCase() === CurrentFilePath.toLowerCase());
-            const ActiveClass = IsActive ? "IsActiveCard": "";
-            const EscapedPath = File.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-            const EscapedName = File.Name.replace(/'/g, "\\'");
+            const IsActiveProject = CurrentFilePath && CurrentFilePath.toLowerCase().startsWith(Proj.Path.toLowerCase());
+            const ActiveClass = IsActiveProject ? "IsActiveProject": "";
+            const EscapedPath = Proj.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
-            FilesHtml += `
-                <div Class = "FileCard ${ActiveClass}">
-                    <div Class = "FileCardTop">
-                        <div Class = "FileCardIcon">
-                            <svg Width = "18" Height = "18" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                <polyline Points = "14 2 14 8 20 8" />
+            let FilesListHtml = "";
+            if (Proj.Files && Proj.Files.length > 0)
+            {
+                for (const F of Proj.Files)
+                {
+                    const EscFile = F.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+                    FilesListHtml += `
+                        <div Class = "ProjectFileRow" onclick = "OpenDocumentInTab('${EscFile}')" Title = "Open ${EscapeHtml(F.Name)} in Editor">
+                            <span Class = "ProjectFileIcon">${GetFileIconSvg(F.Name)}</span>
+                            <span Class = "ProjectFileName">${EscapeHtml(F.Name)}</span>
+                            <span Class = "ProjectFileSize">${FormatFileSize(F.Size)}</span>
+                            <button Type = "button" Class = "ProjectFileOpenBtn">Open →</button>
+                        </div>
+                    `;
+                }
+            }
+            else
+            {
+                FilesListHtml = `<div style = "padding: 6px 8px; color: #71717A; font-size: 11.5px;">No .typ files inside folder yet</div>`;
+            }
+
+            ProjectsHtml += `
+                <div Class = "ProjectCard ${ActiveClass}">
+                    <div Class = "ProjectCardHeader">
+                        <div Class = "ProjectCardIcon">
+                            <svg Width = "20" Height = "20" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                             </svg>
                         </div>
-                        <div Class = "FileCardMeta">
-                            <div Class = "FileCardName" Title = "${EscapeHtml(File.Name)}">${EscapeHtml(File.Name)}</div>
-                            <div Class = "FileCardDir" Title = "${EscapeHtml(File.Directory)}">${EscapeHtml(File.Directory)}</div>
+                        <div Class = "ProjectCardTitleGroup">
+                            <div Class = "ProjectCardName" Title = "${EscapeHtml(Proj.Name)}">${EscapeHtml(Proj.Name)}</div>
+                            <div Class = "ProjectCardPath" Title = "${EscapeHtml(Proj.Path)}">${EscapeHtml(Proj.Path)}</div>
                         </div>
+                        <span Class = "ProjectDocCountBadge">${Proj.Files.length} Documents</span>
                     </div>
 
-                    <div Class = "FileCardDetails">
-                        <span Class = "FileCardSize">${FormatFileSize(File.Size)}</span>
-                        <span Class = "FileCardDate">${FormatDate(File.Modified)}</span>
+                    <div Class = "ProjectFilesList">
+                        ${FilesListHtml}
                     </div>
 
-                    <div Class = "FileCardActions">
-                        <button Type = "button" Class = "FileCardOpenBtn" onclick = "OpenFileFromWorkspace('${EscapedPath}')">
-                            Open in Editor
+                    <div Class = "ProjectCardFooter">
+                        <button Type = "button" Class = "Button Primary Small" onclick = "OpenProjectInExplorer('${EscapedPath}')">
+                            Open Project in Explorer →
                         </button>
-                        <button Type = "button" Class = "FileCardTrashBtn" Title = "Delete file" onclick = "DeleteWorkspaceFile('${EscapedPath}', '${EscapedName}')">
-                            <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                <polyline Points = "3 6 5 6 21 6" />
-                                <path D = "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
+                        <button Type = "button" Class = "Button Secondary Small" onclick = "CreateFileInProject('${EscapedPath}')">
+                            + New Document
                         </button>
                     </div>
                 </div>
             `;
         }
-        FilesGridContainer.innerHTML = FilesHtml;
+        ProjectsGridContainer.innerHTML = ProjectsHtml;
     }
 }
 // =============================================================================
@@ -7253,19 +10756,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
         PageBoxesMap.get(PageNum).push(Box);
     }
 
-    let ScrollTargetPage = null;
-    for (const PageNum of PageBoxesMap.keys())
-    {
-        if (PageNum > 1)
-        {
-            ScrollTargetPage = PageNum;
-        }
-    }
-    if (!ScrollTargetPage)
-    {
-        ScrollTargetPage = PageBoxesMap.keys().next().value;
-    }
-
+    const ScrollTargetPage = Boxes[0].page || 1;
     let PrimaryPageSheet = document.getElementById(`PageSheet_${ScrollTargetPage}`) || document.querySelectorAll(".PageSheet")[ScrollTargetPage - 1];
     let PrimaryTopY = Infinity;
 
@@ -7368,19 +10859,21 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             const PageRect = PrimaryPageSheet.getBoundingClientRect();
             const VbH = parseFloat(PrimaryPageSheet.dataset.baseHeight) || 864;
             const ScaleY = PageRect.height / VbH;
-            const TargetScreenY = PageRect.top + (PrimaryTopY * ScaleY);
 
-            // If already within visible viewport bounds, avoid redundant scroll animation
-            const IsAlreadyVisible = (TargetScreenY >= ViewportRect.top + 60) &&
-                (TargetScreenY <= ViewportRect.bottom - 60);
+            // Invariant Sheet top relative to scroll container content
+            const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+            const TargetContentY = SheetTopInContent + (PrimaryTopY * ScaleY);
+            const TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
 
-            if (!IsAlreadyVisible)
+            // Only scroll if difference is noticeable (> 60px) to prevent scroll bounce/jitter
+            const CurrentDiff = Math.abs(Viewport.scrollTop - TargetScrollTop);
+            if (CurrentDiff > 60)
             {
-                const ScrollOffset = Viewport.scrollTop + (TargetScreenY - ViewportRect.top) - (Viewport.clientHeight / 2);
                 const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
                 Viewport.scrollTo
                 ({
-                    top: Math.max(0, ScrollOffset), behavior: ScrollBehavior
+                    top: TargetScrollTop,
+                    behavior: ScrollBehavior
                 });
             }
         }
@@ -7706,6 +11199,85 @@ function FindEnclosingMathEquation(SourceCode, CursorLine, CursorCol)
     return Matches[0];
 }
 
+function ScrollPreviewToNearestLine(TargetLine)
+{
+    if (!ActiveSyncMapByLine || ActiveSyncMapByLine.size === 0)
+    {
+        return ;
+    }
+
+    let BestLine = null;
+    let BestDist = Infinity;
+
+    // Scan nearby lines only (within 6 lines max) to avoid jumping to document head
+    for (let Offset = 1; Offset <= 6; Offset ++)
+    {
+        const CheckLines = [TargetLine + Offset, TargetLine - Offset];
+        for (const CL of CheckLines)
+        {
+            if (CL >= 1 && ActiveSyncMapByLine.has(CL))
+            {
+                const Candidates = ActiveSyncMapByLine.get(CL);
+                if (Candidates && Candidates.length > 0)
+                {
+                    BestLine = CL;
+                    BestDist = Offset;
+                    break;
+                }
+            }
+        }
+        if (BestLine !== null)
+        {
+            break;
+        }
+    }
+
+    if (BestLine === null)
+    {
+        return ;
+    }
+
+    const LineElems = ActiveSyncMapByLine.get(BestLine);
+    if (!LineElems || LineElems.length === 0)
+    {
+        return ;
+    }
+
+    const FirstElem = LineElems[0];
+    const PageNum = FirstElem.page || 1;
+    const TargetPageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
+    if (!TargetPageSheet)
+    {
+        return ;
+    }
+
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport)
+    {
+        return ;
+    }
+
+    const ViewportRect = Viewport.getBoundingClientRect();
+    const PageRect = TargetPageSheet.getBoundingClientRect();
+    const VbH = parseFloat(TargetPageSheet.dataset.baseHeight) || 864;
+    const ScaleY = PageRect.height / VbH;
+
+    // Invariant Sheet top relative to scroll container content
+    const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+    const TargetContentY = SheetTopInContent + (FirstElem.y * ScaleY);
+    const TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
+
+    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 60)
+    {
+        const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+        Viewport.scrollTo
+        ({
+            top: TargetScrollTop,
+            behavior: ScrollBehavior
+        });
+    }
+}
+
 function PerformForwardSync(Line, Col, ForceAutoScroll = true)
 {
     if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
@@ -7821,11 +11393,15 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     )
     {
         ClearSyncHighlights();
+        if (ForceAutoScroll)
+        {
+            ScrollPreviewToNearestLine(Line);
+        }
         return ;
     }
 
     const SameLineRaw = ActiveSyncMapByLine.get(Line) || (ActiveSyncMap.length < 500 ? ActiveSyncMap: []);
-    const SameLineCandidates = SameLineRaw.filter
+    let SameLineCandidates = SameLineRaw.filter
     (
         (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
     );
@@ -8007,6 +11583,10 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
     }
     // Line has no rendered glyphs (empty line, blank spaces, $, mat, delimiters) -> NO HIGHLIGHT
     ClearSyncHighlights();
+    if (ForceAutoScroll)
+    {
+        ScrollPreviewToNearestLine(Line);
+    }
 }
 // Make functions accessible from onclick handlers
 window.OpenFileFromWorkspace = OpenFileFromWorkspace;
@@ -8035,13 +11615,31 @@ window.addEventListener
         SetupEventListeners();
         SetupAppearanceEventListeners();
         UpdateBlackPageMode();
+        SetUIMode(CurrentUIMode);
         UpdateFontSizeUI();
         UpdateFullscreenUI(false);
         SetupZoomControls();
+        try
+        {
+            localStorage.removeItem("TypstStudio_PageZoom");
+            document.body.style.zoom = "";
+        }
+        catch (Ignored) {}
         UpdateCheatSheetBadges();
-        InitializeMonaco();
+
+        // 1. Initialize Monaco and wait for complete readiness
+        await InitializeMonaco();
         InitializeSyncTex();
-        LoadWorkspaceInfo();
+
+        // 2. Load tracked directories and workspace files
+        await LoadWorkspaceInfo();
+
+        // 3. Initialize Explorer sidebar, resizing, and project view
+        await InitExplorer();
+
+        // 4. Initialize Tabs and open the active / target document
+        await InitEditorTabs();
+
         LoadAvailableFonts();
         SetupAssetDragAndDrop();
         SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
@@ -8049,5 +11647,19 @@ window.addEventListener
         {
             ToggleDocumentOutline(true);
         }
+
+        // Safety fallback: ensure splash is never permanently stuck
+        setTimeout
+        (
+            () =>
+            {
+                const Splash = document.getElementById("LoadingSplash");
+                if (Splash)
+                {
+                    Splash.remove();
+                }
+            },
+            6000
+        );
     }
 );

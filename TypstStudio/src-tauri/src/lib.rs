@@ -1,6 +1,7 @@
 #![allow(non_camel_case_types, non_snake_case)]
 use std::io::Write;
 use tauri::Manager;
+use tauri_plugin_shell::ShellExt;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Compile_Response
@@ -409,43 +410,68 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
 
 fn FindTypstBinary() -> std::path::PathBuf
 {
+    let BinName = if cfg!(windows)
+    {
+        "typst.exe"
+    }
+    else
+    {
+        "typst"
+    };
+
     if let Ok(ExePath) = std::env::current_exe()
     {
         if let Some(ExeDir) = ExePath.parent()
         {
-            let Candidate1 = ExeDir.join("bin").join("typst.exe");
-            if Candidate1 .exists()
-            { return Candidate1; }
-            let CandidateRes = ExeDir.join("resources").join("bin").join("typst.exe");
+            let CandidateBin = ExeDir.join("bin").join(BinName);
+            if CandidateBin.exists()
+            {
+                return CandidateBin;
+            }
+
+            let CandidateResBin = ExeDir.join("resources").join("bin").join(BinName);
+            if CandidateResBin.exists()
+            {
+                return CandidateResBin;
+            }
+
+            let CandidateRes = ExeDir.join("resources").join(BinName);
             if CandidateRes.exists()
-            { return CandidateRes; }
-            let CandidateRes2 = ExeDir.join("resources").join("typst.exe");
-            if CandidateRes2 .exists()
-            { return CandidateRes2; }
-            let Candidate2 = ExeDir.join("typst.exe");
-            if Candidate2 .exists()
-            { return Candidate2; }
-            let DevCandidate = ExeDir.join("../../../bin/typst.exe");
+            {
+                return CandidateRes;
+            }
+
+            let CandidateDirect = ExeDir.join(BinName);
+            if CandidateDirect.exists()
+            {
+                return CandidateDirect;
+            }
+
+            // macOS .app bundle: TypstStudio.app/Contents/MacOS/typst-studio -> Resources/bin/typst
+            let MacOsResBin = ExeDir.join("../Resources/bin").join(BinName);
+            if MacOsResBin.exists()
+            {
+                return MacOsResBin;
+            }
+
+            let DevCandidate = ExeDir.join("../../../bin").join(BinName);
             if DevCandidate.exists()
-            { return DevCandidate; }
+            {
+                return DevCandidate;
+            }
         }
     }
 
-    for Rel in & ["bin/typst.exe", "../bin/typst.exe", "TypstStudio/bin/typst.exe"]
+    for Rel in &["bin", "../bin", "TypstStudio/bin"]
     {
-        let Cand = std::path::PathBuf::from(Rel);
+        let Cand = std::path::PathBuf::from(Rel).join(BinName);
         if Cand.exists()
-        { return Cand; }
+        {
+            return Cand;
+        }
     }
 
-    let Fixed = std::path::PathBuf::from(r"E:\Typst\TypstStudio\bin\typst.exe");
-    if Fixed.exists()
-    { return Fixed; }
-
-    if cfg!(windows)
-    { std::path::PathBuf::from("typst.exe") }
-    else
-    { std::path::PathBuf::from("typst") }
+    std::path::PathBuf::from(BinName)
 }
 
 fn GetFontDirectories() -> Vec<std::path::PathBuf>
@@ -493,6 +519,17 @@ fn GetFontDirectories() -> Vec<std::path::PathBuf>
     Dirs
 }
 
+fn CreateCommand<P: AsRef<std::ffi::OsStr>>(Program: P) -> std::process::Command
+{
+    let mut Cmd = std::process::Command::new(Program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        Cmd.creation_flags(0x08000000);
+    }
+    Cmd
+}
+
 fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
 {
     let StartTime = std::time::Instant::now();
@@ -523,7 +560,7 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = std::process::Command:: new ( & TypstBin);
+    let mut Command = CreateCommand( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
     for FontDir in GetFontDirectories()
     {
@@ -636,7 +673,7 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
 
     let OutputPdf = JobDir.join("output.pdf");
 
-    let mut Command = std::process::Command:: new ( & TypstBin);
+    let mut Command = CreateCommand( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf"),]);
     for FontDir in GetFontDirectories()
     {
@@ -715,7 +752,7 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
 
     let OutputPattern = JobDir.join("page-{p}.png");
 
-    let mut Command = std::process::Command:: new ( & TypstBin);
+    let mut Command = CreateCommand( & TypstBin);
     Command.args
     ([
         "compile",
@@ -837,7 +874,7 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = std::process::Command:: new ( & TypstBin);
+    let mut Command = CreateCommand( & TypstBin);
     Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
     for FontDir in GetFontDirectories()
     {
@@ -939,14 +976,43 @@ fn PickFolder() -> Result<Option<String>, String>
 
 #[tauri::command]
 fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
-{ std::fs::read_to_string( & PathStr).map_err( | Error | format ! ("Failed to read file: {}", Error)) }
+{
+    let CleanPath = PathStr.trim().replace('/', "\\");
+    let P = std::path::Path::new(&CleanPath);
+    if P.exists() && P.is_file()
+    {
+        return std::fs::read_to_string(P).map_err( | Error | format!("Failed to read file: {}", Error));
+    }
+
+    for Dir in GetTrackedDirectories()
+    {
+        let Candidate = std::path::Path::new(&Dir).join(&CleanPath);
+        if Candidate.exists() && Candidate.is_file()
+        {
+            return std::fs::read_to_string(&Candidate).map_err( | Error | format!("Failed to read file: {}", Error));
+        }
+    }
+
+    let TargetFileName = P.file_name().map( | N | N.to_string_lossy().to_string()).unwrap_or_else( || CleanPath.clone());
+    for Dir in GetTrackedDirectories()
+    {
+        let Candidate = std::path::Path::new(&Dir).join(&TargetFileName);
+        if Candidate.exists() && Candidate.is_file()
+        {
+            return std::fs::read_to_string(&Candidate).map_err( | Error | format!("Failed to read file: {}", Error));
+        }
+    }
+
+    std::fs::read_to_string(&CleanPath).map_err( | Error | format!("Failed to read file: {}", Error))
+}
 
 #[tauri::command]
 fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result < (), String >
 {
-    if let Some(Parent) = std::path::Path:: new ( & PathStr).parent()
+    let CleanPath = PathStr.trim().replace('/', "\\");
+    if let Some(Parent) = std::path::Path:: new ( & CleanPath).parent()
     { let _ = std::fs::create_dir_all(Parent); }
-    std::fs::write( & PathStr, Content).map_err( | Error | format ! ("Failed to save file: {}", Error))
+    std::fs::write( & CleanPath, Content).map_err( | Error | format ! ("Failed to save file: {}", Error))
 }
 
 #[tauri::command]
@@ -959,13 +1025,18 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
     {
         for Entry in Entries.flatten()
         {
-            let Meta = Entry.metadata().ok();
-            let IsDir = Meta.as_ref().map( | M | M.is_dir()).unwrap_or(false);
-            let Size = Meta.as_ref().map( | M | M.len()).unwrap_or(0);
             let Name = Entry.file_name().to_string_lossy().to_string();
+            if Name == ".git" || Name == "target" || Name == "node_modules"
+            {
+                continue;
+            }
+
+            let Meta = Entry.metadata().ok();
+            let IsDir = Meta.as_ref().map(|M| M.is_dir()).unwrap_or(false);
+            let Size = Meta.as_ref().map(|M| M.len()).unwrap_or(0);
             let Path = Entry.path().to_string_lossy().to_string();
 
-            Results.push(File_Entry { name: Name, path: Path, is_dir: IsDir, size: Size, });
+            Results.push(File_Entry { name: Name, path: Path, is_dir: IsDir, size: Size });
         }
     }
 
@@ -1399,7 +1470,7 @@ async fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
 fn GetAvailableFontsSync() -> Result<Available_Fonts_Response, String>
 {
     let TypstBin = FindTypstBinary();
-    let mut Command = std::process::Command:: new ( & TypstBin);
+    let mut Command = CreateCommand( & TypstBin);
     Command.args(["fonts", "--variants"]);
     for FontDir in GetFontDirectories()
     {
@@ -1496,7 +1567,7 @@ fn GetAvailableFontsSync() -> Result<Available_Fonts_Response, String>
 fn GetSystemStatus() -> Result<System_Status_Response, String>
 {
     let TypstBin = FindTypstBinary();
-    let VersionOutput = std::process::Command:: new ( & TypstBin)
+    let VersionOutput = CreateCommand( & TypstBin)
    .arg("--version")
    .output()
    .map( | Out | String::from_utf8_lossy( & Out.stdout).trim().to_string())
@@ -1554,6 +1625,34 @@ fn ToggleFullscreen(App: tauri::AppHandle) -> Result<bool, String>
     }
 }
 
+#[tauri::command]
+fn ToggleDevTools(App: tauri::AppHandle) -> Result<bool, String>
+{
+    if let Some(Window) = App.get_webview_window("main")
+    {
+        if Window.is_devtools_open()
+        {
+            Window.close_devtools();
+            Ok(false)
+        }
+        else
+        {
+            Window.open_devtools();
+            Ok(true)
+        }
+    }
+    else
+    {
+        Err("Main window not found".to_string())
+    }
+}
+
+#[tauri::command]
+fn OpenExternalUrl(App: tauri::AppHandle, Url: String) -> Result<(), String>
+{
+    App.shell().open(&Url, None).map_err(|E| E.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
@@ -1585,7 +1684,9 @@ pub fn run()
             SyncCursor,
             ResolveSpan,
             FormatTypst,
-            ToggleFullscreen
+            ToggleFullscreen,
+            ToggleDevTools,
+            OpenExternalUrl
         ]
     )
    .setup

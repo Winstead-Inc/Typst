@@ -1,4 +1,4 @@
-name: Build & Release Multi-Platform Executables
+name: Build & Release Multi-Platform Typst Studio
 
 on:
   push:
@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag (e.g. v0.15.1-lafs)"
+        description: "Release tag (e.g. v0.1.0)"
         required: false
-        default: "v0.15.1-lafs"
+        default: "v0.1.0"
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build (${{ matrix.target }})
+    name: Build (${{ matrix.platform_id }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -27,16 +27,19 @@ jobs:
             bin_name: typst.exe
             archive_ext: zip
             platform_id: windows-x64
+
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             bin_name: typst
             archive_ext: tar.gz
             platform_id: linux-x64
+
           - os: macos-latest
             target: aarch64-apple-darwin
             bin_name: typst
             archive_ext: tar.gz
             platform_id: macos-arm64
+
           - os: macos-13
             target: x86_64-apple-darwin
             bin_name: typst
@@ -46,6 +49,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -57,82 +65,149 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
-      - name: Build Typst CLI (Release)
+      - name: Install Linux Dependencies (Ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            javascriptcoregtk-4.1 \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      # ---------------------------------------------------------
+      # 1. Compile Core Typst CLI Binary
+      # ---------------------------------------------------------
+      - name: Build Typst Compiler CLI
         run: cargo build --release --locked -p typst-cli --target ${{ matrix.target }}
 
       # ---------------------------------------------------------
-      # Package Standalone CLI Binary
+      # 2. Package Standalone CLI Binary Archive
       # ---------------------------------------------------------
-      - name: Package CLI Archive (Windows)
+      - name: Package CLI Binary (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $DistDir = "typst-${{ matrix.target }}"
-          New-Item -ItemType Directory -Path $DistDir
+          $DistDir = "typst-${{ matrix.platform_id }}"
+          New-Item -ItemType Directory -Path $DistDir -Force
           Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" -Destination "$DistDir/"
           Copy-Item "README.md", "LICENSE" -Destination "$DistDir/"
-          Compress-Archive -Path "$DistDir/*" -DestinationPath "typst-${{ matrix.target }}.zip"
+          Compress-Archive -Path "$DistDir/*" -DestinationPath "typst-cli-${{ matrix.platform_id }}.zip"
 
-      - name: Package CLI Archive (Unix)
+      - name: Package CLI Binary (Unix)
         if: matrix.os != 'windows-latest'
         run: |
-          DIST_DIR="typst-${{ matrix.target }}"
+          DIST_DIR="typst-${{ matrix.platform_id }}"
           mkdir -p "$DIST_DIR"
           cp "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" "$DIST_DIR/"
           cp README.md LICENSE "$DIST_DIR/"
           chmod +x "$DIST_DIR/${{ matrix.bin_name }}"
-          tar -czvf "typst-${{ matrix.target }}.tar.gz" -C "$DIST_DIR" .
+          tar -czvf "typst-cli-${{ matrix.platform_id }}.tar.gz" -C "$DIST_DIR" .
 
       # ---------------------------------------------------------
-      # Package Typst Studio WebApp Bundle
+      # 3. Stage Prerequisite Binary for Tauri Bundler
       # ---------------------------------------------------------
-      - name: Package Typst Studio Bundle (Windows)
+      - name: Stage Bundled Typst Binary into Studio
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "TypstStudio/bin" -Force
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" -Destination "TypstStudio/bin/${{ matrix.bin_name }}"
+
+      # ---------------------------------------------------------
+      # 4. Build Native Tauri Desktop Application
+      # ---------------------------------------------------------
+      - name: Build Tauri Desktop App
+        run: |
+          cd TypstStudio
+          tauri build --target ${{ matrix.target }}
+
+      # ---------------------------------------------------------
+      # 5. Collect Desktop Artifacts
+      # ---------------------------------------------------------
+      - name: Stage Release Artifacts (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $StudioDist = "TypstStudio-${{ matrix.platform_id }}"
-          New-Item -ItemType Directory -Path "$StudioDist/bin" -Force
-          Copy-Item -Recurse "TypstStudio/public" -Destination "$StudioDist/public"
-          Copy-Item "TypstStudio/Server.js" -Destination "$StudioDist/"
-          Copy-Item "TypstStudio/Start-WebApp.bat" -Destination "$StudioDist/"
-          Copy-Item "TypstStudio/Start-WebApp.ps1" -Destination "$StudioDist/"
-          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" -Destination "$StudioDist/bin/${{ matrix.bin_name }}"
-          Compress-Archive -Path "$StudioDist" -DestinationPath "typst-studio-${{ matrix.platform_id }}.zip"
+          New-Item -ItemType Directory -Path "artifacts" -Force
+          Copy-Item "typst-cli-${{ matrix.platform_id }}.zip" -Destination "artifacts/"
+          
+          # NSIS Installer
+          $Nsis = Get-ChildItem "TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if ($Nsis) { Copy-Item $Nsis.FullName -Destination "artifacts/TypstStudio-Windows-x64-Setup.exe" }
+          
+          # MSI Installer
+          $Msi = Get-ChildItem "TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi" | Select-Object -First 1
+          if ($Msi) { Copy-Item $Msi.FullName -Destination "artifacts/TypstStudio-Windows-x64.msi" }
+          
+          # Standalone Binary
+          $Exe = "TypstStudio/src-tauri/target/${{ matrix.target }}/release/typst-studio.exe"
+          if (Test-Path $Exe) { Copy-Item $Exe -Destination "artifacts/TypstStudio-Windows-x64-Portable.exe" }
 
-      - name: Package Typst Studio Bundle (Unix)
-        if: matrix.os != 'windows-latest'
+      - name: Stage Release Artifacts (macOS)
+        if: runner.os == 'macOS'
         run: |
-          STUDIO_DIST="TypstStudio-${{ matrix.platform_id }}"
-          mkdir -p "$STUDIO_DIST/bin"
-          cp -r TypstStudio/public "$STUDIO_DIST/"
-          cp TypstStudio/Server.js "$STUDIO_DIST/"
-          cp TypstStudio/Start-WebApp.sh "$STUDIO_DIST/"
-          cp "target/${{ matrix.target }}/release/${{ matrix.bin_name }}" "$STUDIO_DIST/bin/${{ matrix.bin_name }}"
-          chmod +x "$STUDIO_DIST/Start-WebApp.sh"
-          chmod +x "$STUDIO_DIST/bin/${{ matrix.bin_name }}"
-          tar -czvf "typst-studio-${{ matrix.platform_id }}.tar.gz" "$STUDIO_DIST"
+          mkdir -p artifacts
+          cp typst-cli-${{ matrix.platform_id }}.tar.gz artifacts/
+          
+          # DMG
+          DMG=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" | head -n 1)
+          if [ -n "$DMG" ]; then
+            cp "$DMG" "artifacts/TypstStudio-${{ matrix.platform_id }}.dmg"
+          fi
+          
+          # App Tarball
+          APP=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" | head -n 1)
+          if [ -n "$APP" ]; then
+            tar -czvf "artifacts/TypstStudio-${{ matrix.platform_id }}.app.tar.gz" -C "$(dirname "$APP")" "$(basename "$APP")"
+          fi
+
+      - name: Stage Release Artifacts (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p artifacts
+          cp typst-cli-${{ matrix.platform_id }}.tar.gz artifacts/
+          
+          # DEB Package
+          DEB=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/deb -name "*.deb" | head -n 1)
+          if [ -n "$DEB" ]; then
+            cp "$DEB" "artifacts/typst-studio-${{ matrix.platform_id }}.deb"
+          fi
+          
+          # AppImage
+          APPIMAGE=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/appimage -name "*.AppImage" | head -n 1)
+          if [ -n "$APPIMAGE" ]; then
+            cp "$APPIMAGE" "artifacts/TypstStudio-${{ matrix.platform_id }}.AppImage"
+          fi
 
       # ---------------------------------------------------------
-      # Upload Workflow Artifacts (Available in Actions Summary)
+      # 6. Upload Intermediate Artifacts
       # ---------------------------------------------------------
-      - name: Upload Build Artifacts
+      - name: Upload Workflow Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: assets-${{ matrix.platform_id }}
-          path: |
-            typst-${{ matrix.target }}.*
-            typst-studio-${{ matrix.platform_id }}.*
+          name: release-${{ matrix.platform_id }}
+          path: artifacts/*
 
   # ---------------------------------------------------------
   # Publish to GitHub Releases
   # ---------------------------------------------------------
   release:
-    name: Publish Release Assets
+    name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
-      - name: Download All Artifacts
+      - name: Download All Build Artifacts
         uses: actions/download-artifact@v4
         with:
           path: release-assets
@@ -147,14 +222,19 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Generate SHA256 Checksums
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
-          name: Typst LAFS Release ${{ steps.vars.outputs.tag }}
+          name: "Typst Studio ${{ steps.vars.outputs.tag }}"
           draft: false
           prerelease: false
           generate_release_notes: true
           files: |
-            release-assets/typst-*
-
+            release-assets/*

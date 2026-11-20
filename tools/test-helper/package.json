@@ -52,7 +52,7 @@
                 { "when": "activeWebviewPanelId == typst-test-helper.preview", "command": "typst-test-helper.increaseResolution", "group": "navigation@4" },
                 { "when": "activeWebviewPanelId == typst-test-helper.preview", "command": "typst-test-helper.decreaseResolution", "group": "navigation@4" }
             ],
-            "webview/context": [ { "command": "typst-test-helper.copyFilePathFromPreviewContext", "when": "webviewId == typst-test-helper.preview && (uri != undefined)" }]
+            "webview/context": [{ "command": "typst-test-helper.copyFilePathFromPreviewContext", "when": "webviewId == typst-test-helper.preview && (uri != undefined)" }]
         }
     },
     "scripts": { "build": "tsc -p ./", "watch": "tsc -watch -p ./" },
