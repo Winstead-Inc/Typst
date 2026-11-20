@@ -4169,6 +4169,21 @@ function InitializeMonaco()
                 run: () => { ToggleDevTools(); }
             });
 
+            MonacoInstance.addAction
+            ({
+                id: "synctex_jump_to_preview",
+                label: "SyncTeX: Jump to Preview Location",
+                keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyJ, monaco.KeyMod.Alt | monaco.KeyCode.KeyJ],
+                run: () =>
+                {
+                    const Pos = MonacoInstance.getPosition();
+                    if (Pos)
+                    {
+                        PerformForwardSync(Pos.lineNumber, Pos.column, true);
+                    }
+                }
+            });
+
             UpdateStatusBar();
             TriggerCompileNow();
             MarkDocumentClean(MonacoInstance ? MonacoInstance.getValue(): "");
@@ -4419,464 +4434,21 @@ function RebuildMonotonicSyncAnchors()
 
 function ExecutePreviewToEditorSync()
 {
-    const Viewport = document.getElementById("PreviewViewport");
-    if (!Viewport || !MonacoInstance)
-    {
-        return ;
-    }
-
-    const ScrollTop = Viewport.scrollTop;
-    const ViewportHeight = Viewport.clientHeight;
-    const MaxPreviewScroll = Math.max(0, Viewport.scrollHeight - ViewportHeight);
-
-    if (ScrollTop <= 15)
-    {
-        if (MonacoInstance.getScrollTop() > 5)
-        {
-            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-            IsProgrammaticScrollSync = true;
-            MonacoInstance.setScrollTop(0);
-            requestAnimationFrame
-            (
-                () =>
-                {
-                    requestAnimationFrame
-                    (
-                        () =>
-                        {
-                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                            {
-                                IsProgrammaticScrollSync = false;
-                            }
-                        }
-                    );
-                }
-            );
-        }
-        return ;
-    }
-
-    const EditorLayout = MonacoInstance.getLayoutInfo();
-    const MaxEditorScroll = Math.max(0, MonacoInstance.getScrollHeight() - EditorLayout.height);
-
-    if (MaxPreviewScroll > 0 && ScrollTop >= MaxPreviewScroll - 15)
-    {
-        if (Math.abs(MonacoInstance.getScrollTop() - MaxEditorScroll) > 5)
-        {
-            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-            IsProgrammaticScrollSync = true;
-            MonacoInstance.setScrollTop(MaxEditorScroll);
-            requestAnimationFrame
-            (
-                () =>
-                {
-                    requestAnimationFrame
-                    (
-                        () =>
-                        {
-                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                            {
-                                IsProgrammaticScrollSync = false;
-                            }
-                        }
-                    );
-                }
-            );
-        }
-        return ;
-    }
-
-    if (!MonotonicSyncAnchors || MonotonicSyncAnchors.length === 0)
-    {
-        return ;
-    }
-
-    const ProbeY = ScrollTop + (ViewportHeight * 0.25);
-
-    let Low = 0;
-    let High = MonotonicSyncAnchors.length - 1;
-
-    while (Low <= High)
-    {
-        const Mid = Math.floor((Low + High) / 2);
-        if (MonotonicSyncAnchors[Mid].previewY <= ProbeY)
-        {
-            Low = Mid + 1;
-        }
-        else
-        {
-            High = Mid - 1;
-        }
-    }
-
-    const AnchorA = MonotonicSyncAnchors[High] || MonotonicSyncAnchors[0];
-    const AnchorB = MonotonicSyncAnchors[Low] || MonotonicSyncAnchors[MonotonicSyncAnchors.length - 1];
-
-    let InterpolatedLine = AnchorA.line;
-    if (AnchorA && AnchorB && AnchorA !== AnchorB && AnchorB.previewY > AnchorA.previewY)
-    {
-        const T = Math.max(0, Math.min(1, (ProbeY - AnchorA.previewY) / (AnchorB.previewY - AnchorA.previewY)));
-        InterpolatedLine = AnchorA.line + (T * (AnchorB.line - AnchorA.line));
-    }
-
-    const LineHeight = MonacoInstance.getOption(monaco.editor.EditorOption.lineHeight) || 22;
-    const TargetEditorTop = Math.max(0, Math.min((InterpolatedLine - 1) * LineHeight - (EditorLayout.height * 0.25), MaxEditorScroll));
-
-    if (Math.abs(MonacoInstance.getScrollTop() - TargetEditorTop) > 3)
-    {
-        ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-        IsProgrammaticScrollSync = true;
-        MonacoInstance.setScrollTop(TargetEditorTop);
-        requestAnimationFrame
-        (
-            () =>
-            {
-                requestAnimationFrame
-                (
-                    () =>
-                    {
-                        if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                        {
-                            IsProgrammaticScrollSync = false;
-                        }
-                    }
-                );
-            }
-        );
-    }
+    // Continuous passive scroll-sync completely removed.
+    // Editor and Preview panes scroll independently at native 60 FPS.
 }
 
 function ExecuteEditorToPreviewSync()
 {
-    const Viewport = document.getElementById("PreviewViewport");
-    if (!Viewport || !MonacoInstance)
-    {
-        return ;
-    }
-
-    const ScrollTop = MonacoInstance.getScrollTop();
-    const Layout = MonacoInstance.getLayoutInfo();
-    const ScrollHeight = MonacoInstance.getScrollHeight();
-    const MaxEditorScroll = Math.max(0, ScrollHeight - Layout.height);
-
-    if (ScrollTop <= 10)
-    {
-        if (Viewport.scrollTop > 5)
-        {
-            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-            IsProgrammaticScrollSync = true;
-            Viewport.scrollTop = 0;
-            requestAnimationFrame
-            (
-                () =>
-                {
-                    requestAnimationFrame
-                    (
-                        () =>
-                        {
-                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                            {
-                                IsProgrammaticScrollSync = false;
-                            }
-                        }
-                    );
-                }
-            );
-        }
-        return ;
-    }
-
-    const ViewportHeight = Viewport.clientHeight;
-    const MaxPreviewScroll = Math.max(0, Viewport.scrollHeight - ViewportHeight);
-
-    if (MaxEditorScroll > 0 && ScrollTop >= MaxEditorScroll - 15)
-    {
-        if (Math.abs(Viewport.scrollTop - MaxPreviewScroll) > 5)
-        {
-            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-            IsProgrammaticScrollSync = true;
-            Viewport.scrollTop = MaxPreviewScroll;
-            requestAnimationFrame
-            (
-                () =>
-                {
-                    requestAnimationFrame
-                    (
-                        () =>
-                        {
-                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                            {
-                                IsProgrammaticScrollSync = false;
-                            }
-                        }
-                    );
-                }
-            );
-        }
-        return ;
-    }
-
-    if (!MonotonicSyncAnchors || MonotonicSyncAnchors.length === 0)
-    {
-        return ;
-    }
-
-    const LineHeight = MonacoInstance.getOption(monaco.editor.EditorOption.lineHeight) || 22;
-    const ReferenceLine = (ScrollTop + (Layout.height * 0.25)) / LineHeight + 1;
-
-    let TargetPreviewY = 0;
-
-    // Layer 2: Preamble protection
-    if (ReferenceLine <= FirstDocumentBodyLine)
-    {
-        const FirstBodyAnchor = MonotonicSyncAnchors.find( (A) => A.line >= FirstDocumentBodyLine) || MonotonicSyncAnchors[1];
-        if (FirstBodyAnchor && FirstBodyAnchor.line > 1)
-        {
-            const T = Math.max(0, Math.min(1, (ReferenceLine - 1) / (FirstBodyAnchor.line - 1)));
-            TargetPreviewY = T * FirstBodyAnchor.previewY;
-        }
-        else
-        {
-            TargetPreviewY = 0;
-        }
-    }
-    else
-    {
-        let Low = 0;
-        let High = MonotonicSyncAnchors.length - 1;
-
-        while (Low <= High)
-        {
-            const Mid = Math.floor((Low + High) / 2);
-            if (MonotonicSyncAnchors[Mid].line <= ReferenceLine)
-            {
-                Low = Mid + 1;
-            }
-            else
-            {
-                High = Mid - 1;
-            }
-        }
-
-        const AnchorA = MonotonicSyncAnchors[High] || MonotonicSyncAnchors[0];
-        const AnchorB = MonotonicSyncAnchors[Low] || MonotonicSyncAnchors[MonotonicSyncAnchors.length - 1];
-
-        if (AnchorA && AnchorB && AnchorA !== AnchorB && AnchorB.line > AnchorA.line)
-        {
-            const T = Math.max(0, Math.min(1, (ReferenceLine - AnchorA.line) / (AnchorB.line - AnchorA.line)));
-            TargetPreviewY = AnchorA.previewY + (T * (AnchorB.previewY - AnchorA.previewY));
-        }
-        else if (AnchorA)
-        {
-            TargetPreviewY = AnchorA.previewY;
-        }
-    }
-
-    const TargetScrollTop = Math.max(0, Math.min(TargetPreviewY - (ViewportHeight * 0.25), MaxPreviewScroll));
-
-    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 3)
-    {
-        ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
-        IsProgrammaticScrollSync = true;
-        Viewport.scrollTop = TargetScrollTop;
-        requestAnimationFrame
-        (
-            () =>
-            {
-                requestAnimationFrame
-                (
-                    () =>
-                    {
-                        if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-                        {
-                            IsProgrammaticScrollSync = false;
-                        }
-                    }
-                );
-            }
-        );
-    }
+    // Continuous passive scroll-sync completely removed.
+    // Editor and Preview panes scroll independently at native 60 FPS.
 }
 
 function SetupBidirectionalScrollSync()
 {
-    const Viewport = document.getElementById("PreviewViewport");
-    if (!Viewport || !MonacoInstance)
-    {
-        return ;
-    }
-
-    const EditorDomNode = MonacoInstance.getDomNode();
-    if (EditorDomNode)
-    {
-        EditorDomNode.addEventListener
-        (
-            "wheel",
-            () =>
-            {
-                SetScrollOwner("editor");
-                IsEditorWheelScrolling = true;
-                if (EditorWheelScrollTimer)
-                {
-                    clearTimeout(EditorWheelScrollTimer);
-                }
-                EditorWheelScrollTimer = setTimeout
-                (
-                    () =>
-                    {
-                        IsEditorWheelScrolling = false;
-                        EditorWheelScrollTimer = null;
-                    },
-                    600
-                );
-            },
-            { passive: true }
-        );
-        EditorDomNode.addEventListener
-        (
-            "pointerdown",
-            () =>
-            {
-                SetScrollOwner("editor");
-                IsEditorWheelScrolling = false;
-            },
-            { passive: true }
-        );
-        EditorDomNode.addEventListener
-        (
-            "keydown",
-            (E) =>
-            {
-                IsEditorWheelScrolling = false;
-                if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(E.key))
-                {
-                    SetScrollOwner("editor");
-                }
-            },
-            { passive: true }
-        );
-    }
-
-    Viewport.addEventListener
-    (
-        "wheel",
-        () => { SetScrollOwner("preview"); },
-        { passive: true }
-    );
-    Viewport.addEventListener
-    (
-        "pointerdown",
-        () => { SetScrollOwner("preview"); },
-        { passive: true }
-    );
-    Viewport.addEventListener
-    (
-        "touchstart",
-        () => { SetScrollOwner("preview"); },
-        { passive: true }
-    );
-    Viewport.addEventListener
-    (
-        "mouseenter",
-        () =>
-        {
-            if (ActiveScrollOwner !== "editor" && performance.now() >= ProgrammaticScrollIgnoreUntilMs)
-            {
-                SetScrollOwner("preview");
-            }
-        },
-        { passive: true }
-    );
-    Viewport.addEventListener
-    (
-        "keydown",
-        (E) =>
-        {
-            if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(E.key))
-            {
-                SetScrollOwner("preview");
-            }
-        },
-        { passive: true }
-    );
-
-    // 1. Monaco -> Preview scroll sync
-    MonacoInstance.onDidScrollChange
-    (
-        (Event) =>
-        {
-            const AutoCompile = document.getElementById("AutoCompileToggle") ? document.getElementById("AutoCompileToggle").checked: true;
-            if (!AutoCompile || !IsSyncTexEnabled || !Event.scrollTopChanged)
-            {
-                return ;
-            }
-
-            if (IsProgrammaticScrollSync || performance.now() < ProgrammaticScrollIgnoreUntilMs)
-            {
-                return ;
-            }
-
-            if (ActiveScrollOwner === "preview")
-            {
-                return ;
-            }
-
-            SetScrollOwner("editor");
-
-            if (ScrollSyncRafId)
-            {
-                cancelAnimationFrame(ScrollSyncRafId);
-            }
-
-            ScrollSyncRafId = requestAnimationFrame
-            (
-                () =>
-                {
-                    ExecuteEditorToPreviewSync();
-                }
-            );
-        }
-    );
-
-    // 2. Preview -> Monaco scroll sync
-    Viewport.addEventListener
-    (
-        "scroll",
-        () =>
-        {
-            const AutoCompile = document.getElementById("AutoCompileToggle") ? document.getElementById("AutoCompileToggle").checked: true;
-            if (!AutoCompile || !IsSyncTexEnabled)
-            {
-                return ;
-            }
-
-            if (IsProgrammaticScrollSync || performance.now() < ProgrammaticScrollIgnoreUntilMs)
-            {
-                return ;
-            }
-
-            if (ActiveScrollOwner === "editor")
-            {
-                return ;
-            }
-
-            SetScrollOwner("preview");
-
-            if (ScrollSyncRafId)
-            {
-                cancelAnimationFrame(ScrollSyncRafId);
-            }
-
-            ScrollSyncRafId = requestAnimationFrame
-            (
-                () =>
-                {
-                    ExecutePreviewToEditorSync();
-                }
-            );
-        },
-        { passive: true }
-    );
+    // Continuous passive onScroll-coupled synchronization completely removed.
+    // Zero timer locks, zero scroll relays, zero rebound/snap-to-Page-1.
+    // Explicit Click-to-Jump SyncTeX handles navigation on demand.
 }
 
 function UpdateStatusBar()
@@ -7821,7 +7393,7 @@ function SetupSmartTypographyKeydownListener()
 
 function ApplyTypewriterScroll(CursorLine)
 {
-    if (!IsTypewriterScrollEnabled || !MonacoInstance || ActiveScrollOwner === "preview" || IsEditorWheelScrolling)
+    if (!IsTypewriterScrollEnabled || !MonacoInstance || IsEditorWheelScrolling)
     {
         return ;
     }
@@ -7842,7 +7414,7 @@ function ApplyTypewriterScroll(CursorLine)
         (
             () =>
             {
-                if (IsTypewriterScrollEnabled && MonacoInstance && ActiveScrollOwner !== "preview" && !IsEditorWheelScrolling)
+                if (IsTypewriterScrollEnabled && MonacoInstance && !IsEditorWheelScrolling)
                 {
                     MonacoInstance.setScrollTop(TargetScrollTop);
                 }
@@ -13694,13 +13266,14 @@ function HandlePreviewClick(Event)
         return ;
     }
 
-    const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
-    const IsInspectKey = IsMac ? (Event.metaKey && !Event.ctrlKey): (Event.ctrlKey && !Event.metaKey);
-
-    if (!IsInspectKey)
+    // Ignore clicks if user was selecting/dragging text in the preview
+    if (window.getSelection && window.getSelection().toString().trim().length > 0)
     {
         return ;
     }
+
+    const IsMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform) || (navigator.userAgentData && navigator.userAgentData.platform === "macOS");
+    const IsInspectKey = IsMac ? (Event.metaKey && !Event.ctrlKey): (Event.ctrlKey && !Event.metaKey);
 
     const PageSheet = Event.target.closest(".PageSheet");
     if (!PageSheet)
@@ -13763,18 +13336,19 @@ function HandlePreviewClick(Event)
         }
 
         const InX = ClickPtX >= Elem.x && ClickPtX <= (Elem.x + Elem.width);
-        const InY = ClickPtY >= Elem.y && ClickPtY <= (Elem.y + Elem.height);
+        const InY = ClickPtY >= (Elem.y - 3.0) && ClickPtY <= (Elem.y + Elem.height + (Elem.height * 0.35) + 3.0);
 
         if (InX && InY)
         {
             BestElem = Elem;
+            MinDist = 0;
             break;
         }
 
         const CenterX = Elem.x + (Elem.width / 2);
         const CenterY = Elem.y + (Elem.height / 2);
         const Dx = ClickPtX - CenterX;
-        const Dy = (ClickPtY - CenterY) * 3;
+        const Dy = (ClickPtY - CenterY) * 2.5;
         const DistSq = (Dx * Dx) + (Dy * Dy);
 
         if (DistSq < MinDist)
@@ -13782,6 +13356,12 @@ function HandlePreviewClick(Event)
             MinDist = DistSq;
             BestElem = Elem;
         }
+    }
+
+    // If not holding Ctrl/Cmd, only trigger if user clicked directly on or very near a rendered element
+    if (!IsInspectKey && (!BestElem || Math.sqrt(MinDist) > 35.0))
+    {
+        return ;
     }
 
     if (BestElem)
@@ -14007,6 +13587,8 @@ function MergeOverlappingBoxes(Boxes)
                         const MaxX = Math.max(BoxA.x + BoxA.width, BoxB.x + BoxB.width);
                         const MinY = Math.min(BoxA.y, BoxB.y);
                         const MaxY = Math.max(BoxA.y + BoxA.height, BoxB.y + BoxB.height);
+                        const FirstH = (BoxA.y <= BoxB.y) ? (BoxA.firstLineHeight || BoxA.height || 10.5): (BoxB.firstLineHeight || BoxB.height || 10.5);
+                        const LastH = ((BoxA.y + BoxA.height) >= (BoxB.y + BoxB.height)) ? (BoxA.lastLineHeight || BoxA.height || 10.5): (BoxB.lastLineHeight || BoxB.height || 10.5);
 
                         BoxA =
                         {
@@ -14014,7 +13596,9 @@ function MergeOverlappingBoxes(Boxes)
                             x: MinX,
                             y: MinY,
                             width: MaxX - MinX,
-                            height: MaxY - MinY
+                            height: MaxY - MinY,
+                            firstLineHeight: FirstH,
+                            lastLineHeight: LastH
                         };
 
                         MergedIndices.add(J);
@@ -14099,6 +13683,8 @@ function GroupElementsIntoVisualBoxes(Elements)
             (
                 ...CBoxes.map( (B) => B.y + B.height)
             );
+            const TopH = CBoxes.reduce( (MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
+            const BottomH = CBoxes.reduce( (MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
 
             FinalBoxes.push
             ({
@@ -14106,7 +13692,9 @@ function GroupElementsIntoVisualBoxes(Elements)
                 x: MinX,
                 y: MinY,
                 width: MaxX - MinX,
-                height: MaxY - MinY
+                height: MaxY - MinY,
+                firstLineHeight: TopH === Infinity ? 10.5: TopH,
+                lastLineHeight: BottomH === 0 ? 10.5: BottomH
             });
         }
     }
@@ -14220,13 +13808,28 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                 {
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
-                    const PadX = 2.5;
-                    const PadTop = 1.5;
-                    const PadBottom = 2.5;
+
+                    const FirstH = Box.firstLineHeight || Box.height || 10.5;
+                    const LastH = Box.lastLineHeight || Box.height || 10.5;
+
+                    // Typst sets Box.y = Baseline_top - FirstH, where FirstH is font size / ascender frame.
+                    // Inked cap-height of characters is ~0.72 * FirstH above the top baseline.
+                    const TopBaseline = Box.y + FirstH;
+                    const InkedTop = TopBaseline - (FirstH * 0.72);
+
+                    // Typst sets Box.y + Box.height = Baseline_bottom (raw baseline, 0 descender clearance).
+                    // Inked descenders (g, j, p, q, y, commas, semicolons) extend ~0.28 * LastH below the bottom baseline.
+                    const BottomBaseline = Box.y + Box.height;
+                    const InkedBottom = BottomBaseline + (LastH * 0.28);
+
+                    // Provide balanced, symmetric vertical and horizontal breathing room around true inked glyph bounds
+                    const PadY = Math.max(5.5, Math.min(8.0, LastH * 0.35));
+                    const PadX = 4.5;
+
                     const RectX = Box.x - PadX;
-                    const RectY = Box.y - PadTop;
-                    const RectW = Box.width + (PadX * 2.0);
-                    const RectH = Box.height + PadTop + PadBottom;
+                    const RectY = Math.round((InkedTop - PadY) * 100) / 100;
+                    const RectW = Math.max(8.0, Box.width + (PadX * 2.0));
+                    const RectH = Math.max(12.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
 
                     Rect.setAttribute("x", RectX.toFixed(2));
                     Rect.setAttribute("y", RectY.toFixed(2));
@@ -14238,8 +13841,8 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     (
                         "height", Math.max(4.0, RectH).toFixed(2)
                     );
-                    Rect.setAttribute("rx", "3");
-                    Rect.setAttribute("ry", "3");
+                    Rect.setAttribute("rx", "3.5");
+                    Rect.setAttribute("ry", "3.5");
 
                     HighlightLayer.appendChild(Rect);
 

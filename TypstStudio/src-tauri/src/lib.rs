@@ -2829,22 +2829,30 @@ fn SetFullscreen(App: tauri::AppHandle, Fullscreen: bool) -> Result<bool, String
 #[tauri::command]
 fn ToggleDevTools(App: tauri::AppHandle) -> Result<bool, String>
 {
-    if let Some(Window) = App.get_webview_window("main")
+    #[cfg(any(debug_assertions, feature = "devtools"))]
     {
-        if Window.is_devtools_open()
+        if let Some(Window) = App.get_webview_window("main")
         {
-            Window.close_devtools();
-            Ok(false)
+            if Window.is_devtools_open()
+            {
+                Window.close_devtools();
+                Ok(false)
+            }
+            else
+            {
+                Window.open_devtools();
+                Ok(true)
+            }
         }
         else
         {
-            Window.open_devtools();
-            Ok(true)
+            Err("Main window not found".to_string())
         }
     }
-    else
+    #[cfg(not(any(debug_assertions, feature = "devtools")))]
     {
-        Err("Main window not found".to_string())
+        let _ = App;
+        Ok(false)
     }
 }
 
