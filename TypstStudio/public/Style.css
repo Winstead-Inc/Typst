@@ -6225,7 +6225,8 @@ body.UIMode_Focus .PreviewToolbar:hover
 #ShortcutsModal,
 #KeybindingsManagerView,
 #KeybindingsRecordingBanner,
-#CommandPaletteModal
+#CommandPaletteModal,
+#LigaturesModal
 {
     display: none;
 }
@@ -6238,4 +6239,111 @@ body.UIMode_Focus .PreviewToolbar:hover
 #FocusFontSelectorWrapper
 {
     margin-top: 8px;
+}
+
+/* --- THE PALLADINO TYPOGRAPHIC ENGINE (PHASE 7.1) --- */
+
+.OpticalMarginAlignment .PageSheet,
+.OpticalMarginAlignment .PageSheet svg text
+{
+    hanging-punctuation: first last allow-end;
+}
+
+.OpticalMarginAlignment .monaco-editor .view-lines
+{
+    hanging-punctuation: first last;
+}
+
+.LigatureInspectorTriggerBtn
+{
+    padding: 3px 8px !important;
+    font-size: 11px !important;
+    margin-left: 6px !important;
+}
+
+.LigaturesModalDialog
+{
+    max-width: 620px;
+    width: 90%;
+}
+
+.LigaturesHeaderIcon
+{
+    font-size: 16px;
+    color: #A855F7;
+    margin-right: 6px;
+}
+
+.LigatureInspectorDescription
+{
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.LigaturesGrid
+{
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.LigatureCard
+{
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 14px;
+}
+
+.LigatureCardHeader
+{
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.LigatureGlyphsRow
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.LigatureGlyph
+{
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--text-secondary);
+}
+
+.LigatureSample
+{
+    font-size: 14px;
+    color: #A855F7;
+    font-feature-settings: "liga" 1, "dlig" 1, "calt" 1, "hlig" 1;
+}
+
+.LigaturePreviewSection
+{
+    margin-bottom: 16px;
+}
+
+.LigatureTestInput
+{
+    width: 100%;
+    margin-top: 6px;
+    font-size: 13.5px;
+    font-feature-settings: "liga" 1, "dlig" 1, "calt" 1, "hlig" 1;
+}
+
+.LigaturesModalFooter
+{
+    display: flex;
+    justify-content: flex-end;
 }

@@ -479,9 +479,18 @@
                     <button Type  = "button"
                             Id    = "StatusBarLafsBtn"
                             Class = "StatusBarPillBtn"
-                            Title = "Format Code to LAFS Standard (Shift+Alt+F)">
+                            Title = "Format Code to LAFS Standard (Shift+Alt+F)"
+                            Aria-Label = "Format Code to LAFS Standard">
                         <span Class = "PillIcon">✦</span>
                         <span>LAFS</span>
+                    </button>
+                    <button Type  = "button"
+                            Id    = "StatusBarLigaturesBtn"
+                            Class = "StatusBarPillBtn Active"
+                            Title = "Toggle Typographic Ligatures (fi, fl, Th, ct, calt, dlig) (Alt+L)"
+                            Aria-Label = "Toggle Typographic Ligatures">
+                        <span Class = "PillIcon">æ</span>
+                        <span Id = "StatusBarLigaturesText">Ligatures: ON</span>
                     </button>
                 </div>
 
@@ -952,12 +961,27 @@
 
                     <div Class = "SettingItem">
                         <div Class = "SettingLabelRow">
-                            <span Class = "SettingLabel">Programming Ligatures</span>
+                            <span Class = "SettingLabel">Programming &amp; Typographic Ligatures</span>
                         </div>
                         <div Class = "ScalePresetRow" Id = "LigaturesPresetRow">
-                            <button Type = "button" Class = "LigaturePresetBtn Active" DataLigatures = "true">Enabled</button>
-                            <button Type = "button" Class = "LigaturePresetBtn" DataLigatures = "false">Disabled</button>
+                            <button Type = "button" Class = "LigaturePresetBtn Active" DataLigatures = "true" Title = "Enable contextual and discretionary ligatures">Enabled</button>
+                            <button Type = "button" Class = "LigaturePresetBtn" DataLigatures = "false" Title = "Disable ligatures">Disabled</button>
+                            <button Type = "button" Id = "OpenLigaturesInspectorBtn" Class = "Button Secondary LigatureInspectorTriggerBtn" Title = "Open Ligature Inspector modal" Aria-Label = "Inspect Ligatures">Inspect Features...</button>
                         </div>
+                    </div>
+
+                    <div Class = "SettingItem">
+                        <label Class = "CheckboxSettingRow" Title = "Automatically convert straight quotes to directional curly quotes and hyphens to en/em-dashes as you type">
+                            <input Type = "checkbox" Id = "SmartQuotesCheckbox" Class = "SettingCheckbox" Checked Title = "Smart Quotes &amp; Typographic Substitutions" Aria-Label = "Smart Quotes &amp; Typographic Substitutions" />
+                            <span Class = "SettingCheckboxLabel"><strong>Smart Quotes &amp; Typographic Glyphs:</strong> Convert straight quotes (<code>"</code>, <code>'</code>) to directional curly quotes (<code>“…”</code>, <code>‘…’</code>) and hyphens (<code>--</code>, <code>---</code>) to dashes (<code>–</code>, <code>—</code>) in prose</span>
+                        </label>
+                    </div>
+
+                    <div Class = "SettingItem">
+                        <label Class = "CheckboxSettingRow" Title = "Hang quotation marks, hyphens, and dashes outside margins into the gutter for razor-sharp paragraph alignment">
+                            <input Type = "checkbox" Id = "OpticalMarginsCheckbox" Class = "SettingCheckbox" Checked Title = "Optical Margin Alignment (Hanging Punctuation)" Aria-Label = "Optical Margin Alignment (Hanging Punctuation)" />
+                            <span Class = "SettingCheckboxLabel"><strong>Optical Margin Alignment:</strong> Hang punctuation (<code>“</code>, <code>—</code>, <code>-</code>) outside text margins into the gutter for razor-sharp vertical alignment</span>
+                        </label>
                     </div>
 
                     <div Class = "SettingActionsRow">
@@ -1086,6 +1110,61 @@
         </div>
     </section>
 
+    <!-- Active Ligature Inspector Modal (Phase 7.1) -->
+    <div Class = "ModalOverlay" Id = "LigaturesModal">
+        <div Class = "ModalDialog LigaturesModalDialog">
+            <div Class = "ModalHeader">
+                <div Class = "ModalHeaderTitle">
+                    <span Class = "PillIcon LigaturesHeaderIcon">æ</span>
+                    <h3>Palladino Typographic Ligature Inspector</h3>
+                </div>
+                <button Type = "button" Id = "CloseLigaturesModalBtn" Class = "MiniCloseBtn" Title = "Close Ligature Inspector" Aria-Label = "Close Ligature Inspector">×</button>
+            </div>
+            <div Class = "ModalBody LigaturesModalBody">
+                <div Class = "LigatureInspectorDescription">
+                    Live inspection of OpenType typographic features for your active editor font (<strong Id = "InspectorActiveFontName">iA Writer Duo</strong>).
+                </div>
+                <div Class = "LigaturesGrid">
+                    <div Class = "LigatureCard">
+                        <div Class = "LigatureCardHeader">Standard Ligatures (<code>liga</code>)</div>
+                        <div Class = "LigatureGlyphsRow">
+                            <span Class = "LigatureGlyph">fi → <strong Class = "LigatureSample">fi</strong></span>
+                            <span Class = "LigatureGlyph">fl → <strong Class = "LigatureSample">fl</strong></span>
+                            <span Class = "LigatureGlyph">ff → <strong Class = "LigatureSample">ff</strong></span>
+                            <span Class = "LigatureGlyph">ffi → <strong Class = "LigatureSample">ffi</strong></span>
+                        </div>
+                    </div>
+                    <div Class = "LigatureCard">
+                        <div Class = "LigatureCardHeader">Discretionary &amp; Historical (<code>dlig</code>, <code>hlig</code>)</div>
+                        <div Class = "LigatureGlyphsRow">
+                            <span Class = "LigatureGlyph">Th → <strong Class = "LigatureSample">Th</strong></span>
+                            <span Class = "LigatureGlyph">ct → <strong Class = "LigatureSample">ct</strong></span>
+                            <span Class = "LigatureGlyph">st → <strong Class = "LigatureSample">st</strong></span>
+                            <span Class = "LigatureGlyph">sp → <strong Class = "LigatureSample">sp</strong></span>
+                        </div>
+                    </div>
+                    <div Class = "LigatureCard">
+                        <div Class = "LigatureCardHeader">Programming &amp; Contextual (<code>calt</code>)</div>
+                        <div Class = "LigatureGlyphsRow">
+                            <span Class = "LigatureGlyph">-&gt; → <strong Class = "LigatureSample">-&gt;</strong></span>
+                            <span Class = "LigatureGlyph">=&gt; → <strong Class = "LigatureSample">=&gt;</strong></span>
+                            <span Class = "LigatureGlyph">!= → <strong Class = "LigatureSample">!=</strong></span>
+                            <span Class = "LigatureGlyph">&lt;= → <strong Class = "LigatureSample">&lt;=</strong></span>
+                            <span Class = "LigatureGlyph">&gt;= → <strong Class = "LigatureSample">&gt;=</strong></span>
+                        </div>
+                    </div>
+                </div>
+                <div Class = "LigaturePreviewSection">
+                    <div Class = "SettingLabel">Interactive Ligature Test Canvas</div>
+                    <input Type = "text" Id = "LigatureTestInput" Class = "DashboardTextInput LigatureTestInput" Value = "The office flight was fixed with efficient style -&gt; =&gt; != &lt;= &gt;=" Title = "Type to test font ligatures" Aria-Label = "Type to test font ligatures" />
+                </div>
+                <div Class = "LigaturesModalFooter">
+                    <button Type = "button" Id = "ToggleLigaturesModalBtn" Class = "Button Primary" Title = "Toggle Ligatures Master Switch" Aria-Label = "Toggle Ligatures Master Switch">Toggle Ligatures</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Keyboard Shortcut Cheat Sheet & Keybinding Customizer Modal -->
     <div Class = "ModalOverlay" Id = "ShortcutsModal">
         <div Class = "ModalDialog ShortcutsModalDialog">
@@ -1117,6 +1196,7 @@
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_split"><kbd>Alt</kbd> + <kbd>1</kbd></span><span Class = "ShortcutDesc">Split View (50/50)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_editor"><kbd>Alt</kbd> + <kbd>2</kbd></span><span Class = "ShortcutDesc">Editor Only (Focus code)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_preview"><kbd>Alt</kbd> + <kbd>3</kbd></span><span Class = "ShortcutDesc">Preview Only (Focus output)</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_ligatures"><kbd>Alt</kbd> + <kbd>L</kbd></span><span Class = "ShortcutDesc">Toggle Typographic Ligatures</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_outline"><kbd>Alt</kbd> + <kbd>O</kbd></span><span Class = "ShortcutDesc">Toggle Document Outline</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_fullscreen"><kbd>F11</kbd></span><span Class = "ShortcutDesc">Toggle Fullscreen mode</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_devtools"><kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd></span><span Class = "ShortcutDesc">Toggle Developer Tools</span></div>

@@ -636,6 +636,8 @@ if (isNaN(CurrentEditorLineHeight) || CurrentEditorLineHeight < 1.0 || CurrentEd
     CurrentEditorLineHeight = 1.55;
 }
 let CurrentEditorLigatures = localStorage.getItem("TypstStudio_EditorLigatures") !== "false";
+let IsSmartQuotesEnabled = localStorage.getItem("TypstStudio_SmartQuotes") !== "false";
+let IsOpticalMarginsEnabled = localStorage.getItem("TypstStudio_OpticalMargins") !== "false";
 let IsSpreadMode = localStorage.getItem("TypstStudio_SpreadMode") === "true";
 
 const DEFAULT_KEYBINDINGS =
@@ -662,6 +664,7 @@ const DEFAULT_KEYBINDINGS =
     "toggle_dark_page": "Alt+D",
     "toggle_ui_mode": "Ctrl+Shift+M",
     "toggle_spread_mode": "Alt+S",
+    "toggle_ligatures": "Alt+L",
     "open_command_palette": "Ctrl+K",
     "open_settings": "Ctrl+,",
     "open_export_sheet": "Ctrl+E"
@@ -680,6 +683,11 @@ const APPLICATION_COMMANDS_META =
     { Id: "layout_preview", Label: "Preview Only (Focus Output)", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_ui_mode", Label: "Toggle Focus vs. Studio Mode", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_spread_mode", Label: "Toggle Facing Two-Page Spread", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_ligatures", Label: "Toggle Typographic Ligatures", Category: "Typography", Source: "App" },
+    { Id: "typographic_polish", Label: "Polish Typography: Convert Quotes & Dashes to Smart Glyphs", Category: "Typography", Source: "App" },
+    { Id: "toggle_optical_margins", Label: "Toggle Optical Margin Alignment (Hanging Punctuation)", Category: "Typography", Source: "App" },
+    { Id: "toggle_smart_quotes", Label: "Toggle Smart Quotes & Typographic Auto-Substitution", Category: "Typography", Source: "App" },
+    { Id: "inspect_ligatures", Label: "Inspect Font Ligatures & Glyphs", Category: "Typography", Source: "App" },
     { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
     { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
@@ -2011,7 +2019,7 @@ function ApplyEditorTypography()
             fontFamily: FontStack,
             fontSize: CurrentEditorFontSize,
             lineHeight: Math.round(CurrentEditorFontSize * CurrentEditorLineHeight),
-            fontLigatures: CurrentEditorLigatures
+            fontLigatures: CurrentEditorLigatures ? "'calt', 'liga', 'dlig', 'hlig'": false
         });
     }
 
@@ -2102,6 +2110,17 @@ function UpdateEditorTypographyUI()
             Btn.classList.toggle("Active", Val === CurrentEditorLigatures);
         }
     );
+
+    const LigaturesBtn = document.getElementById("StatusBarLigaturesBtn");
+    const LigaturesText = document.getElementById("StatusBarLigaturesText");
+    if (LigaturesBtn)
+    {
+        LigaturesBtn.classList.toggle("Active", CurrentEditorLigatures);
+    }
+    if (LigaturesText)
+    {
+        LigaturesText.textContent = `Ligatures: ${CurrentEditorLigatures ? "ON": "OFF"}`;
+    }
 }
 
 function SetupAppearanceEventListeners()
@@ -3532,7 +3551,7 @@ function InitializeMonaco()
                     mouseWheelZoom: true,
                     fontFamily: GetEditorFontStack(CurrentUIMode === "focus" && UseDifferentFocusFont ? CurrentFocusEditorFont : CurrentEditorFont),
                     fontWeight: "400",
-                    fontLigatures: CurrentEditorLigatures,
+                    fontLigatures: CurrentEditorLigatures ? "'calt', 'liga', 'dlig', 'hlig'": false,
                     minimap:
                     {
                         enabled: true,
@@ -3711,6 +3730,8 @@ function InitializeMonaco()
                     );
                 }
             );
+
+            SetupSmartTypographyKeydownListener();
 
             let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
 
@@ -6225,6 +6246,41 @@ const COMMAND_PALETTE_ACTIONS =
         Action: () => { ToggleSpreadMode(); }
     },
     {
+        Title: "Typographic Polish: Convert Quotes & Dashes to Smart Glyphs",
+        Category: "Typography",
+        Icon: "✒️",
+        Shortcut: "",
+        Action: () => { PolishTypographyInDocument(); }
+    },
+    {
+        Title: "Toggle Typographic Font Ligatures (calt, dlig, fi, fl)",
+        Category: "Typography",
+        Icon: "æ",
+        Shortcut: "Alt+L",
+        Action: () => { ToggleLigatures(); }
+    },
+    {
+        Title: "Inspect Font Ligatures & Glyphs",
+        Category: "Typography",
+        Icon: "🔍",
+        Shortcut: "",
+        Action: () => { OpenLigaturesInspector(); }
+    },
+    {
+        Title: "Toggle Optical Margin Alignment (Hanging Punctuation)",
+        Category: "Typography",
+        Icon: "📐",
+        Shortcut: "",
+        Action: () => { ToggleOpticalMargins(); }
+    },
+    {
+        Title: "Toggle Smart Quotes & Typographic Auto-Substitution",
+        Category: "Typography",
+        Icon: "“",
+        Shortcut: "",
+        Action: () => { ToggleSmartQuotes(); }
+    },
+    {
         Title: "Layout: Split View (Editor & Preview)",
         Category: "View & Layout",
         Icon: "▥",
@@ -6485,6 +6541,346 @@ function RenderCommandPaletteItems(Query)
     }
 }
 
+// --- THE PALLADINO TYPOGRAPHIC ENGINE (PHASE 7.1) ---
+
+function ToggleLigatures(ForceState)
+{
+    CurrentEditorLigatures = (typeof ForceState === "boolean") ? ForceState: !CurrentEditorLigatures;
+    localStorage.setItem("TypstStudio_EditorLigatures", String(CurrentEditorLigatures));
+
+    if (MonacoInstance)
+    {
+        MonacoInstance.updateOptions
+        ({
+            fontLigatures: CurrentEditorLigatures ? "'calt', 'liga', 'dlig', 'hlig'": false
+        });
+    }
+
+    const LigaturesBtn = document.getElementById("StatusBarLigaturesBtn");
+    const LigaturesText = document.getElementById("StatusBarLigaturesText");
+    if (LigaturesBtn)
+    {
+        LigaturesBtn.classList.toggle("Active", CurrentEditorLigatures);
+    }
+    if (LigaturesText)
+    {
+        LigaturesText.textContent = `Ligatures: ${CurrentEditorLigatures ? "ON": "OFF"}`;
+    }
+
+    document.querySelectorAll(".LigaturePresetBtn").forEach
+    (
+        (Btn) =>
+        {
+            const Val = Btn.getAttribute("DataLigatures") === "true";
+            Btn.classList.toggle("Active", Val === CurrentEditorLigatures);
+        }
+    );
+
+    const ModalToggleBtn = document.getElementById("ToggleLigaturesModalBtn");
+    if (ModalToggleBtn)
+    {
+        ModalToggleBtn.textContent = CurrentEditorLigatures ? "Disable Ligatures": "Enable Ligatures";
+    }
+
+    ShowToast(`Typographic Ligatures: ${CurrentEditorLigatures ? "Enabled (calt, dlig, hlig)": "Disabled"}`, "info", 1500);
+}
+
+function OpenLigaturesInspector()
+{
+    const Modal = document.getElementById("LigaturesModal");
+    const ActiveFontEl = document.getElementById("InspectorActiveFontName");
+    const TestInput = document.getElementById("LigatureTestInput");
+    if (!Modal)
+    {
+        return ;
+    }
+
+    const ActiveFont = (CurrentUIMode === "focus" && UseDifferentFocusFont) ? CurrentFocusEditorFont: CurrentEditorFont;
+    if (ActiveFontEl)
+    {
+        ActiveFontEl.textContent = ActiveFont;
+    }
+    const Stack = GetEditorFontStack(ActiveFont);
+    if (TestInput)
+    {
+        TestInput.style.fontFamily = Stack;
+    }
+
+    document.querySelectorAll(".LigatureSample").forEach
+    (
+        (El) =>
+        {
+            El.style.fontFamily = Stack;
+        }
+    );
+
+    const ToggleBtn = document.getElementById("ToggleLigaturesModalBtn");
+    if (ToggleBtn)
+    {
+        ToggleBtn.textContent = CurrentEditorLigatures ? "Disable Ligatures": "Enable Ligatures";
+    }
+
+    Modal.style.display = "flex";
+}
+
+function CloseLigaturesInspector()
+{
+    const Modal = document.getElementById("LigaturesModal");
+    if (Modal)
+    {
+        Modal.style.display = "none";
+    }
+}
+
+function SetOpticalMargins(Enabled)
+{
+    IsOpticalMarginsEnabled = Boolean(Enabled);
+    localStorage.setItem("TypstStudio_OpticalMargins", String(IsOpticalMarginsEnabled));
+    document.body.classList.toggle("OpticalMarginAlignment", IsOpticalMarginsEnabled);
+
+    const Checkbox = document.getElementById("OpticalMarginsCheckbox");
+    if (Checkbox)
+    {
+        Checkbox.checked = IsOpticalMarginsEnabled;
+    }
+}
+
+function ToggleOpticalMargins()
+{
+    SetOpticalMargins(!IsOpticalMarginsEnabled);
+    ShowToast(`Optical Margins: ${IsOpticalMarginsEnabled ? "Enabled": "Disabled"}`, "info", 1500);
+}
+
+function ToggleSmartQuotes(ForceState)
+{
+    IsSmartQuotesEnabled = (typeof ForceState === "boolean") ? ForceState: !IsSmartQuotesEnabled;
+    localStorage.setItem("TypstStudio_SmartQuotes", String(IsSmartQuotesEnabled));
+
+    const Checkbox = document.getElementById("SmartQuotesCheckbox");
+    if (Checkbox)
+    {
+        Checkbox.checked = IsSmartQuotesEnabled;
+    }
+    ShowToast(`Smart Quotes: ${IsSmartQuotesEnabled ? "Enabled": "Disabled"}`, "info", 1500);
+}
+
+function PolishTypographyInDocument()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const Selection = MonacoInstance.getSelection();
+    const HasSelection = Selection && !Selection.isEmpty();
+    const TargetRange = HasSelection ? Selection: Model.getFullModelRange();
+    const RawText = Model.getValueInRange(TargetRange);
+
+    const Lines = RawText.split("\n");
+    let InCodeBlock = false;
+
+    for (let I = 0; I < Lines.length; I ++)
+    {
+        const Line = Lines[I];
+        const Trimmed = Line.trim();
+
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue;
+        }
+
+        if (InCodeBlock)
+        {
+            continue;
+        }
+
+        if (Trimmed.startsWith("#set ") || Trimmed.startsWith("#import ") || Trimmed.startsWith("#include "))
+        {
+            continue;
+        }
+
+        let Polished = Line;
+
+        // 1. Em-dash (---) and En-dash (--)
+        Polished = Polished.replace(/---/g, "—");
+        Polished = Polished.replace(/--/g, "–");
+
+        // 2. Ellipsis (...)
+        Polished = Polished.replace(/\.\.\./g, "…");
+
+        // 3. Double quotes
+        Polished = Polished.replace(/(^|[\s\(\[\{<‘“])"/g, "$1“");
+        Polished = Polished.replace(/"/g, "”");
+
+        // 4. Single quotes
+        Polished = Polished.replace(/(^|[\s\(\[\{<“])'/g, "$1‘");
+        Polished = Polished.replace(/'/g, "’");
+
+        Lines[I] = Polished;
+    }
+
+    const PolishedFullText = Lines.join("\n");
+    MonacoInstance.executeEdits
+    (
+        "typographic-polish",
+        [{
+            range: TargetRange,
+            text: PolishedFullText,
+            forceMoveMarkers: true
+        }]
+    );
+
+    ShowToast("Typographic Polish: converted quotes and dashes to smart glyphs", "success");
+    TriggerCompileNow();
+}
+
+function SetupSmartTypographyKeydownListener()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    MonacoInstance.onKeyDown
+    (
+        (Event) =>
+        {
+            if (!IsSmartQuotesEnabled)
+            {
+                return ;
+            }
+
+            const BrowserEvent = Event.browserEvent;
+            const Key = BrowserEvent.key;
+
+            if (Key !== '"' && Key !== "'" && Key !== " ")
+            {
+                return ;
+            }
+
+            const Selection = MonacoInstance.getSelection();
+            if (!Selection || !Selection.isEmpty())
+            {
+                return ;
+            }
+
+            const Model = MonacoInstance.getModel();
+            if (!Model)
+            {
+                return ;
+            }
+
+            const Line = Selection.positionLineNumber;
+            const Col = Selection.positionColumn;
+            const LineContent = Model.getLineContent(Line);
+            const PreText = LineContent.substring(0, Col - 1);
+
+            const Trimmed = LineContent.trim();
+            const IsCodeLine = Trimmed.startsWith("#set ") ||
+                               Trimmed.startsWith("#import ") ||
+                               Trimmed.startsWith("#include ") ||
+                               Trimmed.startsWith("#let ") ||
+                               Trimmed.startsWith("#show ");
+
+            if (IsCodeLine)
+            {
+                return ;
+            }
+
+            const BacktickCount = (PreText.match(/`/g) || []).length;
+            if (BacktickCount % 2 === 1)
+            {
+                return ;
+            }
+
+            if (Key === '"')
+            {
+                BrowserEvent.preventDefault();
+                Event.stopPropagation();
+
+                const PrevChar = PreText.slice(-1);
+                const IsOpen = PreText.length === 0 || /\s|[\(\[\{<‘“]/.test(PrevChar);
+                const SmartQuote = IsOpen ? "“": "”";
+
+                MonacoInstance.executeEdits
+                (
+                    "smart-quotes",
+                    [{
+                        range: new monaco.Range(Line, Col, Line, Col),
+                        text: SmartQuote,
+                        forceMoveMarkers: true
+                    }]
+                );
+                return ;
+            }
+
+            if (Key === "'")
+            {
+                BrowserEvent.preventDefault();
+                Event.stopPropagation();
+
+                const PrevChar = PreText.slice(-1);
+                const IsOpen = PreText.length === 0 || /\s|[\(\[\{<“]/.test(PrevChar);
+                const SmartQuote = IsOpen ? "‘": "’";
+
+                MonacoInstance.executeEdits
+                (
+                    "smart-quotes",
+                    [{
+                        range: new monaco.Range(Line, Col, Line, Col),
+                        text: SmartQuote,
+                        forceMoveMarkers: true
+                    }]
+                );
+                return ;
+            }
+
+            if (Key === " ")
+            {
+                if (PreText.endsWith("---"))
+                {
+                    BrowserEvent.preventDefault();
+                    Event.stopPropagation();
+
+                    MonacoInstance.executeEdits
+                    (
+                        "smart-dash",
+                        [{
+                            range: new monaco.Range(Line, Col - 3, Line, Col),
+                            text: "— ",
+                            forceMoveMarkers: true
+                        }]
+                    );
+                    return ;
+                }
+                else if (PreText.endsWith("--"))
+                {
+                    BrowserEvent.preventDefault();
+                    Event.stopPropagation();
+
+                    MonacoInstance.executeEdits
+                    (
+                        "smart-dash",
+                        [{
+                            range: new monaco.Range(Line, Col - 2, Line, Col),
+                            text: "– ",
+                            forceMoveMarkers: true
+                        }]
+                    );
+                    return ;
+                }
+            }
+        }
+    );
+}
+
 function SetupDualModeAndExportEventListeners()
 {
     const FocusBtn = document.getElementById("ModeFocusBtn");
@@ -6681,6 +7077,80 @@ function SetupDualModeAndExportEventListeners()
             }
         );
     }
+
+    // Palladino Typographic Engine Event Listeners (Phase 7.1)
+    const LigaturesPillBtn = document.getElementById("StatusBarLigaturesBtn");
+    if (LigaturesPillBtn)
+    {
+        LigaturesPillBtn.addEventListener("click", () => { ToggleLigatures(); });
+        LigaturesPillBtn.classList.toggle("Active", CurrentEditorLigatures);
+        const LigaturesText = document.getElementById("StatusBarLigaturesText");
+        if (LigaturesText)
+        {
+            LigaturesText.textContent = `Ligatures: ${CurrentEditorLigatures ? "ON": "OFF"}`;
+        }
+    }
+
+    const OpenLigaturesBtn = document.getElementById("OpenLigaturesInspectorBtn");
+    const CloseLigaturesBtn = document.getElementById("CloseLigaturesModalBtn");
+    const ToggleLigaturesBtn = document.getElementById("ToggleLigaturesModalBtn");
+    const LigaturesModalEl = document.getElementById("LigaturesModal");
+
+    if (OpenLigaturesBtn)
+    {
+        OpenLigaturesBtn.addEventListener("click", () => { OpenLigaturesInspector(); });
+    }
+    if (CloseLigaturesBtn)
+    {
+        CloseLigaturesBtn.addEventListener("click", () => { CloseLigaturesInspector(); });
+    }
+    if (ToggleLigaturesBtn)
+    {
+        ToggleLigaturesBtn.addEventListener("click", () => { ToggleLigatures(); });
+    }
+    if (LigaturesModalEl)
+    {
+        LigaturesModalEl.addEventListener
+        (
+            "click",
+            (Event) =>
+            {
+                if (Event.target === LigaturesModalEl)
+                {
+                    CloseLigaturesInspector();
+                }
+            }
+        );
+    }
+
+    const SmartQuotesCb = document.getElementById("SmartQuotesCheckbox");
+    if (SmartQuotesCb)
+    {
+        SmartQuotesCb.checked = IsSmartQuotesEnabled;
+        SmartQuotesCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                ToggleSmartQuotes(E.target.checked);
+            }
+        );
+    }
+
+    const OpticalMarginsCb = document.getElementById("OpticalMarginsCheckbox");
+    if (OpticalMarginsCb)
+    {
+        OpticalMarginsCb.checked = IsOpticalMarginsEnabled;
+        OpticalMarginsCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                SetOpticalMargins(E.target.checked);
+            }
+        );
+    }
+    SetOpticalMargins(IsOpticalMarginsEnabled);
 
     // Floating Preview HUD Auto-Fade on idle (Focus Mode)
     const PreviewPane = document.getElementById("PreviewPane");
@@ -7989,6 +8459,21 @@ function ExecuteStudioCommand(CommandId)
         case "toggle_spread_mode":
             ToggleSpreadMode();
             break;
+        case "toggle_ligatures":
+            ToggleLigatures();
+            break;
+        case "typographic_polish":
+            PolishTypographyInDocument();
+            break;
+        case "toggle_optical_margins":
+            ToggleOpticalMargins();
+            break;
+        case "toggle_smart_quotes":
+            ToggleSmartQuotes();
+            break;
+        case "inspect_ligatures":
+            OpenLigaturesInspector();
+            break;
         case "open_command_palette":
             OpenCommandPalette();
             break;
@@ -8901,6 +9386,11 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 ToggleSpreadMode();
+            }
+            else if (E.altKey && (E.key === "l" || E.key === "L"))
+            {
+                E.preventDefault();
+                ToggleLigatures();
             }
         }
     );
