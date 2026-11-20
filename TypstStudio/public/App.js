@@ -3756,6 +3756,7 @@ function InitializeMonaco()
             );
 
             SetupSmartTypographyKeydownListener();
+            SetupZeroDialogClipboardPasting();
 
             let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
 
@@ -7152,6 +7153,258 @@ function ToggleHemingwayFocus(ForceState)
     }
 
     ShowToast(`Hemingway Focus Light: ${IsHemingwayFocusEnabled ? "Enabled (Paragraph Spotlight)": "Disabled"}`, "info", 1500);
+}
+
+// --- ZERO-DIALOG IMAGE PASTING (PHASE 7.3) ---
+
+function InsertImageMarkdownIntoEditor(RelativePath)
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    const Selection = MonacoInstance.getSelection();
+    if (!Selection)
+    {
+        return ;
+    }
+
+    const Model = MonacoInstance.getModel();
+    const LineContent = Model ? Model.getLineContent(Selection.startLineNumber): "";
+    const IndentMatch = LineContent.match(/^\s*/);
+    const Indent = IndentMatch ? IndentMatch[0]: "";
+
+    const NeedsNewLine = LineContent.trim().length > 0 && Selection.startColumn > 1;
+    const ImageTag = `#image("${RelativePath}")`;
+    const FormattedText = NeedsNewLine ? `\n${Indent}${ImageTag}`: `${ImageTag}`;
+
+    MonacoInstance.executeEdits
+    (
+        "zero-dialog-image-paste",
+        [
+            {
+                range: Selection,
+                text: FormattedText,
+                forceMoveMarkers: true
+            }
+        ]
+    );
+
+    MonacoInstance.focus();
+    TriggerCompileNow();
+}
+
+async function HandlePastedImageFile(File)
+{
+    if (!File)
+    {
+        return ;
+    }
+
+    try
+    {
+        const Reader = new FileReader();
+        Reader.onload = async (Event) =>
+        {
+            const DataUrl = Event.target.result;
+            if (!DataUrl)
+            {
+                return ;
+            }
+
+            if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+            {
+                try
+                {
+                    const Result = await window.__TAURI__.core.invoke
+                    (
+                        "SavePastedFileAsset",
+                        {
+                            DocPath: CurrentFilePath || null,
+                            FileName: File.name || "paste.png",
+                            Base64Data: DataUrl
+                        }
+                    );
+
+                    if (Result && Result.Success)
+                    {
+                        InsertImageMarkdownIntoEditor(Result.RelativePath);
+                        const Msg = Result.IsDuplicate ? `Reused ${Result.RelativePath}`: `Saved ${Result.RelativePath}`;
+                        ShowToast(Msg, "success", 2000);
+                        return ;
+                    }
+                }
+                catch (TauriErr)
+                {
+                    console.warn("Tauri SavePastedFileAsset error:", TauriErr);
+                }
+            }
+
+            try
+            {
+                const UploadResp = await fetch
+                (
+                    "/api/assets/upload",
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify
+                        ({
+                            FileName: File.name || "paste.png",
+                            Base64Data: DataUrl,
+                            DocPath: CurrentFilePath || ""
+                        })
+                    }
+                );
+
+                if (UploadResp.ok)
+                {
+                    const Data = await UploadResp.json();
+                    if (Data.RelativePath)
+                    {
+                        InsertImageMarkdownIntoEditor(Data.RelativePath);
+                        ShowToast(`Saved ${Data.RelativePath}`, "success", 2000);
+                        return ;
+                    }
+                }
+            }
+            catch (Ignored) {}
+
+            InsertImageMarkdownIntoEditor(`assets/${File.name || "paste.png"}`);
+            ShowToast(`Inserted reference to assets/${File.name || "paste.png"}`, "info", 2000);
+        };
+
+        Reader.readAsDataURL(File);
+    }
+    catch (Err)
+    {
+        console.error("HandlePastedImageFile error:", Err);
+        ShowToast("Failed to process pasted image", "error", 2500);
+    }
+}
+
+async function HandlePastedClipboardImageRust()
+{
+    if (!window.__TAURI__ || !window.__TAURI__.core || typeof window.__TAURI__.core.invoke !== "function")
+    {
+        return false;
+    }
+
+    try
+    {
+        const Result = await window.__TAURI__.core.invoke
+        (
+            "PasteClipboardImage",
+            {
+                DocPath: CurrentFilePath || null
+            }
+        );
+
+        if (Result && Result.Success)
+        {
+            InsertImageMarkdownIntoEditor(Result.RelativePath);
+            const Msg = Result.IsDuplicate ? `Reused ${Result.RelativePath}`: `Saved ${Result.RelativePath}`;
+            ShowToast(Msg, "success", 2000);
+            return true;
+        }
+        else if (Result && Result.ErrorMessage)
+        {
+            console.debug("PasteClipboardImage result:", Result.ErrorMessage);
+        }
+    }
+    catch (Err)
+    {
+        console.debug("PasteClipboardImage invoke error:", Err);
+    }
+    return false;
+}
+
+function SetupZeroDialogClipboardPasting()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    const EditorDomNode = MonacoInstance.getDomNode();
+    if (!EditorDomNode)
+    {
+        return ;
+    }
+
+    EditorDomNode.addEventListener
+    (
+        "paste",
+        async (E) =>
+        {
+            const ClipboardData = E.clipboardData || window.clipboardData;
+            if (!ClipboardData)
+            {
+                return ;
+            }
+
+            const Files = ClipboardData.files;
+            if (Files && Files.length > 0)
+            {
+                for (let I = 0; I < Files.length; I++)
+                {
+                    const File = Files[I];
+                    if (File.type.startsWith("image/") || File.name.toLowerCase().endsWith(".svg") || File.name.toLowerCase().endsWith(".png") || File.name.toLowerCase().endsWith(".jpg") || File.name.toLowerCase().endsWith(".jpeg") || File.name.toLowerCase().endsWith(".webp"))
+                    {
+                        E.preventDefault();
+                        E.stopPropagation();
+                        await HandlePastedImageFile(File);
+                        return ;
+                    }
+                }
+            }
+
+            let HasImageItem = false;
+            let ImageItem = null;
+            if (ClipboardData.items && ClipboardData.items.length > 0)
+            {
+                for (let I = 0; I < ClipboardData.items.length; I++)
+                {
+                    if (ClipboardData.items[I].type.startsWith("image/"))
+                    {
+                        HasImageItem = true;
+                        ImageItem = ClipboardData.items[I];
+                        break;
+                    }
+                }
+            }
+
+            const PlainText = ClipboardData.getData("text/plain");
+            if (!HasImageItem && PlainText && PlainText.length > 0)
+            {
+                return ;
+            }
+
+            if (ImageItem)
+            {
+                const BlobFile = ImageItem.getAsFile();
+                if (BlobFile)
+                {
+                    E.preventDefault();
+                    E.stopPropagation();
+                    await HandlePastedImageFile(BlobFile);
+                    return ;
+                }
+            }
+
+            if (window.__TAURI__ && (!PlainText || PlainText.trim() === ""))
+            {
+                const Handled = await HandlePastedClipboardImageRust();
+                if (Handled)
+                {
+                    E.preventDefault();
+                    E.stopPropagation();
+                }
+            }
+        },
+        true
+    );
 }
 
 function SetupDualModeAndExportEventListeners()

@@ -1288,6 +1288,283 @@ fn UploadAsset(Directory: Option<String>, FileName: String, Base64Data: String,)
     Ok(OutPath.to_string_lossy().to_string())
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Paste_Image_Result
+{
+    #[serde(rename = "Success")]
+    pub Success: bool,
+    #[serde(rename = "RelativePath")]
+    pub RelativePath: String,
+    #[serde(rename = "FileName")]
+    pub FileName: String,
+    #[serde(rename = "IsDuplicate")]
+    pub IsDuplicate: bool,
+    #[serde(rename = "Width")]
+    pub Width: u32,
+    #[serde(rename = "Height")]
+    pub Height: u32,
+    #[serde(rename = "ErrorMessage")]
+    pub ErrorMessage: Option<String>,
+}
+
+fn FormatTimestamp(Secs: u64) -> String
+{
+    let Days = Secs / 86400;
+    let RemSecs = Secs % 86400;
+    let Hours = RemSecs / 3600;
+    let Mins = (RemSecs % 3600) / 60;
+    let Seconds = RemSecs % 60;
+
+    let mut Y = 1970;
+    let mut D = Days;
+    loop
+    {
+        let Leap = (Y % 4 == 0 && Y % 100 != 0) || (Y % 400 == 0);
+        let DaysInYear = if Leap { 366 } else { 365 };
+        if D < DaysInYear
+        {
+            break;
+        }
+        D -= DaysInYear;
+        Y += 1;
+    }
+
+    let Leap = (Y % 4 == 0 && Y % 100 != 0) || (Y % 400 == 0);
+    let DaysInMonths = [
+        31, if Leap { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+    ];
+    let mut M = 1;
+    for (Idx, &Dim) in DaysInMonths.iter().enumerate()
+    {
+        if D < Dim
+        {
+            M = Idx + 1;
+            break;
+        }
+        D -= Dim;
+    }
+    let Day = D + 1;
+
+    format!("{:04}{:02}{:02}-{:02}{:02}{:02}", Y, M, Day, Hours, Mins, Seconds)
+}
+
+fn ResolveAssetsDirectory(DocPath: Option<&str>) -> std::path::PathBuf
+{
+    if let Some(PathStr) = DocPath
+    {
+        let Trimmed = PathStr.trim();
+        if !Trimmed.is_empty()
+        {
+            let P = std::path::Path::new(Trimmed);
+            if P.is_file()
+            {
+                if let Some(Parent) = P.parent()
+                {
+                    return Parent.join("assets");
+                }
+            }
+            else if P.exists() && P.is_dir()
+            {
+                return P.join("assets");
+            }
+            else if let Some(Parent) = P.parent()
+            {
+                if !Parent.as_os_str().is_empty()
+                {
+                    return Parent.join("assets");
+                }
+            }
+        }
+    }
+
+    let Dirs = GetTrackedDirectories();
+    if let Some(First) = Dirs.first()
+    {
+        return std::path::Path::new(First).join("assets");
+    }
+
+    std::path::PathBuf::from("assets")
+}
+
+#[tauri::command]
+fn PasteClipboardImage(DocPath: Option<String>) -> Result<Paste_Image_Result, String>
+{
+    let mut Clipboard = arboard::Clipboard::new()
+        .map_err(|Error| format!("Failed to access OS clipboard: {}", Error))?;
+
+    let ImgData = Clipboard.get_image()
+        .map_err(|Error| format!("No image found on OS clipboard: {}", Error))?;
+
+    let Width = ImgData.width as u32;
+    let Height = ImgData.height as u32;
+    let Rgba = image::RgbaImage::from_raw(Width, Height, ImgData.bytes.into_owned())
+        .ok_or_else(|| "Failed to decode RGBA clipboard image".to_string())?;
+
+    let mut PngBytes = Vec::new();
+    let mut Cursor = std::io::Cursor::new(&mut PngBytes);
+    Rgba.write_to(&mut Cursor, image::ImageFormat::Png)
+        .map_err(|Error| format!("Failed to encode image to PNG: {}", Error))?;
+
+    use sha2::{Digest, Sha256};
+    let mut Hasher = Sha256::new();
+    Hasher.update(&PngBytes);
+    let FullHash = format!("{:x}", Hasher.finalize());
+    let ShortHash = &FullHash[..8.min(FullHash.len())];
+
+    let AssetsDir = ResolveAssetsDirectory(DocPath.as_deref());
+    let _ = std::fs::create_dir_all(&AssetsDir);
+
+    if let Ok(Entries) = std::fs::read_dir(&AssetsDir)
+    {
+        for Entry in Entries.flatten()
+        {
+            if let Ok(Meta) = Entry.metadata()
+            {
+                if Meta.is_file() && Meta.len() == PngBytes.len() as u64
+                {
+                    if let Ok(Existing) = std::fs::read(Entry.path())
+                    {
+                        if Existing == PngBytes
+                        {
+                            let ExistingName = Entry.file_name().to_string_lossy().to_string();
+                            return Ok
+                            (
+                                Paste_Image_Result
+                                {
+                                    Success: true,
+                                    RelativePath: format!("assets/{}", ExistingName),
+                                    FileName: ExistingName,
+                                    IsDuplicate: true,
+                                    Width,
+                                    Height,
+                                    ErrorMessage: None,
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let Secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let TimestampStr = FormatTimestamp(Secs);
+    let FileName = format!("paste-{}-{}.png", TimestampStr, ShortHash);
+    let OutPath = AssetsDir.join(&FileName);
+
+    std::fs::write(&OutPath, &PngBytes)
+        .map_err(|Error| format!("Failed to save image to {}: {}", OutPath.display(), Error))?;
+
+    Ok
+    (
+        Paste_Image_Result
+        {
+            Success: true,
+            RelativePath: format!("assets/{}", FileName),
+            FileName,
+            IsDuplicate: false,
+            Width,
+            Height,
+            ErrorMessage: None,
+        }
+    )
+}
+
+#[tauri::command]
+fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64Data: String) -> Result<Paste_Image_Result, String>
+{
+    let CleanBase64 = if let Some(Pos) = Base64Data.find(";base64,")
+    {
+        &Base64Data[Pos + 8..]
+    }
+    else
+    {
+        &Base64Data
+    };
+
+    use base64::Engine;
+    let Decoded = base64::engine::general_purpose::STANDARD
+        .decode(CleanBase64.trim())
+        .map_err(|Error| format!("Base64 decode error: {}", Error))?;
+
+    use sha2::{Digest, Sha256};
+    let mut Hasher = Sha256::new();
+    Hasher.update(&Decoded);
+    let FullHash = format!("{:x}", Hasher.finalize());
+    let ShortHash = &FullHash[..8.min(FullHash.len())];
+
+    let AssetsDir = ResolveAssetsDirectory(DocPath.as_deref());
+    let _ = std::fs::create_dir_all(&AssetsDir);
+
+    if let Ok(Entries) = std::fs::read_dir(&AssetsDir)
+    {
+        for Entry in Entries.flatten()
+        {
+            if let Ok(Meta) = Entry.metadata()
+            {
+                if Meta.is_file() && Meta.len() == Decoded.len() as u64
+                {
+                    if let Ok(Existing) = std::fs::read(Entry.path())
+                    {
+                        if Existing == Decoded
+                        {
+                            let ExistingName = Entry.file_name().to_string_lossy().to_string();
+                            return Ok
+                            (
+                                Paste_Image_Result
+                                {
+                                    Success: true,
+                                    RelativePath: format!("assets/{}", ExistingName),
+                                    FileName: ExistingName,
+                                    IsDuplicate: true,
+                                    Width: 0,
+                                    Height: 0,
+                                    ErrorMessage: None,
+                                }
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let OriginalName = FileName.as_deref().unwrap_or("paste.png");
+    let Ext = std::path::Path::new(OriginalName)
+        .extension()
+        .and_then(|E| E.to_str())
+        .map(|E| format!(".{}", E.to_ascii_lowercase()))
+        .unwrap_or_else(|| ".png".to_string());
+
+    let Secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let TimestampStr = FormatTimestamp(Secs);
+    let SavedFileName = format!("paste-{}-{}{}", TimestampStr, ShortHash, Ext);
+    let OutPath = AssetsDir.join(&SavedFileName);
+
+    std::fs::write(&OutPath, &Decoded)
+        .map_err(|Error| format!("Failed to write asset {}: {}", OutPath.display(), Error))?;
+
+    Ok
+    (
+        Paste_Image_Result
+        {
+            Success: true,
+            RelativePath: format!("assets/{}", SavedFileName),
+            FileName: SavedFileName,
+            IsDuplicate: false,
+            Width: 0,
+            Height: 0,
+            ErrorMessage: None,
+        }
+    )
+}
+
 #[tauri::command]
 fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 {
@@ -1686,7 +1963,9 @@ pub fn run()
             FormatTypst,
             ToggleFullscreen,
             ToggleDevTools,
-            OpenExternalUrl
+            OpenExternalUrl,
+            PasteClipboardImage,
+            SavePastedFileAsset
         ]
     )
    .setup
@@ -1813,5 +2092,56 @@ mod tests
         let Info = GetWorkspaceInfo().expect("GetWorkspaceInfo should succeed");
         assert!(Info.Success);
         assert!( ! Info.Directories.is_empty());
+    }
+
+   #[test]
+    fn TestFormatTimestamp()
+    {
+        let Epoch = FormatTimestamp(0);
+        assert_eq!(Epoch, "19700101-000000");
+
+        let Ts = 1700000000;
+        let Formatted = FormatTimestamp(Ts);
+        assert_eq!(Formatted.len(), 15);
+        assert!(Formatted.contains('-'));
+    }
+
+   #[test]
+    fn TestResolveAssetsDirectory()
+    {
+        let DocFile = "E:/Typst/Books/Novel.typ";
+        let Assets = ResolveAssetsDirectory(Some(DocFile));
+        assert!(Assets.ends_with("assets"));
+    }
+
+   #[test]
+    fn TestSavePastedFileAssetAndDeduplication()
+    {
+        let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&TempDir);
+        let TempDoc = TempDir.join("TestDoc.typ");
+        let _ = std::fs::write(&TempDoc, "= Test");
+
+        // Small 1x1 transparent PNG in base64
+        let SamplePngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==".to_string();
+
+        let Res1 = SavePastedFileAsset(Some(TempDoc.to_string_lossy().to_string()), Some("test.png".to_string()), SamplePngBase64.clone())
+            .expect("First paste should succeed");
+
+        assert!(Res1.Success);
+        assert!(!Res1.IsDuplicate);
+        assert!(Res1.RelativePath.starts_with("assets/"));
+        assert!(TempDir.join(&Res1.RelativePath).exists());
+
+        // Second paste with identical data must deduplicate
+        let Res2 = SavePastedFileAsset(Some(TempDoc.to_string_lossy().to_string()), Some("test.png".to_string()), SamplePngBase64)
+            .expect("Second paste should succeed");
+
+        assert!(Res2.Success);
+        assert!(Res2.IsDuplicate);
+        assert_eq!(Res1.RelativePath, Res2.RelativePath);
+        assert_eq!(Res1.FileName, Res2.FileName);
+
+        let _ = std::fs::remove_dir_all(&TempDir);
     }
 }
