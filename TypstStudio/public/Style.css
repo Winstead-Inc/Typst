@@ -6628,3 +6628,206 @@ body.UIMode_Focus .PreviewToolbar:hover
     align-items: center;
     gap: 10px;
 }
+
+/* --- KEYNOTE STAGE MODE (PHASE 7.4) --- */
+
+.KeynoteStageOverlay
+{
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    background: #000000;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+}
+
+.KeynoteStageOverlay.Active
+{
+    display: flex;
+}
+
+.KeynoteStageOverlay.Blackout
+{
+    background: #000000 !important;
+}
+
+.KeynoteStageOverlay.Blackout .KeynoteStageCanvas
+{
+    visibility: hidden;
+}
+
+.KeynoteStageHeader
+{
+    position: absolute;
+    top: 16px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+}
+
+.KeynoteStageOverlay:hover .KeynoteStageHeader,
+.KeynoteStageHeader.Visible
+{
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.KeynoteStageProgress
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.KeynoteBadge
+{
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 14px;
+    background: rgba(113, 0, 255, 0.25);
+    color: #C084FC;
+    border: 1px solid rgba(113, 0, 255, 0.5);
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+.KeynoteTimer
+{
+    font-size: 13px;
+    font-weight: 600;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #D6D3CD;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+.KeynoteStageControls
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.KeynoteControlBtn
+{
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #D6D3CD;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+}
+
+.KeynoteControlBtn:hover
+{
+    background: rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+}
+
+.KeynoteControlBtn.Close:hover
+{
+    background: rgba(255, 23, 68, 0.3);
+    color: #FF1744;
+    border-color: rgba(255, 23, 68, 0.4);
+}
+
+.KeynoteStageCanvas
+{
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    width: 100vw;
+    height: 100vh;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.KeynoteSlideContainer
+{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    max-width: 96vw;
+    max-height: 94vh;
+}
+
+.KeynoteSlideContainer svg
+{
+    max-width: 96vw;
+    max-height: 94vh;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.9);
+    border-radius: 4px;
+}
+
+.KeynoteNotesDrawer
+{
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 380px;
+    max-height: 38vh;
+    background: rgba(16, 16, 20, 0.95);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85);
+    color: #D6D3CD;
+    font-size: 13px;
+    line-height: 1.6;
+    z-index: 20;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.KeynoteNotesDrawer.Active
+{
+    display: flex;
+}
+
+.KeynoteNotesHeader
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: #8B949E;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 6px;
+}
+
+.KeynoteNotesContent
+{
+    overflow-y: auto;
+    max-height: 30vh;
+    white-space: pre-wrap;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #E6EDF3;
+}

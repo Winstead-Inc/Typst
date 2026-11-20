@@ -2103,6 +2103,20 @@ fn ToggleFullscreen(App: tauri::AppHandle) -> Result<bool, String>
 }
 
 #[tauri::command]
+fn SetFullscreen(App: tauri::AppHandle, Fullscreen: bool) -> Result<bool, String>
+{
+    if let Some(Window) = App.get_webview_window("main")
+    {
+        Window.set_fullscreen(Fullscreen).map_err(|Error| Error.to_string())?;
+        Ok(Fullscreen)
+    }
+    else
+    {
+        Err("Main window not found".to_string())
+    }
+}
+
+#[tauri::command]
 fn ToggleDevTools(App: tauri::AppHandle) -> Result<bool, String>
 {
     if let Some(Window) = App.get_webview_window("main")
@@ -2162,6 +2176,7 @@ pub fn run()
             ResolveSpan,
             FormatTypst,
             ToggleFullscreen,
+            SetFullscreen,
             ToggleDevTools,
             OpenExternalUrl,
             PasteClipboardImage,

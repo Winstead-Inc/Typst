@@ -650,6 +650,13 @@ let ActiveTimelineSnapshotIndex = -1;
 let TimelineAutoCaptureTimer = null;
 let LastSnapshotWordCount = 0;
 let ActiveSnapshotCachedContent = "";
+let IsKeynoteStageMode = false;
+let CurrentStageSlideIndex = 0;
+let IsStageNotesVisible = false;
+let IsStageBlackout = false;
+let StagePresentationStartTime = 0;
+let StageTimerInterval = null;
+let StageHeaderHideTimer = null;
 let IsSpreadMode = localStorage.getItem("TypstStudio_SpreadMode") === "true";
 
 const DEFAULT_KEYBINDINGS =
@@ -680,6 +687,7 @@ const DEFAULT_KEYBINDINGS =
     "toggle_typewriter_scroll": "Alt+T",
     "toggle_hemingway_focus": "Alt+H",
     "open_time_machine": "Ctrl+Shift+H",
+    "enter_stage_mode": "F5",
     "open_command_palette": "Ctrl+K",
     "open_settings": "Ctrl+,",
     "open_export_sheet": "Ctrl+E"
@@ -706,6 +714,7 @@ const APPLICATION_COMMANDS_META =
     { Id: "toggle_typewriter_scroll", Label: "Toggle Typewriter Center Scroll", Category: "Writing & Focus", Source: "App" },
     { Id: "toggle_hemingway_focus", Label: "Toggle Hemingway Focus Light", Category: "Writing & Focus", Source: "App" },
     { Id: "open_time_machine", Label: "Time Machine for Words (History & Scrubbing)", Category: "Writing & Focus", Source: "App" },
+    { Id: "enter_stage_mode", Label: "Keynote Stage Mode (Present Slides)", Category: "Views & Navigation", Source: "App" },
     { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
     { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
@@ -6359,6 +6368,13 @@ const COMMAND_PALETTE_ACTIONS =
         Action: () => { OpenTimeMachine(); }
     },
     {
+        Title: "Keynote Stage Mode (Present Slides)",
+        Category: "Views & Navigation",
+        Icon: "📽️",
+        Shortcut: "F5",
+        Action: () => { EnterKeynoteStageMode(); }
+    },
+    {
         Title: "Layout: Split View (Editor & Preview)",
         Category: "View & Layout",
         Icon: "▥",
@@ -7894,6 +7910,317 @@ function CopyActiveTimelineSnapshot()
     }
 }
 
+// --- KEYNOTE STAGE MODE (PHASE 7.4) ---
+
+function ExtractPresenterNotes(Source, SlideIndex)
+{
+    if (!Source)
+    {
+        return "No presenter notes for this slide.\n(Add notes in code with `// NOTE: Your talking points`)";
+    }
+
+    const SlideChunks = Source.split(/(?:#pagebreak\(\)|#slide\s*\[)/);
+    const TargetChunk = SlideChunks[SlideIndex] || "";
+
+    const NoteMatches = [];
+    const Lines = TargetChunk.split("\n");
+    for (const Line of Lines)
+    {
+        const NoteMatch = Line.match(/\/\/\s*(?:NOTE|SPEAKER|PRESENTER):\s*(.*)/i);
+        if (NoteMatch)
+        {
+            NoteMatches.push(NoteMatch[1].trim());
+        }
+    }
+
+    if (NoteMatches.length > 0)
+    {
+        return NoteMatches.join("\n\n");
+    }
+
+    return "No presenter notes for this slide.\n(Add notes in code with `// NOTE: Your talking points`)";
+}
+
+function RenderStageSlide()
+{
+    if (!LastCompiledPages || LastCompiledPages.length === 0)
+    {
+        return ;
+    }
+
+    CurrentStageSlideIndex = Math.max(0, Math.min(CurrentStageSlideIndex, LastCompiledPages.length - 1));
+
+    let SlideSvg = LastCompiledPages[CurrentStageSlideIndex];
+    if (CurrentPaperColorMode === "optimized" || CurrentPaperColorMode === "pure_black")
+    {
+        SlideSvg = ConvertSvgToDarkMode(SlideSvg, false, CurrentPaperColorMode);
+    }
+
+    const Container = document.getElementById("KeynoteSlideContainer");
+    if (Container)
+    {
+        Container.innerHTML = SlideSvg;
+    }
+
+    const Counter = document.getElementById("KeynoteSlideCounter");
+    if (Counter)
+    {
+        Counter.textContent = `Slide ${CurrentStageSlideIndex + 1} / ${LastCompiledPages.length}`;
+    }
+
+    const NotesContent = document.getElementById("KeynoteNotesContent");
+    if (NotesContent && MonacoInstance)
+    {
+        const Source = MonacoInstance.getValue();
+        NotesContent.textContent = ExtractPresenterNotes(Source, CurrentStageSlideIndex);
+    }
+
+    // Pre-cache next slide SVG
+    if (CurrentStageSlideIndex + 1 < LastCompiledPages.length)
+    {
+        const NextSvg = LastCompiledPages[CurrentStageSlideIndex + 1];
+        if (NextSvg && (CurrentPaperColorMode === "optimized" || CurrentPaperColorMode === "pure_black"))
+        {
+            ConvertSvgToDarkMode(NextSvg, false, CurrentPaperColorMode);
+        }
+    }
+}
+
+function NextStageSlide()
+{
+    if (!LastCompiledPages || LastCompiledPages.length === 0)
+    {
+        return ;
+    }
+
+    if (CurrentStageSlideIndex < LastCompiledPages.length - 1)
+    {
+        CurrentStageSlideIndex ++;
+        RenderStageSlide();
+    }
+}
+
+function PrevStageSlide()
+{
+    if (CurrentStageSlideIndex > 0)
+    {
+        CurrentStageSlideIndex --;
+        RenderStageSlide();
+    }
+}
+
+function ToggleStageNotes()
+{
+    IsStageNotesVisible = !IsStageNotesVisible;
+    const Drawer = document.getElementById("KeynoteNotesDrawer");
+    if (Drawer)
+    {
+        Drawer.classList.toggle("Active", IsStageNotesVisible);
+    }
+}
+
+function ToggleStageBlackout()
+{
+    IsStageBlackout = !IsStageBlackout;
+    const Overlay = document.getElementById("KeynoteStageOverlay");
+    if (Overlay)
+    {
+        Overlay.classList.toggle("Blackout", IsStageBlackout);
+    }
+}
+
+function HandleStageModeKeydown(E)
+{
+    if (!IsKeynoteStageMode)
+    {
+        return ;
+    }
+
+    if (E.key === "Escape")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        ExitKeynoteStageMode();
+        return ;
+    }
+
+    if (E.key === "ArrowRight" || E.key === "PageDown" || E.key === " " || E.key === "Enter")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        NextStageSlide();
+        return ;
+    }
+
+    if (E.key === "ArrowLeft" || E.key === "PageUp" || E.key === "Backspace")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        PrevStageSlide();
+        return ;
+    }
+
+    if (E.key === "Home")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        CurrentStageSlideIndex = 0;
+        RenderStageSlide();
+        return ;
+    }
+
+    if (E.key === "End")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        CurrentStageSlideIndex = (LastCompiledPages ? LastCompiledPages.length - 1: 0);
+        RenderStageSlide();
+        return ;
+    }
+
+    if (E.key === "n" || E.key === "N")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        ToggleStageNotes();
+        return ;
+    }
+
+    if (E.key === "b" || E.key === "B")
+    {
+        E.preventDefault();
+        E.stopPropagation();
+        ToggleStageBlackout();
+        return ;
+    }
+
+    if (E.key === "F5" || ((E.ctrlKey || E.metaKey) && (E.key === "r" || E.key === "R" || E.key === "p" || E.key === "P")))
+    {
+        E.preventDefault();
+        E.stopPropagation();
+    }
+}
+
+async function EnterKeynoteStageMode(StartingPageIndex)
+{
+    if (!LastCompiledPages || LastCompiledPages.length === 0)
+    {
+        ShowToast("Compile your document or slide deck first to present", "warning", 2500);
+        return ;
+    }
+
+    IsKeynoteStageMode = true;
+    CurrentStageSlideIndex = (typeof StartingPageIndex === "number" && StartingPageIndex >= 0) ? StartingPageIndex: 0;
+    IsStageBlackout = false;
+
+    const Overlay = document.getElementById("KeynoteStageOverlay");
+    if (!Overlay)
+    {
+        return ;
+    }
+
+    Overlay.classList.remove("Blackout");
+    Overlay.classList.add("Active");
+
+    RenderStageSlide();
+
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            await window.__TAURI__.core.invoke("SetFullscreen", { Fullscreen: true });
+        }
+        catch (Err)
+        {
+            console.warn("SetFullscreen invoke error:", Err);
+        }
+    }
+    else if (document.documentElement.requestFullscreen)
+    {
+        try
+        {
+            await document.documentElement.requestFullscreen();
+        }
+        catch (Ignored) {}
+    }
+
+    StagePresentationStartTime = Date.now();
+    const TimerEl = document.getElementById("KeynoteTimer");
+    if (TimerEl)
+    {
+        TimerEl.textContent = "00:00";
+    }
+
+    if (StageTimerInterval)
+    {
+        clearInterval(StageTimerInterval);
+    }
+    StageTimerInterval = setInterval
+    (
+        () =>
+        {
+            const ElapsedSecs = Math.floor((Date.now() - StagePresentationStartTime) / 1000);
+            const Mins = Math.floor(ElapsedSecs / 60);
+            const Secs = ElapsedSecs % 60;
+            const Formatted = `${String(Mins).padStart(2, "0")}:${String(Secs).padStart(2, "0")}`;
+            const TEl = document.getElementById("KeynoteTimer");
+            if (TEl)
+            {
+                TEl.textContent = Formatted;
+            }
+        },
+        1000
+    );
+
+    window.addEventListener("keydown", HandleStageModeKeydown, true);
+}
+
+async function ExitKeynoteStageMode()
+{
+    IsKeynoteStageMode = false;
+    window.removeEventListener("keydown", HandleStageModeKeydown, true);
+
+    if (StageTimerInterval)
+    {
+        clearInterval(StageTimerInterval);
+        StageTimerInterval = null;
+    }
+
+    const Overlay = document.getElementById("KeynoteStageOverlay");
+    if (Overlay)
+    {
+        Overlay.classList.remove("Active");
+        Overlay.classList.remove("Blackout");
+    }
+
+    const Drawer = document.getElementById("KeynoteNotesDrawer");
+    if (Drawer)
+    {
+        Drawer.classList.remove("Active");
+    }
+    IsStageNotesVisible = false;
+
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            await window.__TAURI__.core.invoke("SetFullscreen", { Fullscreen: false });
+        }
+        catch (Err)
+        {
+            console.warn("Restore fullscreen error:", Err);
+        }
+    }
+    else if (document.fullscreenElement && document.exitFullscreen)
+    {
+        try
+        {
+            await document.exitFullscreen();
+        }
+        catch (Ignored) {}
+    }
+}
+
 function SetupDualModeAndExportEventListeners()
 {
     const FocusBtn = document.getElementById("ModeFocusBtn");
@@ -8280,6 +8607,63 @@ function SetupDualModeAndExportEventListeners()
     if (CopyTimeMachineBtn)
     {
         CopyTimeMachineBtn.addEventListener("click", () => { CopyActiveTimelineSnapshot(); });
+    }
+
+    // Phase 7.4 Event Listeners: Keynote Stage Mode
+    const KeynoteNotesBtn = document.getElementById("KeynoteNotesToggleBtn");
+    if (KeynoteNotesBtn)
+    {
+        KeynoteNotesBtn.addEventListener("click", () => { ToggleStageNotes(); });
+    }
+
+    const KeynoteCloseNotesBtn = document.getElementById("KeynoteCloseNotesBtn");
+    if (KeynoteCloseNotesBtn)
+    {
+        KeynoteCloseNotesBtn.addEventListener("click", () => { ToggleStageNotes(); });
+    }
+
+    const KeynotePrevBtn = document.getElementById("KeynotePrevBtn");
+    if (KeynotePrevBtn)
+    {
+        KeynotePrevBtn.addEventListener("click", () => { PrevStageSlide(); });
+    }
+
+    const KeynoteNextBtn = document.getElementById("KeynoteNextBtn");
+    if (KeynoteNextBtn)
+    {
+        KeynoteNextBtn.addEventListener("click", () => { NextStageSlide(); });
+    }
+
+    const KeynoteExitBtn = document.getElementById("KeynoteExitBtn");
+    if (KeynoteExitBtn)
+    {
+        KeynoteExitBtn.addEventListener("click", () => { ExitKeynoteStageMode(); });
+    }
+
+    const KeynoteOverlayEl = document.getElementById("KeynoteStageOverlay");
+    const KeynoteHeaderEl = document.getElementById("KeynoteStageHeader");
+    if (KeynoteOverlayEl && KeynoteHeaderEl)
+    {
+        KeynoteOverlayEl.addEventListener
+        (
+            "mousemove",
+            () =>
+            {
+                KeynoteHeaderEl.classList.add("Visible");
+                if (StageHeaderHideTimer)
+                {
+                    clearTimeout(StageHeaderHideTimer);
+                }
+                StageHeaderHideTimer = setTimeout
+                (
+                    () =>
+                    {
+                        KeynoteHeaderEl.classList.remove("Visible");
+                    },
+                    2500
+                );
+            }
+        );
     }
 
     // Floating Preview HUD Auto-Fade on idle (Focus Mode)
@@ -9613,6 +9997,9 @@ function ExecuteStudioCommand(CommandId)
         case "open_time_machine":
             OpenTimeMachine();
             break;
+        case "enter_stage_mode":
+            EnterKeynoteStageMode();
+            break;
         case "open_command_palette":
             OpenCommandPalette();
             break;
@@ -10434,7 +10821,12 @@ function SetupEventListeners()
             }
 
             // Fallback for native default shortcuts
-            if (E.key === "F11")
+            if (E.key === "F5" || ((E.ctrlKey || E.metaKey) && E.shiftKey && E.key === "Enter"))
+            {
+                E.preventDefault();
+                EnterKeynoteStageMode();
+            }
+            else if (E.key === "F11")
             {
                 E.preventDefault();
                 ToggleFullscreen();

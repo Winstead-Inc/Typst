@@ -1259,6 +1259,35 @@
         </div>
     </div>
 
+    <!-- Keynote Stage Mode Overlay (Phase 7.4) -->
+    <div Id = "KeynoteStageOverlay" Class = "KeynoteStageOverlay" Role = "region" Aria-Label = "Keynote Stage Mode Presentation">
+        <div Class = "KeynoteStageHeader" Id = "KeynoteStageHeader">
+            <div Class = "KeynoteStageProgress">
+                <span Id = "KeynoteSlideCounter" Class = "KeynoteBadge">Slide 1 / 1</span>
+                <span Id = "KeynoteTimer" Class = "KeynoteTimer">00:00</span>
+            </div>
+            <div Class = "KeynoteStageControls">
+                <button Type = "button" Id = "KeynoteNotesToggleBtn" Class = "KeynoteControlBtn" Title = "Toggle Presenter Notes (N)" Aria-Label = "Toggle Presenter Notes">📝 Notes (N)</button>
+                <button Type = "button" Id = "KeynotePrevBtn" Class = "KeynoteControlBtn" Title = "Previous Slide (← / PageUp)" Aria-Label = "Previous Slide">‹</button>
+                <button Type = "button" Id = "KeynoteNextBtn" Class = "KeynoteControlBtn" Title = "Next Slide (→ / Space / PageDown)" Aria-Label = "Next Slide">›</button>
+                <button Type = "button" Id = "KeynoteExitBtn" Class = "KeynoteControlBtn Close" Title = "Exit Stage Mode (Escape)" Aria-Label = "Exit Presentation">✕</button>
+            </div>
+        </div>
+
+        <div Id = "KeynoteStageCanvas" Class = "KeynoteStageCanvas">
+            <div Id = "KeynoteSlideContainer" Class = "KeynoteSlideContainer"></div>
+        </div>
+
+        <!-- Presenter Notes Drawer -->
+        <div Id = "KeynoteNotesDrawer" Class = "KeynoteNotesDrawer">
+            <div Class = "KeynoteNotesHeader">
+                <span>Presenter Notes</span>
+                <button Type = "button" Id = "KeynoteCloseNotesBtn" Class = "MiniCloseBtn" Title = "Close Notes (N)" Aria-Label = "Close Notes">×</button>
+            </div>
+            <div Id = "KeynoteNotesContent" Class = "KeynoteNotesContent"></div>
+        </div>
+    </div>
+
     <!-- Keyboard Shortcut Cheat Sheet & Keybinding Customizer Modal -->
     <div Class = "ModalOverlay" Id = "ShortcutsModal">
         <div Class = "ModalDialog ShortcutsModalDialog">
@@ -1294,6 +1323,7 @@
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_typewriter_scroll"><kbd>Alt</kbd> + <kbd>T</kbd></span><span Class = "ShortcutDesc">Toggle Typewriter Center Scroll</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_hemingway_focus"><kbd>Alt</kbd> + <kbd>H</kbd></span><span Class = "ShortcutDesc">Toggle Hemingway Focus Light</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "open_time_machine"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>H</kbd></span><span Class = "ShortcutDesc">Time Machine for Words (History)</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "enter_stage_mode"><kbd>F5</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Enter</kbd></span><span Class = "ShortcutDesc">Keynote Stage Mode (Presentation)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_outline"><kbd>Alt</kbd> + <kbd>O</kbd></span><span Class = "ShortcutDesc">Toggle Document Outline</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_fullscreen"><kbd>F11</kbd></span><span Class = "ShortcutDesc">Toggle Fullscreen mode</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_devtools"><kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd></span><span Class = "ShortcutDesc">Toggle Developer Tools</span></div>
