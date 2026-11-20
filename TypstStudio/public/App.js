@@ -4225,6 +4225,7 @@ CheckAndInit();
 let ActiveScrollOwner = null;
 let ScrollOwnerClearTimer = null;
 let IsProgrammaticScrollSync = false;
+let ProgrammaticScrollIgnoreUntilMs = 0;
 let ScrollSyncRafId = null;
 
 function SetScrollOwner(Owner)
@@ -4241,7 +4242,7 @@ function SetScrollOwner(Owner)
             ActiveScrollOwner = null;
             ScrollOwnerClearTimer = null;
         },
-        220
+        280
     );
 }
 
@@ -4261,22 +4262,19 @@ function RebuildMonotonicSyncAnchors()
         return ;
     }
 
-    const ViewportRect = Viewport.getBoundingClientRect();
     const PageMetrics = [];
-
     for (let I = 0; I < PageSheets.length; I ++)
     {
         const Sheet = PageSheets[I];
-        const Rect = Sheet.getBoundingClientRect();
         const BaseHeight = parseFloat(Sheet.dataset.baseHeight) || 864;
-        const TopInContent = (Rect.top - ViewportRect.top) + Viewport.scrollTop;
-        const ScaleY = BaseHeight > 0 ? (Rect.height / BaseHeight): 1;
+        const TopInContent = Sheet.offsetTop;
+        const ScaleY = BaseHeight > 0 ? (Sheet.offsetHeight / BaseHeight): 1;
 
         PageMetrics.push
         ({
             PageNum: I + 1,
             Top: TopInContent,
-            Height: Rect.height,
+            Height: Sheet.offsetHeight,
             BaseHeight: BaseHeight,
             ScaleY: ScaleY
         });
@@ -4353,15 +4351,43 @@ function RebuildMonotonicSyncAnchors()
     {
         const Cand = RawCandidates[I];
 
-        // Layer C: Outlier rejection: if line jumps backwards by > 8 lines, reject
-        if (Cand.line < LastLine)
+        // Guard against isolated forward spikes (e.g. forward citations, macro defs)
+        if (Cand.line > LastLine + 25)
         {
-            if ((LastLine - Cand.line) > 8)
+            const Next1 = RawCandidates[I + 1];
+            const Next2 = RawCandidates[I + 2];
+            const IsForwardOutlier = (Next1 && Next1.line < Cand.line - 15) || (Next2 && Next2.line < Cand.line - 15);
+            if (IsForwardOutlier)
             {
                 continue;
             }
-            // Minor backward fluctuation (e.g. table columns): clamp to LastLine to preserve monotonicity
-            Cand.line = LastLine;
+        }
+
+        // Handle backward fluctuations
+        if (Cand.line < LastLine)
+        {
+            const Diff = LastLine - Cand.line;
+            if (Diff <= 12)
+            {
+                // Minor fluctuation (table cells, math blocks): clamp to LastLine to preserve strict monotonicity
+                Cand.line = LastLine;
+            }
+            else
+            {
+                // Check if subsequent candidates confirm a real progression reset (e.g. multi-column or chapter structure)
+                const Next1 = RawCandidates[I + 1];
+                const Next2 = RawCandidates[I + 2];
+                const IsConsistentTrack = (Next1 && Math.abs(Next1.line - Cand.line) <= 15) || (Next2 && Math.abs(Next2.line - Cand.line) <= 15);
+                if (IsConsistentTrack)
+                {
+                    LastLine = Cand.line;
+                }
+                else
+                {
+                    // Isolated backward citation or footnote span
+                    continue;
+                }
+            }
         }
 
         if (Math.abs(Cand.previewY - LastY) < 3 && Cand.line === LastLine)
@@ -4407,11 +4433,24 @@ function ExecutePreviewToEditorSync()
     {
         if (MonacoInstance.getScrollTop() > 5)
         {
+            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
             IsProgrammaticScrollSync = true;
             MonacoInstance.setScrollTop(0);
             requestAnimationFrame
             (
-                () => { IsProgrammaticScrollSync = false; }
+                () =>
+                {
+                    requestAnimationFrame
+                    (
+                        () =>
+                        {
+                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                            {
+                                IsProgrammaticScrollSync = false;
+                            }
+                        }
+                    );
+                }
             );
         }
         return ;
@@ -4424,11 +4463,24 @@ function ExecutePreviewToEditorSync()
     {
         if (Math.abs(MonacoInstance.getScrollTop() - MaxEditorScroll) > 5)
         {
+            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
             IsProgrammaticScrollSync = true;
             MonacoInstance.setScrollTop(MaxEditorScroll);
             requestAnimationFrame
             (
-                () => { IsProgrammaticScrollSync = false; }
+                () =>
+                {
+                    requestAnimationFrame
+                    (
+                        () =>
+                        {
+                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                            {
+                                IsProgrammaticScrollSync = false;
+                            }
+                        }
+                    );
+                }
             );
         }
         return ;
@@ -4472,11 +4524,24 @@ function ExecutePreviewToEditorSync()
 
     if (Math.abs(MonacoInstance.getScrollTop() - TargetEditorTop) > 3)
     {
+        ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
         IsProgrammaticScrollSync = true;
         MonacoInstance.setScrollTop(TargetEditorTop);
         requestAnimationFrame
         (
-            () => { IsProgrammaticScrollSync = false; }
+            () =>
+            {
+                requestAnimationFrame
+                (
+                    () =>
+                    {
+                        if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                        {
+                            IsProgrammaticScrollSync = false;
+                        }
+                    }
+                );
+            }
         );
     }
 }
@@ -4498,11 +4563,24 @@ function ExecuteEditorToPreviewSync()
     {
         if (Viewport.scrollTop > 5)
         {
+            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
             IsProgrammaticScrollSync = true;
             Viewport.scrollTop = 0;
             requestAnimationFrame
             (
-                () => { IsProgrammaticScrollSync = false; }
+                () =>
+                {
+                    requestAnimationFrame
+                    (
+                        () =>
+                        {
+                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                            {
+                                IsProgrammaticScrollSync = false;
+                            }
+                        }
+                    );
+                }
             );
         }
         return ;
@@ -4515,11 +4593,24 @@ function ExecuteEditorToPreviewSync()
     {
         if (Math.abs(Viewport.scrollTop - MaxPreviewScroll) > 5)
         {
+            ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
             IsProgrammaticScrollSync = true;
             Viewport.scrollTop = MaxPreviewScroll;
             requestAnimationFrame
             (
-                () => { IsProgrammaticScrollSync = false; }
+                () =>
+                {
+                    requestAnimationFrame
+                    (
+                        () =>
+                        {
+                            if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                            {
+                                IsProgrammaticScrollSync = false;
+                            }
+                        }
+                    );
+                }
             );
         }
         return ;
@@ -4585,11 +4676,24 @@ function ExecuteEditorToPreviewSync()
 
     if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 3)
     {
+        ProgrammaticScrollIgnoreUntilMs = performance.now() + 80;
         IsProgrammaticScrollSync = true;
         Viewport.scrollTop = TargetScrollTop;
         requestAnimationFrame
         (
-            () => { IsProgrammaticScrollSync = false; }
+            () =>
+            {
+                requestAnimationFrame
+                (
+                    () =>
+                    {
+                        if (performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+                        {
+                            IsProgrammaticScrollSync = false;
+                        }
+                    }
+                );
+            }
         );
     }
 }
@@ -4673,6 +4777,18 @@ function SetupBidirectionalScrollSync()
     );
     Viewport.addEventListener
     (
+        "mouseenter",
+        () =>
+        {
+            if (ActiveScrollOwner !== "editor" && performance.now() >= ProgrammaticScrollIgnoreUntilMs)
+            {
+                SetScrollOwner("preview");
+            }
+        },
+        { passive: true }
+    );
+    Viewport.addEventListener
+    (
         "keydown",
         (E) =>
         {
@@ -4695,7 +4811,7 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            if (IsProgrammaticScrollSync)
+            if (IsProgrammaticScrollSync || performance.now() < ProgrammaticScrollIgnoreUntilMs)
             {
                 return ;
             }
@@ -4705,10 +4821,7 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            if (!ActiveScrollOwner)
-            {
-                SetScrollOwner("editor");
-            }
+            SetScrollOwner("editor");
 
             if (ScrollSyncRafId)
             {
@@ -4737,7 +4850,7 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            if (IsProgrammaticScrollSync)
+            if (IsProgrammaticScrollSync || performance.now() < ProgrammaticScrollIgnoreUntilMs)
             {
                 return ;
             }
@@ -4747,10 +4860,7 @@ function SetupBidirectionalScrollSync()
                 return ;
             }
 
-            if (!ActiveScrollOwner)
-            {
-                SetScrollOwner("preview");
-            }
+            SetScrollOwner("preview");
 
             if (ScrollSyncRafId)
             {
