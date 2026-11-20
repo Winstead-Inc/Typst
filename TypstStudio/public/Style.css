@@ -6831,3 +6831,148 @@ body.UIMode_Focus .PreviewToolbar:hover
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     color: #E6EDF3;
 }
+
+/* --- PALLADINO TYPOGRAPHIC CRAFT INSPECTOR (PHASE 7.1) --- */
+
+.PalladinoInspectorDialog
+{
+    max-width: 900px;
+    width: 92%;
+    max-height: 86vh;
+}
+
+.PalladinoDiagnosticsBody
+{
+    display: flex;
+    flex-direction: column;
+    padding: 16px 20px 20px 20px;
+    overflow-y: auto;
+}
+
+.PalladinoTelemetryCards
+{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.PalladinoCard
+{
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.PalladinoCardLabel
+{
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #8B949E;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.PalladinoCardVal
+{
+    font-size: 16px;
+    font-weight: 700;
+    color: #FFFFFF;
+}
+
+.PalladinoCardSub
+{
+    font-size: 11px;
+    color: #8B949E;
+}
+
+.PalladinoQuickFixesRow
+{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.PalladinoQuickFixesRow .Button.Small
+{
+    padding: 5px 12px;
+    font-size: 11.5px;
+    border-radius: 6px;
+}
+
+.PalladinoDiagnosticsListSection
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.PalladinoIssuesList
+{
+    max-height: 30vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.PalladinoIssueRow
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.PalladinoIssueRow:hover
+{
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(113, 0, 255, 0.4);
+}
+
+.PalladinoIssueLeft
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.IssueBadge
+{
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 6px;
+}
+
+.IssueBadge.Warning
+{
+    background: rgba(252, 106, 3, 0.2);
+    color: #FC6A03;
+    border: 1px solid rgba(252, 106, 3, 0.4);
+}
+
+.IssueBadge.Healthy
+{
+    background: rgba(0, 230, 118, 0.2);
+    color: #00E676;
+    border: 1px solid rgba(0, 230, 118, 0.4);
+}
+
+.IssueJumpAction
+{
+    font-size: 11px;
+    color: #7100FF;
+    font-weight: 600;
+}

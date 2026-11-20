@@ -4853,6 +4853,7 @@ async function TriggerCompileNow()
             RenderPages(Result.Pages);
             RebuildMonotonicSyncAnchors();
             UpdatePagination();
+            SchedulePalladinoDiagnostics(600);
             if (ActiveHighlightBoxes && ActiveHighlightBoxes.length > 0)
             {
                 setTimeout
@@ -6714,6 +6715,8 @@ function OpenLigaturesInspector()
         ToggleBtn.textContent = CurrentEditorLigatures ? "Disable Ligatures": "Enable Ligatures";
     }
 
+    SwitchPalladinoTab("diagnostics");
+    RunPalladinoDiagnostics();
     Modal.style.display = "flex";
 }
 
@@ -6723,6 +6726,582 @@ function CloseLigaturesInspector()
     if (Modal)
     {
         Modal.style.display = "none";
+    }
+}
+
+let PalladinoDebounceTimer = null;
+
+function SchedulePalladinoDiagnostics(DelayMs = 600)
+{
+    if (PalladinoDebounceTimer)
+    {
+        clearTimeout(PalladinoDebounceTimer);
+    }
+    PalladinoDebounceTimer = setTimeout
+    (
+        () =>
+        {
+            RunPalladinoDiagnostics();
+        },
+        DelayMs
+    );
+}
+
+function SwitchPalladinoTab(TabName)
+{
+    const DiagTabBtn = document.getElementById("PalladinoTabDiagnostics");
+    const LigTabBtn = document.getElementById("PalladinoTabLigatures");
+    const DiagView = document.getElementById("PalladinoDiagnosticsView");
+    const LigView = document.getElementById("PalladinoLigaturesView");
+
+    if (TabName === "ligatures")
+    {
+        if (DiagTabBtn)
+        {
+            DiagTabBtn.classList.remove("Active");
+        }
+        if (LigTabBtn)
+        {
+            LigTabBtn.classList.add("Active");
+        }
+        if (DiagView)
+        {
+            DiagView.style.display = "none";
+        }
+        if (LigView)
+        {
+            LigView.style.display = "flex";
+        }
+    }
+    else
+    {
+        if (DiagTabBtn)
+        {
+            DiagTabBtn.classList.add("Active");
+        }
+        if (LigTabBtn)
+        {
+            LigTabBtn.classList.remove("Active");
+        }
+        if (DiagView)
+        {
+            DiagView.style.display = "flex";
+        }
+        if (LigView)
+        {
+            LigView.style.display = "none";
+        }
+        RunPalladinoDiagnostics();
+    }
+}
+
+function RunPalladinoDiagnostics()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const FullText = Model.getValue();
+    const Lines = FullText.split("\n");
+
+    const ProseLengths = [];
+    const Issues = [];
+    let InCodeBlock = false;
+    let InMathBlock = false;
+
+    for (let Index = 0; Index < Lines.length; Index ++)
+    {
+        const LineNum = Index + 1;
+        const Line = Lines[Index];
+        const Trimmed = Line.trim();
+
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue ;
+        }
+        if (InCodeBlock)
+        {
+            continue ;
+        }
+
+        if (Trimmed.startsWith("$") && Trimmed.endsWith("$") && Trimmed.length > 2)
+        {
+            continue ;
+        }
+        if (Trimmed === "$")
+        {
+            InMathBlock = !InMathBlock;
+            continue ;
+        }
+        if (InMathBlock)
+        {
+            continue ;
+        }
+
+        if (Trimmed.startsWith("//") || Trimmed.startsWith("/*") || Trimmed.startsWith("#set") || Trimmed.startsWith("#import") || Trimmed.startsWith("#include") || Trimmed.startsWith("#show") || Trimmed.startsWith("#let") || Trimmed === "")
+        {
+            continue ;
+        }
+
+        ProseLengths.push(Trimmed.length);
+
+        // 1. Leading contraction apostrophe mistakes: 'cause, 'em, '90s, '80s, '70s, 'til, 'round
+        const ContractionRegex = /(?:^|[\s\(\[\{])(['‘](?:cause|em|90s|80s|70s|60s|til|round))\b/gi;
+        let Match;
+        while ((Match = ContractionRegex.exec(Line)) !== null)
+        {
+            Issues.push
+            (
+                {
+                    Line: LineNum,
+                    Col: Match.index + 1,
+                    Type: "Quote",
+                    Snippet: Match[1],
+                    Message: "Leading contraction apostrophe should be right apostrophe (’) instead of open tick/quote."
+                }
+            );
+        }
+
+        // 2. Typewriter double/triple hyphens in prose
+        if (Trimmed !== "-" && Trimmed !== "--" && !Trimmed.startsWith("---"))
+        {
+            const DashRegex = /(?:[A-Za-z0-9\.,;!\?])\s*(--|---)\s*(?:[A-Za-z0-9])/g;
+            while ((Match = DashRegex.exec(Line)) !== null)
+            {
+                Issues.push
+                (
+                    {
+                        Line: LineNum,
+                        Col: Match.index + 1,
+                        Type: "Dash",
+                        Snippet: Match[1],
+                        Message: `Typewriter dash '${Match[1]}' should be true em-dash ('—') or en-dash ('–').`
+                    }
+                );
+            }
+        }
+
+        // 3. Typewriter ellipses
+        const EllipsisRegex = /(?:[A-Za-z0-9\.,;!\?]|[\s])(\.\.\.)(?:[\sA-Za-z0-9]|$)/g;
+        while ((Match = EllipsisRegex.exec(Line)) !== null)
+        {
+            Issues.push
+            (
+                {
+                    Line: LineNum,
+                    Col: Match.index + 1,
+                    Type: "Dash",
+                    Snippet: "...",
+                    Message: "Typewriter triple-dots ('...') should be true typographic ellipsis ('…')."
+                }
+            );
+        }
+
+        // 4. Double sentence spaces
+        const SpaceRegex = /([\.?!])\s{2,}([A-Z“‘"'])/g;
+        while ((Match = SpaceRegex.exec(Line)) !== null)
+        {
+            Issues.push
+            (
+                {
+                    Line: LineNum,
+                    Col: Match.index + 1,
+                    Type: "Space",
+                    Snippet: `${Match[1]}  ${Match[2]}`,
+                    Message: "Double sentence space detected (legacy typewriter spacing)."
+                }
+            );
+        }
+    }
+
+    const MeasureValEl = document.getElementById("PalladinoMeasureValue");
+    const MeasureSubEl = document.getElementById("PalladinoMeasureStatus");
+    const QuoteStatusEl = document.getElementById("PalladinoQuoteStatus");
+    const QuoteSubEl = document.getElementById("PalladinoQuoteSub");
+    const DashStatusEl = document.getElementById("PalladinoDashStatus");
+    const DashSubEl = document.getElementById("PalladinoDashSub");
+    const BadgeEl = document.getElementById("PalladinoHealthBadge");
+    const IssuesListEl = document.getElementById("PalladinoIssuesList");
+
+    let AvgLineLength = 0;
+    if (ProseLengths.length > 0)
+    {
+        AvgLineLength = Math.round(ProseLengths.reduce((Acc, Val) => Acc + Val, 0) / ProseLengths.length);
+    }
+
+    if (MeasureValEl && MeasureSubEl)
+    {
+        if (ProseLengths.length === 0)
+        {
+            MeasureValEl.textContent = "— chars/line";
+            MeasureValEl.style.color = "#8B949E";
+            MeasureSubEl.textContent = "No body prose detected";
+        }
+        else if (AvgLineLength >= 50 && AvgLineLength <= 72)
+        {
+            MeasureValEl.textContent = `${AvgLineLength} chars/line`;
+            MeasureValEl.style.color = "#00E676";
+            MeasureSubEl.textContent = "Ideal Book Sweet Spot (50–72)";
+        }
+        else if (AvgLineLength > 72)
+        {
+            MeasureValEl.textContent = `${AvgLineLength} chars/line`;
+            MeasureValEl.style.color = "#FC6A03";
+            MeasureSubEl.textContent = "Line measure may be wide for comfortable reading (>72)";
+        }
+        else
+        {
+            MeasureValEl.textContent = `${AvgLineLength} chars/line`;
+            MeasureValEl.style.color = "#FC6A03";
+            MeasureSubEl.textContent = "Line measure narrow (<50)";
+        }
+    }
+
+    const QuoteIssues = Issues.filter((Issue) => Issue.Type === "Quote");
+    const DashAndSpaceIssues = Issues.filter((Issue) => Issue.Type === "Dash" || Issue.Type === "Space");
+
+    if (QuoteStatusEl && QuoteSubEl)
+    {
+        if (QuoteIssues.length === 0)
+        {
+            QuoteStatusEl.textContent = "Clean";
+            QuoteStatusEl.style.color = "#00E676";
+            QuoteSubEl.textContent = "No straight quote or apostrophe traps";
+        }
+        else
+        {
+            QuoteStatusEl.textContent = `${QuoteIssues.length} ${QuoteIssues.length === 1 ? "Notice" : "Notices"}`;
+            QuoteStatusEl.style.color = "#FC6A03";
+            QuoteSubEl.textContent = "Contraction apostrophe or quote needs review";
+        }
+    }
+
+    if (DashStatusEl && DashSubEl)
+    {
+        if (DashAndSpaceIssues.length === 0)
+        {
+            DashStatusEl.textContent = "Master-Press";
+            DashStatusEl.style.color = "#00E676";
+            DashSubEl.textContent = "True dashes, ellipses & single spaces";
+        }
+        else
+        {
+            DashStatusEl.textContent = `${DashAndSpaceIssues.length} ${DashAndSpaceIssues.length === 1 ? "Notice" : "Notices"}`;
+            DashStatusEl.style.color = "#FC6A03";
+            DashSubEl.textContent = "Typewriter dashes or double spaces found";
+        }
+    }
+
+    let Score = 100;
+    Score -= QuoteIssues.length * 5;
+    Score -= DashAndSpaceIssues.length * 4;
+    if (ProseLengths.length > 0 && (AvgLineLength > 85 || AvgLineLength < 35))
+    {
+        Score -= 10;
+    }
+    Score = Math.max(40, Math.min(100, Score));
+
+    if (BadgeEl)
+    {
+        BadgeEl.textContent = `Craft Score: ${Score}%`;
+        BadgeEl.style.color = Score >= 90 ? "#00E676" : "#FC6A03";
+    }
+
+    if (IssuesListEl)
+    {
+        if (Issues.length === 0)
+        {
+            IssuesListEl.innerHTML = `
+                <div Class = "PalladinoIssueRow Clean">
+                    <span Class = "IssueBadge Healthy">✓</span>
+                    <span Class = "IssueText">Document typography is pristine. No typographic flaws detected.</span>
+                </div>
+            `;
+        }
+        else
+        {
+            IssuesListEl.innerHTML = "";
+            Issues.forEach
+            (
+                (Issue) =>
+                {
+                    const Row = document.createElement("div");
+                    Row.className = "PalladinoIssueRow";
+                    Row.setAttribute("DataLine", String(Issue.Line));
+                    Row.innerHTML = `
+                        <div Class = "PalladinoIssueLeft">
+                            <span Class = "IssueBadge ${Issue.Type === "Quote" ? "Warning" : "Healthy"}">Line ${Issue.Line}</span>
+                            <span Class = "IssueText">${Issue.Message} <code style = "opacity: 0.8; font-size: 11px;">"${EscapeHtml(Issue.Snippet)}"</code></span>
+                        </div>
+                        <span Class = "IssueJumpAction">Jump →</span>
+                    `;
+                    Row.addEventListener
+                    (
+                        "click",
+                        () =>
+                        {
+                            if (MonacoInstance)
+                            {
+                                MonacoInstance.revealLineInCenter(Issue.Line);
+                                MonacoInstance.setPosition({ lineNumber: Issue.Line, column: Issue.Col });
+                                MonacoInstance.focus();
+                            }
+                        }
+                    );
+                    IssuesListEl.appendChild(Row);
+                }
+            );
+        }
+    }
+}
+
+function FixLeadingApostrophes()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const FullText = Model.getValue();
+    const Lines = FullText.split("\n");
+    let InCodeBlock = false;
+    let ReplacedCount = 0;
+
+    for (let Index = 0; Index < Lines.length; Index ++)
+    {
+        const Line = Lines[Index];
+        const Trimmed = Line.trim();
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue ;
+        }
+        if (InCodeBlock)
+        {
+            continue ;
+        }
+        if (Trimmed.startsWith("//") || Trimmed.startsWith("#set") || Trimmed.startsWith("#import"))
+        {
+            continue ;
+        }
+
+        const NewLine = Line.replace
+        (
+            /(^|[\s\(\[\{])['‘](cause|em|90s|80s|70s|60s|til|round)\b/gi,
+            (Match, P1, P2) =>
+            {
+                ReplacedCount ++;
+                return `${P1}’${P2}`;
+            }
+        );
+        Lines[Index] = NewLine;
+    }
+
+    if (ReplacedCount > 0)
+    {
+        const NewFullText = Lines.join("\n");
+        MonacoInstance.executeEdits
+        (
+            "palladino-fix-apostrophes",
+            [
+                {
+                    range: Model.getFullModelRange(),
+                    text: NewFullText,
+                    forceMoveMarkers: true
+                }
+            ]
+        );
+        ShowToast(`Palladino: Converted ${ReplacedCount} leading contraction apostrophe(s) to true right apostrophes (’)`, "success");
+        RunPalladinoDiagnostics();
+        TriggerCompileNow();
+    }
+    else
+    {
+        ShowToast("All leading apostrophes are already correct.", "info", 1500);
+    }
+}
+
+function FixTypewriterDashes()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const FullText = Model.getValue();
+    const Lines = FullText.split("\n");
+    let InCodeBlock = false;
+    let InMathBlock = false;
+    let ReplacedCount = 0;
+
+    for (let Index = 0; Index < Lines.length; Index ++)
+    {
+        const Line = Lines[Index];
+        const Trimmed = Line.trim();
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue ;
+        }
+        if (InCodeBlock)
+        {
+            continue ;
+        }
+        if (Trimmed === "$")
+        {
+            InMathBlock = !InMathBlock;
+            continue ;
+        }
+        if (InMathBlock)
+        {
+            continue ;
+        }
+        if (Trimmed.startsWith("//") || Trimmed.startsWith("#set") || Trimmed.startsWith("#import") || Trimmed.startsWith("#include"))
+        {
+            continue ;
+        }
+
+        let NewLine = Line;
+        NewLine = NewLine.replace
+        (
+            /---/g,
+            () =>
+            {
+                ReplacedCount ++;
+                return "—";
+            }
+        );
+        NewLine = NewLine.replace
+        (
+            /([A-Za-z0-9\.,;!\?])\s*--\s*([A-Za-z0-9])/g,
+            (Match, P1, P2) =>
+            {
+                ReplacedCount ++;
+                return `${P1} – ${P2}`;
+            }
+        );
+        NewLine = NewLine.replace
+        (
+            /\.\.\./g,
+            () =>
+            {
+                ReplacedCount ++;
+                return "…";
+            }
+        );
+
+        Lines[Index] = NewLine;
+    }
+
+    if (ReplacedCount > 0)
+    {
+        const NewFullText = Lines.join("\n");
+        MonacoInstance.executeEdits
+        (
+            "palladino-fix-dashes",
+            [
+                {
+                    range: Model.getFullModelRange(),
+                    text: NewFullText,
+                    forceMoveMarkers: true
+                }
+            ]
+        );
+        ShowToast(`Palladino: Converted ${ReplacedCount} typewriter dash(es) & ellipses to typographic glyphs`, "success");
+        RunPalladinoDiagnostics();
+        TriggerCompileNow();
+    }
+    else
+    {
+        ShowToast("No typewriter dashes or triple-dots found to convert.", "info", 1500);
+    }
+}
+
+function NormalizeSentenceSpaces()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return ;
+    }
+
+    const FullText = Model.getValue();
+    const Lines = FullText.split("\n");
+    let InCodeBlock = false;
+    let ReplacedCount = 0;
+
+    for (let Index = 0; Index < Lines.length; Index ++)
+    {
+        const Line = Lines[Index];
+        const Trimmed = Line.trim();
+        if (Trimmed.startsWith("```"))
+        {
+            InCodeBlock = !InCodeBlock;
+            continue ;
+        }
+        if (InCodeBlock)
+        {
+            continue ;
+        }
+        if (Trimmed.startsWith("//") || Trimmed.startsWith("#set") || Trimmed.startsWith("#import"))
+        {
+            continue ;
+        }
+
+        const NewLine = Line.replace
+        (
+            /([\.?!])\s{2,}([A-Z“‘"'])/g,
+            (Match, P1, P2) =>
+            {
+                ReplacedCount ++;
+                return `${P1} ${P2}`;
+            }
+        );
+        Lines[Index] = NewLine;
+    }
+
+    if (ReplacedCount > 0)
+    {
+        const NewFullText = Lines.join("\n");
+        MonacoInstance.executeEdits
+        (
+            "palladino-fix-spaces",
+            [
+                {
+                    range: Model.getFullModelRange(),
+                    text: NewFullText,
+                    forceMoveMarkers: true
+                }
+            ]
+        );
+        ShowToast(`Palladino: Normalized ${ReplacedCount} sentence double-space(s) to single spaces`, "success");
+        RunPalladinoDiagnostics();
+        TriggerCompileNow();
+    }
+    else
+    {
+        ShowToast("All sentence spacing is already normalized.", "info", 1500);
     }
 }
 
@@ -8435,6 +9014,11 @@ function SetupDualModeAndExportEventListeners()
     const CloseLigaturesBtn = document.getElementById("CloseLigaturesModalBtn");
     const ToggleLigaturesBtn = document.getElementById("ToggleLigaturesModalBtn");
     const LigaturesModalEl = document.getElementById("LigaturesModal");
+    const PalladinoTabDiagBtn = document.getElementById("PalladinoTabDiagnostics");
+    const PalladinoTabLigBtn = document.getElementById("PalladinoTabLigatures");
+    const FixQuotesBtn = document.getElementById("PalladinoFixQuotesBtn");
+    const FixDashesBtn = document.getElementById("PalladinoFixDashesBtn");
+    const FixSpacesBtn = document.getElementById("PalladinoFixSpacesBtn");
 
     if (OpenLigaturesBtn)
     {
@@ -8447,6 +9031,26 @@ function SetupDualModeAndExportEventListeners()
     if (ToggleLigaturesBtn)
     {
         ToggleLigaturesBtn.addEventListener("click", () => { ToggleLigatures(); });
+    }
+    if (PalladinoTabDiagBtn)
+    {
+        PalladinoTabDiagBtn.addEventListener("click", () => { SwitchPalladinoTab("diagnostics"); });
+    }
+    if (PalladinoTabLigBtn)
+    {
+        PalladinoTabLigBtn.addEventListener("click", () => { SwitchPalladinoTab("ligatures"); });
+    }
+    if (FixQuotesBtn)
+    {
+        FixQuotesBtn.addEventListener("click", () => { FixLeadingApostrophes(); });
+    }
+    if (FixDashesBtn)
+    {
+        FixDashesBtn.addEventListener("click", () => { FixTypewriterDashes(); });
+    }
+    if (FixSpacesBtn)
+    {
+        FixSpacesBtn.addEventListener("click", () => { NormalizeSentenceSpaces(); });
     }
     if (LigaturesModalEl)
     {

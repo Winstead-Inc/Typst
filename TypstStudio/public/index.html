@@ -1148,17 +1148,61 @@
         </div>
     </section>
 
-    <!-- Active Ligature Inspector Modal (Phase 7.1) -->
-    <div Class = "ModalOverlay" Id = "LigaturesModal">
-        <div Class = "ModalDialog LigaturesModalDialog">
+    <!-- Active Ligature & Palladino Typographic Craft Inspector Modal (Phase 7.1) -->
+    <div Class = "ModalOverlay" Id = "LigaturesModal" Role = "dialog" Aria-Label = "Palladino Typographic Craft Inspector">
+        <div Class = "ModalDialog LigaturesModalDialog PalladinoInspectorDialog">
             <div Class = "ModalHeader">
                 <div Class = "ModalHeaderTitle">
-                    <span Class = "PillIcon LigaturesHeaderIcon">æ</span>
-                    <h3>Palladino Typographic Ligature Inspector</h3>
+                    <span Class = "PillIcon LigaturesHeaderIcon">✒️</span>
+                    <h3>Palladino Typographic Engine</h3>
+                    <span Id = "PalladinoHealthBadge" Class = "TimeMachineBadge">Craft Score: 100%</span>
+                </div>
+                <div Class = "ShortcutsTabs">
+                    <button Type = "button" Id = "PalladinoTabDiagnostics" Class = "ShortcutsTabBtn Active" Title = "Book-Design Diagnostics">Diagnostics</button>
+                    <button Type = "button" Id = "PalladinoTabLigatures" Class = "ShortcutsTabBtn" Title = "OpenType Ligature &amp; Glyph Inspector">Ligatures &amp; Glyphs</button>
                 </div>
                 <button Type = "button" Id = "CloseLigaturesModalBtn" Class = "MiniCloseBtn" Title = "Close Ligature Inspector" Aria-Label = "Close Ligature Inspector">×</button>
             </div>
-            <div Class = "ModalBody LigaturesModalBody">
+
+            <!-- Tab 1: Craft Diagnostics -->
+            <div Class = "ModalBody PalladinoDiagnosticsBody" Id = "PalladinoDiagnosticsView">
+                <div Class = "PalladinoTelemetryCards">
+                    <div Class = "PalladinoCard">
+                        <span Class = "PalladinoCardLabel">Line Measure ("Color")</span>
+                        <strong Id = "PalladinoMeasureValue" Class = "PalladinoCardVal">62 chars/line</strong>
+                        <span Id = "PalladinoMeasureStatus" Class = "PalladinoCardSub">Ideal Book Sweet Spot (55–70)</span>
+                    </div>
+                    <div Class = "PalladinoCard">
+                        <span Class = "PalladinoCardLabel">Quote Consistency</span>
+                        <strong Id = "PalladinoQuoteStatus" Class = "PalladinoCardVal">Clean</strong>
+                        <span Id = "PalladinoQuoteSub" Class = "PalladinoCardSub">No straight quote traps</span>
+                    </div>
+                    <div Class = "PalladinoCard">
+                        <span Class = "PalladinoCardLabel">Punctuation &amp; Dashes</span>
+                        <strong Id = "PalladinoDashStatus" Class = "PalladinoCardVal">Master-Press</strong>
+                        <span Id = "PalladinoDashSub" Class = "PalladinoCardSub">True dashes &amp; ellipses</span>
+                    </div>
+                </div>
+
+                <div Class = "PalladinoQuickFixesRow" Id = "PalladinoQuickFixesRow">
+                    <button Type = "button" Id = "PalladinoFixQuotesBtn" Class = "Button Secondary Small" Title = "Fix leading apostrophes and straight quotes safely" Aria-Label = "Fix Leading Apostrophes">Fix Leading Apostrophes (’cause / ’90s)</button>
+                    <button Type = "button" Id = "PalladinoFixDashesBtn" Class = "Button Secondary Small" Title = "Convert typewriter dashes and ellipses" Aria-Label = "Fix Typewriter Dashes">Fix Typewriter Dashes (-- → —)</button>
+                    <button Type = "button" Id = "PalladinoFixSpacesBtn" Class = "Button Secondary Small" Title = "Normalize sentence double spaces" Aria-Label = "Normalize Double Spaces">Normalize Double Spaces</button>
+                </div>
+
+                <div Class = "PalladinoDiagnosticsListSection">
+                    <div Class = "SettingLabel">Detected Book-Design Opportunities &amp; Warnings</div>
+                    <div Class = "PalladinoIssuesList" Id = "PalladinoIssuesList">
+                        <div Class = "PalladinoIssueRow Clean">
+                            <span Class = "IssueBadge Healthy">✓</span>
+                            <span Class = "IssueText">Document typography is pristine. No typographic flaws detected.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: Ligature & OpenType Inspector -->
+            <div Class = "ModalBody LigaturesModalBody" Id = "PalladinoLigaturesView">
                 <div Class = "LigatureInspectorDescription">
                     Live inspection of OpenType typographic features for your active editor font (<strong Id = "InspectorActiveFontName">iA Writer Duo</strong>).
                 </div>
