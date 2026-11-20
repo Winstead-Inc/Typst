@@ -492,6 +492,22 @@
                         <span Class = "PillIcon">æ</span>
                         <span Id = "StatusBarLigaturesText">Ligatures: ON</span>
                     </button>
+                    <button Type  = "button"
+                            Id    = "StatusBarTypewriterBtn"
+                            Class = "StatusBarPillBtn"
+                            Title = "Toggle Typewriter Center Scroll (Alt+T)"
+                            Aria-Label = "Toggle Typewriter Center Scroll">
+                        <span Class = "PillIcon">⌖</span>
+                        <span Id = "StatusBarTypewriterText">Typewriter: OFF</span>
+                    </button>
+                    <button Type  = "button"
+                            Id    = "StatusBarHemingwayBtn"
+                            Class = "StatusBarPillBtn"
+                            Title = "Toggle Hemingway Focus Light (Alt+H)"
+                            Aria-Label = "Toggle Hemingway Focus Light">
+                        <span Class = "PillIcon">✦</span>
+                        <span Id = "StatusBarHemingwayText">Focus Light: OFF</span>
+                    </button>
                 </div>
 
                 <!-- Right: Universal Status & Typography Telemetry -->
@@ -984,6 +1000,20 @@
                         </label>
                     </div>
 
+                    <div Class = "SettingItem">
+                        <label Class = "CheckboxSettingRow" Title = "Keep the active writing line pinned at the 40% vertical golden ratio for neutral ergonomic posture">
+                            <input Type = "checkbox" Id = "TypewriterScrollCheckbox" Class = "SettingCheckbox" Title = "Typewriter Center Scroll (Alt+T)" Aria-Label = "Typewriter Center Scroll" />
+                            <span Class = "SettingCheckboxLabel"><strong>Typewriter Center Scroll:</strong> Pin the active cursor line at the 40% golden ratio (Alt+T)</span>
+                        </label>
+                    </div>
+
+                    <div Class = "SettingItem">
+                        <label Class = "CheckboxSettingRow" Title = "Dim non-active paragraphs to 32% opacity, creating a visual spotlight on your active thought">
+                            <input Type = "checkbox" Id = "HemingwayFocusCheckbox" Class = "SettingCheckbox" Title = "Hemingway Focus Light (Alt+H)" Aria-Label = "Hemingway Focus Light" />
+                            <span Class = "SettingCheckboxLabel"><strong>Hemingway Focus Light:</strong> Dim non-active paragraphs to isolate active prose (Alt+H)</span>
+                        </label>
+                    </div>
+
                     <div Class = "SettingActionsRow">
                         <button Type  = "button"
                                 Id    = "ResetAppearanceBtn"
@@ -1197,6 +1227,8 @@
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_editor"><kbd>Alt</kbd> + <kbd>2</kbd></span><span Class = "ShortcutDesc">Editor Only (Focus code)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "layout_preview"><kbd>Alt</kbd> + <kbd>3</kbd></span><span Class = "ShortcutDesc">Preview Only (Focus output)</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_ligatures"><kbd>Alt</kbd> + <kbd>L</kbd></span><span Class = "ShortcutDesc">Toggle Typographic Ligatures</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_typewriter_scroll"><kbd>Alt</kbd> + <kbd>T</kbd></span><span Class = "ShortcutDesc">Toggle Typewriter Center Scroll</span></div>
+                    <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_hemingway_focus"><kbd>Alt</kbd> + <kbd>H</kbd></span><span Class = "ShortcutDesc">Toggle Hemingway Focus Light</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_outline"><kbd>Alt</kbd> + <kbd>O</kbd></span><span Class = "ShortcutDesc">Toggle Document Outline</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_fullscreen"><kbd>F11</kbd></span><span Class = "ShortcutDesc">Toggle Fullscreen mode</span></div>
                     <div Class = "ShortcutRow"><span Class = "ShortcutKeys" Data-Command = "toggle_devtools"><kbd>F12</kbd> or <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd></span><span Class = "ShortcutDesc">Toggle Developer Tools</span></div>

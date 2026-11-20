@@ -638,6 +638,13 @@ if (isNaN(CurrentEditorLineHeight) || CurrentEditorLineHeight < 1.0 || CurrentEd
 let CurrentEditorLigatures = localStorage.getItem("TypstStudio_EditorLigatures") !== "false";
 let IsSmartQuotesEnabled = localStorage.getItem("TypstStudio_SmartQuotes") !== "false";
 let IsOpticalMarginsEnabled = localStorage.getItem("TypstStudio_OpticalMargins") !== "false";
+let IsTypewriterScrollEnabled = localStorage.getItem("TypstStudio_TypewriterScroll") === "true";
+let IsHemingwayFocusEnabled = localStorage.getItem("TypstStudio_HemingwayFocus") === "true";
+let HemingwayDecorations = null;
+let CachedHemingwayStart = -1;
+let CachedHemingwayEnd = -1;
+let IsEditorWheelScrolling = false;
+let EditorWheelScrollTimer = null;
 let IsSpreadMode = localStorage.getItem("TypstStudio_SpreadMode") === "true";
 
 const DEFAULT_KEYBINDINGS =
@@ -665,6 +672,8 @@ const DEFAULT_KEYBINDINGS =
     "toggle_ui_mode": "Ctrl+Shift+M",
     "toggle_spread_mode": "Alt+S",
     "toggle_ligatures": "Alt+L",
+    "toggle_typewriter_scroll": "Alt+T",
+    "toggle_hemingway_focus": "Alt+H",
     "open_command_palette": "Ctrl+K",
     "open_settings": "Ctrl+,",
     "open_export_sheet": "Ctrl+E"
@@ -688,6 +697,8 @@ const APPLICATION_COMMANDS_META =
     { Id: "toggle_optical_margins", Label: "Toggle Optical Margin Alignment (Hanging Punctuation)", Category: "Typography", Source: "App" },
     { Id: "toggle_smart_quotes", Label: "Toggle Smart Quotes & Typographic Auto-Substitution", Category: "Typography", Source: "App" },
     { Id: "inspect_ligatures", Label: "Inspect Font Ligatures & Glyphs", Category: "Typography", Source: "App" },
+    { Id: "toggle_typewriter_scroll", Label: "Toggle Typewriter Center Scroll", Category: "Writing & Focus", Source: "App" },
+    { Id: "toggle_hemingway_focus", Label: "Toggle Hemingway Focus Light", Category: "Writing & Focus", Source: "App" },
     { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
     { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
@@ -3679,6 +3690,13 @@ function InitializeMonaco()
                         CursorPosEl.textContent = `Ln ${Pos.lineNumber}, Col ${Pos.column}`;
                     }
 
+                    if (Pos)
+                    {
+                        IsEditorWheelScrolling = false;
+                        ApplyTypewriterScroll(Pos.lineNumber);
+                        UpdateHemingwayFocus(Pos.lineNumber);
+                    }
+
                     if (Pos.lineNumber !== LastBracketCursorLine)
                     {
                         LastBracketCursorLine = Pos.lineNumber;
@@ -3708,6 +3726,12 @@ function InitializeMonaco()
             (
                 () =>
                 {
+                    if (IsHemingwayFocusEnabled)
+                    {
+                        const CurrentPos = MonacoInstance.getPosition();
+                        UpdateHemingwayFocus(CurrentPos ? CurrentPos.lineNumber: 1);
+                    }
+
                     if (!IsSyncTexEnabled || SuppressForwardSync)
                     {
                         return ;
@@ -4468,13 +4492,34 @@ function SetupBidirectionalScrollSync()
         EditorDomNode.addEventListener
         (
             "wheel",
-            () => { SetScrollOwner("editor"); },
+            () =>
+            {
+                SetScrollOwner("editor");
+                IsEditorWheelScrolling = true;
+                if (EditorWheelScrollTimer)
+                {
+                    clearTimeout(EditorWheelScrollTimer);
+                }
+                EditorWheelScrollTimer = setTimeout
+                (
+                    () =>
+                    {
+                        IsEditorWheelScrolling = false;
+                        EditorWheelScrollTimer = null;
+                    },
+                    600
+                );
+            },
             { passive: true }
         );
         EditorDomNode.addEventListener
         (
             "pointerdown",
-            () => { SetScrollOwner("editor"); },
+            () =>
+            {
+                SetScrollOwner("editor");
+                IsEditorWheelScrolling = false;
+            },
             { passive: true }
         );
         EditorDomNode.addEventListener
@@ -4482,6 +4527,7 @@ function SetupBidirectionalScrollSync()
             "keydown",
             (E) =>
             {
+                IsEditorWheelScrolling = false;
                 if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(E.key))
                 {
                     SetScrollOwner("editor");
@@ -6281,6 +6327,20 @@ const COMMAND_PALETTE_ACTIONS =
         Action: () => { ToggleSmartQuotes(); }
     },
     {
+        Title: "Toggle Typewriter Center Scroll (40% Golden Ratio)",
+        Category: "Writing & Focus",
+        Icon: "⌖",
+        Shortcut: "Alt+T",
+        Action: () => { ToggleTypewriterScroll(); }
+    },
+    {
+        Title: "Toggle Hemingway Focus Light (Paragraph Spotlight)",
+        Category: "Writing & Focus",
+        Icon: "✦",
+        Shortcut: "Alt+H",
+        Action: () => { ToggleHemingwayFocus(); }
+    },
+    {
         Title: "Layout: Split View (Editor & Preview)",
         Category: "View & Layout",
         Icon: "▥",
@@ -6881,6 +6941,219 @@ function SetupSmartTypographyKeydownListener()
     );
 }
 
+// --- TYPEWRITER & HEMINGWAY FOCUS LIGHT (PHASE 7.2) ---
+
+function ApplyTypewriterScroll(CursorLine)
+{
+    if (!IsTypewriterScrollEnabled || !MonacoInstance || ActiveScrollOwner === "preview" || IsEditorWheelScrolling)
+    {
+        return ;
+    }
+
+    const LayoutInfo = MonacoInstance.getLayoutInfo();
+    if (!LayoutInfo || LayoutInfo.height <= 0)
+    {
+        return ;
+    }
+
+    const TopForLine = MonacoInstance.getTopForLineNumber(CursorLine);
+    const GoldenRatioOffset = Math.round(LayoutInfo.height * 0.40);
+    const TargetScrollTop = Math.max(0, TopForLine - GoldenRatioOffset);
+
+    if (Math.abs(MonacoInstance.getScrollTop() - TargetScrollTop) > 4)
+    {
+        requestAnimationFrame
+        (
+            () =>
+            {
+                if (IsTypewriterScrollEnabled && MonacoInstance && ActiveScrollOwner !== "preview" && !IsEditorWheelScrolling)
+                {
+                    MonacoInstance.setScrollTop(TargetScrollTop);
+                }
+            }
+        );
+    }
+}
+
+function ToggleTypewriterScroll(ForceState)
+{
+    IsTypewriterScrollEnabled = (typeof ForceState === "boolean") ? ForceState: !IsTypewriterScrollEnabled;
+    localStorage.setItem("TypstStudio_TypewriterScroll", String(IsTypewriterScrollEnabled));
+
+    const Checkbox = document.getElementById("TypewriterScrollCheckbox");
+    if (Checkbox)
+    {
+        Checkbox.checked = IsTypewriterScrollEnabled;
+    }
+
+    const Pill = document.getElementById("StatusBarTypewriterBtn");
+    if (Pill)
+    {
+        Pill.classList.toggle("Active", IsTypewriterScrollEnabled);
+        const Txt = document.getElementById("StatusBarTypewriterText");
+        if (Txt)
+        {
+            Txt.textContent = `Typewriter: ${IsTypewriterScrollEnabled ? "ON": "OFF"}`;
+        }
+    }
+
+    if (IsTypewriterScrollEnabled && MonacoInstance)
+    {
+        const Pos = MonacoInstance.getPosition();
+        if (Pos)
+        {
+            ApplyTypewriterScroll(Pos.lineNumber);
+        }
+    }
+
+    ShowToast(`Typewriter Center Scroll: ${IsTypewriterScrollEnabled ? "Enabled (40% Golden Ratio)": "Disabled"}`, "info", 1500);
+}
+
+function UpdateHemingwayFocus(CursorLine)
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    if (!HemingwayDecorations)
+    {
+        HemingwayDecorations = MonacoInstance.createDecorationsCollection([]);
+    }
+
+    if (!IsHemingwayFocusEnabled)
+    {
+        if (CachedHemingwayStart !== -1)
+        {
+            HemingwayDecorations.clear();
+            CachedHemingwayStart = -1;
+            CachedHemingwayEnd = -1;
+        }
+        return ;
+    }
+
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        HemingwayDecorations.clear();
+        return ;
+    }
+
+    // Automatically disable dimming when text is selected across multiple paragraphs/lines
+    const ActiveSelection = MonacoInstance.getSelection();
+    if (ActiveSelection && !ActiveSelection.isEmpty() && ActiveSelection.startLineNumber !== ActiveSelection.endLineNumber)
+    {
+        if (CachedHemingwayStart !== -1)
+        {
+            HemingwayDecorations.clear();
+            CachedHemingwayStart = -1;
+            CachedHemingwayEnd = -1;
+        }
+        return ;
+    }
+
+    const TotalLines = Model.getLineCount();
+    if (TotalLines <= 1)
+    {
+        HemingwayDecorations.clear();
+        return ;
+    }
+
+    const CurrentLineText = Model.getLineContent(CursorLine).trim();
+    let ParaStart = CursorLine;
+    let ParaEnd = CursorLine;
+
+    if (CurrentLineText !== "")
+    {
+        // Scan upward to find paragraph start (first line after an empty line or line 1)
+        while (ParaStart > 1 && Model.getLineContent(ParaStart - 1).trim() !== "")
+        {
+            ParaStart --;
+        }
+
+        // Scan downward to find paragraph end (last line before an empty line or TotalLines)
+        while (ParaEnd < TotalLines && Model.getLineContent(ParaEnd + 1).trim() !== "")
+        {
+            ParaEnd ++;
+        }
+    }
+
+    // Fast-path cache check: if cursor remains within the same active paragraph, no decoration update needed
+    if (ParaStart === CachedHemingwayStart && ParaEnd === CachedHemingwayEnd)
+    {
+        return ;
+    }
+
+    CachedHemingwayStart = ParaStart;
+    CachedHemingwayEnd = ParaEnd;
+
+    const NewDecorations = [];
+
+    // Preceding dimmed block
+    if (ParaStart > 1)
+    {
+        NewDecorations.push
+        ({
+            range: new monaco.Range(1, 1, ParaStart - 1, Model.getLineMaxColumn(ParaStart - 1)),
+            options:
+            {
+                isWholeLine: true,
+                className: "typst-hemingway-dimmed"
+            }
+        });
+    }
+
+    // Following dimmed block
+    if (ParaEnd < TotalLines)
+    {
+        NewDecorations.push
+        ({
+            range: new monaco.Range(ParaEnd + 1, 1, TotalLines, Model.getLineMaxColumn(TotalLines)),
+            options:
+            {
+                isWholeLine: true,
+                className: "typst-hemingway-dimmed"
+            }
+        });
+    }
+
+    HemingwayDecorations.set(NewDecorations);
+}
+
+function ToggleHemingwayFocus(ForceState)
+{
+    IsHemingwayFocusEnabled = (typeof ForceState === "boolean") ? ForceState: !IsHemingwayFocusEnabled;
+    localStorage.setItem("TypstStudio_HemingwayFocus", String(IsHemingwayFocusEnabled));
+
+    const Checkbox = document.getElementById("HemingwayFocusCheckbox");
+    if (Checkbox)
+    {
+        Checkbox.checked = IsHemingwayFocusEnabled;
+    }
+
+    const Pill = document.getElementById("StatusBarHemingwayBtn");
+    if (Pill)
+    {
+        Pill.classList.toggle("Active", IsHemingwayFocusEnabled);
+        const Txt = document.getElementById("StatusBarHemingwayText");
+        if (Txt)
+        {
+            Txt.textContent = `Focus Light: ${IsHemingwayFocusEnabled ? "ON": "OFF"}`;
+        }
+    }
+
+    CachedHemingwayStart = -1;
+    CachedHemingwayEnd = -1;
+
+    if (MonacoInstance)
+    {
+        const Pos = MonacoInstance.getPosition();
+        UpdateHemingwayFocus(Pos ? Pos.lineNumber: 1);
+    }
+
+    ShowToast(`Hemingway Focus Light: ${IsHemingwayFocusEnabled ? "Enabled (Paragraph Spotlight)": "Disabled"}`, "info", 1500);
+}
+
 function SetupDualModeAndExportEventListeners()
 {
     const FocusBtn = document.getElementById("ModeFocusBtn");
@@ -7151,6 +7424,59 @@ function SetupDualModeAndExportEventListeners()
         );
     }
     SetOpticalMargins(IsOpticalMarginsEnabled);
+
+    // Phase 7.2 Event Listeners: Typewriter & Hemingway Focus Light
+    const TypewriterPillBtn = document.getElementById("StatusBarTypewriterBtn");
+    if (TypewriterPillBtn)
+    {
+        TypewriterPillBtn.addEventListener("click", () => { ToggleTypewriterScroll(); });
+        TypewriterPillBtn.classList.toggle("Active", IsTypewriterScrollEnabled);
+        const TypewriterTxt = document.getElementById("StatusBarTypewriterText");
+        if (TypewriterTxt)
+        {
+            TypewriterTxt.textContent = `Typewriter: ${IsTypewriterScrollEnabled ? "ON": "OFF"}`;
+        }
+    }
+
+    const HemingwayPillBtn = document.getElementById("StatusBarHemingwayBtn");
+    if (HemingwayPillBtn)
+    {
+        HemingwayPillBtn.addEventListener("click", () => { ToggleHemingwayFocus(); });
+        HemingwayPillBtn.classList.toggle("Active", IsHemingwayFocusEnabled);
+        const HemingwayTxt = document.getElementById("StatusBarHemingwayText");
+        if (HemingwayTxt)
+        {
+            HemingwayTxt.textContent = `Focus Light: ${IsHemingwayFocusEnabled ? "ON": "OFF"}`;
+        }
+    }
+
+    const TypewriterCb = document.getElementById("TypewriterScrollCheckbox");
+    if (TypewriterCb)
+    {
+        TypewriterCb.checked = IsTypewriterScrollEnabled;
+        TypewriterCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                ToggleTypewriterScroll(E.target.checked);
+            }
+        );
+    }
+
+    const HemingwayCb = document.getElementById("HemingwayFocusCheckbox");
+    if (HemingwayCb)
+    {
+        HemingwayCb.checked = IsHemingwayFocusEnabled;
+        HemingwayCb.addEventListener
+        (
+            "change",
+            (E) =>
+            {
+                ToggleHemingwayFocus(E.target.checked);
+            }
+        );
+    }
 
     // Floating Preview HUD Auto-Fade on idle (Focus Mode)
     const PreviewPane = document.getElementById("PreviewPane");
@@ -8474,6 +8800,12 @@ function ExecuteStudioCommand(CommandId)
         case "inspect_ligatures":
             OpenLigaturesInspector();
             break;
+        case "toggle_typewriter_scroll":
+            ToggleTypewriterScroll();
+            break;
+        case "toggle_hemingway_focus":
+            ToggleHemingwayFocus();
+            break;
         case "open_command_palette":
             OpenCommandPalette();
             break;
@@ -9391,6 +9723,16 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 ToggleLigatures();
+            }
+            else if (E.altKey && (E.key === "t" || E.key === "T"))
+            {
+                E.preventDefault();
+                ToggleTypewriterScroll();
+            }
+            else if (E.altKey && (E.key === "h" || E.key === "H"))
+            {
+                E.preventDefault();
+                ToggleHemingwayFocus();
             }
         }
     );

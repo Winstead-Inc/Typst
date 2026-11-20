@@ -6347,3 +6347,17 @@ body.UIMode_Focus .PreviewToolbar:hover
     display: flex;
     justify-content: flex-end;
 }
+
+/* --- TYPEWRITER & HEMINGWAY FOCUS LIGHT (PHASE 7.2) --- */
+
+.monaco-editor .view-line.typst-hemingway-dimmed
+{
+    opacity: 0.38 !important;
+    transition: opacity 0.12s ease;
+}
+
+.monaco-editor .view-line:not(.typst-hemingway-dimmed)
+{
+    opacity: 1.0 !important;
+    transition: opacity 0.12s ease;
+}
