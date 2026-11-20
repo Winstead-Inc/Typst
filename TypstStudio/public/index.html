@@ -348,14 +348,12 @@
     </header>
 
     <main Class = "MainSplitArea LayoutSplit" Id = "EditorMainView">
-        <!-- Sidebar Folder (Project) Treeview (VS Code / Antigravity Style) -->
+        <!-- Sidebar Folder (Project) Treeview & Document Outline (VS Code / Antigravity Style) -->
         <aside Class = "ExplorerSidebar" Id = "ExplorerSidebar">
             <div Class = "ExplorerHeader">
-                <div Class = "ExplorerHeaderTitle">
-                    <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
-                        <path D = "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
-                    </svg>
-                    <span>Explorer</span>
+                <div Class = "SidebarTabsHeader" Id = "SidebarTabsHeader">
+                    <button Type = "button" Class = "SidebarTab Active" Id = "SidebarTabFiles" Title = "Project Files">Files</button>
+                    <button Type = "button" Class = "SidebarTab" Id = "SidebarTabOutline" Title = "Document Outline / Headings (Alt+O)">Outline (<span Id = "OutlineCountBadge">0</span>)</button>
                 </div>
                 <div Class = "ExplorerActions">
                     <button Type = "button" Id = "ExplorerNewFileBtn" Class = "ExplorerMiniBtn" Title = "New Typst Document">+</button>
@@ -374,52 +372,37 @@
                             <line X1 = "3" Y1 = "21" X2 = "10" Y2 = "14" />
                         </svg>
                     </button>
-                    <button Type = "button" Id = "CloseExplorerBtn" Class = "MiniCloseBtn" Title = "Close Explorer (Ctrl+B)">×</button>
+                    <button Type = "button" Id = "CloseExplorerBtn" Class = "MiniCloseBtn" Title = "Close Sidebar (Ctrl+B)">×</button>
                 </div>
             </div>
-            <div Class = "ExplorerProjectHeader" Id = "ExplorerProjectHeader" Title = "Workspace Project">
-                <span Class = "ExplorerProjectArrow" Id = "ExplorerProjectArrow">⌄</span>
-                <span Class = "ExplorerProjectName" Id = "ExplorerProjectName">Typst</span>
+            
+            <div Class = "SidebarTabContent Active" Id = "SidebarContentFiles">
+                <div Class = "ExplorerProjectHeader" Id = "ExplorerProjectHeader" Title = "Workspace Project">
+                    <span Class = "ExplorerProjectArrow" Id = "ExplorerProjectArrow">⌄</span>
+                    <span Class = "ExplorerProjectName" Id = "ExplorerProjectName">Typst</span>
+                </div>
+                <div Class = "ExplorerTreeRoot" Id = "ExplorerTreeRoot">
+                    <!-- Dynamically populated hierarchical tree nodes -->
+                </div>
             </div>
-            <div Class = "ExplorerTreeRoot" Id = "ExplorerTreeRoot">
-                <!-- Dynamically populated hierarchical tree nodes -->
+
+            <div Class = "SidebarTabContent" Id = "SidebarContentOutline" Style = "display: none;">
+                <div Class = "OutlineSearchBox">
+                    <input Type        = "text"
+                           Id          = "OutlineSearchInput"
+                           Class       = "OutlineSearchInput"
+                           Title       = "Filter Document Headings"
+                           Aria-Label  = "Filter Document Headings"
+                           Placeholder = "Filter sections..." />
+                </div>
+                <div Class = "OutlineList" Id = "OutlineList">
+                    <!-- Dynamically populated by App.js -->
+                </div>
             </div>
         </aside>
 
         <!-- Sidebar Resizer Splitter -->
         <div Class = "SidebarResizeHandle" Id = "SidebarResizeHandle" Title = "Drag to resize sidebar (Double-click to reset)"></div>
-
-        <!-- Document Outline Sidebar (Priority 2) -->
-        <aside Class = "OutlineSidebar" Id = "OutlineSidebar">
-            <div Class = "OutlineHeader">
-                <div Class = "OutlineHeaderTitle">
-                    <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
-                        <line X1 = "8" Y1 = "6" X2 = "21" Y2 = "6" />
-                        <line X1 = "8" Y1 = "12" X2 = "21" Y2 = "12" />
-                        <line X1 = "8" Y1 = "18" X2 = "21" Y2 = "18" />
-                        <line X1 = "3" Y1 = "6" X2 = "3.01" Y2 = "6" />
-                        <line X1 = "3" Y1 = "12" X2 = "3.01" Y2 = "12" />
-                        <line X1 = "3" Y1 = "18" X2 = "3.01" Y2 = "18" />
-                    </svg>
-                    <span>Outline (<span Id = "OutlineCountBadge">0</span>)</span>
-                </div>
-                <button Type  = "button"
-                        Id    = "CloseOutlineBtn"
-                        Class = "MiniCloseBtn"
-                        Title = "Close Outline (Alt+O)">×</button>
-            </div>
-            <div Class = "OutlineSearchBox">
-                <input Type        = "text"
-                       Id          = "OutlineSearchInput"
-                       Class       = "OutlineSearchInput"
-                       Title       = "Filter Document Headings"
-                       Aria-Label  = "Filter Document Headings"
-                       Placeholder = "Filter sections..." />
-            </div>
-            <div Class = "OutlineList" Id = "OutlineList">
-                <!-- Dynamically populated by App.js -->
-            </div>
-        </aside>
 
         <section Class = "EditorPane" Id = "EditorPane">
             <!-- Editor Tabs Bar (VS Code / Antigravity Style) -->
@@ -463,36 +446,6 @@
                         <span Class = "StatusBarDuration" Id = "StatusBarDuration">0ms</span>
                     </button>
                     <button Type  = "button"
-                            Id    = "StatusBarRealTimeBtn"
-                            Class = "StatusBarPillBtn Active"
-                            Title = "Toggle Real-Time Compilation">
-                        <span Class = "PillIcon">⚡</span>
-                        <span>Real-Time</span>
-                    </button>
-                    <button Type  = "button"
-                            Id    = "StatusBarSyncTexBtn"
-                            Class = "StatusBarPillBtn Active"
-                            Title = "Toggle SyncTeX Bi-Directional Synchronization">
-                        <span Class = "PillIcon">⇄</span>
-                        <span>SyncTeX</span>
-                    </button>
-                    <button Type  = "button"
-                            Id    = "StatusBarLafsBtn"
-                            Class = "StatusBarPillBtn"
-                            Title = "Format Code to LAFS Standard (Shift+Alt+F)"
-                            Aria-Label = "Format Code to LAFS Standard">
-                        <span Class = "PillIcon">✦</span>
-                        <span>LAFS</span>
-                    </button>
-                    <button Type  = "button"
-                            Id    = "StatusBarLigaturesBtn"
-                            Class = "StatusBarPillBtn Active"
-                            Title = "Toggle Typographic Ligatures (fi, fl, Th, ct, calt, dlig) (Alt+L)"
-                            Aria-Label = "Toggle Typographic Ligatures">
-                        <span Class = "PillIcon">æ</span>
-                        <span Id = "StatusBarLigaturesText">Ligatures: ON</span>
-                    </button>
-                    <button Type  = "button"
                             Id    = "StatusBarTypewriterBtn"
                             Class = "StatusBarPillBtn"
                             Title = "Toggle Typewriter Center Scroll (Alt+T)"
@@ -501,12 +454,12 @@
                         <span Id = "StatusBarTypewriterText">Typewriter: OFF</span>
                     </button>
                     <button Type  = "button"
-                            Id    = "StatusBarHemingwayBtn"
+                            Id    = "StatusBarLafsBtn"
                             Class = "StatusBarPillBtn"
-                            Title = "Toggle Hemingway Focus Light (Alt+H)"
-                            Aria-Label = "Toggle Hemingway Focus Light">
+                            Title = "Format Code to LAFS Standard (Shift+Alt+F)"
+                            Aria-Label = "Format Code to LAFS Standard">
                         <span Class = "PillIcon">✦</span>
-                        <span Id = "StatusBarHemingwayText">Focus Light: OFF</span>
+                        <span>LAFS</span>
                     </button>
                     <button Type  = "button"
                             Id    = "StatusBarTimeMachineBtn"
@@ -522,19 +475,6 @@
                 <div Class = "StatusBarRight" Id = "StatusBarRight">
                     <div Class = "StatusItem" Id = "CursorPosition" Title = "Cursor Line &amp; Column">Ln 1, Col 1</div>
                     <div Class = "StatusItem" Id = "WordCountDisplay" Title = "Document Word Count">0 words</div>
-                    <div Class = "StatusItem" Id = "CharacterCount" Title = "Document Character Count">0 chars</div>
-                    <div Class = "FontSizeControls" Title = "Editor Font Size (Ctrl + / - / 0)">
-                        <button Type = "button" Id = "DecreaseFontSizeBtn" Class = "StatusBarBtn" Title = "Decrease Font Size (Ctrl+-)">A−</button>
-                        <span Class = "StatusItem FontSizeValue" Id = "EditorFontSizeDisplay" Title = "Reset Font Size (Ctrl+0)">14px</span>
-                        <button Type = "button" Id = "IncreaseFontSizeBtn" Class = "StatusBarBtn" Title = "Increase Font Size (Ctrl+=)">A+</button>
-                    </div>
-                    <button Type  = "button"
-                            Id    = "StatusOutlineToggle"
-                            Class = "StatusBarBtn"
-                            Title = "Toggle Document Outline / Headings (Alt+O)">
-                        <span>📋 Outline (<span Id = "StatusOutlineCount">0</span>)</span>
-                    </button>
-                    <div Class = "StatusItem Dim" Id = "StatusBarEncoding" Title = "Character Encoding">UTF-8</div>
                 </div>
             </div>
         </section>

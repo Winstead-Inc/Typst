@@ -8147,6 +8147,8 @@ function CloseTimeMachine()
         Modal.style.display = "none";
     }
 }
+window.CloseTimeMachine = CloseTimeMachine;
+window.OpenTimeMachine = OpenTimeMachine;
 
 async function SelectTimelineSnapshot(Index)
 {
@@ -9608,62 +9610,111 @@ function SetupSplitResizer()
 {
     const Resizer = document.getElementById("SplitResizer");
     const EditorPane = document.getElementById("EditorPane");
+    const PreviewPane = document.getElementById("PreviewPane");
+    if (!Resizer || !EditorPane)
+    {
+        return ;
+    }
+
     let IsDragging = false;
+    let StartX = 0;
+    let StartEditorWidth = 0;
+    let TotalAvailableWidth = 0;
 
     // Restore saved split pane width on startup
     const SavedWidth = localStorage.getItem("TypstStudio_SplitWidth");
-    if (SavedWidth && EditorPane)
+    if (SavedWidth)
     {
+        EditorPane.style.flex = `0 0 ${SavedWidth}`;
         EditorPane.style.width = SavedWidth;
     }
 
     Resizer.addEventListener
     (
-        "mousedown", (E) =>
+        "pointerdown",
+        (E) =>
         {
-            IsDragging = true;
-            Resizer.classList.add("Dragging");
-            document.body.style.cursor = "col-resize";
-            document.body.style.userSelect = "none";
-        }
-    );
-
-    window.addEventListener
-    (
-        "mousemove", (E) =>
-        {
-            if (!IsDragging)
+            if (E.button !== 0)
             {
                 return ;
             }
-            const ContainerWidth = document.querySelector(".MainSplitArea").clientWidth;
-            const NewWidth = Math.max(260, Math.min(ContainerWidth - 260, E.clientX));
-            EditorPane.style.width = `${NewWidth}px`;
+            IsDragging = true;
+            StartX = E.clientX;
+            StartEditorWidth = EditorPane.getBoundingClientRect().width;
+            const StartPreviewWidth = PreviewPane ? PreviewPane.getBoundingClientRect().width: (document.querySelector(".MainSplitArea") ? document.querySelector(".MainSplitArea").clientWidth - StartEditorWidth: 800);
+            TotalAvailableWidth = StartEditorWidth + StartPreviewWidth;
+
+            Resizer.classList.add("Dragging");
+            document.body.classList.add("Dragging");
+            try
+            {
+                Resizer.setPointerCapture(E.pointerId);
+            }
+            catch (Ignored) {}
         }
     );
 
-    window.addEventListener
+    Resizer.addEventListener
     (
-        "mouseup", () =>
+        "pointermove",
+        (E) =>
         {
-            if (IsDragging)
+            if (!IsDragging || TotalAvailableWidth <= 0)
             {
-                IsDragging = false;
-                Resizer.classList.remove("Dragging");
-                document.body.style.cursor = "";
-                document.body.style.userSelect = "";
-                if (EditorPane && EditorPane.style.width)
-                {
-                    try
-                    {
-                        localStorage.setItem("TypstStudio_SplitWidth", EditorPane.style.width);
-                    }
-                    catch (Ignored) {}
-                }
-                RebuildMonotonicSyncAnchors();
+                return ;
+            }
+            const DeltaX = E.clientX - StartX;
+            const MIN_EDITOR_PX = 260;
+            const MIN_PREVIEW_PX = 260;
+            const ClampedWidth = Math.max(MIN_EDITOR_PX, Math.min(TotalAvailableWidth - MIN_PREVIEW_PX, StartEditorWidth + DeltaX));
+            const WidthPercent = ((ClampedWidth / TotalAvailableWidth) * 100).toFixed(3) + "%";
+
+            EditorPane.style.flex = `0 0 ${WidthPercent}`;
+            EditorPane.style.width = WidthPercent;
+
+            if (MonacoInstance)
+            {
+                MonacoInstance.layout();
             }
         }
     );
+
+    const HandlePointerUp = (E) =>
+    {
+        if (!IsDragging)
+        {
+            return ;
+        }
+        IsDragging = false;
+        Resizer.classList.remove("Dragging");
+        document.body.classList.remove("Dragging");
+        try
+        {
+            if (Resizer.hasPointerCapture(E.pointerId))
+            {
+                Resizer.releasePointerCapture(E.pointerId);
+            }
+        }
+        catch (Ignored) {}
+
+        if (EditorPane && EditorPane.style.width)
+        {
+            try
+            {
+                localStorage.setItem("TypstStudio_SplitWidth", EditorPane.style.width);
+            }
+            catch (Ignored) {}
+        }
+
+        if (MonacoInstance)
+        {
+            MonacoInstance.layout();
+        }
+        RebuildMonotonicSyncAnchors();
+    };
+
+    Resizer.addEventListener("pointerup", HandlePointerUp);
+    Resizer.addEventListener("pointercancel", HandlePointerUp);
 
     let SplitResizeDebounceTimer = null;
     window.addEventListener
@@ -9680,6 +9731,10 @@ function SetupSplitResizer()
                 () =>
                 {
                     RebuildMonotonicSyncAnchors();
+                    if (MonacoInstance)
+                    {
+                        MonacoInstance.layout();
+                    }
                 },
                 150
             );
@@ -9754,24 +9809,93 @@ let IsOutlineVisible = false;
 let OutlineHeadingsList = [];
 let OutlineThrottleTimer = null;
 
+function SwitchSidebarTab(TabName)
+{
+    const FilesTab = document.getElementById("SidebarTabFiles");
+    const OutlineTab = document.getElementById("SidebarTabOutline");
+    const FilesContent = document.getElementById("SidebarContentFiles");
+    const OutlineContent = document.getElementById("SidebarContentOutline");
+    const NewFileBtn = document.getElementById("ExplorerNewFileBtn");
+    const RefreshBtn = document.getElementById("ExplorerRefreshBtn");
+    const CollapseBtn = document.getElementById("ExplorerCollapseAllBtn");
+
+    if (TabName === "outline")
+    {
+        if (FilesTab) { FilesTab.classList.remove("Active"); }
+        if (OutlineTab) { OutlineTab.classList.add("Active"); }
+        if (FilesContent) { FilesContent.style.display = "none"; FilesContent.classList.remove("Active"); }
+        if (OutlineContent) { OutlineContent.style.display = "flex"; OutlineContent.classList.add("Active"); }
+        if (NewFileBtn) { NewFileBtn.style.display = "none"; }
+        if (RefreshBtn) { RefreshBtn.style.display = "none"; }
+        if (CollapseBtn) { CollapseBtn.style.display = "none"; }
+        IsOutlineVisible = true;
+        UpdateDocumentOutline();
+    }
+    else
+    {
+        if (FilesTab) { FilesTab.classList.add("Active"); }
+        if (OutlineTab) { OutlineTab.classList.remove("Active"); }
+        if (FilesContent) { FilesContent.style.display = "flex"; FilesContent.classList.add("Active"); }
+        if (OutlineContent) { OutlineContent.style.display = "none"; OutlineContent.classList.remove("Active"); }
+        if (NewFileBtn) { NewFileBtn.style.display = ""; }
+        if (RefreshBtn) { RefreshBtn.style.display = ""; }
+        if (CollapseBtn) { CollapseBtn.style.display = ""; }
+        IsOutlineVisible = false;
+    }
+}
+
 function ToggleDocumentOutline(ForceState)
 {
-    const Sidebar = document.getElementById("OutlineSidebar");
-    if (!Sidebar) { return; }
+    const Explorer = document.getElementById("ExplorerSidebar");
+    if (!Explorer)
+    {
+        return ;
+    }
 
-    IsOutlineVisible = (typeof ForceState === "boolean") ? ForceState: ! IsOutlineVisible;
-    Sidebar.style.display = IsOutlineVisible ? "flex": "none";
+    const OutlineTab = document.getElementById("SidebarTabOutline");
+    const IsOutlineTabActive = OutlineTab && OutlineTab.classList.contains("Active");
+    const IsExplorerOpen = !Explorer.classList.contains("Hidden") && !Explorer.classList.contains("Collapsed") && Explorer.style.display !== "none";
+
+    let ShouldOpenOutline = false;
+    if (typeof ForceState === "boolean")
+    {
+        ShouldOpenOutline = ForceState;
+    }
+    else
+    {
+        if (IsExplorerOpen && IsOutlineTabActive)
+        {
+            ShouldOpenOutline = false;
+        }
+        else
+        {
+            ShouldOpenOutline = true;
+        }
+    }
+
+    if (ShouldOpenOutline)
+    {
+        Explorer.classList.remove("Hidden", "Collapsed");
+        Explorer.style.display = "flex";
+        SwitchSidebarTab("outline");
+    }
+    else
+    {
+        if (IsOutlineTabActive)
+        {
+            SwitchSidebarTab("files");
+        }
+        else
+        {
+            Explorer.classList.add("Collapsed");
+        }
+    }
 
     try
     {
-        localStorage.setItem("TypstStudio_OutlineVisible", IsOutlineVisible ? "true": "false");
+        localStorage.setItem("TypstStudio_OutlineVisible", ShouldOpenOutline ? "true": "false");
     }
     catch (Ignored) {}
-
-    if (IsOutlineVisible)
-    {
-        UpdateDocumentOutline();
-    }
 
     if (MonacoInstance)
     {
@@ -9787,7 +9911,11 @@ function ToggleDocumentOutline(ForceState)
 
 function UpdateDocumentOutlineThrottled()
 {
-    if (!IsOutlineVisible)
+    const OutlineTab = document.getElementById("SidebarTabOutline");
+    const IsOutlineTabActive = OutlineTab && OutlineTab.classList.contains("Active");
+    const Explorer = document.getElementById("ExplorerSidebar");
+    const IsExplorerOpen = Explorer && !Explorer.classList.contains("Hidden") && !Explorer.classList.contains("Collapsed") && Explorer.style.display !== "none";
+    if (!IsExplorerOpen || !IsOutlineTabActive)
     {
         return ;
     }
@@ -10577,7 +10705,18 @@ function SetupEventListeners()
         );
     }
 
-    // Priority 2: Document Outline Controls
+    // Priority 2: Document Outline & Left Sidebar Tabs Controls
+    const TabFiles = document.getElementById("SidebarTabFiles");
+    if (TabFiles)
+    {
+        TabFiles.addEventListener("click", () => { SwitchSidebarTab("files"); });
+    }
+    const TabOutline = document.getElementById("SidebarTabOutline");
+    if (TabOutline)
+    {
+        TabOutline.addEventListener("click", () => { SwitchSidebarTab("outline"); });
+    }
+
     const OutlineToggle = document.getElementById("StatusOutlineToggle");
     const OutlineClose = document.getElementById("CloseOutlineBtn");
     const OutlineSearch = document.getElementById("OutlineSearchInput");
@@ -13809,8 +13948,8 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
 
-                    const FirstH = Box.firstLineHeight || Box.height || 10.5;
-                    const LastH = Box.lastLineHeight || Box.height || 10.5;
+                    const FirstH = Box.firstLineHeight || Box.height || 10;
+                    const LastH = Box.lastLineHeight || Box.height || 10;
 
                     // Typst sets Box.y = Baseline_top - FirstH, where FirstH is font size / ascender frame.
                     // Inked cap-height of characters is ~0.72 * FirstH above the top baseline.

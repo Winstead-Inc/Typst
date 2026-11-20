@@ -171,25 +171,34 @@ typst help watch
 
 If you prefer an integrated IDE-like experience with autocompletion and instant preview, you can check out the official [online editor][app] or launch the included offline **Typst Studio WebApp** detailed below. Alternatively, there is a community-created language server called [Tinymist](https://myriad-dreamin.github.io/tinymist/) which is integrated into various editor extensions.
 
-## Typst Studio WebApp
+## Typst Studio (Desktop & WebApp)
 
-This repository includes **Typst Studio**, a zero-dependency, cross-platform local desktop web environment tailored for authoring and live-previewing Typst documents formatted with LAFS.
+This repository includes **Typst Studio**, a high-performance, cross-platform local desktop application (powered by Tauri v2 and Rust) and local web environment tailored for authoring and live-previewing Typst documents formatted with LAFS.
 
 ### Architecture & Key Features
 
-- **Real-Time Incremental Preview:** Direct integration with the local Typst compiler (`TypstStudio/bin/typst`) for instantaneous recompilation on keystroke, delivering sub-millisecond document previews via `comemo`.
+- **Real-Time Incremental Preview:** Direct integration with the local Typst compiler (`TypstStudio/bin/typst` or native in-process backend) for instantaneous recompilation on keystroke, delivering sub-millisecond document previews via `comemo`.
+- **Independent High-FPS Scrolling & Click-to-Jump SyncTeX:** Code Editor and Preview pane scroll completely independently at native 60 FPS with zero rebound interference or stutter. Explicit bidirectional Click-to-Jump SyncTeX accurately highlights target paragraphs with true inked descender bounds.
+- **Precision Split-Pane Resizer:** Dragging the resizer between the Code Editor and Preview uses relative pointer delta tracking and pointer capture with strict `min-width: 0; overflow: hidden;` containment, eliminating jump offsets and preventing drag lag regardless of sidebar visibility or document zoom.
+- **Steve Jobs Ergonomic Status Bar & Left Sidebar Navigation:** The bottom status bar is decluttered to present a calm, distraction-free environment in neutral muted gray (`#8E8E93`). In Focus Mode, only the quiet word count is displayed. The Left Sidebar integrates segmented tabs (`Files | Outline`) allowing instant navigation across project files and document heading hierarchies (`Alt+O`).
+- **Time Machine for Words & Revision Scrubbing:** Native revision milestone snapshots and interactive scrubbing with safety checkpoints, instant diff previews against live buffers, and complete local history restoration.
 - **Immutable LAFS Formatter & Code Box Engine:** Cross-language formatting engine that automatically formats both Typst document syntax and embedded raw code snippets (Rust, C, C++, C#, JavaScript, TypeScript, Kotlin, Dart, Shell) inside `#rect[...]`, `#box[...]`, or raw blocks to the Language-Agnostic Formatting Style (LAFS).
 - **Cryptographic Tamper-Proof Binary Invariants:** The formatter engine is hard-locked against substitution and tampering. Every external execution verifies the binary's cryptographic SHA-256 digest (`91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc`) against pinned release invariants before spawning. If any external binary is tampered with, replaced, or path-traversed, execution is hard-aborted and automatically falls back to the immutable in-process LAFS engine compiled into memory.
 - **Air-Gapped & Offline-First:** Formatting and document previewing operate 100% locally with zero internet dependency, zero telemetry, and zero cloud API requirements.
 - **Monaco Code Editor:** Full-featured code editor with syntax highlighting for Typst, JetBrains Mono font support, automatic bracket pair colorization, and native Allman/LAFS indentation tiers.
 - **Selective Dark Mode:** Dedicated document viewer dark mode that maintains the author's original color palette and embedded figures while selectively inverting monochrome background and foreground layers for high-contrast, comfortable viewing.
 - **Workspace Dashboard:** Built-in project tracker and directory scanner that organizes your local `.typ` files, offers one-click project creation, and supports native OS folder picking across Windows, macOS, and Linux.
-- **Appearance & Typography Settings:** User-configurable UI scaling (from 80% to 150%) and custom typography engine supporting Teko, JetBrains Mono, Inter, Segoe UI, Roboto, and system fonts with persistent local settings.
-- **Zero-Dependency Architecture:** Lightweight HTTP/WebSocket server written in vanilla Node.js (`Server.js`) without runtime `node_modules` dependencies, communicating directly with the compiled binary and your local workspace.
 
 ### Quick Start
 
-To launch Typst Studio locally:
+To run the compiled native desktop application:
+
+```sh
+# Run the release desktop binary
+./TypstStudio/src-tauri/target/release/typst-studio.exe
+```
+
+Or start the lightweight local web environment:
 
 ```sh
 # Start the local studio server
