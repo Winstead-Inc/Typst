@@ -1026,7 +1026,7 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
         for Entry in Entries.flatten()
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
-            if Name == ".git" || Name == "target" || Name == "node_modules"
+            if Name == ".git" || Name == "target" || Name == "node_modules" || Name == ".typst-studio" || Name.starts_with('.')
             {
                 continue;
             }
@@ -1565,6 +1565,206 @@ fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64
     )
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Timeline_Snapshot
+{
+    #[serde(rename = "Id")]
+    pub Id: String,
+    #[serde(rename = "Timestamp")]
+    pub Timestamp: u64,
+    #[serde(rename = "FormattedTime")]
+    pub FormattedTime: String,
+    #[serde(rename = "Label")]
+    pub Label: String,
+    #[serde(rename = "WordCount")]
+    pub WordCount: usize,
+    #[serde(rename = "CharacterCount")]
+    pub CharacterCount: usize,
+    #[serde(rename = "ContentHash")]
+    pub ContentHash: String,
+    #[serde(rename = "Content")]
+    pub Content: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Timeline_History_Summary
+{
+    #[serde(rename = "Id")]
+    pub Id: String,
+    #[serde(rename = "Timestamp")]
+    pub Timestamp: u64,
+    #[serde(rename = "FormattedTime")]
+    pub FormattedTime: String,
+    #[serde(rename = "Label")]
+    pub Label: String,
+    #[serde(rename = "WordCount")]
+    pub WordCount: usize,
+    #[serde(rename = "CharacterCount")]
+    pub CharacterCount: usize,
+    #[serde(rename = "ContentHash")]
+    pub ContentHash: String,
+}
+
+fn GetDocumentHistoryPath(DocPath: Option<&str>) -> std::path::PathBuf
+{
+    let DocPathBuf = DocPath.filter(|P| !P.trim().is_empty()).map(std::path::PathBuf::from);
+    let ProjectDir = DocPathBuf.as_ref()
+        .and_then(|P| if P.is_file() { P.parent() } else { Some(P.as_path()) })
+        .map(|P| P.to_path_buf())
+        .or_else(|| GetTrackedDirectories().first().map(std::path::PathBuf::from))
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+    let DotTypstStudio = ProjectDir.join(".typst-studio");
+    let HistoryDir = DotTypstStudio.join("history");
+    let _ = std::fs::create_dir_all(&HistoryDir);
+
+    let GitIgnorePath = DotTypstStudio.join(".gitignore");
+    if !GitIgnorePath.exists()
+    {
+        let _ = std::fs::write(&GitIgnorePath, "*\n");
+    }
+
+    use sha2::{Digest, Sha256};
+    let Key = DocPathBuf.map(|P| P.to_string_lossy().to_string()).unwrap_or_else(|| "main.typ".to_string());
+    let mut Hasher = Sha256::new();
+    Hasher.update(Key.as_bytes());
+    let HashHex = format!("{:x}", Hasher.finalize());
+    let ShortHash = &HashHex[..8];
+
+    HistoryDir.join(format!("timeline_{}.jsonl", ShortHash))
+}
+
+#[tauri::command]
+fn SaveTimelineSnapshot(DocPath: Option<String>, Content: String, Label: Option<String>) -> Result<Timeline_Snapshot, String>
+{
+    let HistoryFile = GetDocumentHistoryPath(DocPath.as_deref());
+
+    use sha2::{Digest, Sha256};
+    let mut Hasher = Sha256::new();
+    Hasher.update(Content.as_bytes());
+    let ContentHash = format!("{:x}", Hasher.finalize());
+
+    if HistoryFile.exists()
+    {
+        if let Ok(FileContent) = std::fs::read_to_string(&HistoryFile)
+        {
+            if let Some(LastLine) = FileContent.lines().rev().find(|L| !L.trim().is_empty())
+            {
+                if let Ok(Parsed) = serde_json::from_str::<serde_json::Value>(LastLine)
+                {
+                    if let Some(Hash) = Parsed.get("ContentHash").and_then(|H| H.as_str())
+                    {
+                        if Hash == ContentHash
+                        {
+                            if let Ok(ExistingSnapshot) = serde_json::from_str::<Timeline_Snapshot>(LastLine)
+                            {
+                                return Ok(ExistingSnapshot);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    let Secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let FormattedTime = FormatTimestamp(Secs);
+
+    let WordCount = Content.split_whitespace().count();
+    let CharacterCount = Content.chars().count();
+    let SnapshotId = format!("{}_{}", Secs, &ContentHash[..6.min(ContentHash.len())]);
+    let DefaultLabel = if Label.as_deref().unwrap_or("").trim().is_empty() { "Checkpoint".to_string() } else { Label.unwrap() };
+
+    let Snapshot = Timeline_Snapshot
+    {
+        Id: SnapshotId,
+        Timestamp: Secs,
+        FormattedTime,
+        Label: DefaultLabel,
+        WordCount,
+        CharacterCount,
+        ContentHash,
+        Content,
+    };
+
+    let JsonLine = serde_json::to_string(&Snapshot).map_err(|E| E.to_string())?;
+    use std::io::Write;
+    let mut File = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&HistoryFile)
+        .map_err(|E| format!("Failed to open history file {}: {}", HistoryFile.display(), E))?;
+
+    writeln!(File, "{}", JsonLine).map_err(|E| format!("Failed to write snapshot: {}", E))?;
+
+    Ok(Snapshot)
+}
+
+#[tauri::command]
+fn GetTimelineSnapshots(DocPath: Option<String>) -> Result<Vec<Timeline_History_Summary>, String>
+{
+    let HistoryFile = GetDocumentHistoryPath(DocPath.as_deref());
+    if !HistoryFile.exists()
+    {
+        return Ok(Vec::new());
+    }
+
+    let Content = std::fs::read_to_string(&HistoryFile)
+        .map_err(|E| format!("Failed to read history file: {}", E))?;
+
+    let mut Summaries = Vec::new();
+    for Line in Content.lines()
+    {
+        let Trimmed = Line.trim();
+        if Trimmed.is_empty()
+        {
+            continue;
+        }
+
+        if let Ok(Summary) = serde_json::from_str::<Timeline_History_Summary>(Trimmed)
+        {
+            Summaries.push(Summary);
+        }
+    }
+
+    Ok(Summaries)
+}
+
+#[tauri::command]
+fn GetTimelineSnapshotContent(DocPath: Option<String>, SnapshotId: String) -> Result<String, String>
+{
+    let HistoryFile = GetDocumentHistoryPath(DocPath.as_deref());
+    if !HistoryFile.exists()
+    {
+        return Err("No history found for document".to_string());
+    }
+
+    let Content = std::fs::read_to_string(&HistoryFile)
+        .map_err(|E| format!("Failed to read history file: {}", E))?;
+
+    for Line in Content.lines().rev()
+    {
+        let Trimmed = Line.trim();
+        if Trimmed.is_empty()
+        {
+            continue;
+        }
+
+        if let Ok(Snapshot) = serde_json::from_str::<Timeline_Snapshot>(Trimmed)
+        {
+            if Snapshot.Id == SnapshotId
+            {
+                return Ok(Snapshot.Content);
+            }
+        }
+    }
+
+    Err(format!("Snapshot {} not found", SnapshotId))
+}
+
 #[tauri::command]
 fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 {
@@ -1965,7 +2165,10 @@ pub fn run()
             ToggleDevTools,
             OpenExternalUrl,
             PasteClipboardImage,
-            SavePastedFileAsset
+            SavePastedFileAsset,
+            SaveTimelineSnapshot,
+            GetTimelineSnapshots,
+            GetTimelineSnapshotContent
         ]
     )
    .setup
@@ -2141,6 +2344,39 @@ mod tests
         assert!(Res2.IsDuplicate);
         assert_eq!(Res1.RelativePath, Res2.RelativePath);
         assert_eq!(Res1.FileName, Res2.FileName);
+
+        let _ = std::fs::remove_dir_all(&TempDir);
+    }
+
+   #[test]
+    fn TestTimelineSnapshotsAndRestoration()
+    {
+        let TempDir = std::env::temp_dir().join(format!("typst_timeline_test_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&TempDir);
+        let TempDoc = TempDir.join("Book.typ");
+        let DocPathStr = TempDoc.to_string_lossy().to_string();
+
+        let Snap1 = SaveTimelineSnapshot(Some(DocPathStr.clone()), "= Chapter 1\nIn the beginning...".to_string(), Some("Draft 1".to_string()))
+            .expect("First snapshot should save");
+        assert_eq!(Snap1.WordCount, 6);
+
+        // Duplicate content should return existing snapshot without creating new entry
+        let Snap1Dup = SaveTimelineSnapshot(Some(DocPathStr.clone()), "= Chapter 1\nIn the beginning...".to_string(), Some("Draft 1".to_string()))
+            .expect("Duplicate snapshot should return existing");
+        assert_eq!(Snap1.Id, Snap1Dup.Id);
+
+        let Snap2 = SaveTimelineSnapshot(Some(DocPathStr.clone()), "= Chapter 1\nIn the beginning...\n= Chapter 2\nNext phase.".to_string(), Some("Draft 2".to_string()))
+            .expect("Second snapshot should save");
+        assert_eq!(Snap2.WordCount, 11);
+
+        let List = GetTimelineSnapshots(Some(DocPathStr.clone())).expect("Get snapshots should succeed");
+        assert_eq!(List.len(), 2);
+        assert_eq!(List[0].Id, Snap1.Id);
+        assert_eq!(List[1].Id, Snap2.Id);
+
+        let Content1 = GetTimelineSnapshotContent(Some(DocPathStr.clone()), Snap1.Id.clone())
+            .expect("Get content should succeed");
+        assert_eq!(Content1, "= Chapter 1\nIn the beginning...");
 
         let _ = std::fs::remove_dir_all(&TempDir);
     }

@@ -645,6 +645,11 @@ let CachedHemingwayStart = -1;
 let CachedHemingwayEnd = -1;
 let IsEditorWheelScrolling = false;
 let EditorWheelScrollTimer = null;
+let TimelineSnapshots = [];
+let ActiveTimelineSnapshotIndex = -1;
+let TimelineAutoCaptureTimer = null;
+let LastSnapshotWordCount = 0;
+let ActiveSnapshotCachedContent = "";
 let IsSpreadMode = localStorage.getItem("TypstStudio_SpreadMode") === "true";
 
 const DEFAULT_KEYBINDINGS =
@@ -674,6 +679,7 @@ const DEFAULT_KEYBINDINGS =
     "toggle_ligatures": "Alt+L",
     "toggle_typewriter_scroll": "Alt+T",
     "toggle_hemingway_focus": "Alt+H",
+    "open_time_machine": "Ctrl+Shift+H",
     "open_command_palette": "Ctrl+K",
     "open_settings": "Ctrl+,",
     "open_export_sheet": "Ctrl+E"
@@ -699,6 +705,7 @@ const APPLICATION_COMMANDS_META =
     { Id: "inspect_ligatures", Label: "Inspect Font Ligatures & Glyphs", Category: "Typography", Source: "App" },
     { Id: "toggle_typewriter_scroll", Label: "Toggle Typewriter Center Scroll", Category: "Writing & Focus", Source: "App" },
     { Id: "toggle_hemingway_focus", Label: "Toggle Hemingway Focus Light", Category: "Writing & Focus", Source: "App" },
+    { Id: "open_time_machine", Label: "Time Machine for Words (History & Scrubbing)", Category: "Writing & Focus", Source: "App" },
     { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
     { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
@@ -3080,6 +3087,7 @@ function FormatTypstLAFS(Source)
 function ApplyFormattingToEditor()
 {
     if (!MonacoInstance) { return; }
+    CaptureTimelineSnapshot("Before LAFS Format");
     const CurrentValue = MonacoInstance.getValue();
     const FormattedValue = FormatTypstLAFS(CurrentValue);
     if (CurrentValue !== FormattedValue)
@@ -3935,6 +3943,7 @@ function InitializeMonaco()
                     UpdateStatusBar();
                     ScheduleMathBracketHighlighting();
                     ScheduleLAFSValidation();
+                    ScheduleTimelineSnapshot(20000);
 
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
@@ -3979,6 +3988,7 @@ function InitializeMonaco()
                     UpdateStatusBar();
                     ScheduleMathBracketHighlighting();
                     ScheduleLAFSValidation();
+                    ScheduleTimelineSnapshot(20000);
                     const AutoCompile = document.getElementById("AutoCompileToggle").checked;
                     if (AutoCompile)
                     {
@@ -6342,6 +6352,13 @@ const COMMAND_PALETTE_ACTIONS =
         Action: () => { ToggleHemingwayFocus(); }
     },
     {
+        Title: "Time Machine for Words (Revision History & Scrubbing)",
+        Category: "Writing & Focus",
+        Icon: "⏳",
+        Shortcut: "Ctrl+Shift+H",
+        Action: () => { OpenTimeMachine(); }
+    },
+    {
         Title: "Layout: Split View (Editor & Preview)",
         Category: "View & Layout",
         Icon: "▥",
@@ -7407,6 +7424,476 @@ function SetupZeroDialogClipboardPasting()
     );
 }
 
+// --- TIME MACHINE FOR WORDS (PHASE 7.5) ---
+
+function ComputeSimpleDiff(OldText, NewText)
+{
+    const OldLines = OldText ? OldText.split("\n"): [];
+    const NewLines = NewText ? NewText.split("\n"): [];
+    const DiffResult = [];
+
+    let OldIdx = 0;
+    let NewIdx = 0;
+    let AddedCount = 0;
+    let RemovedCount = 0;
+
+    while (OldIdx < OldLines.length || NewIdx < NewLines.length)
+    {
+        if (OldIdx < OldLines.length && NewIdx < NewLines.length)
+        {
+            if (OldLines[OldIdx] === NewLines[NewIdx])
+            {
+                DiffResult.push
+                ({
+                    Type: "unchanged",
+                    Text: OldLines[OldIdx],
+                    OldLine: OldIdx + 1,
+                    NewLine: NewIdx + 1
+                });
+                OldIdx ++;
+                NewIdx ++;
+            }
+            else
+            {
+                let FoundInNew = -1;
+                let FoundInOld = -1;
+                for (let Look = 1; Look < 5; Look++)
+                {
+                    if (NewIdx + Look < NewLines.length && OldLines[OldIdx] === NewLines[NewIdx + Look] && FoundInNew === -1)
+                    {
+                        FoundInNew = Look;
+                    }
+                    if (OldIdx + Look < OldLines.length && OldLines[OldIdx + Look] === NewLines[NewIdx] && FoundInOld === -1)
+                    {
+                        FoundInOld = Look;
+                    }
+                }
+
+                if (FoundInNew !== -1 && (FoundInOld === -1 || FoundInNew <= FoundInOld))
+                {
+                    for (let K = 0; K < FoundInNew; K++)
+                    {
+                        DiffResult.push
+                        ({
+                            Type: "added",
+                            Text: NewLines[NewIdx],
+                            OldLine: null,
+                            NewLine: NewIdx + 1
+                        });
+                        NewIdx ++;
+                        AddedCount ++;
+                    }
+                }
+                else if (FoundInOld !== -1)
+                {
+                    for (let K = 0; K < FoundInOld; K++)
+                    {
+                        DiffResult.push
+                        ({
+                            Type: "removed",
+                            Text: OldLines[OldIdx],
+                            OldLine: OldIdx + 1,
+                            NewLine: null
+                        });
+                        OldIdx ++;
+                        RemovedCount ++;
+                    }
+                }
+                else
+                {
+                    DiffResult.push
+                    ({
+                        Type: "removed",
+                        Text: OldLines[OldIdx],
+                        OldLine: OldIdx + 1,
+                        NewLine: null
+                    });
+                    OldIdx ++;
+                    RemovedCount ++;
+
+                    DiffResult.push
+                    ({
+                        Type: "added",
+                        Text: NewLines[NewIdx],
+                        OldLine: null,
+                        NewLine: NewIdx + 1
+                    });
+                    NewIdx ++;
+                    AddedCount ++;
+                }
+            }
+        }
+        else if (NewIdx < NewLines.length)
+        {
+            DiffResult.push
+            ({
+                Type: "added",
+                Text: NewLines[NewIdx],
+                OldLine: null,
+                NewLine: NewIdx + 1
+            });
+            NewIdx ++;
+            AddedCount ++;
+        }
+        else
+        {
+            DiffResult.push
+            ({
+                Type: "removed",
+                Text: OldLines[OldIdx],
+                OldLine: OldIdx + 1,
+                NewLine: null
+            });
+            OldIdx ++;
+            RemovedCount ++;
+        }
+    }
+
+    return { Lines: DiffResult, Added: AddedCount, Removed: RemovedCount };
+}
+
+async function CaptureTimelineSnapshot(Label)
+{
+    if (!MonacoInstance)
+    {
+        return null;
+    }
+
+    const Model = MonacoInstance.getModel();
+    if (!Model)
+    {
+        return null;
+    }
+
+    const Content = Model.getValue();
+    const Words = Content.trim() ? Content.trim().split(/\s+/).length: 0;
+
+    if (!Label && Math.abs(Words - LastSnapshotWordCount) < 5 && LastSnapshotWordCount > 0)
+    {
+        return null;
+    }
+
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            const Snapshot = await window.__TAURI__.core.invoke
+            (
+                "SaveTimelineSnapshot",
+                {
+                    DocPath: CurrentFilePath || null,
+                    Content: Content,
+                    Label: Label || null
+                }
+            );
+
+            LastSnapshotWordCount = Words;
+            return Snapshot;
+        }
+        catch (Err)
+        {
+            console.warn("Tauri SaveTimelineSnapshot error:", Err);
+        }
+    }
+
+    const Secs = Math.floor(Date.now() / 1000);
+    const FallbackSnapshot =
+    {
+        Id: `web_${Secs}`,
+        Timestamp: Secs,
+        FormattedTime: new Date().toLocaleTimeString(),
+        Label: Label || "Automatic Checkpoint",
+        WordCount: Words,
+        CharacterCount: Content.length,
+        ContentHash: String(Content.length),
+        Content: Content
+    };
+
+    TimelineSnapshots.push(FallbackSnapshot);
+    LastSnapshotWordCount = Words;
+    return FallbackSnapshot;
+}
+
+function ScheduleTimelineSnapshot(DelayMs, Label)
+{
+    if (TimelineAutoCaptureTimer)
+    {
+        clearTimeout(TimelineAutoCaptureTimer);
+    }
+
+    if (MonacoInstance)
+    {
+        const Model = MonacoInstance.getModel();
+        if (Model)
+        {
+            const Content = Model.getValue();
+            const Words = Content.trim() ? Content.trim().split(/\s+/).length: 0;
+            if (Math.abs(Words - LastSnapshotWordCount) >= 50)
+            {
+                CaptureTimelineSnapshot(Label || "Word Count Milestone (+50w)");
+                return ;
+            }
+        }
+    }
+
+    TimelineAutoCaptureTimer = setTimeout
+    (
+        () =>
+        {
+            CaptureTimelineSnapshot(Label);
+        },
+        DelayMs || 20000
+    );
+}
+
+async function OpenTimeMachine()
+{
+    const Modal = document.getElementById("TimeMachineModal");
+    if (!Modal)
+    {
+        return ;
+    }
+
+    Modal.classList.add("Active");
+
+    let Snapshots = [];
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            Snapshots = await window.__TAURI__.core.invoke
+            (
+                "GetTimelineSnapshots",
+                {
+                    DocPath: CurrentFilePath || null
+                }
+            );
+        }
+        catch (Err)
+        {
+            console.warn("Tauri GetTimelineSnapshots error:", Err);
+        }
+    }
+
+    if (!Snapshots || Snapshots.length === 0)
+    {
+        const Initial = await CaptureTimelineSnapshot("Initial Milestone");
+        if (Initial)
+        {
+            Snapshots = [Initial];
+        }
+    }
+
+    TimelineSnapshots = Snapshots || [];
+    const Slider = document.getElementById("TimeMachineSlider");
+    if (Slider)
+    {
+        Slider.min = "0";
+        Slider.max = String(Math.max(0, TimelineSnapshots.length - 1));
+        Slider.value = String(Math.max(0, TimelineSnapshots.length - 1));
+    }
+
+    if (TimelineSnapshots.length > 0)
+    {
+        await SelectTimelineSnapshot(TimelineSnapshots.length - 1);
+    }
+    else
+    {
+        const DiffContent = document.getElementById("TimeMachineDiffContent");
+        if (DiffContent)
+        {
+            DiffContent.innerHTML = `<div Class = "TimeMachineEmptyState">No milestones recorded yet. Keep typing to capture automatic local history!</div>`;
+        }
+    }
+}
+
+function CloseTimeMachine()
+{
+    const Modal = document.getElementById("TimeMachineModal");
+    if (Modal)
+    {
+        Modal.classList.remove("Active");
+    }
+}
+
+async function SelectTimelineSnapshot(Index)
+{
+    if (!TimelineSnapshots || Index < 0 || Index >= TimelineSnapshots.length)
+    {
+        return ;
+    }
+
+    ActiveTimelineSnapshotIndex = Index;
+    const Snapshot = TimelineSnapshots[Index];
+
+    const Badge = document.getElementById("TimeMachineMilestoneBadge");
+    if (Badge)
+    {
+        Badge.textContent = `Milestone ${Index + 1} of ${TimelineSnapshots.length}`;
+    }
+
+    const TimeEl = document.getElementById("TimeMachineSnapshotTime");
+    if (TimeEl)
+    {
+        TimeEl.textContent = Snapshot.FormattedTime || "—";
+    }
+
+    const WordsEl = document.getElementById("TimeMachineSnapshotWords");
+    if (WordsEl)
+    {
+        WordsEl.textContent = `${Snapshot.WordCount || 0} words`;
+    }
+
+    const LabelEl = document.getElementById("TimeMachineSnapshotLabel");
+    if (LabelEl)
+    {
+        LabelEl.textContent = Snapshot.Label || "Automatic Checkpoint";
+    }
+
+    let SnapshotContent = Snapshot.Content;
+    if (typeof SnapshotContent !== "string")
+    {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            try
+            {
+                SnapshotContent = await window.__TAURI__.core.invoke
+                (
+                    "GetTimelineSnapshotContent",
+                    {
+                        DocPath: CurrentFilePath || null,
+                        SnapshotId: Snapshot.Id
+                    }
+                );
+            }
+            catch (Err)
+            {
+                console.warn("GetTimelineSnapshotContent error:", Err);
+                SnapshotContent = "";
+            }
+        }
+        else
+        {
+            SnapshotContent = "";
+        }
+    }
+
+    ActiveSnapshotCachedContent = SnapshotContent || "";
+
+    const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
+    const CurrentWords = CurrentContent.trim() ? CurrentContent.trim().split(/\s+/).length: 0;
+    const SnapshotWords = Snapshot.WordCount || 0;
+    const Delta = CurrentWords - SnapshotWords;
+
+    const DeltaBadge = document.getElementById("TimeMachineWordDeltaBadge");
+    if (DeltaBadge)
+    {
+        if (Delta > 0)
+        {
+            DeltaBadge.textContent = `+${Delta} words vs Live`;
+            DeltaBadge.style.color = "#00E676";
+            DeltaBadge.style.background = "rgba(0, 230, 118, 0.14)";
+        }
+        else if (Delta < 0)
+        {
+            DeltaBadge.textContent = `${Delta} words vs Live`;
+            DeltaBadge.style.color = "#FF1744";
+            DeltaBadge.style.background = "rgba(255, 23, 68, 0.14)";
+        }
+        else
+        {
+            DeltaBadge.textContent = "Identical to Live";
+            DeltaBadge.style.color = "#D6D3CD";
+            DeltaBadge.style.background = "rgba(255, 255, 255, 0.08)";
+        }
+    }
+
+    const DiffResult = ComputeSimpleDiff(ActiveSnapshotCachedContent, CurrentContent);
+
+    const DiffStats = document.getElementById("TimeMachineDiffStats");
+    if (DiffStats)
+    {
+        DiffStats.textContent = `+${DiffResult.Added} / -${DiffResult.Removed} changes`;
+    }
+
+    const DiffContainer = document.getElementById("TimeMachineDiffContent");
+    if (DiffContainer)
+    {
+        if (DiffResult.Lines.length === 0)
+        {
+            DiffContainer.innerHTML = `<div Class = "TimeMachineEmptyState">Document is identical at this milestone.</div>`;
+        }
+        else
+        {
+            let Html = "";
+            for (let I = 0; I < DiffResult.Lines.length; I++)
+            {
+                const Line = DiffResult.Lines[I];
+                const ClassName = Line.Type === "added" ? "Added": (Line.Type === "removed" ? "Removed": "Unchanged");
+                const Sign = Line.Type === "added" ? "+": (Line.Type === "removed" ? "-": " ");
+                const LineNum = Line.NewLine || Line.OldLine || "";
+                const EscapedText = Line.Text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+                Html += `<div Class = "TimeMachineDiffLine ${ClassName}"><span Class = "LineNum">${LineNum}</span><span Class = "LineSign">${Sign}</span><span Class = "LineText">${EscapedText || "&nbsp;"}</span></div>`;
+            }
+            DiffContainer.innerHTML = Html;
+        }
+    }
+}
+
+async function RestoreActiveTimelineSnapshot()
+{
+    if (!MonacoInstance || ActiveTimelineSnapshotIndex < 0 || !ActiveSnapshotCachedContent)
+    {
+        return ;
+    }
+
+    const Snapshot = TimelineSnapshots[ActiveTimelineSnapshotIndex];
+    if (!Snapshot)
+    {
+        return ;
+    }
+
+    // Safety guarantee: checkpoint current state before restoring
+    await CaptureTimelineSnapshot("Before Restore");
+
+    const Model = MonacoInstance.getModel();
+    if (Model)
+    {
+        const FullRange = Model.getFullModelRange();
+        MonacoInstance.executeEdits
+        (
+            "time-machine-restore",
+            [
+                {
+                    range: FullRange,
+                    text: ActiveSnapshotCachedContent,
+                    forceMoveMarkers: true
+                }
+            ]
+        );
+
+        TriggerCompileNow();
+        CloseTimeMachine();
+        ShowToast(`Restored version from ${Snapshot.FormattedTime}`, "success", 2500);
+    }
+}
+
+function CopyActiveTimelineSnapshot()
+{
+    if (!ActiveSnapshotCachedContent)
+    {
+        ShowToast("No snapshot content available to copy", "warning", 2000);
+        return ;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText)
+    {
+        navigator.clipboard.writeText(ActiveSnapshotCachedContent);
+        ShowToast("Copied snapshot text to clipboard", "success", 1800);
+    }
+}
+
 function SetupDualModeAndExportEventListeners()
 {
     const FocusBtn = document.getElementById("ModeFocusBtn");
@@ -7729,6 +8216,70 @@ function SetupDualModeAndExportEventListeners()
                 ToggleHemingwayFocus(E.target.checked);
             }
         );
+    }
+
+    // Phase 7.5 Event Listeners: Time Machine for Words
+    const TimeMachinePillBtn = document.getElementById("StatusBarTimeMachineBtn");
+    if (TimeMachinePillBtn)
+    {
+        TimeMachinePillBtn.addEventListener("click", () => { OpenTimeMachine(); });
+    }
+
+    const CloseTimeMachineBtn = document.getElementById("CloseTimeMachineModalBtn");
+    if (CloseTimeMachineBtn)
+    {
+        CloseTimeMachineBtn.addEventListener("click", () => { CloseTimeMachine(); });
+    }
+
+    const CancelTimeMachineBtn = document.getElementById("CancelTimeMachineBtn");
+    if (CancelTimeMachineBtn)
+    {
+        CancelTimeMachineBtn.addEventListener("click", () => { CloseTimeMachine(); });
+    }
+
+    const TimeMachineModalEl = document.getElementById("TimeMachineModal");
+    if (TimeMachineModalEl)
+    {
+        TimeMachineModalEl.addEventListener
+        (
+            "click",
+            (E) =>
+            {
+                if (E.target === TimeMachineModalEl)
+                {
+                    CloseTimeMachine();
+                }
+            }
+        );
+    }
+
+    const TimeMachineSlider = document.getElementById("TimeMachineSlider");
+    if (TimeMachineSlider)
+    {
+        TimeMachineSlider.addEventListener
+        (
+            "input",
+            (E) =>
+            {
+                const Val = parseInt(E.target.value, 10);
+                if (!isNaN(Val))
+                {
+                    SelectTimelineSnapshot(Val);
+                }
+            }
+        );
+    }
+
+    const RestoreTimeMachineBtn = document.getElementById("RestoreTimeMachineSnapshotBtn");
+    if (RestoreTimeMachineBtn)
+    {
+        RestoreTimeMachineBtn.addEventListener("click", () => { RestoreActiveTimelineSnapshot(); });
+    }
+
+    const CopyTimeMachineBtn = document.getElementById("CopyTimeMachineSnapshotBtn");
+    if (CopyTimeMachineBtn)
+    {
+        CopyTimeMachineBtn.addEventListener("click", () => { CopyActiveTimelineSnapshot(); });
     }
 
     // Floating Preview HUD Auto-Fade on idle (Focus Mode)
@@ -9059,6 +9610,9 @@ function ExecuteStudioCommand(CommandId)
         case "toggle_hemingway_focus":
             ToggleHemingwayFocus();
             break;
+        case "open_time_machine":
+            OpenTimeMachine();
+            break;
         case "open_command_palette":
             OpenCommandPalette();
             break;
@@ -9986,6 +10540,20 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 ToggleHemingwayFocus();
+            }
+            else if ( (E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "H" || E.key === "h"))
+            {
+                E.preventDefault();
+                OpenTimeMachine();
+            }
+            else if (E.key === "Escape")
+            {
+                const TimeMachineModalEl = document.getElementById("TimeMachineModal");
+                if (TimeMachineModalEl && TimeMachineModalEl.classList.contains("Active"))
+                {
+                    E.preventDefault();
+                    CloseTimeMachine();
+                }
             }
         }
     );

@@ -6361,3 +6361,270 @@ body.UIMode_Focus .PreviewToolbar:hover
     opacity: 1.0 !important;
     transition: opacity 0.12s ease;
 }
+
+/* --- TIME MACHINE FOR WORDS (PHASE 7.5) --- */
+
+.TimeMachineModalDialog
+{
+    max-width: 920px;
+    width: 92%;
+    max-height: 86vh;
+    display: flex;
+    flex-direction: column;
+    background: rgba(16, 16, 20, 0.96);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7);
+    color: #D6D3CD;
+}
+
+.TimeMachineHeaderIcon
+{
+    font-size: 18px;
+    margin-right: 6px;
+}
+
+.TimeMachineBadge
+{
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    background: rgba(113, 0, 255, 0.2);
+    color: #C084FC;
+    border: 1px solid rgba(113, 0, 255, 0.4);
+    border-radius: 10px;
+    margin-left: 10px;
+}
+
+.TimeMachineHeaderActions
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.TimeMachineDeltaBadge
+{
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    background: rgba(0, 230, 118, 0.14);
+    color: #00E676;
+    border: 1px solid rgba(0, 230, 118, 0.3);
+    border-radius: 10px;
+}
+
+.TimeMachineModalBody
+{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px 20px 20px 20px;
+    overflow-y: auto;
+}
+
+.TimeMachineScrubberSection
+{
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.TimeMachineScrubberTrackContainer
+{
+    position: relative;
+    width: 100%;
+}
+
+.TimeMachineSlider
+{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.16);
+    outline: none;
+    accent-color: #7100FF;
+    cursor: pointer;
+}
+
+.TimeMachineSlider::-webkit-slider-thumb
+{
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #7100FF;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 0 10px rgba(113, 0, 255, 0.6);
+    cursor: grab;
+    transition: transform 0.1s ease;
+}
+
+.TimeMachineSlider::-webkit-slider-thumb:active
+{
+    cursor: grabbing;
+    transform: scale(1.2);
+}
+
+.TimeMachineSlider::-moz-range-thumb
+{
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #7100FF;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 0 10px rgba(113, 0, 255, 0.6);
+    cursor: grab;
+}
+
+.TimeMachineScrubberInfo
+{
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.TimeMachineInfoCol
+{
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.TimeMachineInfoLabel
+{
+    color: #8B949E;
+}
+
+.TimeMachineInfoValue
+{
+    color: #D6D3CD;
+    font-weight: 600;
+}
+
+.TimeMachineDiffView
+{
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    background: #09090B;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.TimeMachinePaneHeader
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 11px;
+    font-weight: 600;
+    color: #8B949E;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.TimeMachineDiffStats
+{
+    color: #D6D3CD;
+}
+
+.TimeMachineDiffContent
+{
+    max-height: 42vh;
+    min-height: 160px;
+    overflow-y: auto;
+    font-family: var(--font-editor, "iA Writer Duo", monospace);
+    font-size: 12.5px;
+    line-height: 1.55;
+    padding: 8px 0;
+    user-select: text;
+}
+
+.TimeMachineDiffLine
+{
+    display: flex;
+    align-items: flex-start;
+    padding: 1px 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.TimeMachineDiffLine .LineNum
+{
+    min-width: 40px;
+    color: #6E7681;
+    user-select: none;
+    text-align: right;
+    padding-right: 12px;
+    font-size: 11px;
+}
+
+.TimeMachineDiffLine .LineSign
+{
+    min-width: 16px;
+    user-select: none;
+    font-weight: bold;
+}
+
+.TimeMachineDiffLine .LineText
+{
+    flex: 1;
+}
+
+.TimeMachineDiffLine.Added
+{
+    background: rgba(0, 230, 118, 0.12);
+    color: #00E676;
+}
+
+.TimeMachineDiffLine.Removed
+{
+    background: rgba(255, 23, 68, 0.12);
+    color: #FF1744;
+    text-decoration: line-through;
+}
+
+.TimeMachineDiffLine.Unchanged
+{
+    color: #D6D3CD;
+}
+
+.TimeMachineEmptyState
+{
+    padding: 40px 20px;
+    text-align: center;
+    color: #8B949E;
+    font-style: italic;
+    font-size: 13px;
+}
+
+.TimeMachineModalFooter
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.TimeMachineFooterRight
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
