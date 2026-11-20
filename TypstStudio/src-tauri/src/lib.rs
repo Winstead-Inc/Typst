@@ -974,14 +974,286 @@ fn PickFolder() -> Result<Option<String>, String>
     Ok(Selected.map( | P | P.to_string_lossy().to_string()))
 }
 
+// =============================================================================
+// Security Hardening & Workspace Boundary Sandboxing
+// =============================================================================
+
+const FORBIDDEN_EXTENSIONS: &[&str] =
+&[
+    ".exe", ".msi", ".msp", ".com", ".scr", ".pif", ".cpl", ".dll", ".sys", ".drv", ".ocx",
+    ".bat", ".cmd", ".vbs", ".vbe", ".js", ".jse", ".ws", ".wsf", ".wsc", ".wsh", ".ps1", ".psm1", ".psd1",
+    ".lnk", ".url", ".scf",
+    ".sh", ".bash", ".zsh", ".fish", ".csh", ".tcsh", ".ksh",
+    ".py", ".pyw", ".rb", ".pl", ".php", ".cgi",
+    ".jar", ".class",
+    ".so", ".dylib", ".bin", ".app", ".dmg", ".pkg", ".deb", ".rpm",
+    ".inf", ".sct", ".reg", ".hta",
+];
+
+const PROTECTED_SYSTEM_FILES: &[&str] =
+&[
+    ".workspace_config.json",
+    "server.js",
+    "package.json",
+    "package-lock.json",
+    ".env",
+    ".env.local",
+    ".bashrc",
+    ".bash_profile",
+    ".zshrc",
+    ".profile",
+    ".gitconfig",
+    ".gitignore",
+    ".gitmodules",
+    "id_rsa",
+    "id_ed25519",
+    "authorized_keys",
+    "known_hosts",
+    "desktop.ini",
+    "autorun.inf",
+];
+
+const ALLOWED_ASSET_EXTENSIONS: &[&str] =
+&[
+    ".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif", ".bmp", ".ico", ".tiff",
+    ".pdf", ".typ", ".txt", ".json", ".csv", ".tsv", ".bib",
+];
+
+fn NormalizePath(Path: &std::path::Path) -> std::path::PathBuf
+{
+    use std::path::Component;
+    let mut Components = Vec::new();
+    for Comp in Path.components()
+    {
+        match Comp
+        {
+            Component::CurDir => {},
+            Component::ParentDir =>
+            {
+                if let Some(Last) = Components.last()
+                {
+                    if !matches!(Last, Component::RootDir | Component::Prefix(_))
+                    {
+                        Components.pop();
+                    }
+                }
+            },
+            _ => Components.push(Comp),
+        }
+    }
+    Components.into_iter().collect()
+}
+
+fn StripVerbatimPrefix(Path: &std::path::Path) -> std::path::PathBuf
+{
+    let PathStr = Path.to_string_lossy();
+    if let Some(Stripped) = PathStr.strip_prefix(r"\\?\UNC\")
+    {
+        std::path::PathBuf::from(format!(r"\\{}", Stripped))
+    }
+    else if let Some(Stripped) = PathStr.strip_prefix(r"\\?\")
+    {
+        std::path::PathBuf::from(Stripped)
+    }
+    else
+    {
+        Path.to_path_buf()
+    }
+}
+
+fn CanonicalizeOrResolve(Path: &std::path::Path) -> std::path::PathBuf
+{
+    if let Ok(Canon) = Path.canonicalize()
+    {
+        StripVerbatimPrefix(&Canon)
+    }
+    else if let Some(Parent) = Path.parent()
+    {
+        if let Ok(CanonParent) = Parent.canonicalize()
+        {
+            if let Some(FileName) = Path.file_name()
+            {
+                StripVerbatimPrefix(&CanonParent).join(FileName)
+            }
+            else
+            {
+                StripVerbatimPrefix(&CanonParent)
+            }
+        }
+        else
+        {
+            NormalizePath(Path)
+        }
+    }
+    else
+    {
+        NormalizePath(Path)
+    }
+}
+
+fn IsPathContainedIn(ParentDir: &std::path::Path, ChildPath: &std::path::Path) -> bool
+{
+    let CanonParent = CanonicalizeOrResolve(ParentDir);
+    let CanonChild = CanonicalizeOrResolve(ChildPath);
+
+    #[cfg(windows)]
+    {
+        let ParentStr = CanonParent.to_string_lossy().to_lowercase();
+        let ChildStr = CanonChild.to_string_lossy().to_lowercase();
+        ChildStr.starts_with(&ParentStr)
+    }
+    #[cfg(not(windows))]
+    {
+        CanonChild.starts_with(&CanonParent)
+    }
+}
+
+fn ValidateWorkspacePath(CandidatePath: &str, MustExist: bool, CheckExtension: bool) -> Result<std::path::PathBuf, String>
+{
+    let Trimmed = CandidatePath.trim();
+    if Trimmed.is_empty()
+    {
+        return Err("Path specification cannot be empty.".to_string());
+    }
+
+    if Trimmed.contains('\0')
+    {
+        return Err("Access denied: Path contains prohibited null byte.".to_string());
+    }
+
+    #[cfg(windows)]
+    {
+        let AfterDrive = if Trimmed.len() >= 2 && Trimmed.as_bytes()[1] == b':'
+        {
+            &Trimmed[2..]
+        }
+        else
+        {
+            Trimmed
+        };
+        if AfterDrive.contains(':')
+        {
+            return Err("Access denied: Alternate Data Streams are strictly prohibited.".to_string());
+        }
+    }
+
+    let RawPath = std::path::Path::new(Trimmed);
+    let CanonCandidate = CanonicalizeOrResolve(RawPath);
+
+    let TrackedDirs = GetTrackedDirectories();
+    if TrackedDirs.is_empty()
+    {
+        return Err("No tracked workspace directories configured.".to_string());
+    }
+
+    let mut IsContained = false;
+    for Dir in &TrackedDirs
+    {
+        let TrackedPath = std::path::Path::new(Dir);
+        if IsPathContainedIn(TrackedPath, &CanonCandidate)
+        {
+            IsContained = true;
+            break;
+        }
+    }
+
+    if !IsContained
+    {
+        return Err(format!("Access denied: Path '{}' is outside tracked workspace directories.", Trimmed));
+    }
+
+    let FileName = CanonCandidate
+        .file_name()
+        .map(|N| N.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let LowerName = FileName.to_lowercase();
+    let CleanBase = LowerName.trim_end_matches(&['.', ' '][..]);
+
+    for Protected in PROTECTED_SYSTEM_FILES
+    {
+        if CleanBase == *Protected
+        {
+            return Err(format!("Access denied: '{}' is a protected system configuration file.", FileName));
+        }
+    }
+
+    if CheckExtension
+    {
+        let Ext = CanonCandidate
+            .extension()
+            .and_then(|E| E.to_str())
+            .map(|E| format!(".{}", E.to_lowercase()))
+            .unwrap_or_default();
+
+        for Forbidden in FORBIDDEN_EXTENSIONS
+        {
+            if Ext == *Forbidden
+            {
+                return Err(format!("Access denied: Files with extension '{}' are strictly forbidden.", Ext));
+            }
+        }
+    }
+
+    if MustExist && !RawPath.exists()
+    {
+        return Err(format!("Target file does not exist: {}", Trimmed));
+    }
+
+    Ok(CanonCandidate)
+}
+
+fn ValidateExternalUrl(Url: &str) -> Result<String, String>
+{
+    let Trimmed = Url.trim();
+    if Trimmed.is_empty()
+    {
+        return Err("URL cannot be empty".to_string());
+    }
+
+    if Trimmed.contains('\0') || Trimmed.contains('\n') || Trimmed.contains('\r')
+    {
+        return Err("Access denied: URL contains prohibited control characters.".to_string());
+    }
+
+    let Lower = Trimmed.to_lowercase();
+
+    let IsHttp = Lower.starts_with("https://") || Lower.starts_with("http://");
+    let IsMailto = Lower.starts_with("mailto:");
+    if !IsHttp && !IsMailto
+    {
+        return Err("Access denied: Only HTTP, HTTPS, and mailto URLs can be opened externally.".to_string());
+    }
+
+    if Lower.contains("javascript:") || Lower.contains("data:") || Lower.contains("file:") || Lower.contains("powershell") || Lower.contains("vbscript:")
+    {
+        return Err("Access denied: Prohibited scheme or content detected.".to_string());
+    }
+
+    if IsHttp
+    {
+        if let Some(HostPart) = Trimmed.split("://").nth(1)
+        {
+            let Domain = HostPart.split('/').next().unwrap_or(HostPart);
+            if Domain.contains('@')
+            {
+                return Err("Access denied: URLs with embedded credentials are prohibited.".to_string());
+            }
+        }
+    }
+
+    Ok(Trimmed.to_string())
+}
+
 #[tauri::command]
 fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
 {
     let CleanPath = PathStr.trim().replace('/', "\\");
-    let P = std::path::Path::new(&CleanPath);
-    if P.exists() && P.is_file()
+    let RawPath = std::path::Path::new(&CleanPath);
+
+    if RawPath.is_absolute()
     {
-        return std::fs::read_to_string(P).map_err( | Error | format!("Failed to read file: {}", Error));
+        let Validated = ValidateWorkspacePath(&CleanPath, true, false)?;
+        return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
     }
 
     for Dir in GetTrackedDirectories()
@@ -989,39 +1261,98 @@ fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
         let Candidate = std::path::Path::new(&Dir).join(&CleanPath);
         if Candidate.exists() && Candidate.is_file()
         {
-            return std::fs::read_to_string(&Candidate).map_err( | Error | format!("Failed to read file: {}", Error));
+            if let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
+            {
+                return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
+            }
         }
     }
 
-    let TargetFileName = P.file_name().map( | N | N.to_string_lossy().to_string()).unwrap_or_else( || CleanPath.clone());
+    let TargetFileName = RawPath
+        .file_name()
+        .map(|N| N.to_string_lossy().to_string())
+        .unwrap_or_else(|| CleanPath.clone());
+
     for Dir in GetTrackedDirectories()
     {
         let Candidate = std::path::Path::new(&Dir).join(&TargetFileName);
         if Candidate.exists() && Candidate.is_file()
         {
-            return std::fs::read_to_string(&Candidate).map_err( | Error | format!("Failed to read file: {}", Error));
+            if let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
+            {
+                return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
+            }
         }
     }
 
-    std::fs::read_to_string(&CleanPath).map_err( | Error | format!("Failed to read file: {}", Error))
+    Err(format!("Access denied or file not found in tracked workspace directories: {}", CleanPath))
 }
 
 #[tauri::command]
-fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result < (), String >
+fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result<(), String>
 {
     let CleanPath = PathStr.trim().replace('/', "\\");
-    if let Some(Parent) = std::path::Path:: new ( & CleanPath).parent()
-    { let _ = std::fs::create_dir_all(Parent); }
-    std::fs::write( & CleanPath, Content).map_err( | Error | format ! ("Failed to save file: {}", Error))
+    let RawPath = std::path::Path::new(&CleanPath);
+
+    let TargetPath = if RawPath.is_absolute()
+    {
+        RawPath.to_path_buf()
+    }
+    else
+    {
+        let PrimaryDir = GetTrackedDirectories().first().cloned().unwrap_or_else(|| ".".to_string());
+        std::path::Path::new(&PrimaryDir).join(&CleanPath)
+    };
+
+    let Validated = ValidateWorkspacePath(&TargetPath.to_string_lossy(), false, true)?;
+
+    if let Some(Parent) = Validated.parent()
+    {
+        let _ = std::fs::create_dir_all(Parent);
+    }
+
+    std::fs::write(&Validated, Content).map_err(|Error| format!("Failed to save file: {}", Error))
 }
 
 #[tauri::command]
 fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String>
 {
-    let TargetDir = DirPath.map(std::path::PathBuf::from).unwrap_or_else( || std::env::current_dir().unwrap_or_default());
-    let mut Results = Vec:: new ();
+    let TargetDir = if let Some(ref Dir) = DirPath
+    {
+        let Trimmed = Dir.trim();
+        if !Trimmed.is_empty()
+        {
+            let NormTarget = NormalizePath(std::path::Path::new(Trimmed));
+            let Tracked = GetTrackedDirectories();
+            let mut Contained = false;
+            for T in &Tracked
+            {
+                let NormT = NormalizePath(std::path::Path::new(T));
+                if IsPathContainedIn(&NormT, &NormTarget)
+                {
+                    Contained = true;
+                    break;
+                }
+            }
+            if !Contained
+            {
+                return Err(format!("Access denied: Directory '{}' is outside tracked workspace.", Trimmed));
+            }
+            NormTarget
+        }
+        else
+        {
+            GetTrackedDirectories().first().map(std::path::PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+        }
+    }
+    else
+    {
+        GetTrackedDirectories().first().map(std::path::PathBuf::from).unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
+    };
 
-    if let Ok(Entries) = std::fs::read_dir( & TargetDir)
+    let mut Results = Vec::new();
+
+    if let Ok(Entries) = std::fs::read_dir(&TargetDir)
     {
         for Entry in Entries.flatten()
         {
@@ -1040,7 +1371,16 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
         }
     }
 
-    Results.sort_by( | A, B | { if A.is_dir != B.is_dir { B.is_dir.cmp( & A.is_dir) } else { A.name.to_lowercase().cmp( & B.name.to_lowercase()) } });
+    Results.sort_by(|A, B| {
+        if A.is_dir != B.is_dir
+        {
+            B.is_dir.cmp(&A.is_dir)
+        }
+        else
+        {
+            A.name.to_lowercase().cmp(&B.name.to_lowercase())
+        }
+    });
 
     Ok(Results)
 }
@@ -1192,25 +1532,59 @@ fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
 }
 
 #[tauri::command]
-fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Option<String>,) -> Result<String, String>
+fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Option<String>) -> Result<String, String>
 {
     let Dirs = GetTrackedDirectories();
-    let TargetDir = Directory
-   .filter( | D | ! D.trim().is_empty())
-   .or_else( || Dirs.first().cloned())
-   .unwrap_or_else( || ".".to_string());
+    let TargetDir = if let Some(ref Dir) = Directory
+    {
+        let Trimmed = Dir.trim();
+        if !Trimmed.is_empty()
+        {
+            let NormTarget = NormalizePath(std::path::Path::new(Trimmed));
+            let mut Contained = false;
+            for D in &Dirs
+            {
+                let NormD = NormalizePath(std::path::Path::new(D));
+                if IsPathContainedIn(&NormD, &NormTarget)
+                {
+                    Contained = true;
+                    break;
+                }
+            }
+            if !Contained
+            {
+                return Err(format!("Access denied: Directory '{}' is outside tracked workspace.", Trimmed));
+            }
+            Trimmed.to_string()
+        }
+        else
+        {
+            Dirs.first().cloned().unwrap_or_else(|| ".".to_string())
+        }
+    }
+    else
+    {
+        Dirs.first().cloned().unwrap_or_else(|| ".".to_string())
+    };
 
-    let mut CleanName = std::path::Path:: new ( & FileName)
-   .file_name()
-   .map( | N | N.to_string_lossy().to_string())
-   .unwrap_or_else( || "Untitled.typ".to_string());
+    let CleanName = std::path::Path::new(&FileName)
+        .file_name()
+        .map(|N| N.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Untitled.typ".to_string());
 
-    if ! CleanName.ends_with(".typ")
-    { CleanName.push_str(".typ"); }
+    let mut FinalName = CleanName;
+    if !FinalName.ends_with(".typ")
+    {
+        FinalName.push_str(".typ");
+    }
 
-    let FullPath = std::path::Path:: new ( & TargetDir).join( & CleanName);
-    if let Some(Parent) = FullPath.parent()
-    { let _ = std::fs::create_dir_all(Parent); }
+    let FullPath = std::path::Path::new(&TargetDir).join(&FinalName);
+    let Validated = ValidateWorkspacePath(&FullPath.to_string_lossy(), false, true)?;
+
+    if let Some(Parent) = Validated.parent()
+    {
+        let _ = std::fs::create_dir_all(Parent);
+    }
 
     let InitialContent = Content.unwrap_or_else
     (
@@ -1220,72 +1594,159 @@ fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Opt
         }
     );
 
-    std::fs::write( & FullPath, InitialContent).map_err( | Error | format ! ("Failed to create file: {}", Error))?;
-    Ok(FullPath.to_string_lossy().to_string())
+    std::fs::write(&Validated, InitialContent).map_err(|Error| format!("Failed to create file: {}", Error))?;
+    Ok(Validated.to_string_lossy().to_string())
 }
 
 #[tauri::command]
-fn DeleteWorkspaceFile(PathStr: String) -> Result < (), String >
+fn DeleteWorkspaceFile(PathStr: String) -> Result<(), String>
 {
-    let P = std::path::Path:: new ( & PathStr);
-    if P.exists()
-    { std::fs::remove_file(P).map_err( | Error | format ! ("Failed to delete file: {}", Error))?; }
+    let CleanPath = PathStr.trim().replace('/', "\\");
+    let RawPath = std::path::Path::new(&CleanPath);
+
+    let TargetPath = if RawPath.is_absolute()
+    {
+        RawPath.to_path_buf()
+    }
+    else
+    {
+        let mut Found = None;
+        for Dir in GetTrackedDirectories()
+        {
+            let Candidate = std::path::Path::new(&Dir).join(&CleanPath);
+            if Candidate.exists()
+            {
+                Found = Some(Candidate);
+                break;
+            }
+        }
+        Found.unwrap_or_else(|| RawPath.to_path_buf())
+    };
+
+    let Validated = ValidateWorkspacePath(&TargetPath.to_string_lossy(), true, true)?;
+    std::fs::remove_file(&Validated).map_err(|Error| format!("Failed to delete file: {}", Error))?;
     Ok(())
 }
 
 #[tauri::command]
-fn AddWorkspaceDirectory(PathStr: String) -> Result < (), String >
+fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
 {
-    let P = std::path::Path:: new ( & PathStr);
-    if ! P.exists()
-    { let _ = std::fs::create_dir_all(P); }
+    let Trimmed = PathStr.trim();
+    if Trimmed.is_empty()
+    {
+        return Err("Directory path cannot be empty".to_string());
+    }
+    if Trimmed.contains('\0')
+    {
+        return Err("Path contains prohibited null byte".to_string());
+    }
+
+    let P = std::path::Path::new(Trimmed);
+    if !P.exists()
+    {
+        let _ = std::fs::create_dir_all(P);
+    }
 
     let mut Dirs = GetTrackedDirectories();
-    let Canonical = P.to_string_lossy().to_string();
-    if ! Dirs.iter().any( | D | D.eq_ignore_ascii_case( & Canonical))
-    { Dirs.push(Canonical); SaveTrackedDirectories( & Dirs)?; }
+    let Canonical = CanonicalizeOrResolve(P).to_string_lossy().to_string();
+
+    if !Dirs.iter().any(|D| D.eq_ignore_ascii_case(&Canonical))
+    {
+        Dirs.push(Canonical);
+        SaveTrackedDirectories(&Dirs)?;
+    }
     Ok(())
 }
 
 #[tauri::command]
-fn RemoveWorkspaceDirectory(PathStr: String) -> Result < (), String >
+fn RemoveWorkspaceDirectory(PathStr: String) -> Result<(), String>
 {
+    let Trimmed = PathStr.trim();
+    let P = std::path::Path::new(Trimmed);
+    let Canon = CanonicalizeOrResolve(P).to_string_lossy().to_string();
+
     let mut Dirs = GetTrackedDirectories();
-    Dirs.retain( | D | ! D.eq_ignore_ascii_case( & PathStr));
-    SaveTrackedDirectories( & Dirs)?;
+    Dirs.retain(|D| !D.eq_ignore_ascii_case(Trimmed) && !D.eq_ignore_ascii_case(&Canon));
+    SaveTrackedDirectories(&Dirs)?;
     Ok(())
 }
 
 #[tauri::command]
-fn UploadAsset(Directory: Option<String>, FileName: String, Base64Data: String,) -> Result<String, String>
+fn UploadAsset(Directory: Option<String>, FileName: String, Base64Data: String) -> Result<String, String>
 {
     let Dirs = GetTrackedDirectories();
-    let TargetDir = Directory
-   .filter( | D | ! D.trim().is_empty())
-   .or_else( || Dirs.first().cloned())
-   .unwrap_or_else( || ".".to_string());
+    let TargetDir = if let Some(ref Dir) = Directory
+    {
+        let Trimmed = Dir.trim();
+        if !Trimmed.is_empty()
+        {
+            let NormTarget = NormalizePath(std::path::Path::new(Trimmed));
+            let mut Contained = false;
+            for D in &Dirs
+            {
+                let NormD = NormalizePath(std::path::Path::new(D));
+                if IsPathContainedIn(&NormD, &NormTarget)
+                {
+                    Contained = true;
+                    break;
+                }
+            }
+            if !Contained
+            {
+                return Err(format!("Access denied: Directory '{}' is outside tracked workspace.", Trimmed));
+            }
+            Trimmed.to_string()
+        }
+        else
+        {
+            Dirs.first().cloned().unwrap_or_else(|| ".".to_string())
+        }
+    }
+    else
+    {
+        Dirs.first().cloned().unwrap_or_else(|| ".".to_string())
+    };
 
-    let CleanName = std::path::Path:: new ( & FileName)
-   .file_name()
-   .map( | N | N.to_string_lossy().to_string())
-   .unwrap_or_else( || "asset.png".to_string());
+    let CleanName = std::path::Path::new(&FileName)
+        .file_name()
+        .map(|N| N.to_string_lossy().to_string())
+        .unwrap_or_else(|| "asset.png".to_string());
 
-    let OutPath = std::path::Path:: new ( & TargetDir).join( & CleanName);
-    if let Some(Parent) = OutPath.parent()
-    { let _ = std::fs::create_dir_all(Parent); }
+    let Ext = std::path::Path::new(&CleanName)
+        .extension()
+        .and_then(|E| E.to_str())
+        .map(|E| format!(".{}", E.to_lowercase()))
+        .unwrap_or_default();
+
+    if !ALLOWED_ASSET_EXTENSIONS.contains(&Ext.as_str())
+    {
+        return Err(format!("Access denied: File extension '{}' is not an allowed asset type.", Ext));
+    }
+
+    let OutPath = std::path::Path::new(&TargetDir).join(&CleanName);
+    let Validated = ValidateWorkspacePath(&OutPath.to_string_lossy(), false, true)?;
+
+    if let Some(Parent) = Validated.parent()
+    {
+        let _ = std::fs::create_dir_all(Parent);
+    }
 
     let CleanBase64 = if let Some(Pos) = Base64Data.find(";base64,")
-    { & Base64Data[Pos + 8..] }
+    {
+        &Base64Data[Pos + 8..]
+    }
     else
-    { & Base64Data };
+    {
+        &Base64Data
+    };
 
     use base64::Engine;
     let Decoded = base64::engine::general_purpose::STANDARD
-   .decode(CleanBase64 .trim())
-   .map_err( | Error | format ! ("Base64 decode error: {}", Error))?;
+        .decode(CleanBase64.trim())
+        .map_err(|Error| format!("Base64 decode error: {}", Error))?;
 
-    std::fs::write( & OutPath, Decoded).map_err( | Error | format ! ("Failed to write asset: {}", Error))?;
-    Ok(OutPath.to_string_lossy().to_string())
+    std::fs::write(&Validated, Decoded).map_err(|Error| format!("Failed to write asset: {}", Error))?;
+    Ok(Validated.to_string_lossy().to_string())
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -2141,7 +2602,8 @@ fn ToggleDevTools(App: tauri::AppHandle) -> Result<bool, String>
 #[tauri::command]
 fn OpenExternalUrl(App: tauri::AppHandle, Url: String) -> Result<(), String>
 {
-    App.shell().open(&Url, None).map_err(|E| E.to_string())
+    let ValidUrl = ValidateExternalUrl(&Url)?;
+    App.shell().open(&ValidUrl, None).map_err(|E| E.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -2281,15 +2743,18 @@ mod tests
    #[test]
     fn TestWorkspaceFileOperations()
     {
-        let TempDir = std::env::temp_dir().join(format ! ("test_ws_{}", std::process::id()));
-        let _ = std::fs::create_dir_all( & TempDir);
+        let OriginalDirs = GetTrackedDirectories();
+        let TempDir = std::env::temp_dir().join(format!("test_ws_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&TempDir);
         let TempDirStr = TempDir.to_string_lossy().to_string();
+
+        let _ = AddWorkspaceDirectory(TempDirStr.clone());
 
         let CreatedPath = CreateWorkspaceFile
         (Some(TempDirStr.clone()), "MyTestDoc.typ".to_string(), Some("= Test Content".to_string()),)
        .expect("CreateWorkspaceFile should succeed");
 
-        assert!(std::path::Path::new ( & CreatedPath).exists());
+        assert!(std::path::Path::new(&CreatedPath).exists());
 
         let ReadContent = ReadWorkspaceFile(CreatedPath.clone()).expect("ReadWorkspaceFile should succeed");
         assert_eq!(ReadContent, "= Test Content");
@@ -2299,9 +2764,10 @@ mod tests
         assert_eq!(UpdatedContent, "= Updated Content");
 
         DeleteWorkspaceFile(CreatedPath.clone()).expect("DeleteWorkspaceFile should succeed");
-        assert!( ! std::path::Path::new ( & CreatedPath).exists());
+        assert!(!std::path::Path::new(&CreatedPath).exists());
 
-        let _ = std::fs::remove_dir_all( & TempDir);
+        let _ = SaveTrackedDirectories(&OriginalDirs);
+        let _ = std::fs::remove_dir_all(&TempDir);
     }
 
    #[test]
@@ -2394,5 +2860,70 @@ mod tests
         assert_eq!(Content1, "= Chapter 1\nIn the beginning...");
 
         let _ = std::fs::remove_dir_all(&TempDir);
+    }
+
+    #[test]
+    fn TestPathTraversalAndWorkspaceContainment()
+    {
+        // 1. Attempting to access an arbitrary system path outside workspace must fail
+        let OutsidePath = if cfg!(windows) { r"C:\Windows\System32\cmd.exe" } else { "/etc/passwd" };
+        let Result = ValidateWorkspacePath(OutsidePath, false, false);
+        assert!(Result.is_err(), "Outside system path must be rejected");
+        assert!(Result.unwrap_err().contains("Access denied"));
+
+        // 2. Relative traversal attempting to escape workspace must fail
+        let TraversalPath = r"e:\Typst\projects\..\..\Windows\System32\cmd.exe";
+        let Result2 = ValidateWorkspacePath(TraversalPath, false, false);
+        assert!(Result2.is_err(), "Relative traversal escaping workspace must be rejected");
+
+        // 3. Prohibited null bytes must fail
+        let NullByte = "e:\\Typst\\projects\\doc\0.typ";
+        let Result3 = ValidateWorkspacePath(NullByte, false, false);
+        assert!(Result3.is_err(), "Null byte path must be rejected");
+    }
+
+    #[test]
+    fn TestForbiddenExtensionsAndProtectedFiles()
+    {
+        let Tracked = GetTrackedDirectories();
+        let Root = Tracked.first().cloned().unwrap_or_else(|| r"e:\Typst\projects".to_string());
+
+        // 1. Forbidden executable extensions (.bat, .exe, .ps1, .sh) must fail
+        for Ext in &[".exe", ".bat", ".ps1", ".cmd", ".vbs", ".sh"]
+        {
+            let Malicious = format!("{}\\{}exploit{}", Root, std::path::MAIN_SEPARATOR, Ext);
+            let Res = ValidateWorkspacePath(&Malicious, false, true);
+            assert!(Res.is_err(), "Executable extension {} must be rejected", Ext);
+            assert!(Res.unwrap_err().contains("strictly forbidden"));
+        }
+
+        // 2. Protected system configuration files must fail
+        for Protected in &[".workspace_config.json", ".env", "server.js", "package.json"]
+        {
+            let Target = format!("{}\\{}{}", Root, std::path::MAIN_SEPARATOR, Protected);
+            let Res = ValidateWorkspacePath(&Target, false, false);
+            assert!(Res.is_err(), "Protected system file {} must be rejected", Protected);
+            assert!(Res.unwrap_err().contains("protected system configuration file"));
+        }
+    }
+
+    #[test]
+    fn TestExternalUrlValidationSecurity()
+    {
+        // Safe URLs must pass
+        assert!(ValidateExternalUrl("https://typst.app").is_ok());
+        assert!(ValidateExternalUrl("http://127.0.0.1:3000/docs").is_ok());
+        assert!(ValidateExternalUrl("mailto:author@example.com").is_ok());
+
+        // Dangerous URI schemes must be rejected
+        assert!(ValidateExternalUrl("file:///C:/Windows/System32/cmd.exe").is_err());
+        assert!(ValidateExternalUrl("calc.exe").is_err());
+        assert!(ValidateExternalUrl("javascript:alert(1)").is_err());
+        assert!(ValidateExternalUrl("data:text/html,<script>alert(1)</script>").is_err());
+        assert!(ValidateExternalUrl("powershell -ExecutionPolicy Bypass").is_err());
+        assert!(ValidateExternalUrl("ms-msdt:/id PCWDiagnostic").is_err());
+
+        // Embedded credentials must be rejected
+        assert!(ValidateExternalUrl("https://user:password@evil.com").is_err());
     }
 }

@@ -1604,7 +1604,7 @@ function ShowToast(Message, Type = "info", DurationMs = 3000)
         IconSvg = `<svg Class = "ToastIcon" Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2"><circle Cx = "12" Cy = "12" R = "10" /><line X1 = "12" Y1 = "16" X2 = "12" Y2 = "12" /><line X1 = "12" Y1 = "8" X2 = "12.01" Y2 = "8" /></svg>`;
     }
 
-    Toast.innerHTML = `${IconSvg}<span Class = "ToastMessage">${Message}</span>`;
+    Toast.innerHTML = `${IconSvg}<span Class = "ToastMessage">${EscapeHtml(Message)}</span>`;
     Container.appendChild(Toast);
 
     requestAnimationFrame
@@ -6574,7 +6574,7 @@ function RenderCommandPaletteItems(Query)
 
     if (FilteredPaletteActions.length === 0)
     {
-        List.innerHTML = `<div Class = "CommandPaletteEmpty">No commands found matching "${Query}"</div>`;
+        List.innerHTML = `<div Class = "CommandPaletteEmpty">No commands found matching "${EscapeHtml(Query)}"</div>`;
         return ;
     }
 
@@ -10039,7 +10039,7 @@ function RenderOutlineItems(Headings)
     if (Filtered.length === 0)
     {
         ListContainer.innerHTML = Filter
-        ? `<div Class = "OutlineEmptyState">No sections match "${Filter}"</div>`
+        ? `<div Class = "OutlineEmptyState">No sections match "${EscapeHtml(Filter)}"</div>`
         : `<div Class = "OutlineEmptyState">No headings in document.<br><span style="color:#71717A; font-size:10.5px;">Add '= Section Name' to generate an outline.</span></div>`;
         return ;
     }
