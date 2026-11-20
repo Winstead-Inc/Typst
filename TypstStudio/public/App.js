@@ -2997,11 +2997,32 @@ function ValidateEditorLAFS()
     return KnrResult;
 }
 
+function InProcessFormatSnippetLAFS(Code)
+{
+    const Lines = (Code || "").split(/\r?\n/);
+    const Out = [];
+    for (let Line of Lines)
+    {
+        const Trimmed = Line.trim();
+        const Match = Trimmed.match(/^(.*?)\s*\{$/);
+        if (Match && !Trimmed.startsWith("{"))
+        {
+            const Indent = Line.match(/^\s*/)[0];
+            Out.push(`${Indent}${Match[1]}`);
+            Out.push(`${Indent}{`);
+            continue;
+        }
+        Out.push(Line);
+    }
+    return Out.join("\n");
+}
+
 function FormatTypstLAFS(Source)
 {
     const Lines = Source.split(/\r?\n/);
     const ResultLines = [];
     let InRawBlock = false;
+    let CurrentRawLines = [];
     let InBlockComment = false;
 
     for (let I = 0; I < Lines.length; I ++)
@@ -3011,14 +3032,32 @@ function FormatTypstLAFS(Source)
 
         if (Trimmed.startsWith("```"))
         {
-            InRawBlock = ! InRawBlock;
-            ResultLines.push(Line);
+            if (!InRawBlock)
+            {
+                InRawBlock = true;
+                CurrentRawLines = [];
+                ResultLines.push(Line);
+            }
+            else
+            {
+                InRawBlock = false;
+                const RawCode = CurrentRawLines.join("\n");
+                if (RawCode.trim().length > 0)
+                {
+                    ResultLines.push(InProcessFormatSnippetLAFS(RawCode));
+                }
+                else
+                {
+                    ResultLines.push(...CurrentRawLines);
+                }
+                ResultLines.push(Line);
+            }
             continue;
         }
 
         if (InRawBlock)
         {
-            ResultLines.push(Line);
+            CurrentRawLines.push(Line);
             continue;
         }
 
@@ -3093,12 +3132,67 @@ function FormatTypstLAFS(Source)
     return ResultLines.join("\n");
 }
 
-function ApplyFormattingToEditor()
+async function ApplyFormattingToEditor()
 {
     if (!MonacoInstance) { return; }
     CaptureTimelineSnapshot("Before LAFS Format");
     const CurrentValue = MonacoInstance.getValue();
-    const FormattedValue = FormatTypstLAFS(CurrentValue);
+    let FormattedValue = null;
+
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        try
+        {
+            const Resp = await window.__TAURI__.core.invoke("FormatTypst", { Source: CurrentValue });
+            if (Resp && Resp.Success && Resp.Formatted)
+            {
+                FormattedValue = Resp.Formatted;
+            }
+        }
+        catch (Err)
+        {
+            console.warn("Tauri FormatTypst fallback:", Err);
+        }
+    }
+
+    if (!FormattedValue && typeof fetch === "function")
+    {
+        try
+        {
+            await EnsureSessionAuthToken();
+            const Resp = await fetch
+            (
+                "/api/format",
+                {
+                    method: "POST",
+                    headers:
+                    {
+                        "Content-Type": "application/json",
+                        "X-Typst-Auth-Token": SessionAuthToken || ""
+                    },
+                    body: JSON.stringify( { Source: CurrentValue })
+                }
+            );
+            if (Resp.ok)
+            {
+                const Json = await Resp.json();
+                if (Json.Success && Json.Formatted)
+                {
+                    FormattedValue = Json.Formatted;
+                }
+            }
+        }
+        catch (Err)
+        {
+            // Fallback to client-side
+        }
+    }
+
+    if (!FormattedValue)
+    {
+        FormattedValue = FormatTypstLAFS(CurrentValue);
+    }
+
     if (CurrentValue !== FormattedValue)
     {
         const FullRange = MonacoInstance.getModel().getFullModelRange();
@@ -5386,13 +5480,36 @@ function RenderPages(Pages)
 
     function NormalizeSvg(RawSvg)
     {
-        return RawSvg.replace
+        if (!RawSvg || typeof RawSvg !== "string")
+        {
+            return "";
+        }
+
+        // 1. Strip script tags
+        let Sanitized = RawSvg
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/<script\b[^>]*\/>/gi, "");
+
+        // 2. Strip foreignObject tags
+        Sanitized = Sanitized
+            .replace(/<foreignObject\b[^<]*(?:(?!<\/foreignObject>)<[^<]*)*<\/foreignObject>/gi, "")
+            .replace(/<foreignObject\b[^>]*\/>/gi, "");
+
+        // 3. Strip inline event handlers (onload, onerror, onclick, etc.)
+        Sanitized = Sanitized.replace(/\s+on[a-z]+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "");
+
+        // 4. Strip javascript: and data: URIs in href and xlink:href
+        Sanitized = Sanitized.replace(/\s+(?:xlink:)?href\s*=\s*['"]\s*(?:javascript:|data:text\/html)[\s\S]*?['"]/gi, "");
+
+        // 5. Adjust width & height for container rendering
+        return Sanitized.replace
         (
-            /<svg\b([^>]*)>/i, (Match, Attrs) =>
+            /<svg\b([^>]*)>/i,
+            (Match, Attrs) =>
             {
                 const CleanedAttrs = Attrs
-                .replace(/\bwidth="[^"]*"/gi, "")
-                .replace(/\bheight="[^"]*"/gi, "");
+                    .replace(/\bwidth="[^"]*"/gi, "")
+                    .replace(/\bheight="[^"]*"/gi, "");
                 return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
             }
         );
@@ -11673,7 +11790,12 @@ function EscapeHtml(Str)
     {
         return "";
     }
-    return Str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    return String(Str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
 }
 
 let CachedAvailableFonts = [];
@@ -11802,10 +11924,10 @@ function RenderDocDropdownList(FilterQuery = "")
     {
         const IsActive = CurrentFilePath && (File.Path.toLowerCase() === CurrentFilePath.toLowerCase());
         const ActiveClass = IsActive ? "Active": "";
-        const EscapedPath = File.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+        const SafeParam = encodeURIComponent(File.Path);
 
         Html += `
-            <div Class = "DocDropdownItem ${ActiveClass}" onclick = "OpenFileFromWorkspace('${EscapedPath}')">
+            <div Class = "DocDropdownItem ${ActiveClass}" onclick = "OpenFileFromWorkspace(decodeURIComponent('${SafeParam}'))">
                 <div Class = "DocDropdownItemIcon">
                     <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                         <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -12447,15 +12569,14 @@ function RenderEditorTabs()
     {
         const IsActive = Tab.Path && (Tab.Path.toLowerCase() === (ActiveTabPath || "").toLowerCase());
         const ActiveClass = IsActive ? "Active": "";
-        const EscapedPath = Tab.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-        const EscapedName = Tab.Name.replace(/'/g, "\\'");
+        const SafeTabPathParam = encodeURIComponent(Tab.Path);
 
         Html += `
-            <div Class = "EditorTab ${ActiveClass}" onclick = "SwitchToTab('${EscapedPath}')" Title = "${EscapeHtml(Tab.Path)}">
+            <div Class = "EditorTab ${ActiveClass}" onclick = "SwitchToTab(decodeURIComponent('${SafeTabPathParam}'))" Title = "${EscapeHtml(Tab.Path)}">
                 <span Class = "TabIcon">${GetFileIconSvg(Tab.Name)}</span>
                 <span Class = "TabTitle">${EscapeHtml(Tab.Name)}</span>
                 <span Class = "TabDirtyDot ${Tab.Dirty ? "Visible" : ""}" Title = "Unsaved changes"></span>
-                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" onclick = "event.stopPropagation(); CloseTab('${EscapedPath}')">×</button>
+                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" onclick = "event.stopPropagation(); CloseTab(decodeURIComponent('${SafeTabPathParam}'))">×</button>
             </div>
         `;
     }
@@ -13147,19 +13268,19 @@ function RenderDashboard(FilterQuery = "")
         for (const Dir of WorkspaceDirectories)
         {
             const ProjCount = Projects.filter((P) => P.Path.toLowerCase().startsWith(Dir.toLowerCase())).length;
-            const EscapedDir = Dir.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+            const SafeDirParam = encodeURIComponent(Dir);
             const CanDelete = WorkspaceDirectories.length > 1;
             const IsSelected = ActiveSelectedDirectory && (ActiveSelectedDirectory.toLowerCase() === Dir.toLowerCase());
             const ActiveClass = IsSelected ? "IsActiveDirectory": "";
 
             DirHtml += `
-                <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory('${EscapedDir}')" Title = "Filter projects in this directory">
+                <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory(decodeURIComponent('${SafeDirParam}'))" Title = "Filter projects in this directory">
                     <div Class = "DirectoryItemInfo">
                         <span Class = "DirectoryPathText" Title = "${EscapeHtml(Dir)}">${EscapeHtml(Dir)}</span>
                         <span Class = "DirectoryCountBadge">${ProjCount} Projects</span>
                     </div>
                     ${CanDelete ? `
-                        <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" onclick = "event.stopPropagation(); RemoveWorkspaceDirectory('${EscapedDir}')">
+                        <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" onclick = "event.stopPropagation(); RemoveWorkspaceDirectory(decodeURIComponent('${SafeDirParam}'))">
                             <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                                 <line X1 = "18" Y1 = "6" X2 = "6" Y2 = "18" />
                                 <line X1 = "6" Y1 = "6" X2 = "18" Y2 = "18" />
@@ -13234,9 +13355,9 @@ function RenderDashboard(FilterQuery = "")
             {
                 for (const F of Proj.Files)
                 {
-                    const EscFile = F.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+                    const SafeFileParam = encodeURIComponent(F.Path);
                     FilesListHtml += `
-                        <div Class = "ProjectFileRow" onclick = "OpenDocumentInTab('${EscFile}')" Title = "Open ${EscapeHtml(F.Name)} in Editor">
+                        <div Class = "ProjectFileRow" onclick = "OpenDocumentInTab(decodeURIComponent('${SafeFileParam}'))" Title = "Open ${EscapeHtml(F.Name)} in Editor">
                             <span Class = "ProjectFileIcon">${GetFileIconSvg(F.Name)}</span>
                             <span Class = "ProjectFileName">${EscapeHtml(F.Name)}</span>
                             <span Class = "ProjectFileSize">${FormatFileSize(F.Size)}</span>

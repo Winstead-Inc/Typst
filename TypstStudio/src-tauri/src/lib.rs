@@ -530,6 +530,62 @@ fn CreateCommand<P: AsRef<std::ffi::OsStr>>(Program: P) -> std::process::Command
     Cmd
 }
 
+fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path::PathBuf
+{
+    if let Some(Path) = FilePath
+    {
+        if let Ok(Validated) = ValidateWorkspacePath(Path, false, false)
+        {
+            if Validated.exists() && Validated.is_file()
+            {
+                return Validated.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.to_path_buf());
+            }
+            else if Validated.exists() && Validated.is_dir()
+            {
+                return Validated;
+            }
+        }
+    }
+    JobDir.to_path_buf()
+}
+
+fn ExecuteCommandWithTimeout
+(
+    mut Child: std::process::Child,
+    TimeoutDuration: std::time::Duration,
+) -> Result<std::process::Output, String>
+{
+    let PollInterval = std::time::Duration::from_millis(50);
+    let Start = std::time::Instant::now();
+
+    loop
+    {
+        match Child.try_wait()
+        {
+            Ok(Some(_)) =>
+            {
+                return Child.wait_with_output()
+                    .map_err(|Error| format!("Execution failed: {}", Error));
+            }
+            Ok(None) =>
+            {
+                if Start.elapsed() >= TimeoutDuration
+                {
+                    let _ = Child.kill();
+                    let _ = Child.wait();
+                    return Err(format!("Typst process timed out after {} seconds", TimeoutDuration.as_secs()));
+                }
+                std::thread::sleep(PollInterval);
+            }
+            Err(Error) =>
+            {
+                let _ = Child.kill();
+                return Err(format!("Process polling failure: {}", Error));
+            }
+        }
+    }
+}
+
 fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
 {
     let StartTime = std::time::Instant::now();
@@ -543,44 +599,32 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all( & JobDir);
+    let _ = std::fs::create_dir_all(&JobDir);
 
-    let DocRoot = if let Some(ref Path) = FilePath
-    {
-        let P = std::path::Path:: new (Path);
-        if P.exists() && P.is_file()
-        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
-        else if P.exists() && P.is_dir()
-        { P.to_path_buf() }
-        else
-        { JobDir.clone() }
-    }
-    else
-    { JobDir.clone() };
+    let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = CreateCommand( & TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    let mut Command = CreateCommand(&TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
     }
-    Command.current_dir( & JobDir);
+    Command.current_dir(&JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    ( | Error | format ! ("Failed to spawn typst binary at {:?}: {}", TypstBin, Error))
-    ?;
+    (|Error| format!("Failed to spawn typst binary at {:?}: {}", TypstBin, Error))?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    { let _ = Stdin.write_all(Source.as_bytes()); }
+    {
+        let _ = Stdin.write_all(Source.as_bytes());
+    }
 
-    let Output = Child.wait_with_output().map_err
-    ( | Error | format ! ("Typst execution failed: {}", Error))
-    ?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
     let DurationMs = StartTime.elapsed().as_millis();
 
     if ! Output.status.success()
@@ -650,50 +694,42 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all( & JobDir);
+    let _ = std::fs::create_dir_all(&JobDir);
 
-    let DocRoot = if let Some(ref Path) = FilePath
-    {
-        let P = std::path::Path:: new (Path);
-        if P.exists() && P.is_file()
-        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
-        else if P.exists() && P.is_dir()
-        { P.to_path_buf() }
-        else
-        { JobDir.clone() }
-    }
-    else
-    { JobDir.clone() };
+    let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
 
     let mut SourceToCompile = Source;
     if BlackMode.unwrap_or(false)
-    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent.unwrap_or(false)); }
+    {
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent.unwrap_or(false));
+    }
     else if Transparent.unwrap_or(false)
-    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
+    {
+        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
+    }
 
     let OutputPdf = JobDir.join("output.pdf");
 
-    let mut Command = CreateCommand( & TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf"),]);
+    let mut Command = CreateCommand(&TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
     }
-    Command.current_dir( & JobDir);
+    Command.current_dir(&JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    ( | Error | format ! ("Failed to spawn typst: {}", Error))
-    ?;
+    (|Error| format!("Failed to spawn typst: {}", Error))?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
+    {
+        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+    }
 
-    let Output = Child.wait_with_output().map_err
-    ( | Error | format ! ("Typst execution failed: {}", Error))
-    ?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
 
     if ! Output.status.success()
     {
@@ -729,30 +765,23 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all( & JobDir);
+    let _ = std::fs::create_dir_all(&JobDir);
 
-    let DocRoot = if let Some(ref Path) = FilePath
-    {
-        let P = std::path::Path:: new (Path);
-        if P.exists() && P.is_file()
-        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
-        else if P.exists() && P.is_dir()
-        { P.to_path_buf() }
-        else
-        { JobDir.clone() }
-    }
-    else
-    { JobDir.clone() };
+    let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
 
     let mut SourceToCompile = Source;
     if BlackMode
-    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent); }
+    {
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
+    }
     else if Transparent
-    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
+    {
+        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
+    }
 
     let OutputPattern = JobDir.join("page-{p}.png");
 
-    let mut Command = CreateCommand( & TypstBin);
+    let mut Command = CreateCommand(&TypstBin);
     Command.args
     ([
         "compile",
@@ -769,21 +798,20 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
     {
         Command.arg("--font-path").arg(FontDir);
     }
-    Command.current_dir( & JobDir);
+    Command.current_dir(&JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    ( | Error | format ! ("Failed to spawn typst: {}", Error))
-    ?;
+    (|Error| format!("Failed to spawn typst: {}", Error))?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
+    {
+        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+    }
 
-    let Output = Child.wait_with_output().map_err
-    ( | Error | format ! ("Typst execution failed: {}", Error))
-    ?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
 
     if ! Output.status.success()
     {
@@ -818,9 +846,15 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         let mut Zip = ZipWriter:: new (Cursor::new ( & mut ZipBuffer));
         let Options = SimpleFileOptions:: default().compression_method(zip::CompressionMethod::Deflated);
 
+        let SafeBaseDocName = std::path::Path::new(&BaseDocName)
+            .file_name()
+            .map(|N| N.to_string_lossy().to_string())
+            .unwrap_or_else(|| "document".to_string())
+            .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+
         for (Idx, (_, PngPath)) in PngFiles.iter().enumerate()
         {
-            let EntryName = format!("{}_page_{}.png", BaseDocName, Idx + 1);
+            let EntryName = format!("{}_page_{}.png", SafeBaseDocName, Idx + 1);
             Zip.start_file(EntryName, Options).map_err( | Error | format ! ("Zip error: {}", Error))?;
             let PageData = std::fs::read(PngPath).map_err( | Error | format ! ("Failed to read PNG: {}", Error))?;
             Zip.write_all( & PageData).map_err( | Error | format ! ("Zip write error: {}", Error))?;
@@ -851,50 +885,42 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         std::process::id()
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId);
-    let _ = std::fs::create_dir_all( & JobDir);
+    let _ = std::fs::create_dir_all(&JobDir);
 
-    let DocRoot = if let Some(ref Path) = FilePath
-    {
-        let P = std::path::Path:: new (Path);
-        if P.exists() && P.is_file()
-        { P.parent().map( | Dir | Dir.to_path_buf()).unwrap_or_else( || JobDir.clone()) }
-        else if P.exists() && P.is_dir()
-        { P.to_path_buf() }
-        else
-        { JobDir.clone() }
-    }
-    else
-    { JobDir.clone() };
+    let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
 
     let mut SourceToCompile = Source;
     if BlackMode
-    { SourceToCompile = ConvertTypstSourceToDarkMode( & SourceToCompile, Transparent); }
+    {
+        SourceToCompile = ConvertTypstSourceToDarkMode(&SourceToCompile, Transparent);
+    }
     else if Transparent
-    { SourceToCompile = format ! ("#set page(fill: none)\n\n{}", SourceToCompile); }
+    {
+        SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
+    }
 
     let OutputPattern = JobDir.join("page-{p}.svg");
 
-    let mut Command = CreateCommand( & TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg"),]);
+    let mut Command = CreateCommand(&TypstBin);
+    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
     }
-    Command.current_dir( & JobDir);
+    Command.current_dir(&JobDir);
     Command.stdin(std::process::Stdio::piped());
     Command.stdout(std::process::Stdio::piped());
     Command.stderr(std::process::Stdio::piped());
 
     let mut Child = Command.spawn().map_err
-    ( | Error | format ! ("Failed to spawn typst: {}", Error))
-    ?;
+    (|Error| format!("Failed to spawn typst: {}", Error))?;
 
     if let Some(mut Stdin) = Child.stdin.take()
-    { let _ = Stdin.write_all(SourceToCompile.as_bytes()); }
+    {
+        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+    }
 
-    let Output = Child.wait_with_output().map_err
-    ( | Error | format ! ("Typst execution failed: {}", Error))
-    ?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
 
     if ! Output.status.success()
     {
@@ -929,9 +955,15 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         let mut Zip = ZipWriter:: new (Cursor::new ( & mut ZipBuffer));
         let Options = SimpleFileOptions:: default().compression_method(zip::CompressionMethod::Deflated);
 
+        let SafeBaseDocName = std::path::Path::new(&BaseDocName)
+            .file_name()
+            .map(|N| N.to_string_lossy().to_string())
+            .unwrap_or_else(|| "document".to_string())
+            .replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_");
+
         for (Idx, (_, SvgPath)) in SvgFiles.iter().enumerate()
         {
-            let EntryName = format!("{}_page_{}.svg", BaseDocName, Idx + 1);
+            let EntryName = format!("{}_page_{}.svg", SafeBaseDocName, Idx + 1);
             Zip.start_file(EntryName, Options).map_err( | Error | format ! ("Zip error: {}", Error))?;
             let mut SvgContent = std::fs::read_to_string(SvgPath).map_err
             ( | Error | format ! ("Failed to read SVG: {}", Error))
@@ -988,6 +1020,7 @@ const FORBIDDEN_EXTENSIONS: &[&str] =
     ".jar", ".class",
     ".so", ".dylib", ".bin", ".app", ".dmg", ".pkg", ".deb", ".rpm",
     ".inf", ".sct", ".reg", ".hta",
+    ".rs", ".toml", ".yaml", ".yml", ".cargo", ".git", ".lock",
 ];
 
 const PROTECTED_SYSTEM_FILES: &[&str] =
@@ -1011,6 +1044,14 @@ const PROTECTED_SYSTEM_FILES: &[&str] =
     "known_hosts",
     "desktop.ini",
     "autorun.inf",
+    "cargo.toml",
+    "build.rs",
+    "tauri.conf.json",
+    "cargo.lock",
+    "pre-commit",
+    "post-checkout",
+    "makefile",
+    "dockerfile",
 ];
 
 const ALLOWED_ASSET_EXTENSIONS: &[&str] =
@@ -1098,13 +1139,23 @@ fn IsPathContainedIn(ParentDir: &std::path::Path, ChildPath: &std::path::Path) -
 
     #[cfg(windows)]
     {
-        let ParentStr = CanonParent.to_string_lossy().to_lowercase();
-        let ChildStr = CanonChild.to_string_lossy().to_lowercase();
-        ChildStr.starts_with(&ParentStr)
+        let ParentComponents: Vec<_> = CanonParent.components()
+            .map(|C| C.as_os_str().to_string_lossy().to_lowercase())
+            .collect();
+        let ChildComponents: Vec<_> = CanonChild.components()
+            .map(|C| C.as_os_str().to_string_lossy().to_lowercase())
+            .collect();
+
+        if ChildComponents.len() < ParentComponents.len()
+        {
+            return false;
+        }
+
+        ChildComponents[..ParentComponents.len()] == ParentComponents[..]
     }
     #[cfg(not(windows))]
     {
-        CanonChild.starts_with(&CanonParent)
+        CanonChild.strip_prefix(&CanonParent).is_ok()
     }
 }
 
@@ -1642,13 +1693,27 @@ fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
     }
 
     let P = std::path::Path::new(Trimmed);
+    let Canon = CanonicalizeOrResolve(P);
+
+    // Prevent adding bare drive roots (e.g. C:\ or /) or operating system directories
+    if Canon.parent().is_none() || Canon.file_name().is_none()
+    {
+        return Err("Security Violation: Adding an entire drive or filesystem root to the workspace is strictly prohibited.".to_string());
+    }
+
+    let LowerStr = Canon.to_string_lossy().to_lowercase();
+    if LowerStr.contains("\\windows") || LowerStr.contains("/windows") || LowerStr.contains("\\system32") || LowerStr.contains("/system32")
+    {
+        return Err("Security Violation: Operating system directories cannot be added as workspace roots.".to_string());
+    }
+
     if !P.exists()
     {
         let _ = std::fs::create_dir_all(P);
     }
 
     let mut Dirs = GetTrackedDirectories();
-    let Canonical = CanonicalizeOrResolve(P).to_string_lossy().to_string();
+    let Canonical = Canon.to_string_lossy().to_string();
 
     if !Dirs.iter().any(|D| D.eq_ignore_ascii_case(&Canonical))
     {
@@ -1816,23 +1881,25 @@ fn ResolveAssetsDirectory(DocPath: Option<&str>) -> std::path::PathBuf
         let Trimmed = PathStr.trim();
         if !Trimmed.is_empty()
         {
-            let P = std::path::Path::new(Trimmed);
-            if P.is_file()
+            if let Ok(Validated) = ValidateWorkspacePath(Trimmed, false, false)
             {
-                if let Some(Parent) = P.parent()
+                if Validated.is_file()
                 {
-                    return Parent.join("assets");
+                    if let Some(Parent) = Validated.parent()
+                    {
+                        return Parent.join("assets");
+                    }
                 }
-            }
-            else if P.exists() && P.is_dir()
-            {
-                return P.join("assets");
-            }
-            else if let Some(Parent) = P.parent()
-            {
-                if !Parent.as_os_str().is_empty()
+                else if Validated.exists() && Validated.is_dir()
                 {
-                    return Parent.join("assets");
+                    return Validated.join("assets");
+                }
+                else if let Some(Parent) = Validated.parent()
+                {
+                    if !Parent.as_os_str().is_empty()
+                    {
+                        return Parent.join("assets");
+                    }
                 }
             }
         }
@@ -1915,6 +1982,8 @@ fn PasteClipboardImage(DocPath: Option<String>) -> Result<Paste_Image_Result, St
     let TimestampStr = FormatTimestamp(Secs);
     let FileName = format!("paste-{}-{}.png", TimestampStr, ShortHash);
     let OutPath = AssetsDir.join(&FileName);
+
+    ValidateWorkspacePath(&OutPath.to_string_lossy(), false, false)?;
 
     std::fs::write(&OutPath, &PngBytes)
         .map_err(|Error| format!("Failed to save image to {}: {}", OutPath.display(), Error))?;
@@ -2000,6 +2069,12 @@ fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64
         .map(|E| format!(".{}", E.to_ascii_lowercase()))
         .unwrap_or_else(|| ".png".to_string());
 
+    const ALLOWED_PASTE_EXTENSIONS: &[&str] = &[".png", ".jpg", ".jpeg", ".webp", ".svg", ".gif"];
+    if !ALLOWED_PASTE_EXTENSIONS.contains(&Ext.as_str())
+    {
+        return Err(format!("Security Violation: Prohibited asset extension '{}'. Allowed: png, jpg, jpeg, webp, svg, gif", Ext));
+    }
+
     let Secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
@@ -2007,6 +2082,8 @@ fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64
     let TimestampStr = FormatTimestamp(Secs);
     let SavedFileName = format!("paste-{}-{}{}", TimestampStr, ShortHash, Ext);
     let OutPath = AssetsDir.join(&SavedFileName);
+
+    ValidateWorkspacePath(&OutPath.to_string_lossy(), false, false)?;
 
     std::fs::write(&OutPath, &Decoded)
         .map_err(|Error| format!("Failed to write asset {}: {}", OutPath.display(), Error))?;
@@ -2526,21 +2603,193 @@ fn GetSystemStatus() -> Result<System_Status_Response, String>
     )
 }
 
+const PINNED_LAFS_SHA256: &str = "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc";
+
+fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
+{
+    if !Path.exists() || !Path.is_file()
+    {
+        return false;
+    }
+    if let Ok(Bytes) = std::fs::read(Path)
+    {
+        use sha2::{Digest, Sha256};
+        let mut Hasher = Sha256::new();
+        Hasher.update(&Bytes);
+        let Digest = format!("{:x}", Hasher.finalize());
+        return Digest.eq_ignore_ascii_case(PINNED_LAFS_SHA256);
+    }
+    false
+}
+
+fn ResolveLafsBinary() -> Option<std::path::PathBuf>
+{
+    let BinName = if cfg!(windows) { "lafs.exe" } else { "lafs" };
+    if let Ok(CurrentExe) = std::env::current_exe()
+    {
+        if let Some(Parent) = CurrentExe.parent()
+        {
+            let Candidate = Parent.join("bin").join(BinName);
+            if VerifyLafsBinaryIntegrity(&Candidate)
+            {
+                return Some(Candidate);
+            }
+            let CandidateDirect = Parent.join(BinName);
+            if VerifyLafsBinaryIntegrity(&CandidateDirect)
+            {
+                return Some(CandidateDirect);
+            }
+        }
+    }
+    let Fallback = std::path::PathBuf::from("bin").join(BinName);
+    if VerifyLafsBinaryIntegrity(&Fallback)
+    {
+        return Some(Fallback);
+    }
+    let DirectFallback = std::path::PathBuf::from(BinName);
+    if VerifyLafsBinaryIntegrity(&DirectFallback)
+    {
+        return Some(DirectFallback);
+    }
+    None
+}
+
+fn InProcessLafsFormatSnippet(Code: &str) -> String
+{
+    let mut Output = Vec::new();
+    for Line in Code.lines()
+    {
+        let Trimmed = Line.trim();
+        if Trimmed.ends_with('{') && !Trimmed.starts_with('{')
+        {
+            let Prefix = Trimmed[..Trimmed.len() - 1].trim_end();
+            let Indent = Line.chars().take_while(|C| C.is_whitespace()).collect::<String>();
+            Output.push(format!("{}{}", Indent, Prefix));
+            Output.push(format!("{}{{", Indent));
+            continue;
+        }
+        Output.push(Line.to_string());
+    }
+    Output.join("\n")
+}
+
+fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
+{
+    let CleanLang = Lang.trim().to_lowercase();
+    let Supported = ["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs"];
+    if !Supported.contains(&CleanLang.as_str())
+    {
+        return InProcessLafsFormatSnippet(Code);
+    }
+    let TargetLang = match CleanLang.as_str()
+    {
+        "cs" => "csharp",
+        "bash" => "sh",
+        "kotlin" => "kt",
+        "rs" => "rust",
+        Other => Other,
+    };
+
+    if let Some(BinPath) = ResolveLafsBinary()
+    {
+        let mut Cmd = CreateCommand(&BinPath);
+        Cmd.args(["-l", TargetLang, "-c", "160", "-"]);
+        Cmd.stdin(std::process::Stdio::piped());
+        Cmd.stdout(std::process::Stdio::piped());
+        Cmd.stderr(std::process::Stdio::piped());
+
+        if let Ok(mut Child) = Cmd.spawn()
+        {
+            if let Some(mut Stdin) = Child.stdin.take()
+            {
+                use std::io::Write;
+                let _ = Stdin.write_all(Code.as_bytes());
+            }
+
+            let Timeout = std::time::Duration::from_secs(5);
+            let Start = std::time::Instant::now();
+            loop
+            {
+                match Child.try_wait()
+                {
+                    Ok(Some(Status)) =>
+                    {
+                        if Status.success()
+                        {
+                            if let Some(mut Stdout) = Child.stdout.take()
+                            {
+                                use std::io::Read;
+                                let mut OutStr = String::new();
+                                if Stdout.read_to_string(&mut OutStr).is_ok() && !OutStr.is_empty()
+                                {
+                                    return OutStr.trim_end().to_string();
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    Ok(None) =>
+                    {
+                        if Start.elapsed() > Timeout
+                        {
+                            let _ = Child.kill();
+                            break;
+                        }
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
+    InProcessLafsFormatSnippet(Code)
+}
+
 #[tauri::command]
 fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
 {
-    let Lines: Vec< & str> = Source.lines().collect();
-    let mut ResultLines = Vec:: new ();
+    let Lines: Vec<&str> = Source.lines().collect();
+    let mut ResultLines = Vec::new();
     let mut InRaw = false;
+    let mut CurrentRawLang = String::new();
+    let mut CurrentRawLines: Vec<String> = Vec::new();
 
     for Line in Lines
     {
         let Trimmed = Line.trim();
         if Trimmed.starts_with("```")
-        { InRaw = ! InRaw; ResultLines.push(Line.to_string()); continue ; }
+        {
+            if !InRaw
+            {
+                InRaw = true;
+                CurrentRawLang = Trimmed.trim_start_matches('`').trim().to_string();
+                CurrentRawLines.clear();
+                ResultLines.push(Line.to_string());
+            }
+            else
+            {
+                InRaw = false;
+                let RawCode = CurrentRawLines.join("\n");
+                if !RawCode.trim().is_empty()
+                {
+                    let Formatted = FormatSnippetWithVerifiedLafs(&RawCode, &CurrentRawLang);
+                    ResultLines.push(Formatted);
+                }
+                else
+                {
+                    ResultLines.extend(CurrentRawLines.drain(..));
+                }
+                ResultLines.push(Line.to_string());
+            }
+            continue;
+        }
 
         if InRaw
-        { ResultLines.push(Line.to_string()); continue ; }
+        {
+            CurrentRawLines.push(Line.to_string());
+            continue;
+        }
 
         ResultLines.push(Line.to_string());
     }
@@ -2715,6 +2964,15 @@ mod tests
     }
 
    #[test]
+    fn TestFormatTypstRawCodeBlock()
+    {
+        let Source = "#rect[\n```rust\nfn test() {\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
+        let Formatted = FormatTypst(Source).expect("FormatTypst should succeed");
+        assert!(Formatted.Success);
+        assert!(!Formatted.Formatted.contains("fn test() {"));
+    }
+
+   #[test]
     fn TestExportPngZip()
     {
         let Source = "= Page 1\n#pagebreak()\n= Page 2".to_string();
@@ -2801,8 +3059,10 @@ mod tests
    #[test]
     fn TestSavePastedFileAssetAndDeduplication()
     {
+        let OriginalDirs = GetTrackedDirectories();
         let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&TempDir);
+        let _ = AddWorkspaceDirectory(TempDir.to_string_lossy().to_string());
         let TempDoc = TempDir.join("TestDoc.typ");
         let _ = std::fs::write(&TempDoc, "= Test");
 
@@ -2826,6 +3086,7 @@ mod tests
         assert_eq!(Res1.RelativePath, Res2.RelativePath);
         assert_eq!(Res1.FileName, Res2.FileName);
 
+        let _ = SaveTrackedDirectories(&OriginalDirs);
         let _ = std::fs::remove_dir_all(&TempDir);
     }
 

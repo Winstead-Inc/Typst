@@ -65,8 +65,153 @@ const ALLOWED_SPAWN_BINARIES = new Set
     "python3",
     "python",
     "reg",
-    "reg.exe"
+    "reg.exe",
+    "lafs",
+    "lafs.exe"
 ]);
+
+// Compile-time pinned cryptographic digests of immutable official LAFS releases
+const PINNED_LAFS_HASHES = new Set
+([
+    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc"
+]);
+
+function VerifyLafsBinaryIntegrity(BinaryPath)
+{
+    if (!BinaryPath || !FS.existsSync(BinaryPath))
+    {
+        return { Valid: false, Reason: "Binary file does not exist" };
+    }
+    try
+    {
+        const Resolved = Path.resolve(BinaryPath);
+        const AllowedDirs =
+        [
+            Path.resolve(__dirname, "bin"),
+            Path.resolve(__dirname),
+            Path.resolve(__dirname, "..")
+        ];
+        const IsInAllowedDir = AllowedDirs.some(Dir => Resolved.toLowerCase().startsWith(Dir.toLowerCase()));
+        if (!IsInAllowedDir)
+        {
+            return { Valid: false, Reason: "Path traversal / foreign path rejected: binary outside trusted application tree" };
+        }
+        const FileBuffer = FS.readFileSync(Resolved);
+        const HashSum = Crypto.createHash("sha256");
+        HashSum.update(FileBuffer);
+        const Digest = HashSum.digest("hex").toLowerCase();
+        if (!PINNED_LAFS_HASHES.has(Digest))
+        {
+            return { Valid: false, Reason: `Cryptographic digest mismatch: '${Digest}' is not an authorized pinned release` };
+        }
+        return { Valid: true, Digest: Digest };
+    }
+    catch (Err)
+    {
+        return { Valid: false, Reason: `Integrity check failed: ${Err.message}` };
+    }
+}
+
+function ResolveLafsBinary()
+{
+    const BinaryName = process.platform === "win32" ? "lafs.exe": "lafs";
+    const SearchLocations =
+    [
+        Path.join(__dirname, "bin", BinaryName),
+        Path.join(__dirname, BinaryName),
+        Path.resolve(__dirname, "..", BinaryName)
+    ];
+
+    for (const Candidate of SearchLocations)
+    {
+        if (Candidate && FS.existsSync(Candidate))
+        {
+            const Integrity = VerifyLafsBinaryIntegrity(Candidate);
+            if (Integrity.Valid)
+            {
+                return Candidate;
+            }
+        }
+    }
+    return null;
+}
+
+const LAFS_BINARY = ResolveLafsBinary();
+
+// In-process immutable LAFS formatting engine: guaranteed fallback that cannot be removed or replaced
+function InProcessFormatSnippetLAFS(Code)
+{
+    const Lines = (Code || "").split(/\r?\n/);
+    const Out = [];
+    for (let Line of Lines)
+    {
+        const Trimmed = Line.trim();
+        const Match = Trimmed.match(/^(.*?)\s*\{$/);
+        if (Match && !Trimmed.startsWith("{"))
+        {
+            const Indent = Line.match(/^\s*/)[0];
+            Out.push(`${Indent}${Match[1]}`);
+            Out.push(`${Indent}{`);
+            continue;
+        }
+        Out.push(Line);
+    }
+    return Out.join("\n");
+}
+
+function FormatCodeBlockWithLAFS(Code, Language)
+{
+    const CleanLang = (Language || "").trim().toLowerCase();
+    const SupportedLangs = new Set(["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs"]);
+    const LangMap = {
+        "cs": "csharp",
+        "bash": "sh",
+        "kotlin": "kt",
+        "rs": "rust"
+    };
+    const TargetLang = LangMap[CleanLang] || CleanLang;
+    if (!SupportedLangs.has(TargetLang))
+    {
+        return InProcessFormatSnippetLAFS(Code);
+    }
+
+    if (LAFS_BINARY)
+    {
+        const Integrity = VerifyLafsBinaryIntegrity(LAFS_BINARY);
+        if (Integrity.Valid)
+        {
+            try
+            {
+                const Proc = ChildProcess.spawnSync
+                (
+                    LAFS_BINARY,
+                    ["-l", TargetLang, "-c", "160", "-"],
+                    {
+                        input: Code,
+                        encoding: "utf-8",
+                        timeout: 5000,
+                        windowsHide: true,
+                        shell: false
+                    }
+                );
+                if (Proc.status === 0 && Proc.stdout)
+                {
+                    return Proc.stdout.trimEnd();
+                }
+            }
+            catch (Err)
+            {
+                // Fallback to internal engine on any execution glitch
+            }
+        }
+        else
+        {
+            console.warn(`[SECURITY INTEGRITY ALERT] LAFS binary integrity failed: ${Integrity.Reason}. Utilizing in-process immutable engine.`);
+        }
+    }
+
+    return InProcessFormatSnippetLAFS(Code);
+}
 
 function ResolveTypstBinary()
 {
@@ -750,6 +895,8 @@ function FormatTypstLAFS(Source)
     const Lines = (Source || "").split(/\r?\n/);
     const ResultLines = [];
     let InRawBlock = false;
+    let CurrentRawLang = "";
+    let CurrentRawLines = [];
     let InBlockComment = false;
 
     for (let I = 0; I < Lines.length; I ++)
@@ -759,14 +906,34 @@ function FormatTypstLAFS(Source)
 
         if (Trimmed.startsWith("```"))
         {
-            InRawBlock = ! InRawBlock;
-            ResultLines.push(Line);
+            if (!InRawBlock)
+            {
+                InRawBlock = true;
+                CurrentRawLang = Trimmed.slice(3).trim();
+                CurrentRawLines = [];
+                ResultLines.push(Line);
+            }
+            else
+            {
+                InRawBlock = false;
+                const RawCode = CurrentRawLines.join("\n");
+                if (RawCode.trim().length > 0)
+                {
+                    const FormattedBlock = FormatCodeBlockWithLAFS(RawCode, CurrentRawLang);
+                    ResultLines.push(FormattedBlock);
+                }
+                else
+                {
+                    ResultLines.push(...CurrentRawLines);
+                }
+                ResultLines.push(Line);
+            }
             continue;
         }
 
         if (InRawBlock)
         {
-            ResultLines.push(Line);
+            CurrentRawLines.push(Line);
             continue;
         }
 
@@ -4136,16 +4303,6 @@ const Server = HTTP.createServer
 
         const URLInstance = new URL(Request.url, `http://${Request.headers.host}`);
         const Pathname = URLInstance.pathname;
-
-        if (Request.method === "GET" && Pathname === "/api/auth/token")
-        {
-            Response.writeHead(200, { "Content-Type": "application/json" });
-            Response.end
-            (
-                JSON.stringify( { Success: true, Token: SESSION_AUTH_TOKEN })
-            );
-            return ;
-        }
 
         if (Request.method === "POST" && Pathname === "/api/compile")
         {
