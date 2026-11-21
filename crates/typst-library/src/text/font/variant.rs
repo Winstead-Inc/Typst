@@ -248,14 +248,14 @@ impl FontStretch
     {
         match self .0
         {
-            .. = 562 => Self::ULTRA_CONDENSED,
-            563.. = 687 => Self::EXTRA_CONDENSED,
-            688.. = 812 => Self::CONDENSED,
-            813.. = 937 => Self::SEMI_CONDENSED,
-            938.. = 1062 => Self::NORMAL,
-            1063.. = 1187 => Self::SEMI_EXPANDED,
-            1188.. = 1374 => Self::EXPANDED,
-            1375.. = 1749 => Self::EXTRA_EXPANDED,
+            ..= 562 => Self::ULTRA_CONDENSED,
+            563..= 687 => Self::EXTRA_CONDENSED,
+            688..= 812 => Self::CONDENSED,
+            813..= 937 => Self::SEMI_CONDENSED,
+            938..= 1062 => Self::NORMAL,
+            1063..= 1187 => Self::SEMI_EXPANDED,
+            1188..= 1374 => Self::EXPANDED,
+            1375..= 1749 => Self::EXTRA_EXPANDED,
             1750.. => Self::ULTRA_EXPANDED,
         }
     }

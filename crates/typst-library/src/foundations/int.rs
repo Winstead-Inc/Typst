@@ -41,7 +41,7 @@ use crate::foundations:: { Base, Bytes, Cast, Decimal, Repr, Str, Value, cast, f
 /// addition, if a lone digit 0 is followed by `x`, `o`, or `b` (`0x`, `0o`,
 /// `0b`), Typst will treat following digits as a
 /// #wiki("Hexadecimal")[hexadecimal] (base 16), #wiki("Octal")[octal] (base 8),
-/// or #wiki("Binary_number")[binary] (base 2) number.
+/// or#wiki("Binary_number")[binary] (base 2) number.
 ///
 /// Hexadecimal numbers use the letters a--f or A--F for the values 10--15.
 ///
@@ -126,7 +126,7 @@ impl i64
                 ToInt::Str(s) =>
                 {
                     let base_value = base.v.value();
-                    let radix: u32 = match base_value { 2.. = 36 => base_value as u32, _ => bail ! (base.span, "base must be between 2 and 36"), };
+                    let radix: u32 = match base_value { 2..= 36 => base_value as u32, _ => bail ! (base.span, "base must be between 2 and 36"), };
 
                     match s.strip_prefix('-').or_else( || s.strip_prefix(repr::MINUS_SIGN))
                     {

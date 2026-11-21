@@ -13757,6 +13757,79 @@ function MergeOverlappingBoxes(Boxes)
     return Result;
 }
 
+function GroupSelectedElementsIntoLineBoxes(Elements)
+{
+    if (!Elements || Elements.length === 0)
+    {
+        return [];
+    }
+
+    const PageGroups = new Map();
+    for (const Elem of Elements)
+    {
+        const PageNum = Elem.page || 1;
+        if (!PageGroups.has(PageNum))
+        {
+            PageGroups.set(PageNum, []);
+        }
+        PageGroups.get(PageNum).push({ ...Elem });
+    }
+
+    const FinalBoxes = [];
+
+    for (const [PageNum, PageElements] of PageGroups.entries())
+    {
+        PageElements.sort
+        (
+            (A, B) => ((A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x)
+        );
+
+        const LineClusters = [];
+        for (const Box of PageElements)
+        {
+            const CenterY = Box.y + (Box.height / 2);
+            let Cluster = LineClusters.find((C) => Math.abs(C.CenterY - CenterY) < 4.5);
+            if (!Cluster)
+            {
+                LineClusters.push
+                ({
+                    CenterY: CenterY,
+                    Boxes: [Box]
+                });
+            }
+            else
+            {
+                Cluster.Boxes.push(Box);
+                Cluster.CenterY = Cluster.Boxes.reduce((Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
+            }
+        }
+
+        for (const Cluster of LineClusters)
+        {
+            const CBoxes = Cluster.Boxes;
+            const MinX = Math.min(...CBoxes.map((B) => B.x));
+            const MaxX = Math.max(...CBoxes.map((B) => B.x + B.width));
+            const MinY = Math.min(...CBoxes.map((B) => B.y));
+            const MaxY = Math.max(...CBoxes.map((B) => B.y + B.height));
+            const TopH = CBoxes.reduce((MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
+            const BottomH = CBoxes.reduce((MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
+
+            FinalBoxes.push
+            ({
+                page: PageNum,
+                x: MinX,
+                y: MinY,
+                width: Math.max(2.0, MaxX - MinX),
+                height: Math.max(2.0, MaxY - MinY),
+                firstLineHeight: TopH === Infinity ? 10.5 : TopH,
+                lastLineHeight: BottomH === 0 ? 10.5 : BottomH
+            });
+        }
+    }
+
+    return FinalBoxes;
+}
+
 function GroupElementsIntoVisualBoxes(Elements)
 {
     if (!Elements || Elements.length === 0)
@@ -13959,29 +14032,23 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     // Typst sets Box.y + Box.height = Baseline_bottom (raw baseline, 0 descender clearance).
                     // Inked descenders (g, j, p, q, y, commas, semicolons) extend ~0.28 * LastH below the bottom baseline.
                     const BottomBaseline = Box.y + Box.height;
-                    const InkedBottom = BottomBaseline + (LastH * 0.28);
+                    const InkedBottom = BottomBaseline + (LastH * 0.25);
 
                     // Provide balanced, symmetric vertical and horizontal breathing room around true inked glyph bounds
-                    const PadY = Math.max(5.5, Math.min(8.0, LastH * 0.35));
-                    const PadX = 4.5;
+                    const PadY = Math.max(1.8, Math.min(4.5, LastH * 0.20));
+                    const PadX = Math.max(1.8, Math.min(3.5, LastH * 0.20));
 
                     const RectX = Box.x - PadX;
                     const RectY = Math.round((InkedTop - PadY) * 100) / 100;
-                    const RectW = Math.max(8.0, Box.width + (PadX * 2.0));
-                    const RectH = Math.max(12.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
+                    const RectW = Math.max(6.0, Box.width + (PadX * 2.0));
+                    const RectH = Math.max(6.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
 
                     Rect.setAttribute("x", RectX.toFixed(2));
                     Rect.setAttribute("y", RectY.toFixed(2));
-                    Rect.setAttribute
-                    (
-                        "width", Math.max(4.0, RectW).toFixed(2)
-                    );
-                    Rect.setAttribute
-                    (
-                        "height", Math.max(4.0, RectH).toFixed(2)
-                    );
-                    Rect.setAttribute("rx", "3.5");
-                    Rect.setAttribute("ry", "3.5");
+                    Rect.setAttribute("width", RectW.toFixed(2));
+                    Rect.setAttribute("height", RectH.toFixed(2));
+                    Rect.setAttribute("rx", "2.2");
+                    Rect.setAttribute("ry", "2.2");
 
                     HighlightLayer.appendChild(Rect);
 
@@ -14491,86 +14558,43 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             const SelStartCol = Selection.startColumn;
             const SelEndLine = Selection.endLineNumber;
             const SelEndCol = Selection.endColumn;
-            const CandidateSet = new Set();
-            for (let L = SelStartLine; L <= SelEndLine; L ++)
+
+            const StartOffsetUtf16 = Model.getOffsetAt({ lineNumber: SelStartLine, column: SelStartCol });
+            const EndOffsetUtf16 = Model.getOffsetAt({ lineNumber: SelEndLine, column: SelEndCol });
+            const SourceText = Model.getValue();
+            const StartByte = new TextEncoder().encode(SourceText.slice(0, StartOffsetUtf16)).length;
+            const EndByte = new TextEncoder().encode(SourceText.slice(0, EndOffsetUtf16)).length;
+
+            if (StartByte < EndByte)
             {
-                const LineList = ActiveSyncMapByLine.get(L);
-                if (LineList)
+                // Filter to ONLY elements whose source byte falls inside [StartByte, EndByte)
+                const Matched = ActiveSyncMap.filter
+                (
+                    (Elem) =>
+                    {
+                        const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+                        const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+                        if (IsNumbering)
+                        {
+                            return false;
+                        }
+                        return Elem.start < EndByte && Elem.end > StartByte;
+                    }
+                );
+
+                if (Matched.length > 0)
                 {
-                    for (let I = 0; I < LineList.length; I ++)
+                    const LineBoxes = GroupSelectedElementsIntoLineBoxes(Matched);
+                    if (LineBoxes.length > 0)
                     {
-                        CandidateSet.add(LineList[I]);
-                    }
-                }
-            }
-            const Candidates = CandidateSet.size > 0 ? Array.from(CandidateSet): ActiveSyncMap;
-
-            // Find overlapping elements using rock-solid Line & Column coordinates (UTF-16 aligned)
-            const IntersectingRaw = Candidates.filter
-            (
-                (Elem) =>
-                {
-                    const StartsBeforeEnd = Elem.line < SelEndLine || (Elem.line === SelEndLine && Elem.col < SelEndCol);
-                    const EndsAfterStart = Elem.end_line > SelStartLine || (Elem.end_line === SelStartLine && Elem.end_col > SelStartCol);
-
-                    if (!StartsBeforeEnd || !EndsAfterStart)
-                    {
-                        return false;
-                    }
-                    const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
-                    const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
-                    return ! IsNumbering;
-                }
-            );
-            // Filter out enclosing multi-line container blocks when leaf text elements exist
-            const HasLeaf = IntersectingRaw.some( (E) => E.line === E.end_line);
-            const Intersecting = HasLeaf
-            ? IntersectingRaw.filter( (E) => E.line === E.end_line)
-            : IntersectingRaw;
-
-            if (Intersecting.length > 0)
-            {
-                const CharacterBoxes = [];
-                for (const Elem of Intersecting)
-                {
-                    const ELen = Math.max(1, Elem.end_col - Elem.col);
-                    let SubStartCol = Elem.col;
-                    let SubEndCol = Elem.end_col;
-
-                    if (Elem.line === SelStartLine)
-                    {
-                        SubStartCol = Math.max(SubStartCol, SelStartCol);
-                    }
-                    if (Elem.end_line === SelEndLine)
-                    {
-                        SubEndCol = Math.min(SubEndCol, SelEndCol);
-                    }
-
-                    if (SubEndCol > SubStartCol)
-                    {
-                        const FracStart = (SubStartCol - Elem.col) / ELen;
-                        const FracEnd = (SubEndCol - Elem.col) / ELen;
-                        const SubX = Elem.x + (Elem.width * FracStart);
-                        const SubW = Math.max(2.0, Elem.width * (FracEnd - FracStart));
-
-                        CharacterBoxes.push
-                        ({
-                            page: Elem.page || 1,
-                            x: SubX,
-                            y: Elem.y,
-                            width: SubW,
-                            height: Elem.height
-                        });
+                        HighlightSvgRects(LineBoxes, ForceAutoScroll);
+                        return ;
                     }
                 }
 
-                const GroupedBoxes = GroupElementsIntoVisualBoxes(CharacterBoxes);
-                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                ClearSyncHighlights();
                 return ;
             }
-
-            ClearSyncHighlights();
-            return ;
         }
     }
     // 2. Line Content Elements: Highlight Everything in that same Hierarchy

@@ -125,42 +125,39 @@ fn CollectFrameElements(TargetFrame: & Frame, CurrentTransform: Transform, PageN
             }
             FrameItem::Text(Text) =>
             {
-                let mut CurrentSpan: Option < Span > = None;
-                let mut RunStartX = Abs::zero();
-                let mut RunWidth = Abs::zero();
                 let mut GlyphX = Abs::zero();
 
-                let mut FlushRun = | SpanItem: Span,
-                StartX: Abs,
-                Width: Abs,
-                OutElements: & mut Vec < Sync_Element >|
-                {
-                    if SpanItem.is_detached() || Width.to_pt() <= 0.001 { return ; }
-
-                    if let Some(Elem) = CreateElementFromSpan(SpanItem, PageNum, Pos.x + StartX, Pos.y - Text.size, Width, Text.size, CurrentTransform, SourceFile,)
-                    {
-                        OutElements.push(Elem);
-                    }
-                };
-
-                for Glyph in & Text.glyphs
+                for Glyph in &Text.glyphs
                 {
                     let Width = Glyph.x_advance.at(Text.size);
-                    let GlyphSpan = Glyph.span .0;
+                    let OffsetX = Glyph.x_offset.at(Text.size);
+                    let OffsetY = Glyph.y_offset.at(Text.size);
+                    let GlyphSpan = Glyph.span.0;
+                    let SubOffset = Glyph.span.1 as usize;
 
-                    if Some(GlyphSpan) == CurrentSpan { RunWidth += Width; }
-                    else
+                    if !GlyphSpan.is_detached() && Width.to_pt() > 0.0001
                     {
-                        if let Some(PrevSpan) = CurrentSpan { FlushRun(PrevSpan, RunStartX, RunWidth, Elements); }
-                        CurrentSpan = Some(GlyphSpan);
-                        RunStartX = GlyphX;
-                        RunWidth = Width;
+                        if let Some(Elem) = CreateElementFromGlyph
+                        (
+                            GlyphSpan,
+                            SubOffset,
+                            Glyph.range.start as usize,
+                            Glyph.range.end as usize,
+                            PageNum,
+                            Pos.x + GlyphX + OffsetX,
+                            Pos.y - OffsetY - Text.size,
+                            Width,
+                            Text.size,
+                            CurrentTransform,
+                            SourceFile,
+                        )
+                        {
+                            Elements.push(Elem);
+                        }
                     }
 
                     GlyphX += Width;
                 }
-
-                if let Some(PrevSpan) = CurrentSpan { FlushRun(PrevSpan, RunStartX, RunWidth, Elements); }
             }
             FrameItem::Shape(ShapeItem, SpanItem) =>
             {
@@ -192,6 +189,71 @@ fn CollectFrameElements(TargetFrame: & Frame, CurrentTransform: Transform, PageN
             _ => {}
         }
     }
+}
+
+fn CreateElementFromGlyph
+(
+    TargetSpan: Span,
+    SubOffset: usize,
+    RangeStart: usize,
+    RangeEnd: usize,
+    PageNum: usize,
+    X: Abs,
+    Y: Abs,
+    Width: Abs,
+    Height: Abs,
+    TransformVal: Transform,
+    SourceFile: &Source,
+) -> Option<Sync_Element>
+{
+    let Origin = Point::new(X, Y);
+    let SizeVal = Size::new(Width, Height);
+    let (PagePos, PageSize) = TransformRect(Origin, SizeVal, TransformVal);
+
+    let SpanID = TargetSpan.id()?;
+    if SpanID != SourceFile.id()
+    {
+        return None;
+    }
+
+    let Node = SourceFile.find(TargetSpan)?;
+    let RangeVal = Node.range();
+
+    let GlyphByteStart = RangeVal.start.saturating_add(SubOffset);
+    let CharLen = RangeEnd.saturating_sub(RangeStart);
+    let GlyphByteEnd = (GlyphByteStart + CharLen.max(1)).min(SourceFile.text().len());
+
+    let (Line, _) = SourceFile.lines().byte_to_line_column(GlyphByteStart)?;
+    let StartLineByte = SourceFile.lines().line_to_byte(Line)?;
+    let Head = SourceFile.text().get(StartLineByte..GlyphByteStart).unwrap_or("");
+    let Col = Head.chars().map(char::len_utf16).sum::<usize>() + 1;
+
+    let (EndLine, _) = SourceFile.lines().byte_to_line_column(GlyphByteEnd).unwrap_or((Line, 0));
+    let EndLineByte = SourceFile.lines().line_to_byte(EndLine).unwrap_or(0);
+    let EndHead = SourceFile.text().get(EndLineByte..GlyphByteEnd).unwrap_or("");
+    let EndCol = EndHead.chars().map(char::len_utf16).sum::<usize>() + 1;
+
+    let Raw = TargetSpan.into_raw().get();
+    let SpanHex = eco_format!("{:x}", Raw);
+
+    Some
+    (
+        Sync_Element
+        {
+            page: PageNum,
+            x: PagePos.x.to_pt(),
+            y: PagePos.y.to_pt(),
+            width: PageSize.x.to_pt(),
+            height: PageSize.y.to_pt(),
+            line: Line + 1,
+            col: Col,
+            end_line: EndLine + 1,
+            end_col: EndCol,
+            start: GlyphByteStart,
+            end: GlyphByteEnd,
+            span: SpanHex.to_string(),
+        }
+    )
 }
 
 fn CreateElementFromSpan(TargetSpan: Span, PageNum: usize, X: Abs, Y: Abs, Width: Abs, Height: Abs, TransformVal: Transform, SourceFile: & Source,)->Option<Sync_Element>

@@ -1016,7 +1016,7 @@ impl <'a> RowspanSimulator<'a>
     )
    ->SourceResult<Abs>
     {
-        let spanned_rows = & layouter.grid.rows[y + 1.. = max_spanned_row];
+        let spanned_rows = & layouter.grid.rows[y + 1..= max_spanned_row];
         for (offset, row) in spanned_rows.iter().enumerate()
         {
             if (self.total_spanned_height + amount_to_grow).fits(requested_rowspan_height)

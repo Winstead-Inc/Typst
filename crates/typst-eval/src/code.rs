@@ -445,9 +445,9 @@ pub fn find_bad_digits(base: ast::NonDecimalBase, digits: & str,)->(Range<usize>
 {
     let ranges: & [_] = match base
     {
-        ast::NonDecimalBase::Hex => & ['g'.. = 'z', 'G'.. = 'Z'],
-        ast::NonDecimalBase::Octal => & ['8'.. = '9'],
-        ast::NonDecimalBase::Binary => & ['2'.. = '9'],
+        ast::NonDecimalBase::Hex => & ['g'..= 'z', 'G'..= 'Z'],
+        ast::NonDecimalBase::Octal => & ['8'..= '9'],
+        ast::NonDecimalBase::Binary => & ['2'..= '9'],
     };
     // Yield at most one copy of each digit.
     let iter = ranges.iter().flat_map( | range | { range.clone().filter_map( | c | digits.find(c).map( | index | (index, c))) });

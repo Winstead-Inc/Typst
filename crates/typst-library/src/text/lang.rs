@@ -493,7 +493,7 @@ impl FromStr for Lang
     fn from_str(iso: & str)->Result<Self, Self::Err>
     {
         let len = iso.len();
-        if matches!(len, 2.. = 3) && iso.is_ascii()
+        if matches!(len, 2..= 3) && iso.is_ascii()
         {
             let mut bytes = [b' '; 3];
             bytes[..len].copy_from_slice(iso.as_bytes());
@@ -582,7 +582,7 @@ impl FromStr for WritingScript
     fn from_str(iso: & str)->Result<Self, Self::Err>
     {
         let len = iso.len();
-        if matches!(len, 3.. = 4) && iso.is_ascii()
+        if matches!(len, 3..= 4) && iso.is_ascii()
         {
             let mut bytes = [b' '; 4];
             bytes[..len].copy_from_slice(iso.as_bytes());

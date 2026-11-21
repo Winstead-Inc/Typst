@@ -338,7 +338,7 @@ cast!
         (
             | item | match item
             {
-                Value::Int(byte @ 0.. = 255) => Ok( * byte as u8),
+                Value::Int(byte @ 0..= 255) => Ok( * byte as u8),
                 Value::Int(_) => bail!("number must be between 0 and 255"),
                 value => Err( < u8 as Reflect >:: error(value)),
             }

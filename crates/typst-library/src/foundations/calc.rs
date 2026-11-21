@@ -654,7 +654,7 @@ fn fact_impl(start: u64, end: u64)->Option<i64>
 
     let real_start: u64 = cmp::max(1, start);
     let mut count: u64 = 1;
-    for i in real_start.. = end { count = count.checked_mul(i)?; }
+    for i in real_start..= end { count = count.checked_mul(i)?; }
 
     count.try_into().ok()
 }

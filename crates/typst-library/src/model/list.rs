@@ -155,7 +155,7 @@ pub struct ListElem
     ///
     /// ```example
     /// #for letter in "ABC" [
-    ///   - Letter #letter
+    ///   - Letter#letter
     /// ]
     /// ```
     # [variadic]

@@ -141,7 +141,7 @@ pub enum AbsUnit
 impl AbsUnit
 {
     /// The epsilon for approximate length comparisons.
-    const EPS: f64 = 1e - 4;
+    const EPS: f64 = 1e-4;
 
     /// How many raw units correspond to a value of `1.0` in this unit.
     const fn raw_scale(self)->f64
@@ -154,4 +154,4 @@ impl AbsUnit
 }
 
 #[cfg(test)]
-mod tests { use super:: * ; # [test] fn test_length_unit_conversion() { assert ! ((Abs::mm(150.0).to_cm() - 15.0) < 1e - 4); } }
+mod tests { use super:: * ; # [test] fn test_length_unit_conversion() { assert ! ((Abs::mm(150.0).to_cm() - 15.0) < 1e-4); } }

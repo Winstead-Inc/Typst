@@ -58,7 +58,7 @@ pub struct HElem
     /// #h(8pt, weak: true) on both sides,
     /// they do show up.
     ///
-    /// Further #h(0pt, weak: true) more,
+    /// Further#h(0pt, weak: true) more,
     /// even the smallest of them swallow
     /// adjacent markup spaces.
     /// ```

@@ -315,7 +315,7 @@ impl Transform
         }
 
         let det = self.sx * self.sy - self.kx * self.ky;
-        if det. get().abs() < 1e - 12 { return None; }
+        if det. get().abs() < 1e-12 { return None; }
 
         let inv_det = 1.0 / det;
         Some

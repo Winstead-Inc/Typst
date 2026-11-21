@@ -98,10 +98,10 @@ impl PolygonElem
             let rotation = Angle::from_ratio(Ratio::new (i / vertices as f64));
             offset + rotation
         };
-        let (horizontal_offset, vertical_offset) = (0.. = vertices)
+        let (horizontal_offset, vertical_offset) = (0..= vertices)
         .map( | v | { ((radius * angle(v as f64).cos()) + radius, (radius * angle(v as f64).sin()) + radius,) })
         .fold((radius, radius), | (min_x, min_y),(v_x, v_y) | { (if min_x < v_x { min_x } else { v_x }, if min_y < v_y { min_y } else { v_y },) });
-        let vertices = (0.. = vertices)
+        let vertices = (0..= vertices)
         .map
         (
             | v |

@@ -185,4 +185,4 @@ impl Limits
 }
 
 /// Determines if the character is one of a variety of integral signs.
-fn is_integral_char(c: char)-> bool { ('∫'.. = '∳').contains( & c) || ('⨋'.. = '⨜').contains( & c) }
+fn is_integral_char(c: char)-> bool { ('∫'..= '∳').contains( & c) || ('⨋'..= '⨜').contains( & c) }

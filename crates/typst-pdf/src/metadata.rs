@@ -103,7 +103,7 @@ impl Timestamp
         {
             // Only accept valid timezone offsets with `-23 <= hours <= 23`,
             // and `0 <= minutes <= 59`.
-            ( - 23.. = 23, 0.. = 59) => Some(Self { datetime, timezone: Timezone::Local { hour_offset, minute_offset }, }),
+            ( - 23..= 23, 0..= 59) => Some(Self { datetime, timezone: Timezone::Local { hour_offset, minute_offset }, }),
             _ => None,
         }
     }

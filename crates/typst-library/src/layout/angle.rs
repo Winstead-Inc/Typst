@@ -177,7 +177,7 @@ mod tests
     # [test]
     fn test_angle_unit_conversion()
     {
-        assert!((Angle::rad(2.0 * PI).to_deg() - 360.0) < 1e - 4);
-        assert!((Angle::deg(45.0).to_rad() - std::f64::consts::FRAC_PI_4) < 1e - 4);
+        assert!((Angle::rad(2.0 * PI).to_deg() - 360.0) < 1e-4);
+        assert!((Angle::deg(45.0).to_rad() - std::f64::consts::FRAC_PI_4) < 1e-4);
     }
 }

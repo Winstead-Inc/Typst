@@ -214,7 +214,7 @@ pub struct EvalCommand
     /// A file in whose context to evaluate the code. Can be used to
     /// introspect the document. Use `-` to read input from stdin.
     # [clap(long = "in", value_hint = ValueHint::FilePath, value_parser = input_value_parser())]
-    pub r # in: Option<Input>,
+    pub r#in: Option<Input>,
 
     /// The target to compile for.
     # [clap(long , default_value_t)]
@@ -372,7 +372,7 @@ pub struct CompileArgs
     /// This formats the output in a more human-readable, but less
     /// space-efficient way. Affects HTML, SVG, and PDF export, but not PNG
     /// export.
-    # [arg(long = "pretty", default_missing_value = "true", num_args = 0.. = 1, require_equals = true,)]
+    # [arg(long = "pretty", default_missing_value = "true", num_args = 0..= 1, require_equals = true,)]
     pub pretty: Option<bool>,
 
     /// Which pages to export. When unspecified, all pages are exported.
@@ -407,7 +407,7 @@ pub struct CompileArgs
     /// document is written to provide a baseline of accessibility. In some
     /// circumstances (for example when trying to reduce the size of a document)
     /// it can be desirable to disable PDF tags.
-    # [arg(long = "pdf-tagged", default_missing_value = "true", num_args = 0.. = 1, require_equals = true,)]
+    # [arg(long = "pdf-tagged", default_missing_value = "true", num_args = 0..= 1, require_equals = true,)]
     pub pdf_tagged: Option<bool>,
 
     /// The PPI (pixels per inch) to use for PNG export.
@@ -764,14 +764,14 @@ impl FromStr for Pages
             [] | [""] => Err("page range must not be empty"),[single_page] =>
             {
                 let page_number = parse_page_number(single_page)?;
-                Ok(Pages(Some(page_number).. = Some(page_number)))
+                Ok(Pages(Some(page_number)..= Some(page_number)))
             }
-            ["", ""] => Err("page range must have start or end"),[start, ""] => Ok(Pages(Some(parse_page_number(start)?).. = None)),["", end] => Ok(Pages(None.. = Some(parse_page_number(end)?))),[start, end] =>
+            ["", ""] => Err("page range must have start or end"),[start, ""] => Ok(Pages(Some(parse_page_number(start)?)..= None)),["", end] => Ok(Pages(None..= Some(parse_page_number(end)?))),[start, end] =>
             {
                 let start = parse_page_number(start)?;
                 let end = parse_page_number(end)?;
                 if start > end { Err("page range must end at a page after the start") }
-                else { Ok(Pages(Some(start).. = Some(end))) }
+                else { Ok(Pages(Some(start)..= Some(end))) }
             }
             [_, _, _,..] => Err("page range must have a single hyphen"),
         }

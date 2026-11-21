@@ -45,7 +45,7 @@ pub fn eval(command: & 'static EvalCommand)->HintedStrResult<()>
     else { EvalSerializationFormat::default () };
 
     let mut world =
-    SystemWorld:: new (command.r # in.as_ref(), & command.world, & command.process)?;
+    SystemWorld:: new (command.r#in.as_ref(), & command.world, & command.process)?;
 
     // Reset everything and ensure that the main file is present.
     world.reset();

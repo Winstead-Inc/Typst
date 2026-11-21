@@ -470,7 +470,7 @@ impl Lexer<'_>
             '-' if self.space_or_end() => SyntaxKind::ListMarker,
             '+' if self.space_or_end() => SyntaxKind::EnumMarker,
             '/' if self.space_or_end() => SyntaxKind::TermMarker,
-            '0'.. = '9' => self.numbering(start),
+            '0'..= '9' => self.numbering(start),
 
             _ => self.text(),
         }
@@ -812,7 +812,7 @@ impl Lexer<'_>
         match c
         {
             '<' if self.s.at(is_id_continue) => self.label(),
-            '0'.. = '9' => self.number(start, c),
+            '0'..= '9' => self.number(start, c),
             '.' if self.s.at(char::is_ascii_digit) => self.number(start, c),
             '"' => self.string(),
 
@@ -1095,9 +1095,9 @@ pub fn link_prefix(text: & str)->( & str, bool)
         {
             match c
             {
-                | '0'.. = '9'
-                | 'a'.. = 'z'
-                | 'A'.. = 'Z'
+                | '0'..= '9'
+                | 'a'..= 'z'
+                | 'A'..= 'Z'
                 | '!' | '#' | '$' | '%' | '&' | '*' | '+'
                 | ',' | '-' | '.' | '/' | ':' | ';' | '='
                 | '?' | '@' | '_' | '~' | '\'' => true,

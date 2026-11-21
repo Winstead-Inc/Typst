@@ -32,7 +32,7 @@ const DEFAULT_RUNT_COST: Cost = 100.0;
 // Other parameters.
 const MIN_RATIO: f64 = - 1.0;
 const MIN_APPROX_RATIO: f64 = - 0.5;
-const BOUND_EPS: f64 = 1e - 3;
+const BOUND_EPS: f64 = 1e-3;
 
 /// The general line break segmenter.
 static SEGMENTER: LazyLock < LineSegmenterBorrowed > =

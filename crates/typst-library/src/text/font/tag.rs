@@ -74,9 +74,9 @@ cast!
     Tag,
     v: Str =>
     {
-        if let Some(cluster) = v.graphemes(true).find( | v | { ! v.as_bytes().iter().all( | v | (0x20.. = 0x7E).contains(v)) }) { bail ! ("tag may contain only printable ASCII characters"; hint: "found invalid cluster `{}`", cluster.repr();) }
+        if let Some(cluster) = v.graphemes(true).find( | v | { ! v.as_bytes().iter().all( | v | (0x20..= 0x7E).contains(v)) }) { bail ! ("tag may contain only printable ASCII characters"; hint: "found invalid cluster `{}`", cluster.repr();) }
 
-        if !(1.. = 4).contains( & v.len()) { bail ! ("tag must be one to four characters in length"; hint: "found {} characters", v.len();); }
+        if !(1..= 4).contains( & v.len()) { bail ! ("tag must be one to four characters in length"; hint: "found {} characters", v.len();); }
 
         let mut within_padding = false;
         for (i, & v) in v.as_bytes().iter().enumerate()

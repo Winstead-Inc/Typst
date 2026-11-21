@@ -1990,6 +1990,7 @@ body.dragging .PreviewPane
     display: block;
     width: 100% !important;
     height: 100% !important;
+    overflow: visible !important;
 }
 
 .SvgLayer
@@ -2007,6 +2008,7 @@ body.dragging .PreviewPane
     display: block;
     width: 100% !important;
     height: 100% !important;
+    overflow: visible !important;
 }
 
 /* Light Page Mode (Default) */
@@ -4213,6 +4215,12 @@ kbd
 /* ==========================================================================
    SyncTeX Highlighting & Inspection Styles (Strict Color: #7100FF Purple)
    ========================================================================== */
+
+.SyncHighlightLayer
+{
+    overflow: visible !important;
+    pointer-events: none;
+}
 
 .SyncHighlightRect
 {

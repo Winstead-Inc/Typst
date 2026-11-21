@@ -498,8 +498,7 @@ fn create_native_elem_impl(element: &Elem) -> Result<TokenStream>
                         #introspection,
                         || &STORE,
                     ) #with_keywords
-                    #with_repr
-                    #with_partial_eq
+                    #with_repr #with_partial_eq
                     #with_local_name
                     #with_scope
                     .erase();

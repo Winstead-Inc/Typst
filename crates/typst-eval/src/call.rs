@@ -901,7 +901,7 @@ mod tests
 
         // Math idents don't have dashes/underscores
         test(s, "$ x-y x_y foo-x x_bar $", & ["bar", "foo"]);
-        test(s, "$ #x-bar #x_bar $", & ["x-bar", "x_bar"]);
+        test(s, "$ #x-bar#x_bar $", & ["x-bar", "x_bar"]);
 
         // Named-params.
         test(s, "$ foo(bar: y) $", & ["foo"]);

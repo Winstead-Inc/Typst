@@ -156,6 +156,25 @@ pub struct Sync_Cursor_Response
     pub Error: Option<String>,
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct Sync_Highlight_Box
+{
+   #[serde(rename = "page")]
+    pub Page: usize,
+   #[serde(rename = "x")]
+    pub X: f64,
+   #[serde(rename = "y")]
+    pub Y: f64,
+   #[serde(rename = "width")]
+    pub Width: f64,
+   #[serde(rename = "height")]
+    pub Height: f64,
+   #[serde(rename = "firstLineHeight")]
+    pub FirstLineHeight: f64,
+   #[serde(rename = "lastLineHeight")]
+    pub LastLineHeight: f64,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Format_Typst_Response
 {
@@ -2469,6 +2488,239 @@ fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
 }
 
 #[tauri::command]
+fn SyncSelection
+(
+    StartByte: usize,
+    EndByte: usize,
+    HasSelection: bool,
+    Line: Option<usize>,
+    _Col: Option<usize>,
+) -> Result<Vec<Sync_Highlight_Box>, String>
+{
+    let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
+    let SyncMap = & * Guard;
+
+    if HasSelection && StartByte < EndByte
+    {
+        let mut Matched = Vec::new();
+        for Elem in SyncMap
+        {
+            let ElemStart = Elem.get("start").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(0);
+            let ElemEnd = Elem.get("end").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(0);
+            let Width = Elem.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
+            let X = Elem.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+            let ElemLine = Elem.get("line").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(0);
+            let ElemEndLine = Elem.get("end_line").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(ElemLine);
+
+            if Width < 50.0 && X > 450.0 && (ElemEndLine.saturating_sub(ElemLine)) >= 2
+            {
+                continue;
+            }
+
+            if ElemStart < EndByte && ElemEnd > StartByte
+            {
+                Matched.push(Elem);
+            }
+        }
+
+        if Matched.is_empty()
+        {
+            return Ok(Vec::new());
+        }
+
+        let mut PageGroups: std::collections::BTreeMap<usize, Vec<&serde_json::Value>> = std::collections::BTreeMap::new();
+        for Elem in Matched
+        {
+            let PageNum = Elem.get("page").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(1);
+            PageGroups.entry(PageNum).or_default().push(Elem);
+        }
+
+        let mut ResultBoxes = Vec::new();
+
+        for (PageNum, mut PageElements) in PageGroups
+        {
+            PageElements.sort_by
+            (
+                | A, B |
+                {
+                    let Ay = A.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Ah = A.get("height").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let By = B.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Bh = B.get("height").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Ax = A.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Bx = B.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+
+                    let CenterA = Ay + (Ah / 2.0);
+                    let CenterB = By + (Bh / 2.0);
+
+                    CenterA.partial_cmp(&CenterB).unwrap_or(std::cmp::Ordering::Equal)
+                        .then_with( || Ax.partial_cmp(&Bx).unwrap_or(std::cmp::Ordering::Equal))
+                }
+            );
+
+            struct Line_Cluster<'a>
+            {
+                CenterY: f64,
+                Elements: Vec<&'a serde_json::Value>,
+            }
+
+            let mut Clusters: Vec<Line_Cluster> = Vec::new();
+
+            for Elem in PageElements
+            {
+                let Ey = Elem.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                let Eh = Elem.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+                let CenterY = Ey + (Eh / 2.0);
+
+                if let Some(Cluster) = Clusters.iter_mut().find( | C | (C.CenterY - CenterY).abs() < 4.5)
+                {
+                    Cluster.Elements.push(Elem);
+                    let SumY: f64 = Cluster.Elements.iter().map
+                    (
+                        | E |
+                        {
+                            let Y = E.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                            let H = E.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+                            Y + (H / 2.0)
+                        }
+                    ).sum();
+                    Cluster.CenterY = SumY / Cluster.Elements.len() as f64;
+                }
+                else
+                {
+                    Clusters.push
+                    (
+                        Line_Cluster
+                        {
+                            CenterY,
+                            Elements: vec![Elem],
+                        }
+                    );
+                }
+            }
+
+            for Cluster in Clusters
+            {
+                let mut MinX = f64::INFINITY;
+                let mut MaxX = f64::NEG_INFINITY;
+                let mut MinY = f64::INFINITY;
+                let mut MaxY = f64::NEG_INFINITY;
+                let mut MinH = f64::INFINITY;
+                let mut MaxH = 0.0f64;
+
+                for E in Cluster.Elements
+                {
+                    let Ex = E.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Ey = E.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Ew = E.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let Eh = E.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+
+                    MinX = MinX.min(Ex);
+                    MaxX = MaxX.max(Ex + Ew);
+                    MinY = MinY.min(Ey);
+                    MaxY = MaxY.max(Ey + Eh);
+                    MinH = MinH.min(Eh);
+                    MaxH = MaxH.max(Eh);
+                }
+
+                if MinX.is_finite() && MaxX.is_finite() && MaxX > MinX
+                {
+                    ResultBoxes.push
+                    (
+                        Sync_Highlight_Box
+                        {
+                            Page: PageNum,
+                            X: MinX,
+                            Y: MinY,
+                            Width: (MaxX - MinX).max(2.0),
+                            Height: (MaxY - MinY).max(2.0),
+                            FirstLineHeight: if MinH.is_finite() { MinH } else { 10.5 },
+                            LastLineHeight: if MaxH > 0.0 { MaxH } else { 10.5 },
+                        }
+                    );
+                }
+            }
+        }
+
+        return Ok(ResultBoxes);
+    }
+
+    let TargetLine = Line.unwrap_or(0);
+    if TargetLine == 0
+    {
+        return Ok(Vec::new());
+    }
+
+    let mut LineElements = Vec::new();
+    for Elem in SyncMap
+    {
+        let ElemLine = Elem.get("line").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(0);
+        let ElemEndLine = Elem.get("end_line").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(ElemLine);
+        if TargetLine >= ElemLine && TargetLine <= ElemEndLine
+        {
+            LineElements.push(Elem);
+        }
+    }
+
+    if LineElements.is_empty()
+    {
+        return Ok(Vec::new());
+    }
+
+    let mut PageGroups: std::collections::BTreeMap<usize, Vec<&serde_json::Value>> = std::collections::BTreeMap::new();
+    for Elem in LineElements
+    {
+        let PageNum = Elem.get("page").and_then( | V | V.as_u64()).map( | V | V as usize).unwrap_or(1);
+        PageGroups.entry(PageNum).or_default().push(Elem);
+    }
+
+    let mut ResultBoxes = Vec::new();
+    for (PageNum, PageElems) in PageGroups
+    {
+        let mut MinX = f64::INFINITY;
+        let mut MaxX = f64::NEG_INFINITY;
+        let mut MinY = f64::INFINITY;
+        let mut MaxY = f64::NEG_INFINITY;
+        let mut MinH = f64::INFINITY;
+        let mut MaxH = 0.0f64;
+
+        for E in PageElems
+        {
+            let Ex = E.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+            let Ey = E.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+            let Ew = E.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
+            let Eh = E.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+
+            MinX = MinX.min(Ex);
+            MaxX = MaxX.max(Ex + Ew);
+            MinY = MinY.min(Ey);
+            MaxY = MaxY.max(Ey + Eh);
+            MinH = MinH.min(Eh);
+            MaxH = MaxH.max(Eh);
+        }
+
+        if MinX.is_finite() && MaxX.is_finite() && MaxX > MinX
+        {
+            ResultBoxes.push
+            (
+                Sync_Highlight_Box
+                {
+                    Page: PageNum,
+                    X: MinX,
+                    Y: MinY,
+                    Width: (MaxX - MinX).max(2.0),
+                    Height: (MaxY - MinY).max(2.0),
+                    FirstLineHeight: if MinH.is_finite() { MinH } else { 10.5 },
+                    LastLineHeight: if MaxH > 0.0 { MaxH } else { 10.5 },
+                }
+            );
+        }
+    }
+
+    Ok(ResultBoxes)
+}
+
+#[tauri::command]
 async fn GetAvailableFonts() -> Result<Available_Fonts_Response, String>
 {
     tauri::async_runtime::spawn_blocking
@@ -2893,6 +3145,7 @@ pub fn run()
             SyncClick,
             SyncCursor,
             ResolveSpan,
+            SyncSelection,
             FormatTypst,
             ToggleFullscreen,
             SetFullscreen,
@@ -3194,5 +3447,73 @@ mod tests
 
         // Embedded credentials must be rejected
         assert!(ValidateExternalUrl("https://user:password@evil.com").is_err());
+    }
+
+    #[test]
+    fn TestSyncSelectionPrecision()
+    {
+        let MockSyncMap = vec![
+            serde_json::json!({
+                "page": 1,
+                "x": 100.0,
+                "y": 200.0,
+                "width": 10.0,
+                "height": 12.0,
+                "line": 204,
+                "col": 1,
+                "end_line": 204,
+                "end_col": 2,
+                "start": 5000,
+                "end": 5001,
+                "span": "1a2b"
+            }),
+            serde_json::json!({
+                "page": 1,
+                "x": 110.0,
+                "y": 200.0,
+                "width": 10.0,
+                "height": 12.0,
+                "line": 204,
+                "col": 2,
+                "end_line": 204,
+                "end_col": 3,
+                "start": 5001,
+                "end": 5002,
+                "span": "1a2b"
+            }),
+            serde_json::json!({
+                "page": 1,
+                "x": 100.0,
+                "y": 216.0,
+                "width": 15.0,
+                "height": 12.0,
+                "line": 205,
+                "col": 1,
+                "end_line": 205,
+                "end_col": 3,
+                "start": 5010,
+                "end": 5012,
+                "span": "1a2b"
+            }),
+        ];
+
+        if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock()
+        {
+            *Guard = MockSyncMap;
+        }
+
+        // Test 1: Selecting only the first character (5000..5001)
+        let Res1 = SyncSelection(5000, 5001, true, None, None).expect("SyncSelection must succeed");
+        assert_eq!(Res1.len(), 1);
+        assert_eq!(Res1[0].Page, 1);
+        assert!((Res1[0].X - 100.0).abs() < 0.01);
+        assert!((Res1[0].Width - 10.0).abs() < 0.01);
+
+        // Test 2: Multi-line selection (5000..5012)
+        let Res2 = SyncSelection(5000, 5012, true, None, None).expect("Multi-line selection must succeed");
+        // Must produce 2 separate lines, NOT a merged box!
+        assert_eq!(Res2.len(), 2);
+        assert!((Res2[0].Y - 200.0).abs() < 0.01);
+        assert!((Res2[1].Y - 216.0).abs() < 0.01);
     }
 }

@@ -144,7 +144,7 @@ impl FontInfo
         .raw_face()
         .table(ttf_parser::Tag::from_bytes(b"OS/2"))
         .and_then( | os2 | os2.get (32..45))
-        && matches!(panose, [2, 2.. = 10,..]) { flags.insert(FontFlags::SERIF); }
+        && matches!(panose, [2, 2..= 10,..]) { flags.insert(FontFlags::SERIF); }
 
         let axes = ttf
         .variation_axes()

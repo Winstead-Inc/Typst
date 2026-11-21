@@ -71,7 +71,7 @@ const fn is_whatwg_non_char(c: char)-> bool
 {
     match c
     {
-        '\u{fdd0}'.. = '\u{fdef}' => true,
+        '\u{fdd0}'..= '\u{fdef}' => true,
         // Non-characters matching xxFFFE or xxFFFF up to x10FFFF (inclusive).
         c if c as u32 & 0xfffe == 0xfffe && c as u32 <= 0x10ffff => true,
         _ => false,
@@ -83,9 +83,9 @@ const fn is_whatwg_control_char(c: char)-> bool
     match c
     {
         // C0 control characters.
-        '\u{00}'.. = '\u{1f}' => true,
+        '\u{00}'..= '\u{1f}' => true,
         // Other control characters.
-        '\u{7f}'.. = '\u{9f}' => true,
+        '\u{7f}'..= '\u{9f}' => true,
         _ => false,
     }
 }

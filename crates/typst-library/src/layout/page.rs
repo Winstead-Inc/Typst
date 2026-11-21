@@ -747,7 +747,7 @@ impl PageRanges
         (
             | range | match (range.start, range.end)
             {
-                (Some(start), Some(end)) => (start.. = end).contains( & page),(Some(start), None) => (start..).contains( & page),(None, Some(end)) => (.. = end).contains( & page),(None, None) => true,
+                (Some(start), Some(end)) => (start..= end).contains( & page),(Some(start), None) => (start..).contains( & page),(None, Some(end)) => (..= end).contains( & page),(None, None) => true,
             }
         )
     }

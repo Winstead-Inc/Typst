@@ -286,7 +286,7 @@ impl RawMode
         match element.tag
         {
             tag::script
-            if ! element.attrs .0.iter().any( | (attr, value) | { * attr == attr::r # type && value != "text/javascript" }) =>
+            if ! element.attrs .0.iter().any( | (attr, value) | { * attr == attr::r#type && value != "text/javascript" }) =>
             {
                 // Template literals can be multi-line, so indent may change
                 // the semantics of the JavaScript.
