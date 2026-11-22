@@ -7668,8 +7668,11 @@ async function HandlePastedImageFile(File)
                     (
                         "SavePastedFileAsset",
                         {
+                            docPath: CurrentFilePath || null,
                             DocPath: CurrentFilePath || null,
+                            fileName: File.name || "paste.png",
                             FileName: File.name || "paste.png",
+                            base64Data: DataUrl,
                             Base64Data: DataUrl
                         }
                     );
@@ -7744,6 +7747,7 @@ async function HandlePastedClipboardImageRust()
         (
             "PasteClipboardImage",
             {
+                docPath: CurrentFilePath || null,
                 DocPath: CurrentFilePath || null
             }
         );
@@ -8011,8 +8015,11 @@ async function CaptureTimelineSnapshot(Label)
             (
                 "SaveTimelineSnapshot",
                 {
+                    docPath: CurrentFilePath || null,
                     DocPath: CurrentFilePath || null,
+                    content: Content,
                     Content: Content,
+                    label: Label || null,
                     Label: Label || null
                 }
             );
@@ -11176,41 +11183,58 @@ function SetupEventListeners()
     );
 
     SetupSplitResizer();
-    // Document Title Dropdown
-    document.getElementById("DocDropdownToggle").addEventListener
-    (
-        "click", (E) =>
-        {
-            E.stopPropagation();
-            ToggleDocDropdown();
-        }
-    );
 
-    document.getElementById("DocDropdownSearch").addEventListener
-    (
-        "input", (E) =>
-        {
-            RenderDocDropdownList(E.target.value);
-        }
-    );
+    // Document Title Dropdown (legacy / fallback guarded)
+    const DocDropdownToggle = document.getElementById("DocDropdownToggle");
+    if (DocDropdownToggle)
+    {
+        DocDropdownToggle.addEventListener
+        (
+            "click", (E) =>
+            {
+                E.stopPropagation();
+                ToggleDocDropdown();
+            }
+        );
+    }
 
-    document.getElementById("QuickNewDocBtn").addEventListener
-    (
-        "click", () =>
-        {
-            CloseDocDropdown();
-            CreateNewWorkspaceFile();
-        }
-    );
+    const DocDropdownSearch = document.getElementById("DocDropdownSearch");
+    if (DocDropdownSearch)
+    {
+        DocDropdownSearch.addEventListener
+        (
+            "input", (E) =>
+            {
+                RenderDocDropdownList(E.target.value);
+            }
+        );
+    }
 
-    document.getElementById("OpenDashboardFromDropdownBtn").addEventListener
-    (
-        "click", () =>
-        {
-            CloseDocDropdown();
-            SwitchView("dashboard");
-        }
-    );
+    const QuickNewDocBtn = document.getElementById("QuickNewDocBtn");
+    if (QuickNewDocBtn)
+    {
+        QuickNewDocBtn.addEventListener
+        (
+            "click", () =>
+            {
+                CloseDocDropdown();
+                ShowNewDocumentModal();
+            }
+        );
+    }
+
+    const OpenDashboardFromDropdownBtn = document.getElementById("OpenDashboardFromDropdownBtn");
+    if (OpenDashboardFromDropdownBtn)
+    {
+        OpenDashboardFromDropdownBtn.addEventListener
+        (
+            "click", () =>
+            {
+                CloseDocDropdown();
+                SwitchView("dashboard");
+            }
+        );
+    }
 
     document.addEventListener
     (
@@ -11223,30 +11247,44 @@ function SetupEventListeners()
             }
         }
     );
-    // Save File Button
-    document.getElementById("SaveFileButton").addEventListener
-    (
-        "click", () =>
-        {
-            SaveCurrentFile();
-        }
-    );
-    // View Navigation Tabs
-    document.getElementById("NavEditorBtn").addEventListener
-    (
-        "click", () =>
-        {
-            SwitchView("editor");
-        }
-    );
 
-    document.getElementById("NavDashboardBtn").addEventListener
-    (
-        "click", () =>
-        {
-            SwitchView("dashboard");
-        }
-    );
+    // Save File Button
+    const SaveFileButton = document.getElementById("SaveFileButton");
+    if (SaveFileButton)
+    {
+        SaveFileButton.addEventListener
+        (
+            "click", () =>
+            {
+                SaveCurrentFile();
+            }
+        );
+    }
+
+    // View Navigation Tabs
+    const NavEditorBtn = document.getElementById("NavEditorBtn");
+    if (NavEditorBtn)
+    {
+        NavEditorBtn.addEventListener
+        (
+            "click", () =>
+            {
+                SwitchView("editor");
+            }
+        );
+    }
+
+    const NavDashboardBtn = document.getElementById("NavDashboardBtn");
+    if (NavDashboardBtn)
+    {
+        NavDashboardBtn.addEventListener
+        (
+            "click", () =>
+            {
+                SwitchView("dashboard");
+            }
+        );
+    }
 
     const BackToEditor = document.getElementById("DashboardBackToEditorBtn");
     if (BackToEditor)
@@ -11260,13 +11298,17 @@ function SetupEventListeners()
         );
     }
 
-    document.getElementById("StatResumeBtn").addEventListener
-    (
-        "click", () =>
-        {
-            SwitchView("editor");
-        }
-    );
+    const StatResumeBtn = document.getElementById("StatResumeBtn");
+    if (StatResumeBtn)
+    {
+        StatResumeBtn.addEventListener
+        (
+            "click", () =>
+            {
+                SwitchView("editor");
+            }
+        );
+    }
     // Dashboard Actions
     const DashboardRefresh = document.getElementById("DashboardRefreshBtn");
     if (DashboardRefresh)
@@ -11288,7 +11330,58 @@ function SetupEventListeners()
         (
             "click", () =>
             {
-                CreateNewWorkspaceFile();
+                ShowNewDocumentModal();
+            }
+        );
+    }
+
+    const ExplorerNewFile = document.getElementById("ExplorerNewFileBtn");
+    if (ExplorerNewFile)
+    {
+        ExplorerNewFile.addEventListener
+        (
+            "click", () =>
+            {
+                ShowNewDocumentModal(ExplorerCurrentRoot);
+            }
+        );
+    }
+
+    const CloseNewDocBtn = document.getElementById("CloseNewDocModalBtn");
+    if (CloseNewDocBtn)
+    {
+        CloseNewDocBtn.addEventListener("click", CloseNewDocumentModal);
+    }
+
+    const CancelNewDocBtn = document.getElementById("NewDocModalCancelBtn");
+    if (CancelNewDocBtn)
+    {
+        CancelNewDocBtn.addEventListener("click", CloseNewDocumentModal);
+    }
+
+    const CreateNewDocBtn = document.getElementById("NewDocModalCreateBtn");
+    if (CreateNewDocBtn)
+    {
+        CreateNewDocBtn.addEventListener("click", ConfirmCreateNewDocument);
+    }
+
+    const NewDocInput = document.getElementById("NewDocModalInput");
+    if (NewDocInput)
+    {
+        NewDocInput.addEventListener
+        (
+            "keydown", (E) =>
+            {
+                if (E.key === "Enter")
+                {
+                    E.preventDefault();
+                    ConfirmCreateNewDocument();
+                }
+                else if (E.key === "Escape")
+                {
+                    E.preventDefault();
+                    CloseNewDocumentModal();
+                }
             }
         );
     }
@@ -11352,6 +11445,10 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 E.stopPropagation();
+                if (typeof E.stopImmediatePropagation === "function")
+                {
+                    E.stopImmediatePropagation();
+                }
                 if (E.key === "Escape")
                 {
                     CancelRecordingKeybinding();
@@ -11367,6 +11464,13 @@ function SetupEventListeners()
                 {
                     SaveKeybinding(ActiveRecordingCommandId, Combo);
                 }
+                return ;
+            }
+
+            if (Date.now() < RecordingCooldownUntil)
+            {
+                E.preventDefault();
+                E.stopPropagation();
                 return ;
             }
 
@@ -11527,7 +11631,8 @@ function SetupEventListeners()
                     CloseTimeMachine();
                 }
             }
-        }
+        },
+        { capture: true }
     );
 
     SetupDualModeAndExportEventListeners();
@@ -11728,10 +11833,18 @@ function ToggleDocDropdown()
 {
     IsDropdownOpen = ! IsDropdownOpen;
     const DropdownMenu = document.getElementById("DocDropdownMenu");
+    if (!DropdownMenu)
+    {
+        return ;
+    }
     if (IsDropdownOpen)
     {
         DropdownMenu.style.display = "flex";
-        document.getElementById("DocDropdownSearch").focus();
+        const SearchEl = document.getElementById("DocDropdownSearch");
+        if (SearchEl)
+        {
+            SearchEl.focus();
+        }
     }
     else
     {
@@ -12049,66 +12162,7 @@ async function CreateNewWorkspaceFile()
         TargetDir = WorkspaceDirectories[0] || "";
     }
 
-    const FileName = prompt("Enter new Typst file name:", "NewDocument.typ");
-    if (!FileName || !FileName.trim())
-    {
-        return ;
-    }
-
-    const CleanName = FileName.trim().endsWith(".typ") ? FileName.trim(): `${FileName.trim()}.typ`;
-    const InitialContent = `#set page(paper: "a4", margin: 2.5cm)\n#set text(font: "Segoe UI", size: 11pt)\n\n= ${CleanName.replace(".typ", "")}\n\n`;
-
-    try
-    {
-        let CreatedPath;
-        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
-        {
-            CreatedPath = await window.__TAURI__.core.invoke
-            (
-                "CreateWorkspaceFile",
-                {
-                    directory: TargetDir || null,
-                    Directory: TargetDir || null,
-                    fileName: CleanName,
-                    FileName: CleanName,
-                    content: InitialContent,
-                    Content: InitialContent
-                }
-            );
-        }
-        else
-        {
-            const Response = await AuthenticatedFetch
-            (
-                "/api/workspace/create",
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify( { Directory: TargetDir, FileName: CleanName, Content: InitialContent })
-                }
-            );
-            const Data = await Response.json();
-            if (Data.Success && Data.Path)
-            {
-                CreatedPath = Data.Path;
-            }
-            else
-            {
-                ShowToast("Create failed: " + (Data ? Data.Message: "Unknown error"), "error");
-                return ;
-            }
-        }
-
-        if (CreatedPath)
-        {
-            await LoadWorkspaceInfo();
-            OpenFileFromWorkspace(CreatedPath);
-        }
-    }
-    catch (Err)
-    {
-        console.error("Create file error:", Err);
-    }
+    ShowNewDocumentModal(TargetDir);
 }
 
 async function AddWorkspaceDirectory()
@@ -12482,6 +12536,7 @@ function SwitchToTab(FilePath)
         return ;
     }
 
+    const PreviousPath = CurrentFilePath;
     const Normalized = FilePath.trim();
     ActiveTabPath = Normalized;
     ActiveDocumentCanonicalPath = Normalized;
@@ -12495,8 +12550,9 @@ function SwitchToTab(FilePath)
     HighlightActiveTreeFile(Normalized);
 
     const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
-    if (CurrentFilePath && CurrentFilePath.toLowerCase() === Normalized.toLowerCase() && CurrentContent.length > 0)
+    if (PreviousPath && PreviousPath.toLowerCase() === Normalized.toLowerCase() && CurrentContent.length > 0)
     {
+        SwitchView("editor");
         return ;
     }
 
@@ -12513,6 +12569,7 @@ function SwitchToTab(FilePath)
     MonotonicSyncAnchors = [];
     ClearSyncHighlights();
 
+    SwitchView("editor");
     OpenFileFromWorkspace(Normalized);
 }
 
@@ -13053,23 +13110,92 @@ function OpenProjectInExplorer(ProjectPath)
     RenderExplorerTree();
 }
 
-function CreateFileInProject(ProjectPath)
+let TargetNewDocProjectPath = null;
+
+function ShowNewDocumentModal(ProjectPath = null)
 {
-    const FileName = prompt("Enter new Typst document name (e.g. Chapter1.typ):", "Document.typ");
-    if (!FileName || !FileName.trim())
+    TargetNewDocProjectPath = ProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
+    const Modal = document.getElementById("NewDocumentModal");
+    const Input = document.getElementById("NewDocModalInput");
+    const ErrorEl = document.getElementById("NewDocModalError");
+    if (!Modal || !Input)
     {
         return ;
     }
-    const CleanName = FileName.trim().endsWith(".typ") ? FileName.trim(): `${FileName.trim()}.typ`;
-    const FullPath = `${ProjectPath}\\${CleanName}`;
+
+    Input.value = "Document.typ";
+    if (ErrorEl)
+    {
+        ErrorEl.style.display = "none";
+        ErrorEl.textContent = "";
+    }
+    Modal.style.display = "flex";
+    setTimeout
+    (
+        () =>
+        {
+            Input.focus();
+            Input.select();
+        },
+        50
+    );
+}
+
+function CloseNewDocumentModal()
+{
+    const Modal = document.getElementById("NewDocumentModal");
+    if (Modal)
+    {
+        Modal.style.display = "none";
+    }
+    TargetNewDocProjectPath = null;
+}
+
+function ConfirmCreateNewDocument()
+{
+    const Input = document.getElementById("NewDocModalInput");
+    const ErrorEl = document.getElementById("NewDocModalError");
+    if (!Input)
+    {
+        return ;
+    }
+
+    let RawName = Input.value.trim();
+    if (!RawName)
+    {
+        if (ErrorEl)
+        {
+            ErrorEl.textContent = "Please enter a valid document name.";
+            ErrorEl.style.display = "block";
+        }
+        return ;
+    }
+    const CleanName = RawName.endsWith(".typ") ? RawName : `${RawName}.typ`;
+    const TargetDir = TargetNewDocProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
+    const FullPath = `${TargetDir}\\${CleanName}`;
+
+    CloseNewDocumentModal();
 
     SaveWorkspaceFile(FullPath, `= ${CleanName.replace(".typ", "")}\n\n// Start writing your Typst document here.\n`).then
     (
         () =>
         {
-            LoadWorkspaceInfo().then( () => { OpenDocumentInTab(FullPath, CleanName); SwitchView("editor"); });
+            LoadWorkspaceInfo().then
+            (
+                () =>
+                {
+                    OpenDocumentInTab(FullPath, CleanName);
+                    SwitchView("editor");
+                    ShowToast(`Created ${CleanName}`, "success");
+                }
+            );
         }
     );
+}
+
+function CreateFileInProject(ProjectPath)
+{
+    ShowNewDocumentModal(ProjectPath);
 }
 
 function SwitchView(ViewName)
@@ -14819,6 +14945,14 @@ window.SetZoom = SetZoom;
 window.FitWidth = FitWidth;
 window.FitPage = FitPage;
 window.ToggleShortcutsModal = ToggleShortcutsModal;
+window.OpenDocumentInTab = OpenDocumentInTab;
+window.SwitchToTab = SwitchToTab;
+window.CloseTab = CloseTab;
+window.OpenProjectInExplorer = OpenProjectInExplorer;
+window.CreateFileInProject = CreateFileInProject;
+window.ShowNewDocumentModal = ShowNewDocumentModal;
+window.CloseNewDocumentModal = CloseNewDocumentModal;
+window.ConfirmCreateNewDocument = ConfirmCreateNewDocument;
 
 window.addEventListener
 (

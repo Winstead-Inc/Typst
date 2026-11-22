@@ -69,11 +69,11 @@
                 <span Class = "BrandTitle">Typst Studio</span>
             </div>
 
-            <div Class = "HeaderBreadcrumb">
+            <div Class = "HeaderNavSegmented" Id = "HeaderNavSegmented" Title = "View Navigation">
                 <button Type  = "button"
                         Id    = "NavDashboardBtn"
-                        Class = "BreadcrumbBtn"
-                        Title = "Workspace Projects (Alt+D)">
+                        Class = "NavSegmentBtn"
+                        Title = "Workspace Projects &amp; Dashboard (Alt+D)">
                     <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                         <rect X = "3" Y = "3" Width = "7" Height = "7" Rx = "1" />
                         <rect X = "14" Y = "3" Width = "7" Height = "7" Rx = "1" />
@@ -82,51 +82,16 @@
                     </svg>
                     <span>Projects</span>
                 </button>
-                <span Class = "BreadcrumbSep">/</span>
-                <div Class = "DocumentInfoDropdownGroup" Id = "DocDropdownGroup">
-                    <div Class = "DocInputWrapper">
-                        <input Type       = "text"
-                               Id         = "DocumentTitleInput"
-                               Class      = "DocInput"
-                               Value      = "GenesisOfTheVanguard.typ"
-                               Title      = "Document Name (Click dropdown arrow to switch saved files)"
-                               Aria-Label = "Document File Name" />
-                        <span Id    = "UnsavedDirtyDot"
-                              Class = "UnsavedDirtyDot"
-                              Title = "Unsaved changes (Ctrl+S to save)">●</span>
-                        <button Type  = "button"
-                                Id    = "DocDropdownToggle"
-                                Class = "DocDropdownToggleBtn"
-                                Title = "Switch Saved Typst File">
-                            <svg Width = "10" Height = "10" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                <polyline Points = "6 9 12 15 18 9" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div Class = "DocDropdownMenu" Id = "DocDropdownMenu">
-                        <div Class = "DocDropdownHeader">
-                            <span Class = "DropdownSectionTitle">Saved Files (<span Id = "DocDropdownCount">0</span>)</span>
-                            <button Type  = "button"
-                                    Id    = "QuickNewDocBtn"
-                                    Class = "MiniActionBtn"
-                                    Title = "Create new Typst file with typed name">+ New</button>
-                        </div>
-                        <div Class = "DocDropdownSearchBox">
-                            <input Type        = "text"
-                                   Id          = "DocDropdownSearch"
-                                   Class       = "DocDropdownSearchInput"
-                                   Title       = "Search Saved Typst Files"
-                                   Aria-Label  = "Search Saved Typst Files"
-                                   Placeholder = "Type file name &amp; click + New, or search..." />
-                        </div>
-                        <div Class = "DocDropdownList" Id = "DropdownFileList">
-                            <!-- Populated dynamically via JS -->
-                        </div>
-                        <div Class = "DocDropdownFooter">
-                            <button Type = "button" Id = "OpenDashboardFromDropdownBtn" Class = "DropdownFooterBtn">Open Workspace Dashboard →</button>
-                        </div>
-                    </div>
-                </div>
+                <button Type  = "button"
+                        Id    = "NavEditorBtn"
+                        Class = "NavSegmentBtn Active"
+                        Title = "Return to Editor">
+                    <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                        <polyline Points = "16 18 22 12 16 6" />
+                        <polyline Points = "8 6 2 12 8 18" />
+                    </svg>
+                    <span>Editor</span>
+                </button>
             </div>
         </div>
 
@@ -182,7 +147,7 @@
                     <option Value = "slides">Slides</option>
                     <option Value = "blank">Blank</option>
                 </select>
-                <button Type = "button" Id = "NavEditorBtn" Class = "NavTabButton Active">Editor</button>
+
             </div>
         </div>
 
@@ -558,16 +523,7 @@
                     <p Class = "DashboardSubtitle">Track local Typst project directories and quickly switch between saved files.</p>
                 </div>
                 <div Class = "DashboardActionGroup">
-                    <button Type  = "button"
-                            Id    = "DashboardBackToEditorBtn"
-                            Class = "Button Secondary"
-                            Title = "Return to Editor">
-                        <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                            <line X1 = "19" Y1 = "12" X2 = "5" Y2 = "12" />
-                            <polyline Points = "12 19 5 12 12 5" />
-                        </svg>
-                        <span>Back to Editor</span>
-                    </button>
+
                     <button Type  = "button"
                             Id    = "DashboardRefreshBtn"
                             Class = "Button Secondary"
@@ -1370,5 +1326,32 @@
     <div Id = "ToastContainer" Class = "ToastContainer"></div>
 
     <script Src = "App.js?v=20261109_26"></script>
+    <!-- New Typst Document Modal (Replaces native prompt) -->
+    <div Class = "ModalOverlay" Id = "NewDocumentModal" Style = "display: none;">
+        <div Class = "ModalDialog NewDocModalDialog">
+            <div Class = "ModalHeader">
+                <div Class = "ModalHeaderTitle">
+                    <svg Width = "18" Height = "18" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
+                        <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline Points = "14 2 14 8 20 8" />
+                        <line X1 = "12" Y1 = "18" X2 = "12" Y2 = "12" />
+                        <line X1 = "9" Y1 = "15" X2 = "15" Y2 = "15" />
+                    </svg>
+                    <h3>New Typst Document</h3>
+                </div>
+                <button Type = "button" Id = "CloseNewDocModalBtn" Class = "MiniCloseBtn" Title = "Cancel (Escape)">×</button>
+            </div>
+            <div Class = "ModalBody" Style = "padding: 20px 24px;">
+                <label Style = "display: block; font-size: 12px; color: #A1A1AA; margin-bottom: 8px;">Document File Name (.typ):</label>
+                <input Type = "text" Id = "NewDocModalInput" Class = "DocInput" Style = "width: 100%; box-sizing: border-box; padding: 10px 14px; background: #18181B; border: 1px solid #3F3F46; border-radius: 8px; color: #FFFFFF; font-size: 13.5px; outline: none;" Placeholder = "e.g. Chapter1.typ" />
+                <div Id = "NewDocModalError" Style = "color: #EF4444; font-size: 11.5px; margin-top: 6px; display: none;"></div>
+                <div Style = "display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
+                    <button Type = "button" Id = "NewDocModalCancelBtn" Class = "Button Secondary Small">Cancel</button>
+                    <button Type = "button" Id = "NewDocModalCreateBtn" Class = "Button Primary Small">Create Document</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

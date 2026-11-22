@@ -1,7 +1,8 @@
 #![allow(non_camel_case_types, non_snake_case)]
+pub mod container_physics;
 use std::io::Write;
 use tauri::Manager;
-use tauri_plugin_shell::ShellExt;
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct Compile_Response
@@ -331,13 +332,11 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
     let mut Result = Svg.to_string();
 
     if let Some(Pos) = Result.find("d=\"M 0 0v")
-    {
-        if let Some(FillPos) = Result[..Pos].rfind("fill=\"")
+        && let Some(FillPos) = Result[..Pos].rfind("fill=\"")
         {
             let FillEnd = FillPos + 6 + Result[FillPos + 6..].find('"').unwrap_or(0);
             Result = format!("{}{}__CANVAS_BLACK_SENTINEL__{}", & Result[..FillPos + 6], "", & Result[FillEnd..]);
         }
-    }
 
     let mut FinalSvg = String::with_capacity(Result.len());
     let mut Rest = Result.as_str();
@@ -439,8 +438,7 @@ fn FindTypstBinary() -> std::path::PathBuf
     };
 
     if let Ok(ExePath) = std::env::current_exe()
-    {
-        if let Some(ExeDir) = ExePath.parent()
+        && let Some(ExeDir) = ExePath.parent()
         {
             let CandidateBin = ExeDir.join("bin").join(BinName);
             if CandidateBin.exists()
@@ -479,7 +477,6 @@ fn FindTypstBinary() -> std::path::PathBuf
                 return DevCandidate;
             }
         }
-    }
 
     for Rel in &["bin", "../bin", "TypstStudio/bin"]
     {
@@ -510,8 +507,7 @@ fn GetFontDirectories() -> Vec<std::path::PathBuf>
     ];
 
     if let Ok(CurrentExe) = std::env::current_exe()
-    {
-        if let Some(ExeDir) = CurrentExe.parent()
+        && let Some(ExeDir) = CurrentExe.parent()
         {
             let CandidateRes = ExeDir.join("resources").join("fonts");
             if CandidateRes.exists() && CandidateRes.is_dir()
@@ -524,7 +520,6 @@ fn GetFontDirectories() -> Vec<std::path::PathBuf>
                 Dirs.push(CandidatePub);
             }
         }
-    }
 
     for Cand in Candidates
     {
@@ -552,8 +547,7 @@ fn CreateCommand<P: AsRef<std::ffi::OsStr>>(Program: P) -> std::process::Command
 fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path::PathBuf
 {
     if let Some(Path) = FilePath
-    {
-        if let Ok(Validated) = ValidateWorkspacePath(Path, false, false)
+        && let Ok(Validated) = ValidateWorkspacePath(Path, false, false)
         {
             if Validated.exists() && Validated.is_file()
             {
@@ -564,7 +558,6 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
                 return Validated;
             }
         }
-    }
     JobDir.to_path_buf()
 }
 
@@ -666,10 +659,7 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".svg")
-            {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg"))
-                { if let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); } }
-            }
+                && let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg")) && let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); }
         }
     }
     SvgFiles.sort_by_key( | Item | Item.0);
@@ -681,13 +671,9 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
     let SynctexPath = JobDir.join("synctex.json");
     let mut SyncMap = Vec:: new ();
     if SynctexPath.exists()
-    {
-        if let Ok(RawSync) = std::fs::read_to_string( & SynctexPath)
-        { if let Ok(Parsed) = serde_json::from_str::<Vec<serde_json::Value>>( & RawSync) { SyncMap = Parsed; } }
-    }
+        && let Ok(RawSync) = std::fs::read_to_string( & SynctexPath) && let Ok(Parsed) = serde_json::from_str::<Vec<serde_json::Value>>( & RawSync) { SyncMap = Parsed; }
 
-    if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock()
-    { if ! SyncMap.is_empty() { * Guard = SyncMap.clone(); } }
+    if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock() && ! SyncMap.is_empty() { * Guard = SyncMap.clone(); }
 
     let _ = std::fs::remove_dir_all( & JobDir);
 
@@ -846,10 +832,7 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".png")
-            {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".png"))
-                { if let Ok(PageNum) = NumPart.parse::<usize>() { PngFiles.push((PageNum, Entry.path())); } }
-            }
+                && let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".png")) && let Ok(PageNum) = NumPart.parse::<usize>() { PngFiles.push((PageNum, Entry.path())); }
         }
     }
     PngFiles.sort_by_key( | Item | Item.0);
@@ -955,10 +938,7 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         {
             let Name = Entry.file_name().to_string_lossy().to_string();
             if Name.starts_with("page-") && Name.ends_with(".svg")
-            {
-                if let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg"))
-                { if let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); } }
-            }
+                && let Some(NumPart) = Name.strip_prefix("page-").and_then( | S | S.strip_suffix(".svg")) && let Ok(PageNum) = NumPart.parse::<usize>() { SvgFiles.push((PageNum, Entry.path())); }
         }
     }
     SvgFiles.sort_by_key( | Item | Item.0);
@@ -1091,12 +1071,10 @@ fn NormalizePath(Path: &std::path::Path) -> std::path::PathBuf
             Component::ParentDir =>
             {
                 if let Some(Last) = Components.last()
-                {
-                    if !matches!(Last, Component::RootDir | Component::Prefix(_))
+                    && !matches!(Last, Component::RootDir | Component::Prefix(_))
                     {
                         Components.pop();
                     }
-                }
             },
             _ => Components.push(Comp),
         }
@@ -1300,8 +1278,7 @@ fn ValidateExternalUrl(Url: &str) -> Result<String, String>
     }
 
     if IsHttp
-    {
-        if let Some(HostPart) = Trimmed.split("://").nth(1)
+        && let Some(HostPart) = Trimmed.split("://").nth(1)
         {
             let Domain = HostPart.split('/').next().unwrap_or(HostPart);
             if Domain.contains('@')
@@ -1309,7 +1286,6 @@ fn ValidateExternalUrl(Url: &str) -> Result<String, String>
                 return Err("Access denied: URLs with embedded credentials are prohibited.".to_string());
             }
         }
-    }
 
     Ok(Trimmed.to_string())
 }
@@ -1330,12 +1306,10 @@ fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
     {
         let Candidate = std::path::Path::new(&Dir).join(&CleanPath);
         if Candidate.exists() && Candidate.is_file()
-        {
-            if let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
+            && let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
             {
                 return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
             }
-        }
     }
 
     let TargetFileName = RawPath
@@ -1347,12 +1321,10 @@ fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
     {
         let Candidate = std::path::Path::new(&Dir).join(&TargetFileName);
         if Candidate.exists() && Candidate.is_file()
-        {
-            if let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
+            && let Ok(Validated) = ValidateWorkspacePath(&Candidate.to_string_lossy(), true, false)
             {
                 return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
             }
-        }
     }
 
     Err(format!("Access denied or file not found in tracked workspace directories: {}", CleanPath))
@@ -1466,8 +1438,7 @@ fn FindWorkspaceConfigFile() -> std::path::PathBuf
     }
 
     if let Ok(Exe) = std::env::current_exe()
-    {
-        if let Some(Dir) = Exe.parent()
+        && let Some(Dir) = Exe.parent()
         {
             let Candidate = Dir.join(".workspace_config.json");
             if Candidate.exists()
@@ -1476,7 +1447,6 @@ fn FindWorkspaceConfigFile() -> std::path::PathBuf
             if DevCandidate.exists()
             { return DevCandidate; }
         }
-    }
 
     std::path::PathBuf::from(r"E:\Typst\TypstStudio\.workspace_config.json")
 }
@@ -1485,13 +1455,8 @@ fn GetTrackedDirectories() -> Vec<String>
 {
     let ConfigPath = FindWorkspaceConfigFile();
     if ConfigPath.exists()
-    {
-        if let Ok(Content) = std::fs::read_to_string( & ConfigPath)
-        {
-            if let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>( & Content)
-            { if ! Data.Directories.is_empty() { return Data.Directories; } }
-        }
-    }
+        && let Ok(Content) = std::fs::read_to_string( & ConfigPath)
+            && let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>( & Content) && ! Data.Directories.is_empty() { return Data.Directories; }
 
     vec![r"e:\Typst\projects".to_string()]
 }
@@ -1549,7 +1514,7 @@ fn ScanDirectoryRecursive(BaseDir: & std::path::Path, CurrentDir: & std::path::P
             Files.push
             (
                 Workspace_File
-                { Name: Name, Path: Path.to_string_lossy().to_string(), RelativePath: Rel, Directory: ParentDir, Size: Size, Modified: Modified, }
+                { Name, Path: Path.to_string_lossy().to_string(), RelativePath: Rel, Directory: ParentDir, Size, Modified, }
             );
         }
     }
@@ -1596,7 +1561,7 @@ fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
         }
     }
 
-    UniqueFiles.sort_by( | A, B | B.Modified.cmp( & A.Modified));
+    UniqueFiles.sort_by_key(|A| std::cmp::Reverse(A.Modified));
 
     Ok(Workspace_Info_Response { Success: true, Directories: Dirs, Files: UniqueFiles, Folders: UniqueFolders, })
 }
@@ -1899,8 +1864,7 @@ fn ResolveAssetsDirectory(DocPath: Option<&str>) -> std::path::PathBuf
     {
         let Trimmed = PathStr.trim();
         if !Trimmed.is_empty()
-        {
-            if let Ok(Validated) = ValidateWorkspacePath(Trimmed, false, false)
+            && let Ok(Validated) = ValidateWorkspacePath(Trimmed, false, false)
             {
                 if Validated.is_file()
                 {
@@ -1914,14 +1878,11 @@ fn ResolveAssetsDirectory(DocPath: Option<&str>) -> std::path::PathBuf
                     return Validated.join("assets");
                 }
                 else if let Some(Parent) = Validated.parent()
-                {
-                    if !Parent.as_os_str().is_empty()
+                    && !Parent.as_os_str().is_empty()
                     {
                         return Parent.join("assets");
                     }
-                }
             }
-        }
     }
 
     let Dirs = GetTrackedDirectories();
@@ -1966,12 +1927,9 @@ fn PasteClipboardImage(DocPath: Option<String>) -> Result<Paste_Image_Result, St
         for Entry in Entries.flatten()
         {
             if let Ok(Meta) = Entry.metadata()
-            {
-                if Meta.is_file() && Meta.len() == PngBytes.len() as u64
-                {
-                    if let Ok(Existing) = std::fs::read(Entry.path())
-                    {
-                        if Existing == PngBytes
+                && Meta.is_file() && Meta.len() == PngBytes.len() as u64
+                    && let Ok(Existing) = std::fs::read(Entry.path())
+                        && Existing == PngBytes
                         {
                             let ExistingName = Entry.file_name().to_string_lossy().to_string();
                             return Ok
@@ -1988,9 +1946,6 @@ fn PasteClipboardImage(DocPath: Option<String>) -> Result<Paste_Image_Result, St
                                 }
                             );
                         }
-                    }
-                }
-            }
         }
     }
 
@@ -2053,12 +2008,9 @@ fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64
         for Entry in Entries.flatten()
         {
             if let Ok(Meta) = Entry.metadata()
-            {
-                if Meta.is_file() && Meta.len() == Decoded.len() as u64
-                {
-                    if let Ok(Existing) = std::fs::read(Entry.path())
-                    {
-                        if Existing == Decoded
+                && Meta.is_file() && Meta.len() == Decoded.len() as u64
+                    && let Ok(Existing) = std::fs::read(Entry.path())
+                        && Existing == Decoded
                         {
                             let ExistingName = Entry.file_name().to_string_lossy().to_string();
                             return Ok
@@ -2075,9 +2027,6 @@ fn SavePastedFileAsset(DocPath: Option<String>, FileName: Option<String>, Base64
                                 }
                             );
                         }
-                    }
-                }
-            }
         }
     }
 
@@ -2202,27 +2151,15 @@ fn SaveTimelineSnapshot(DocPath: Option<String>, Content: String, Label: Option<
     let ContentHash = format!("{:x}", Hasher.finalize());
 
     if HistoryFile.exists()
-    {
-        if let Ok(FileContent) = std::fs::read_to_string(&HistoryFile)
-        {
-            if let Some(LastLine) = FileContent.lines().rev().find(|L| !L.trim().is_empty())
-            {
-                if let Ok(Parsed) = serde_json::from_str::<serde_json::Value>(LastLine)
-                {
-                    if let Some(Hash) = Parsed.get("ContentHash").and_then(|H| H.as_str())
-                    {
-                        if Hash == ContentHash
-                        {
-                            if let Ok(ExistingSnapshot) = serde_json::from_str::<Timeline_Snapshot>(LastLine)
+        && let Ok(FileContent) = std::fs::read_to_string(&HistoryFile)
+            && let Some(LastLine) = FileContent.lines().rev().find(|L| !L.trim().is_empty())
+                && let Ok(Parsed) = serde_json::from_str::<serde_json::Value>(LastLine)
+                    && let Some(Hash) = Parsed.get("ContentHash").and_then(|H| H.as_str())
+                        && Hash == ContentHash
+                            && let Ok(ExistingSnapshot) = serde_json::from_str::<Timeline_Snapshot>(LastLine)
                             {
                                 return Ok(ExistingSnapshot);
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     let Secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -2311,12 +2248,10 @@ fn GetTimelineSnapshotContent(DocPath: Option<String>, SnapshotId: String) -> Re
         }
 
         if let Ok(Snapshot) = serde_json::from_str::<Timeline_Snapshot>(Trimmed)
-        {
-            if Snapshot.Id == SnapshotId
+            && Snapshot.Id == SnapshotId
             {
                 return Ok(Snapshot.Content);
             }
-        }
     }
 
     Err(format!("Snapshot {} not found", SnapshotId))
@@ -2481,8 +2416,7 @@ fn ResolveSpan(Span: String) -> Result<Option<serde_json::Value>, String>
     let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
     for Elem in & * Guard
     {
-        if let Some(Val) = Elem. get("span").and_then( | S | S.as_str())
-        { if Val == Span { return Ok(Some(Elem.clone())); } }
+        if let Some(Val) = Elem. get("span").and_then( | S | S.as_str()) && Val == Span { return Ok(Some(Elem.clone())); }
     }
     Ok(None)
 }
@@ -2765,7 +2699,7 @@ fn GetAvailableFontsSync() -> Result<Available_Fonts_Response, String>
 
         if Line.contains('├') || Line.contains('└')
         {
-            let Clean = Line.trim_start_matches( | C: char | C == ' ' || C == '│' || C == '├' || C == '└' || C == '─').trim();
+            let Clean = Line.trim_start_matches( [' ', '│', '├', '└', '─']).trim();
             if ! Clean.is_empty()
             {
                 let FilePart = Clean.split('(').next().unwrap_or(Clean).trim();
@@ -2794,40 +2728,36 @@ fn GetAvailableFontsSync() -> Result<Available_Fonts_Response, String>
     {
         let DirPath = std::path::Path:: new (SearchDir);
         if DirPath.exists() && DirPath.is_dir()
-        {
-            if let Ok(Entries) = std::fs::read_dir(DirPath)
+            && let Ok(Entries) = std::fs::read_dir(DirPath)
             {
                 for Entry in Entries.flatten()
                 {
                     let Path = Entry.path();
-                    if let Some(Ext) = Path.extension().and_then( | E | E.to_str())
+                    let ExtMatches = Path.extension()
+                        .and_then(|E| E.to_str())
+                        .is_some_and(|Ext| Ext.eq_ignore_ascii_case("ttf") || Ext.eq_ignore_ascii_case("otf") || Ext.eq_ignore_ascii_case("ttc"));
+
+                    if let (true, Some(Stem)) = (ExtMatches, Path.file_stem().and_then(|S| S.to_str()))
                     {
-                        if Ext.eq_ignore_ascii_case("ttf") || Ext.eq_ignore_ascii_case("otf") || Ext.eq_ignore_ascii_case("ttc")
-                        {
-                            if let Some(Stem) = Path.file_stem().and_then( | S | S.to_str())
+                        FontSet.insert(Stem.to_string());
+                        FontDetails.push
+                        (
+                            Font_Detail
                             {
-                                FontSet.insert(Stem.to_string());
-                                FontDetails.push
-                                (
-                                    Font_Detail
-                                    {
-                                        Name: Stem.to_string(),
-                                        Family: Stem.to_string(),
-                                        Weight: "400".to_string(),
-                                        Style: "normal".to_string(),
-                                        Stretch: "normal".to_string(),
-                                        FilePath: Path.to_string_lossy().to_string(),
-                                    }
-                                );
+                                Name: Stem.to_string(),
+                                Family: Stem.to_string(),
+                                Weight: "400".to_string(),
+                                Style: "normal".to_string(),
+                                Stretch: "normal".to_string(),
+                                FilePath: Path.to_string_lossy().to_string(),
                             }
-                        }
+                        );
                     }
                 }
             }
-        }
     }
 
-    Ok(Available_Fonts_Response { Success: true, Fonts: FontSet.into_iter().collect(), FontDetails: FontDetails, })
+    Ok(Available_Fonts_Response { Success: true, Fonts: FontSet.into_iter().collect(), FontDetails, })
 }
 
 #[tauri::command]
@@ -2878,8 +2808,7 @@ fn ResolveLafsBinary() -> Option<std::path::PathBuf>
 {
     let BinName = if cfg!(windows) { "lafs.exe" } else { "lafs" };
     if let Ok(CurrentExe) = std::env::current_exe()
-    {
-        if let Some(Parent) = CurrentExe.parent()
+        && let Some(Parent) = CurrentExe.parent()
         {
             let Candidate = Parent.join("bin").join(BinName);
             if VerifyLafsBinaryIntegrity(&Candidate)
@@ -2892,7 +2821,6 @@ fn ResolveLafsBinary() -> Option<std::path::PathBuf>
                 return Some(CandidateDirect);
             }
         }
-    }
     let Fallback = std::path::PathBuf::from("bin").join(BinName);
     if VerifyLafsBinaryIntegrity(&Fallback)
     {
@@ -2967,8 +2895,7 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
                     Ok(Some(Status)) =>
                     {
                         if Status.success()
-                        {
-                            if let Some(mut Stdout) = Child.stdout.take()
+                            && let Some(mut Stdout) = Child.stdout.take()
                             {
                                 use std::io::Read;
                                 let mut OutStr = String::new();
@@ -2977,7 +2904,6 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
                                     return OutStr.trim_end().to_string();
                                 }
                             }
-                        }
                         break;
                     }
                     Ok(None) =>
@@ -3030,7 +2956,7 @@ fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
                 }
                 else
                 {
-                    ResultLines.extend(CurrentRawLines.drain(..));
+                    ResultLines.append(&mut CurrentRawLines);
                 }
                 ResultLines.push(Line.to_string());
             }
@@ -3112,16 +3038,27 @@ fn ToggleDevTools(App: tauri::AppHandle) -> Result<bool, String>
 fn OpenExternalUrl(App: tauri::AppHandle, Url: String) -> Result<(), String>
 {
     let ValidUrl = ValidateExternalUrl(&Url)?;
-    App.shell().open(&ValidUrl, None).map_err(|E| E.to_string())
+    App.opener().open_url(&ValidUrl, None::<&str>).map_err(|E| E.to_string())
+}
+
+#[tauri::command]
+fn EnforceContainerPhysics(Request: container_physics::Container_Action_Request) -> Result<container_physics::Container_Action_Response, String>
+{
+    Ok(container_physics::ProcessContainerAction(Request))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run()
 {
-    tauri::Builder::default()
-   .plugin(tauri_plugin_dialog::init())
-   .plugin(tauri_plugin_fs::init())
-   .plugin(tauri_plugin_shell::init())
+    let builder = tauri::Builder::default();
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_mcp_bridge::init());
+
+    builder
+       .plugin(tauri_plugin_dialog::init())
+       .plugin(tauri_plugin_opener::init())
+       .plugin(tauri_plugin_fs::init())
+       .plugin(tauri_plugin_shell::init())
    .invoke_handler
     (
         tauri::generate_handler!
@@ -3147,6 +3084,7 @@ pub fn run()
             ResolveSpan,
             SyncSelection,
             FormatTypst,
+            EnforceContainerPhysics,
             ToggleFullscreen,
             SetFullscreen,
             ToggleDevTools,

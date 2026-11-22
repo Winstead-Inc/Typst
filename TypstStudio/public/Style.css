@@ -1723,6 +1723,7 @@ button, input, select, textarea,
 body.Dragging,
 body.dragging
 {
+    -webkit-user-select: none !important;
     user-select: none !important;
     cursor: col-resize !important;
 }
@@ -1730,6 +1731,7 @@ body.dragging
 body.Dragging *,
 body.dragging *
 {
+    -webkit-user-select: none !important;
     user-select: none !important;
 }
 
@@ -6685,6 +6687,7 @@ body.UIMode_Focus .PreviewToolbar:hover
     font-size: 12.5px;
     line-height: 1.55;
     padding: 8px 0;
+    -webkit-user-select: text;
     user-select: text;
 }
 
@@ -6701,6 +6704,7 @@ body.UIMode_Focus .PreviewToolbar:hover
 {
     min-width: 40px;
     color: #6E7681;
+    -webkit-user-select: none;
     user-select: none;
     text-align: right;
     padding-right: 12px;
@@ -6710,6 +6714,7 @@ body.UIMode_Focus .PreviewToolbar:hover
 .TimeMachineDiffLine .LineSign
 {
     min-width: 16px;
+    -webkit-user-select: none;
     user-select: none;
     font-weight: bold;
 }
@@ -6773,6 +6778,7 @@ body.UIMode_Focus .PreviewToolbar:hover
     display: none;
     flex-direction: column;
     overflow: hidden;
+    -webkit-user-select: none;
     user-select: none;
 }
 
@@ -7108,4 +7114,60 @@ body.UIMode_Focus .PreviewToolbar:hover
     font-size: 11px;
     color: #7100FF;
     font-weight: 600;
+}
+
+
+/* --- SEGMENTED HEADER NAVIGATION ([ PROJECTS | EDITOR ]) --- */
+.HeaderNavSegmented
+{
+    display: inline-flex;
+    align-items: center;
+    background: #18181B;
+    border: 1px solid #27272A;
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.NavSegmentBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: #A1A1AA;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.NavSegmentBtn:hover
+{
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.NavSegmentBtn.Active
+{
+    background: #27272A;
+    color: #FFFFFF;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.NavSegmentBtn svg
+{
+    flex-shrink: 0;
+}
+
+.NewDocModalDialog
+{
+    max-width: 440px;
+    width: 90%;
 }
