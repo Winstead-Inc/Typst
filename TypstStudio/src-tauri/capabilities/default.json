@@ -11,6 +11,7 @@
         "core:window:allow-show",
         "core:window:allow-set-focus",
         "core:window:allow-set-position",
+        "core:window:allow-set-size",
         "dialog:default",
         "mcp-bridge:default"
     ]

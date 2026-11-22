@@ -5507,6 +5507,8 @@ function SetZoom(NewZoom)
 function SetupZoomControls()
 {
     const ZoomDisplay = document.getElementById("ZoomDisplay");
+    let IsMouseOverZoomArea = false;
+
     if (ZoomDisplay)
     {
         ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
@@ -5516,14 +5518,40 @@ function SetupZoomControls()
             "keydown",
             (Event) =>
             {
-                if (Event.key === "Enter")
+                if (Event.key === "ArrowUp")
                 {
                     Event.preventDefault();
+                    Event.stopPropagation();
+                    SetZoom(CurrentZoomLevel + 0.01);
+                    ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+                    const Sel = window.getSelection();
+                    if (Sel)
+                    {
+                        Sel.selectAllChildren(ZoomDisplay);
+                    }
+                }
+                else if (Event.key === "ArrowDown")
+                {
+                    Event.preventDefault();
+                    Event.stopPropagation();
+                    SetZoom(CurrentZoomLevel - 0.01);
+                    ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
+                    const Sel = window.getSelection();
+                    if (Sel)
+                    {
+                        Sel.selectAllChildren(ZoomDisplay);
+                    }
+                }
+                else if (Event.key === "Enter")
+                {
+                    Event.preventDefault();
+                    Event.stopPropagation();
                     ZoomDisplay.blur();
                 }
                 else if (Event.key === "Escape")
                 {
                     Event.preventDefault();
+                    Event.stopPropagation();
                     ZoomDisplay.textContent = `${Math.round(CurrentZoomLevel * 100)}%`;
                     ZoomDisplay.blur();
                 }
@@ -5550,9 +5578,39 @@ function SetupZoomControls()
         );
     }
 
+    const ZoomControls = document.querySelector(".ZoomControls");
+    if (ZoomControls)
+    {
+        ZoomControls.addEventListener("mouseenter", () => { IsMouseOverZoomArea = true; });
+        ZoomControls.addEventListener("mouseleave", () => { IsMouseOverZoomArea = false; });
+    }
+
     const Viewport = document.getElementById("PreviewViewport");
+    let IsMouseOverViewport = false;
     if (Viewport)
     {
+        Viewport.tabIndex = 0;
+        Viewport.addEventListener("mouseenter", () => { IsMouseOverViewport = true; });
+        Viewport.addEventListener("mouseleave", () => { IsMouseOverViewport = false; });
+
+        Viewport.addEventListener
+        (
+            "keydown",
+            (Event) =>
+            {
+                if (Event.key === "ArrowUp")
+                {
+                    Event.preventDefault();
+                    SetZoom(CurrentZoomLevel + 0.01);
+                }
+                else if (Event.key === "ArrowDown")
+                {
+                    Event.preventDefault();
+                    SetZoom(CurrentZoomLevel - 0.01);
+                }
+            }
+        );
+
         Viewport.addEventListener
         (
             "wheel",
@@ -5568,6 +5626,36 @@ function SetupZoomControls()
             { passive: false }
         );
     }
+
+    window.addEventListener
+    (
+        "keydown",
+        (Event) =>
+        {
+            const Active = document.activeElement;
+            if (Active === ZoomDisplay || Active === Viewport)
+            {
+                return ;
+            }
+
+            const IsInEditor = Active && (Active.classList.contains("monaco-mouse-cursor-text") || Active.closest(".monaco-editor") || Active.tagName === "TEXTAREA" || Active.tagName === "INPUT");
+
+            if (Event.key === "ArrowUp" || Event.key === "ArrowDown")
+            {
+                const ShouldHandle = (IsMouseOverZoomArea) ||
+                                     (IsMouseOverViewport && (Event.ctrlKey || Event.metaKey || !IsInEditor)) ||
+                                     ((Event.ctrlKey || Event.metaKey) && (Event.altKey || IsMouseOverViewport));
+
+                if (ShouldHandle)
+                {
+                    Event.preventDefault();
+                    const Step = (Event.key === "ArrowUp") ? 0.01 : -0.01;
+                    SetZoom(CurrentZoomLevel + Step);
+                }
+            }
+        },
+        true
+    );
 }
 
 function FitWidth()
@@ -9975,6 +10063,21 @@ function SetupDualModeAndExportEventListeners()
     ApplyEditorTypography();
 }
 
+function GetCurrentDocumentTitle()
+{
+    const TitleInput = document.getElementById("DocumentTitleInput");
+    if (TitleInput && TitleInput.value.trim().length > 0)
+    {
+        return TitleInput.value.trim();
+    }
+    if (CurrentFilePath)
+    {
+        const Name = CurrentFilePath.split(/[\/\\]/).pop();
+        return Name.replace(/\.typ$/i, "") || "document";
+    }
+    return "document";
+}
+
 async function ExportPdf()
 {
     if (!MonacoInstance)
@@ -9983,7 +10086,7 @@ async function ExportPdf()
     }
 
     const Source = MonacoInstance.getValue();
-    const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
+    const DocTitle = GetCurrentDocumentTitle();
     const StatusDot = document.getElementById("StatusDot");
     const StatusText = document.getElementById("StatusText");
 
@@ -10081,7 +10184,7 @@ async function ExportSvg()
     }
 
     const Source = MonacoInstance.getValue();
-    const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
+    const DocTitle = GetCurrentDocumentTitle();
     const BaseDocName = DocTitle.replace(/[^a-zA-Z0-9_\-]/g, "_");
     const StatusDot = document.getElementById("StatusDot");
     const StatusText = document.getElementById("StatusText");
@@ -10238,7 +10341,7 @@ async function ExportPng()
     }
 
     const Source = MonacoInstance.getValue();
-    const DocTitle = document.getElementById("DocumentTitleInput").value.trim() || "document";
+    const DocTitle = GetCurrentDocumentTitle();
     const BaseDocName = DocTitle.replace(/[^a-zA-Z0-9_\-]/g, "_");
     const StatusDot = document.getElementById("StatusDot");
     const StatusText = document.getElementById("StatusText");
@@ -12802,7 +12905,7 @@ async function SaveCurrentFile()
 
     if (!TargetPath)
     {
-        const DocName = document.getElementById("DocumentTitleInput").value.trim() || "Document.typ";
+        const DocName = GetCurrentDocumentTitle();
         const CleanDocName = DocName.endsWith(".typ") ? DocName: `${DocName}.typ`;
         const DefaultDir = WorkspaceDirectories[0] || "";
         if (DefaultDir)
