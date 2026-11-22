@@ -3203,7 +3203,8 @@ mod tests
         let OriginalDirs = GetTrackedDirectories();
         let TempDir = std::env::temp_dir().join(format!("test_ws_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&TempDir);
-        let TempDirStr = TempDir.to_string_lossy().to_string();
+        let CanonicalTempDir = CanonicalizeOrResolve(&TempDir);
+        let TempDirStr = CanonicalTempDir.to_string_lossy().to_string();
 
         let _ = AddWorkspaceDirectory(TempDirStr.clone());
 
@@ -3259,10 +3260,14 @@ mod tests
     fn TestSavePastedFileAssetAndDeduplication()
     {
         let OriginalDirs = GetTrackedDirectories();
-        let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}", std::process::id()));
+        let Nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}_{}", std::process::id(), Nanos));
+        let _ = std::fs::remove_dir_all(&TempDir);
         let _ = std::fs::create_dir_all(&TempDir);
-        let _ = AddWorkspaceDirectory(TempDir.to_string_lossy().to_string());
-        let TempDoc = TempDir.join("TestDoc.typ");
+        let CanonicalTempDir = CanonicalizeOrResolve(&TempDir);
+        let TempDirStr = CanonicalTempDir.to_string_lossy().to_string();
+        let _ = AddWorkspaceDirectory(TempDirStr.clone());
+        let TempDoc = CanonicalTempDir.join("TestDoc.typ");
         let _ = std::fs::write(&TempDoc, "= Test");
 
         // Small 1x1 transparent PNG in base64

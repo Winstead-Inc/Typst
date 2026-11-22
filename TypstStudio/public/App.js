@@ -3828,7 +3828,7 @@ function InitializeMonaco()
                     (
                         () =>
                         {
-                            PerformForwardSync(Event.position.lineNumber, Event.position.column);
+                            PerformForwardSync(Event.position.lineNumber, Event.position.column, false);
                         },
                         DebounceMs
                     );
@@ -3860,7 +3860,7 @@ function InitializeMonaco()
                             const Pos = MonacoInstance.getPosition();
                             if (Pos)
                             {
-                                PerformForwardSync(Pos.lineNumber, Pos.column);
+                                PerformForwardSync(Pos.lineNumber, Pos.column, false);
                             }
                         },
                         DebounceMs
@@ -3869,6 +3869,7 @@ function InitializeMonaco()
             );
 
             SetupSmartTypographyKeydownListener();
+            SetupStructuralContainerDispatchHook();
             SetupZeroDialogClipboardPasting();
 
             let MathBracketDecorations = MonacoInstance.createDecorationsCollection([]);
@@ -4451,6 +4452,7 @@ function SetupBidirectionalScrollSync()
     // Explicit Click-to-Jump SyncTeX handles navigation on demand.
 }
 
+let StatusBarWordCountTimer = null;
 function UpdateStatusBar()
 {
     if (!MonacoInstance) { return ; }
@@ -4466,10 +4468,24 @@ function UpdateStatusBar()
     const WordCountEl = document.getElementById("WordCountDisplay");
     if (WordCountEl)
     {
-        const Source = Model.getValue();
-        const WordMatches = Source ? Source.match(/\b[\w'-]+\b/g) : null;
-        const WordCount = WordMatches ? WordMatches.length : 0;
-        WordCountEl.textContent = `${WordCount.toLocaleString()} words`;
+        if (StatusBarWordCountTimer)
+        {
+            clearTimeout(StatusBarWordCountTimer);
+        }
+        StatusBarWordCountTimer = setTimeout
+        (
+            () =>
+            {
+                if (!MonacoInstance) { return ; }
+                const CurrentModel = MonacoInstance.getModel();
+                if (!CurrentModel) { return ; }
+                const Source = CurrentModel.getValue();
+                const WordMatches = Source ? Source.match(/\b[\w'-]+\b/g) : null;
+                const WordCount = WordMatches ? WordMatches.length : 0;
+                WordCountEl.textContent = `${WordCount.toLocaleString()} words`;
+            },
+            350
+        );
     }
 }
 
@@ -7387,6 +7403,729 @@ function SetupSmartTypographyKeydownListener()
             }
         }
     );
+}
+
+// --- UNIVERSAL CHARACTER-AGNOSTIC CONTAINER PHYSICS (LAFS 0, 3, 6.2) ---
+
+const _0x9b =
+[
+    ["[{(", ")}]"], ["([", "])"], ["[(", ")]"], ["`${", "}`"], ["${", "}"],
+    ["<!--", "-->"], ["$$", "$$"], ["\"\"\"", "\"\"\""], ["```", "```"],
+    ["(", ")"], ["[", "]"], ["{", "}"], ["$", "$"], ["`", "`"], ["|", "|"]
+];
+
+function _0x3a1(_0xt)
+{
+    const _0xl = _0xt.split("\n");
+    let _c0 = 0, _c1 = 0, _c2 = 0, _c3 = 0, _c4 = 0;
+    const _0xk = [];
+    for (let _l = 0; _l < _0xl.length; _l++)
+    {
+        const _ln = _0xl[_l];
+        let _i = 0;
+        while (_i < _ln.length)
+        {
+            if (_ln[_i] === "/" && _i + 1 < _ln.length && _ln[_i + 1] === "/")
+            {
+                break;
+            }
+            if (_ln[_i] === "\\" && _i + 1 < _ln.length)
+            {
+                _i += 2;
+                continue;
+            }
+            if (_ln.slice(_i, _i + 3) === "```")
+            {
+                _0xk.push({ t: 1, g: "```", l: _l, c: _i, o: (_c1 % 2 === 0) });
+                _c1++;
+                _i += 3;
+                continue;
+            }
+            if (_ln[_i] === "`")
+            {
+                _0xk.push({ t: 2, g: "`", l: _l, c: _i, o: (_c2 % 2 === 0) });
+                _c2++;
+                _i++;
+                continue;
+            }
+            if (_ln.slice(_i, _i + 2) === "$$")
+            {
+                _0xk.push({ t: 3, g: "$$", l: _l, c: _i, o: (_c3 % 2 === 0) });
+                _c3++;
+                _i += 2;
+                continue;
+            }
+            if (_ln[_i] === "$")
+            {
+                _0xk.push({ t: 4, g: "$", l: _l, c: _i, o: (_c0 % 2 === 0) });
+                _c0++;
+                _i++;
+                continue;
+            }
+            if (_ln.slice(_i, _i + 3) === "\"\"\"")
+            {
+                _0xk.push({ t: 5, g: "\"\"\"", l: _l, c: _i, o: (_c4 % 2 === 0) });
+                _c4++;
+                _i += 3;
+                continue;
+            }
+            if (_ln[_i] === "<")
+            {
+                const _lm = _ln.slice(_i).match(/^<([a-zA-Z0-9_\-:]+)>/);
+                if (_lm)
+                {
+                    _i += _lm[0].length;
+                    continue;
+                }
+                const _am = _ln.slice(_i).match(/^(->|<-|=>|<=|==>|<==>|<->)/);
+                if (_am)
+                {
+                    _i += _am[0].length;
+                    continue;
+                }
+            }
+            if (_ln[_i] === "(")
+            {
+                _0xk.push({ t: 6, g: "(", l: _l, c: _i, o: true });
+            }
+            else if (_ln[_i] === ")")
+            {
+                _0xk.push({ t: 6, g: ")", l: _l, c: _i, o: false });
+            }
+            else if (_ln[_i] === "[")
+            {
+                _0xk.push({ t: 7, g: "[", l: _l, c: _i, o: true });
+            }
+            else if (_ln[_i] === "]")
+            {
+                _0xk.push({ t: 7, g: "]", l: _l, c: _i, o: false });
+            }
+            else if (_ln[_i] === "{")
+            {
+                _0xk.push({ t: 8, g: "{", l: _l, c: _i, o: true });
+            }
+            else if (_ln[_i] === "}")
+            {
+                _0xk.push({ t: 8, g: "}", l: _l, c: _i, o: false });
+            }
+            _i++;
+        }
+    }
+    return _0xk;
+}
+
+function _0x7f4(_0xt, _0xlIdx, _0xcIdx)
+{
+    const _0xl = _0xt.split("\n");
+    if (_0xlIdx < 0 || _0xlIdx >= _0xl.length)
+    {
+        return null;
+    }
+    const _ln = _0xl[_0xlIdx];
+    const _pr = _ln.slice(0, _0xcIdx);
+    const _ps = _ln.slice(_0xcIdx);
+
+    for (const [_op, _cl] of _0x9b)
+    {
+        if (_pr.endsWith(_op) && _ps.startsWith(_cl))
+        {
+            const _h = _pr.slice(0, _pr.length - _op.length);
+            const _tl = _ps.slice(_cl.length);
+            const _im = _ln.match(/^(\s*)/);
+            const _bi = _im ? _im[1] : "";
+            const _ii = _bi + "    ";
+            const _ht = _h.trimEnd();
+            const _nl = [];
+            let _cln = 0;
+            if (_ht.length > 0)
+            {
+                _nl.push(_ht, _bi + _op, _ii, _bi + _cl + _tl.trimStart());
+                _cln = _0xlIdx + 2;
+            }
+            else
+            {
+                _nl.push(_bi + _op, _ii, _bi + _cl + _tl.trimStart());
+                _cln = _0xlIdx + 1;
+            }
+            return { s: 1, startLine: _0xlIdx + 1, endLine: _0xlIdx + 1, repl: _nl.join("\n"), cursorLine: _cln + 1, cursorCol: _ii.length + 1 };
+        }
+        const _oi = _pr.lastIndexOf(_op);
+        const _ci = _ps.indexOf(_cl);
+        if (_oi !== -1 && _ci !== -1)
+        {
+            const _h = _pr.slice(0, _oi);
+            if (_h.trim().length > 0)
+            {
+                const _ip = _pr.slice(_oi + _op.length);
+                const _iq = _ps.slice(0, _ci);
+                const _tl = _ps.slice(_ci + _cl.length);
+                const _im = _ln.match(/^(\s*)/);
+                const _bi = _im ? _im[1] : "";
+                const _ii = _bi + "    ";
+                let _nl;
+                let _cln;
+                let _ccol;
+                if (_ip.trim().length === 0)
+                {
+                    _nl = [_h.trimEnd(), _bi + _op, _ii + _iq, _bi + _cl + _tl.trimStart()];
+                    _cln = _0xlIdx + 2;
+                    _ccol = _ii.length + 1;
+                }
+                else
+                {
+                    _nl = [_h.trimEnd(), _bi + _op, _ii + _ip, _ii + _iq, _bi + _cl + _tl.trimStart()];
+                    _cln = _0xlIdx + 3;
+                    _ccol = _ii.length + 1;
+                }
+                return { s: 1, startLine: _0xlIdx + 1, endLine: _0xlIdx + 1, repl: _nl.join("\n"), cursorLine: _cln + 1, cursorCol: _ccol };
+            }
+        }
+    }
+    return null;
+}
+
+function _0x2e8(_0xt, _0xk, _0xlIdx, _0xcIdx, _lim = 160)
+{
+    const _0xl = _0xt.split("\n");
+    if (_0xlIdx < 0 || _0xlIdx >= _0xl.length)
+    {
+        return null;
+    }
+    let _tol = -1, _pol = -1;
+    if (_0xk === "Backspace")
+    {
+        if (_0xlIdx <= 0)
+        {
+            return null;
+        }
+        if (/^\s*$/.test(_0xl[_0xlIdx].slice(0, _0xcIdx)))
+        {
+            _pol = _0xlIdx - 1;
+            _tol = _0xlIdx;
+        }
+        else
+        {
+            return null;
+        }
+    }
+    else if (_0xk === "Delete")
+    {
+        if (_0xlIdx >= _0xl.length - 1)
+        {
+            return null;
+        }
+        const _l = _0xl[_0xlIdx];
+        if (/^\s*$/.test(_l.slice(_0xcIdx)) && _l.slice(0, _0xcIdx).trim().length > 0)
+        {
+            _pol = _0xlIdx;
+            _tol = _0xlIdx + 1;
+        }
+        else
+        {
+            return null;
+        }
+    }
+    else
+    {
+        return null;
+    }
+
+    const _pv = _0xl[_pol];
+    if (_pv.trim().length === 0)
+    {
+        return null;
+    }
+    const _tl = _0xl[_tol];
+    const _mo = _tl.match(/^(\s*)([\[\{\(\$]|```|`|\$\$|\||""")/);
+    if (!_mo)
+    {
+        return null;
+    }
+    const _og = _mo[2], _oc = _mo[1].length;
+    const _tokens = _0x3a1(_0xt);
+    const _tokIdx = _tokens.findIndex(t => t.l === _tol && t.c === _oc);
+    if (_tokIdx === -1 || !_tokens[_tokIdx].o)
+    {
+        return null;
+    }
+
+    let _mt = null, _d = 0;
+    for (let _i = _tokIdx; _i < _tokens.length; _i++)
+    {
+        const _t = _tokens[_i];
+        if (_t.t === _tokens[_tokIdx].t)
+        {
+            if (_t.o)
+            {
+                _d++;
+            }
+            else
+            {
+                _d--;
+                if (_d === 0)
+                {
+                    _mt = _t;
+                    break;
+                }
+            }
+        }
+    }
+    if (!_mt)
+    {
+        return { s: 0, r: "unclosed" };
+    }
+
+    for (let _l = _tol; _l <= _mt.l; _l++)
+    {
+        if (_0xl[_l].includes("//"))
+        {
+            return { s: 0, r: "cmt" };
+        }
+    }
+    let _sc = 0;
+    for (let _l = _tol; _l <= _mt.l; _l++)
+    {
+        const _tr = _0xl[_l].trim();
+        if (_tr.endsWith(";") || _tr.endsWith(","))
+        {
+            _sc++;
+        }
+    }
+    if (_sc > 4)
+    {
+        return { s: 0, r: "cpx" };
+    }
+
+    const _ht = _pv.trimEnd();
+    let _bd = "";
+    if (_tol === _mt.l)
+    {
+        _bd = _tl.slice(_oc + _og.length, _mt.c).trim().replace(/\s+/g, " ");
+    }
+    else
+    {
+        const _fl = _tl.slice(_oc + _og.length);
+        const _ml = _0xl.slice(_tol + 1, _mt.l);
+        const _ll = _0xl[_mt.l].slice(0, _mt.c);
+        _bd = [_fl, ..._ml, _ll].join(" ").trim().replace(/\s+/g, " ");
+    }
+
+    let _pi = _bd;
+    if (_og === "{" || _og === "$")
+    {
+        _pi = _bd.length > 0 ? ` ${_bd} ` : "";
+    }
+    const _cs = _0xl[_mt.l].slice(_mt.c + _mt.g.length).trimEnd();
+    let _at = "";
+    if ((_og === "{" || _og === "$" || _og === "$$" || _og === "\"\"\"" || _og === "```") && !_ht.endsWith(" "))
+    {
+        _at = " ";
+    }
+    const _mono = `${_ht}${_at}${_og}${_pi}${_mt.g}${_cs}`;
+    if (_mono.length > _lim)
+    {
+        return { s: 0, r: "len" };
+    }
+
+    return { s: 2, startLine: _pol + 1, endLine: _mt.l + 1, repl: _mono, cursorLine: _pol + 1, cursorCol: _ht.length + _at.length + 1 };
+}
+
+function _0x4c2(_0xl, _sel, _k, _ins = "")
+{
+    const _a = _sel.startLineNumber;
+    const _b = _sel.endLineNumber;
+    if (_a >= _b || _b > _0xl.length || _a <= 0)
+    {
+        return null;
+    }
+
+    const _lnB = _0xl[_b - 1] || "";
+    const _trB = _lnB.trimStart();
+    const _ldB = _lnB.length - _trB.length;
+
+    const _mo = _trB.match(/^([\[\{\(\$]|```|`|\$\$|\||""")/);
+    if (!_mo)
+    {
+        return null;
+    }
+
+    const _oc = _ldB + 1;
+    if (_sel.endColumn > _oc)
+    {
+        return null;
+    }
+
+    const _lnA = _0xl[_a - 1] || "";
+    const _scA = _sel.startColumn;
+    const _preA = _lnA.slice(0, _scA - 1);
+    const _selA = _lnA.slice(_scA - 1);
+
+    const _isDel = ["Backspace", "Delete", "Cut", "deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteByCut", "deleteByDrag"].includes(_k);
+
+    if (_isDel)
+    {
+        if (_selA.trim().length === 0)
+        {
+            return { s: 0, r: "trail_ws" };
+        }
+        else
+        {
+            return { s: 3, line: _a, col: _scA, endCol: _lnA.length + 1, repl: "" };
+        }
+    }
+    else
+    {
+        return { s: 4, line: _a, col: _scA, endCol: _lnA.length + 1, repl: _ins };
+    }
+}
+
+function _0x8d5(_0xt)
+{
+    const _lines = _0xt.split("\n");
+    let _ch = false;
+    const _nl = [];
+    const _og = ["```", "\"\"\"", "$$", "[{(", "([", "[(", "`", "$", "|", "[", "{", "("];
+
+    for (let _i = 0; _i < _lines.length; _i++)
+    {
+        const _l = _lines[_i];
+        if (_l.trim().startsWith("//"))
+        {
+            _nl.push(_l);
+            continue;
+        }
+
+        let _m = null;
+        for (const _g of _og)
+        {
+            if (_l.endsWith(_g))
+            {
+                const _h = _l.slice(0, _l.length - _g.length);
+                if (_h.trim().length > 0)
+                {
+                    _m = { g: _g, h: _h };
+                    break;
+                }
+            }
+        }
+
+        if (_m)
+        {
+            const _im = _l.match(/^(\s*)/);
+            const _bi = _im ? _im[1] : "";
+            _nl.push(_m.h.trimEnd());
+            _nl.push(_bi + _m.g);
+            _ch = true;
+        }
+        else
+        {
+            _nl.push(_l);
+        }
+    }
+
+    return { ch: _ch, res: _nl.join("\n") };
+}
+
+let _0xng = false;
+
+function SetupStructuralContainerDispatchHook()
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    MonacoInstance.onKeyDown
+    (
+        (Event) =>
+        {
+            const BrowserEvent = Event.browserEvent;
+            const Key = BrowserEvent.key;
+
+            const Selection = MonacoInstance.getSelection();
+            if (!Selection)
+            {
+                return ;
+            }
+
+            const Model = MonacoInstance.getModel();
+            if (!Model)
+            {
+                return ;
+            }
+
+            const DocText = Model.getValue();
+            const Lines = DocText.split("\n");
+
+            // 1. Cross-line selection guard
+            if (!Selection.isEmpty())
+            {
+                const IsCut = (BrowserEvent.ctrlKey || BrowserEvent.metaKey) && (Key === "x" || Key === "X");
+                const IsDelKey = Key === "Backspace" || Key === "Delete" || IsCut;
+                const IsPrintable = Key.length === 1 && !BrowserEvent.ctrlKey && !BrowserEvent.metaKey && !BrowserEvent.altKey;
+
+                if (IsDelKey || IsPrintable)
+                {
+                    const CrossRes = _0x4c2(Lines, Selection, IsCut ? "Cut": (IsDelKey ? Key: "insertText"), IsPrintable ? Key: "");
+                    if (CrossRes)
+                    {
+                        BrowserEvent.preventDefault();
+                        Event.stopPropagation();
+
+                        if (CrossRes.s === 0)
+                        {
+                            return ;
+                        }
+                        if (CrossRes.s === 3 || CrossRes.s === 4)
+                        {
+                            const PrevScrollTop = MonacoInstance.getScrollTop();
+                            const PrevScrollLeft = MonacoInstance.getScrollLeft();
+                            const Range = new monaco.Range(CrossRes.line, CrossRes.col, CrossRes.line, CrossRes.endCol);
+                            MonacoInstance.executeEdits
+                            (
+                                "cf_clamp",
+                                [{
+                                    range: Range,
+                                    text: CrossRes.repl,
+                                    forceMoveMarkers: true
+                                }]
+                            );
+                            MonacoInstance.setPosition({ lineNumber: CrossRes.line, column: CrossRes.col + CrossRes.repl.length });
+                            MonacoInstance.setScrollTop(PrevScrollTop);
+                            MonacoInstance.setScrollLeft(PrevScrollLeft);
+                            return ;
+                        }
+                    }
+                }
+                return ;
+            }
+
+            // 2. Collapsed selection (Rule A & Rule B)
+            if (Key !== "Enter" && Key !== "Backspace" && Key !== "Delete")
+            {
+                return ;
+            }
+
+            const Line = Selection.positionLineNumber;
+            const Col = Selection.positionColumn;
+
+            const Layout = MonacoInstance.getLayoutInfo ? MonacoInstance.getLayoutInfo(): null;
+            const CanvasLimit = Layout && Layout.width ? Math.max(120, Math.min(180, Math.floor(Layout.width / 8.5))): 160;
+
+            let Result = null;
+            if (Key === "Enter")
+            {
+                Result = _0x7f4(DocText, Line - 1, Col - 1);
+            }
+            else
+            {
+                Result = _0x2e8(DocText, Key, Line - 1, Col - 1, CanvasLimit);
+            }
+
+            if (!Result)
+            {
+                return ;
+            }
+
+            BrowserEvent.preventDefault();
+            Event.stopPropagation();
+
+            if (Result.s === 0)
+            {
+                return ;
+            }
+
+            if (Result.s === 1 || Result.s === 2)
+            {
+                const PrevScrollTop = MonacoInstance.getScrollTop();
+                const PrevScrollLeft = MonacoInstance.getScrollLeft();
+                const Range = new monaco.Range
+                (
+                    Result.startLine,
+                    1,
+                    Result.endLine,
+                    Model.getLineMaxColumn(Result.endLine)
+                );
+
+                MonacoInstance.executeEdits
+                (
+                    "cf_dispatch",
+                    [{
+                        range: Range,
+                        text: Result.repl,
+                        forceMoveMarkers: true
+                    }]
+                );
+
+                MonacoInstance.setPosition({ lineNumber: Result.cursorLine, column: Result.cursorCol });
+                MonacoInstance.setScrollTop(PrevScrollTop);
+                MonacoInstance.setScrollLeft(PrevScrollLeft);
+
+                if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+                {
+                    window.__TAURI__.core.invoke
+                    (
+                        "EnforceContainerPhysics",
+                        {
+                            Request:
+                            {
+                                text: DocText,
+                                key: Key,
+                                line: Line - 1,
+                                col: Col - 1,
+                                canvas_limit: CanvasLimit
+                            }
+                        }
+                    ).catch(() => {});
+                }
+            }
+        }
+    );
+
+    // 3. beforeinput backdoor closure
+    const DomNode = MonacoInstance.getDomNode ? MonacoInstance.getDomNode(): null;
+    if (DomNode)
+    {
+        DomNode.addEventListener
+        (
+            "beforeinput",
+            (Event) =>
+            {
+                const InputType = Event.inputType;
+                if (!InputType)
+                {
+                    return ;
+                }
+
+                const Selection = MonacoInstance.getSelection();
+                if (!Selection)
+                {
+                    return ;
+                }
+
+                const Model = MonacoInstance.getModel();
+                if (!Model)
+                {
+                    return ;
+                }
+
+                const DocText = Model.getValue();
+                const Lines = DocText.split("\n");
+
+                if (!Selection.isEmpty())
+                {
+                    const Inserted = (Event.dataTransfer ? Event.dataTransfer.getData("text/plain"): Event.data) || "";
+                    const CrossRes = _0x4c2(Lines, Selection, InputType, Inserted);
+                    if (CrossRes)
+                    {
+                        Event.preventDefault();
+                        Event.stopPropagation();
+
+                        if (CrossRes.s === 0)
+                        {
+                            return ;
+                        }
+                        if (CrossRes.s === 3 || CrossRes.s === 4)
+                        {
+                            const PrevScrollTop = MonacoInstance.getScrollTop();
+                            const PrevScrollLeft = MonacoInstance.getScrollLeft();
+                            const Range = new monaco.Range(CrossRes.line, CrossRes.col, CrossRes.line, CrossRes.endCol);
+                            MonacoInstance.executeEdits
+                            (
+                                "cf_clamp",
+                                [{
+                                    range: Range,
+                                    text: CrossRes.repl,
+                                    forceMoveMarkers: true
+                                }]
+                            );
+                            MonacoInstance.setPosition({ lineNumber: CrossRes.line, column: CrossRes.col + CrossRes.repl.length });
+                            MonacoInstance.setScrollTop(PrevScrollTop);
+                            MonacoInstance.setScrollLeft(PrevScrollLeft);
+                        }
+                    }
+                }
+                else
+                {
+                    let VirtualKey = null;
+                    if (InputType.startsWith("deleteContentBackward") || InputType.startsWith("deleteWordBackward") || InputType.startsWith("deleteSoftLineBackward"))
+                    {
+                        VirtualKey = "Backspace";
+                    }
+                    else if (InputType.startsWith("deleteContentForward") || InputType.startsWith("deleteWordForward"))
+                    {
+                        VirtualKey = "Delete";
+                    }
+
+                    if (VirtualKey)
+                    {
+                        const Line = Selection.positionLineNumber;
+                        const Col = Selection.positionColumn;
+                        const Layout = MonacoInstance.getLayoutInfo ? MonacoInstance.getLayoutInfo(): null;
+                        const CanvasLimit = Layout && Layout.width ? Math.max(120, Math.min(180, Math.floor(Layout.width / 8.5))): 160;
+
+                        const Result = _0x2e8(DocText, VirtualKey, Line - 1, Col - 1, CanvasLimit);
+                        if (Result)
+                        {
+                            Event.preventDefault();
+                            Event.stopPropagation();
+
+                            if (Result.s === 0)
+                            {
+                                return ;
+                            }
+                            if (Result.s === 2)
+                            {
+                                const PrevScrollTop = MonacoInstance.getScrollTop();
+                                const PrevScrollLeft = MonacoInstance.getScrollLeft();
+                                const Range = new monaco.Range(Result.startLine, 1, Result.endLine, Model.getLineMaxColumn(Result.endLine));
+                                MonacoInstance.executeEdits("cf_dispatch", [{ range: Range, text: Result.repl, forceMoveMarkers: true }]);
+                                MonacoInstance.setPosition({ lineNumber: Result.cursorLine, column: Result.cursorCol });
+                                MonacoInstance.setScrollTop(PrevScrollTop);
+                                MonacoInstance.setScrollLeft(PrevScrollLeft);
+                            }
+                        }
+                    }
+                }
+            },
+            true
+        );
+    }
+
+    // 4. Post-edit structural invariant gate
+    const Model = MonacoInstance.getModel();
+    if (Model)
+    {
+        Model.onDidChangeContent
+        (
+            () =>
+            {
+                if (_0xng)
+                {
+                    return ;
+                }
+                const CurrentText = Model.getValue();
+                const InvariantCheck = _0x8d5(CurrentText);
+                if (InvariantCheck.ch)
+                {
+                    _0xng = true;
+                    try
+                    {
+                        const PrevScrollTop = MonacoInstance.getScrollTop();
+                        const PrevScrollLeft = MonacoInstance.getScrollLeft();
+                        const FullRange = new monaco.Range(1, 1, Model.getLineCount(), Model.getLineMaxColumn(Model.getLineCount()));
+                        MonacoInstance.executeEdits("cf_norm", [{ range: FullRange, text: InvariantCheck.res, forceMoveMarkers: true }]);
+                        MonacoInstance.setScrollTop(PrevScrollTop);
+                        MonacoInstance.setScrollLeft(PrevScrollLeft);
+                    }
+                    finally
+                    {
+                        _0xng = false;
+                    }
+                }
+            }
+        );
+    }
 }
 
 // --- TYPEWRITER & HEMINGWAY FOCUS LIGHT (PHASE 7.2) ---
