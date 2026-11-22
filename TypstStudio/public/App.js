@@ -610,6 +610,7 @@ let IsSyncTexEnabled = localStorage.getItem("typst_synctex_enabled") !== "false"
 let ActiveSpanMap = {};
 let ActiveSyncMap = [];
 let ActiveSyncMapByLine = new Map();
+let ActiveOutlineLine = -1;
 let MonotonicSyncAnchors = [];
 let RepeatedSyncLines = new Set();
 let RepeatedSyncSpans = new Set();
@@ -622,6 +623,7 @@ let ActiveHighlightBoxes = [];
 let SuppressForwardSync = false;
 let SyncLineDecorations = null;
 let ForwardSyncDebounceTimer = null;
+let PendingClickAutoScroll = false;
 let CurrentEditorFontSize = parseInt(localStorage.getItem("TypstStudio_EditorFontSize") || "14", 10);
 if (isNaN(CurrentEditorFontSize) || CurrentEditorFontSize < 9 || CurrentEditorFontSize > 36)
 {
@@ -1455,7 +1457,7 @@ function RebuildSyncMapIndex(SyncMap)
         return ;
     }
 
-    let OutlineLine = -1;
+    ActiveOutlineLine = -1;
     if (MonacoInstance)
     {
         const Model = MonacoInstance.getModel();
@@ -1467,7 +1469,7 @@ function RebuildSyncMapIndex(SyncMap)
                 const LineContent = Model.getLineContent(L) || "";
                 if (/^\s*#outline\b/.test(LineContent))
                 {
-                    OutlineLine = L;
+                    ActiveOutlineLine = L;
                     break;
                 }
             }
@@ -1484,15 +1486,15 @@ function RebuildSyncMapIndex(SyncMap)
         const EndLine = Elem.end_line || StartLine;
         const PageNum = Elem.page || 1;
 
-        const IsOutlineTOC = (PageNum === 1 && OutlineLine > 0 && StartLine > OutlineLine && ((Elem.y >= 180 && Elem.y <= 455) || StartLine >= 95));
+        const IsOutlineTOC = (PageNum === 1 && ActiveOutlineLine > 0 && StartLine > ActiveOutlineLine && ((Elem.y >= 180 && Elem.y <= 455) || StartLine >= 95));
         if (IsOutlineTOC)
         {
             Elem.is_outline = true;
-            let OutlineList = ActiveSyncMapByLine.get(OutlineLine);
+            let OutlineList = ActiveSyncMapByLine.get(ActiveOutlineLine);
             if (!OutlineList)
             {
                 OutlineList = [];
-                ActiveSyncMapByLine.set(OutlineLine, OutlineList);
+                ActiveSyncMapByLine.set(ActiveOutlineLine, OutlineList);
             }
             OutlineList.push(Elem);
             continue;
@@ -3814,12 +3816,15 @@ function InitializeMonaco()
                     if (Event && Event.target && Event.target.position)
                     {
                         const ClickPos = Event.target.position;
+                        PendingClickAutoScroll = true;
                         clearTimeout(ForwardSyncDebounceTimer);
                         ForwardSyncDebounceTimer = setTimeout
                         (
                             () =>
                             {
-                                PerformForwardSync(ClickPos.lineNumber, ClickPos.column, true);
+                                const ShouldAutoScroll = PendingClickAutoScroll;
+                                PendingClickAutoScroll = false;
+                                PerformForwardSync(ClickPos.lineNumber, ClickPos.column, ShouldAutoScroll);
                             },
                             60
                         );
@@ -3866,7 +3871,9 @@ function InitializeMonaco()
                     (
                         () =>
                         {
-                            PerformForwardSync(Event.position.lineNumber, Event.position.column, false);
+                            const ShouldAutoScroll = PendingClickAutoScroll;
+                            PendingClickAutoScroll = false;
+                            PerformForwardSync(Event.position.lineNumber, Event.position.column, ShouldAutoScroll);
                         },
                         DebounceMs
                     );
@@ -3898,7 +3905,9 @@ function InitializeMonaco()
                             const Pos = MonacoInstance.getPosition();
                             if (Pos)
                             {
-                                PerformForwardSync(Pos.lineNumber, Pos.column, false);
+                                const ShouldAutoScroll = PendingClickAutoScroll;
+                                PendingClickAutoScroll = false;
+                                PerformForwardSync(Pos.lineNumber, Pos.column, ShouldAutoScroll);
                             }
                         },
                         DebounceMs
@@ -14938,11 +14947,11 @@ function GetTrueGlyphBounds(Svg, Box)
         const Uy1 = Math.min(S1.y, S2.y);
         const Uy2 = Math.max(S1.y, S2.y);
 
-        const TolY = Math.max(5.0, (Box.height || 10.5) * 0.25);
-        const OverlapX = (Math.min(Ux2, Box.x + Box.width) - Math.max(Ux1, Box.x)) >= -2.0;
-        const OverlapY = (Math.min(Uy2, Box.y + Box.height + TolY) - Math.max(Uy1, Box.y - TolY)) >= 0;
+        const GlyphCenterY = (Uy1 + Uy2) * 0.5;
+        const OverlapX = (Math.min(Ux2, Box.x + Box.width + 1.5) - Math.max(Ux1, Box.x - 1.5)) > 0;
+        const InsideY = GlyphCenterY >= (Box.y - 1.5) && GlyphCenterY <= (Box.y + Box.height + 3.5);
 
-        if (OverlapX && OverlapY)
+        if (OverlapX && InsideY)
         {
             MinX = Math.min(MinX, Ux1);
             MaxX = Math.max(MaxX, Ux2);
@@ -15207,6 +15216,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
     const EffectiveTargetPage = IsPreambleOrRepeated ? 1: ScrollTargetPage;
     let PrimaryPageSheet = document.getElementById(`PageSheet_${EffectiveTargetPage}`) || document.querySelectorAll(".PageSheet")[EffectiveTargetPage - 1];
     let PrimaryTopY = Infinity;
+    let PrimaryBottomY = -Infinity;
 
     for (const[PageNum, PageBoxes] of PageBoxesMap.entries())
     {
@@ -15323,16 +15333,23 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
 
                     HighlightLayer.appendChild(Rect);
 
-                    if (PageNum === ScrollTargetPage && RectY < PrimaryTopY)
+                    if (PageNum === ScrollTargetPage)
                     {
-                        PrimaryTopY = RectY;
+                        if (RectY < PrimaryTopY)
+                        {
+                            PrimaryTopY = RectY;
+                        }
+                        if ((RectY + RectH) > PrimaryBottomY)
+                        {
+                            PrimaryBottomY = RectY + RectH;
+                        }
                     }
                 }
             }
         );
     }
 
-    if (AutoScroll && PrimaryPageSheet && PrimaryTopY !== Infinity)
+    if (AutoScroll && PrimaryPageSheet && PrimaryTopY !== Infinity && PrimaryBottomY !== -Infinity)
     {
         const Viewport = document.getElementById("PreviewViewport");
         if (Viewport)
@@ -15342,30 +15359,38 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             const VbH = parseFloat(PrimaryPageSheet.dataset.baseHeight) || 864;
             const ScaleY = PageRect.height / VbH;
 
-            // Invariant Sheet top relative to scroll container content
-            const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
-            const TargetContentY = SheetTopInContent + (PrimaryTopY * ScaleY);
-            let TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
-            if (FirstBoxLine === 1)
-            {
-                TargetScrollTop = 0;
-            }
-            else
-            {
-                const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
-                TargetScrollTop = Math.max(0, Math.min(TargetScrollTop, MaxScroll));
-            }
+            const ArtifactTopInViewport = PageRect.top + (PrimaryTopY * ScaleY);
+            const ArtifactBottomInViewport = PageRect.top + (PrimaryBottomY * ScaleY);
+            const IsArtifactVisible =
+                (ArtifactTopInViewport >= ViewportRect.top && ArtifactBottomInViewport <= ViewportRect.bottom) ||
+                (ArtifactTopInViewport <= ViewportRect.top && ArtifactBottomInViewport >= ViewportRect.bottom);
 
-            // Only scroll if difference is noticeable (> 60px) to prevent scroll bounce/jitter
-            const CurrentDiff = Math.abs(Viewport.scrollTop - TargetScrollTop);
-            if (CurrentDiff > 60)
+            if (!IsArtifactVisible)
             {
-                const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
-                Viewport.scrollTo
-                ({
-                    top: TargetScrollTop,
-                    behavior: ScrollBehavior
-                });
+                // Invariant Sheet top relative to scroll container content
+                const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+                const ArtifactCenterContentY = SheetTopInContent + (((PrimaryTopY + PrimaryBottomY) * 0.5) * ScaleY);
+                let TargetScrollTop = Math.max(0, ArtifactCenterContentY - (Viewport.clientHeight / 2));
+                if (FirstBoxLine === 1)
+                {
+                    TargetScrollTop = 0;
+                }
+                else
+                {
+                    const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
+                    TargetScrollTop = Math.max(0, Math.min(TargetScrollTop, MaxScroll));
+                }
+
+                const CurrentDiff = Math.abs(Viewport.scrollTop - TargetScrollTop);
+                if (CurrentDiff > 4)
+                {
+                    const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+                    Viewport.scrollTo
+                    ({
+                        top: TargetScrollTop,
+                        behavior: ScrollBehavior
+                    });
+                }
             }
         }
     }
@@ -15768,13 +15793,25 @@ function ScrollPreviewToNearestLine(TargetLine)
     const VbH = parseFloat(TargetPageSheet.dataset.baseHeight) || 864;
     const ScaleY = PageRect.height / VbH;
 
+    const ElemHeight = FirstElem.height || 12;
+    const ElemTopInViewport = PageRect.top + (FirstElem.y * ScaleY);
+    const ElemBottomInViewport = PageRect.top + ((FirstElem.y + ElemHeight) * ScaleY);
+    const IsElemVisible =
+        (ElemTopInViewport >= ViewportRect.top && ElemBottomInViewport <= ViewportRect.bottom) ||
+        (ElemTopInViewport <= ViewportRect.top && ElemBottomInViewport >= ViewportRect.bottom);
+
+    if (IsElemVisible)
+    {
+        return ;
+    }
+
     // Invariant Sheet top relative to scroll container content
     const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
-    const TargetContentY = SheetTopInContent + (FirstElem.y * ScaleY);
+    const TargetContentY = SheetTopInContent + ((FirstElem.y + (ElemHeight * 0.5)) * ScaleY);
     const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
     const TargetScrollTop = Math.max(0, Math.min(TargetContentY - (Viewport.clientHeight / 2), MaxScroll));
 
-    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 60)
+    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 4)
     {
         const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
         Viewport.scrollTo
@@ -16108,7 +16145,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             const ContainerElems = ActiveSyncMap.filter((E) => E.line > Line && E.line <= (Line + 25) && Math.abs(E.line - Line) <= 15 && !E.is_outline && !IsFullTableShape(E));
             if (ContainerElems.length > 0)
             {
-                const ValidElems = (OutlineLine > 0 && Line > OutlineLine) ? ContainerElems.filter((E) => (E.page || 1) !== 1) : ContainerElems;
+                const ValidElems = (ActiveOutlineLine > 0 && Line > ActiveOutlineLine) ? ContainerElems.filter((E) => (E.page || 1) !== 1) : ContainerElems;
                 const TargetList = ValidElems.length > 0 ? ValidElems : ContainerElems;
                 const FirstTargetPage = TargetList[0].page || 1;
                 const PageElems = TargetList.filter((E) => (E.page || 1) === FirstTargetPage);
