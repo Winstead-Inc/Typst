@@ -127,7 +127,7 @@ cast!
         Self::Cubic(element) => element.into_value(),
         Self::Close(element) => element.into_value(),
     },
-    v: Content => { v.try_into()? }
+    v: Content => v.try_into()?,
 }
 
 impl TryFrom<Content> for CurveComponent

@@ -305,7 +305,10 @@ fn compile_and_export(world: & mut SystemWorld, config: & mut CompileConfig,)->W
         OutputFormat::Pdf | OutputFormat::Png | OutputFormat::Svg =>
         {
             let res = typst::compile::<PagedDocument>(world);
-            if let Ok(ref document) = res.output { if config.output_format == OutputFormat::Svg { crate::synctex::ExportSynctex(document, world, config); } }
+            if let (OutputFormat::Svg, Ok(document)) = (config.output_format, &res.output)
+            {
+                crate::synctex::ExportSynctex(document, world, config);
+            }
             res.and_then( | document | export_paged( & document, config))
         }
         OutputFormat::Html =>

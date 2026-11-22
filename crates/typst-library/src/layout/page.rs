@@ -774,7 +774,7 @@ pub struct PageRange
 cast!
 {
     PageRange,
-    self => { Value::Dict(dict ! { "from" => self.start.into_value(),"to" => self.end.into_value(), }) },
+    self => Value::Dict(dict ! { "from" => self.start.into_value(),"to" => self.end.into_value(), }),
     nr: i64 => Self::at(parse_page_number(nr)?),
     mut dict: Dict =>
     {

@@ -1,0 +1,7 @@
+TARGET:
+                    cursorSurroundingLines: 0,
+                    padding: { top: 12, bottom: 12 },
+===REPLACEMENT===
+                    cursorSurroundingLines: 0,
+                    formatOnPaste: true,
+                    padding: { top: 12, bottom: 12 },

@@ -505,7 +505,7 @@ cast!
     self => match self { Self::Page => PageElem::ELEM.into_value(), Self::Selector(v) => v.into_value(), Self::Str(v) => v.into_value(), },
     v: Str => Self::Str(v),
     v: Label => Self::Selector(Selector::Label(v)),
-    v: Element => { if v == PageElem::ELEM { Self::Page } else { Self::Selector(LocatableSelector::from_value(v.into_value())? .0) } },
+    v: Element => if v == PageElem::ELEM { Self::Page } else { Self::Selector(LocatableSelector::from_value(v.into_value())? .0) },
 
     v: LocatableSelector => Self::Selector(v .0),
 }

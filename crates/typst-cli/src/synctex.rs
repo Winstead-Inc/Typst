@@ -21,6 +21,7 @@ use crate::world::SystemWorld;
 #[derive(Debug, Clone, Serialize)]
 pub struct Sync_Element
 {
+    pub kind: String,
     pub page: usize,
     pub x: f64,
     pub y: f64,
@@ -106,8 +107,26 @@ pub fn ResolveCursor(World: & SystemWorld, Document: & PagedDocument, Line: usiz
     }
 
     let Positions = jump_from_cursor(Document, & SourceFile, TargetByte);
-    if let Some(FirstPos) = Positions.first() { Some(Sync_Cursor_Box { page: FirstPos.page.get (), x: FirstPos.point.x.to_pt(), y: FirstPos.point.y.to_pt(), }) }
-    else { None }
+    Positions.first().map
+    (
+        | FirstPos |
+        Sync_Cursor_Box
+        {
+            page: FirstPos.page.get(),
+            x: FirstPos.point.x.to_pt(),
+            y: FirstPos.point.y.to_pt(),
+        }
+    )
+}
+
+struct ElementGeom
+{
+    PageNum: usize,
+    X: Abs,
+    Y: Abs,
+    Width: Abs,
+    Height: Abs,
+    TransformVal: Transform,
 }
 
 fn CollectFrameElements(TargetFrame: & Frame, CurrentTransform: Transform, PageNum: usize, SourceFile: & Source, Elements: & mut Vec<Sync_Element>,)
@@ -137,18 +156,22 @@ fn CollectFrameElements(TargetFrame: & Frame, CurrentTransform: Transform, PageN
 
                     if !GlyphSpan.is_detached() && Width.to_pt() > 0.0001
                     {
+                        let Geom = ElementGeom
+                        {
+                            PageNum,
+                            X: Pos.x + GlyphX + OffsetX,
+                            Y: Pos.y - OffsetY - Text.size,
+                            Width,
+                            Height: Text.size,
+                            TransformVal: CurrentTransform,
+                        };
                         if let Some(Elem) = CreateElementFromGlyph
                         (
                             GlyphSpan,
                             SubOffset,
                             Glyph.range.start as usize,
                             Glyph.range.end as usize,
-                            PageNum,
-                            Pos.x + GlyphX + OffsetX,
-                            Pos.y - OffsetY - Text.size,
-                            Width,
-                            Text.size,
-                            CurrentTransform,
+                            Geom,
                             SourceFile,
                         )
                         {
@@ -170,20 +193,35 @@ fn CollectFrameElements(TargetFrame: & Frame, CurrentTransform: Transform, PageN
                         Geometry::Curve(CurveVal) => { let BBox = CurveVal.bbox(None); let SizeVal = BBox.size();(SizeVal.x, SizeVal.y) }
                     };
 
-                    if let Some(Elem) = CreateElementFromSpan( * SpanItem, PageNum, Pos.x, Pos.y, Width, Height, CurrentTransform, SourceFile,)
+                    let Geom = ElementGeom
+                    {
+                        PageNum,
+                        X: Pos.x,
+                        Y: Pos.y,
+                        Width,
+                        Height,
+                        TransformVal: CurrentTransform,
+                    };
+                    if let Some(Elem) = CreateElementFromSpan( * SpanItem, "shape", Geom, SourceFile,)
                     {
                         Elements.push(Elem);
                     }
                 }
             }
-            FrameItem::Image(_, SizeVal, SpanItem) =>
+            FrameItem::Image(_, SizeVal, SpanItem) if !SpanItem.is_detached() =>
             {
-                if ! SpanItem.is_detached()
+                let Geom = ElementGeom
                 {
-                    if let Some(Elem) = CreateElementFromSpan( * SpanItem, PageNum, Pos.x, Pos.y, SizeVal.x, SizeVal.y, CurrentTransform, SourceFile,)
-                    {
-                        Elements.push(Elem);
-                    }
+                    PageNum,
+                    X: Pos.x,
+                    Y: Pos.y,
+                    Width: SizeVal.x,
+                    Height: SizeVal.y,
+                    TransformVal: CurrentTransform,
+                };
+                if let Some(Elem) = CreateElementFromSpan( * SpanItem, "image", Geom, SourceFile,)
+                {
+                    Elements.push(Elem);
                 }
             }
             _ => {}
@@ -197,18 +235,13 @@ fn CreateElementFromGlyph
     SubOffset: usize,
     RangeStart: usize,
     RangeEnd: usize,
-    PageNum: usize,
-    X: Abs,
-    Y: Abs,
-    Width: Abs,
-    Height: Abs,
-    TransformVal: Transform,
+    Geom: ElementGeom,
     SourceFile: &Source,
 ) -> Option<Sync_Element>
 {
-    let Origin = Point::new(X, Y);
-    let SizeVal = Size::new(Width, Height);
-    let (PagePos, PageSize) = TransformRect(Origin, SizeVal, TransformVal);
+    let Origin = Point::new(Geom.X, Geom.Y);
+    let SizeVal = Size::new(Geom.Width, Geom.Height);
+    let (PagePos, PageSize) = TransformRect(Origin, SizeVal, Geom.TransformVal);
 
     let SpanID = TargetSpan.id()?;
     if SpanID != SourceFile.id()
@@ -240,7 +273,8 @@ fn CreateElementFromGlyph
     (
         Sync_Element
         {
-            page: PageNum,
+            kind: "text".to_string(),
+            page: Geom.PageNum,
             x: PagePos.x.to_pt(),
             y: PagePos.y.to_pt(),
             width: PageSize.x.to_pt(),
@@ -256,11 +290,11 @@ fn CreateElementFromGlyph
     )
 }
 
-fn CreateElementFromSpan(TargetSpan: Span, PageNum: usize, X: Abs, Y: Abs, Width: Abs, Height: Abs, TransformVal: Transform, SourceFile: & Source,)->Option<Sync_Element>
+fn CreateElementFromSpan(TargetSpan: Span, KindVal: &str, Geom: ElementGeom, SourceFile: & Source,)->Option<Sync_Element>
 {
-    let Origin = Point:: new (X, Y);
-    let SizeVal = Size:: new (Width, Height);
-    let (PagePos, PageSize) = TransformRect(Origin, SizeVal, TransformVal);
+    let Origin = Point:: new (Geom.X, Geom.Y);
+    let SizeVal = Size:: new (Geom.Width, Geom.Height);
+    let (PagePos, PageSize) = TransformRect(Origin, SizeVal, Geom.TransformVal);
 
     let SpanID = TargetSpan.id()?;
     if SpanID != SourceFile.id() { return None; }
@@ -285,7 +319,8 @@ fn CreateElementFromSpan(TargetSpan: Span, PageNum: usize, X: Abs, Y: Abs, Width
     (
         Sync_Element
         {
-            page: PageNum,
+            kind: KindVal.to_string(),
+            page: Geom.PageNum,
             x: PagePos.x.to_pt(),
             y: PagePos.y.to_pt(),
             width: PageSize.x.to_pt(),

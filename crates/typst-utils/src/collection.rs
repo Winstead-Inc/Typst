@@ -89,7 +89,17 @@ impl <T: Copy, const N: usize> Rdedup for SmallVec < [T; N] >
     F: FnMut( & mut T)->K,
     {
         let mut k = 0;
-        for i in 1..self.len() { if key( & mut self[i]) != key( & mut self[k]) { k += 1; } if k < i { self[k] = self[i]; } }
+        for i in 1..self.len()
+        {
+            if key(&mut self[i]) != key(&mut self[k])
+            {
+                k += 1;
+            }
+            if k < i
+            {
+                self[k] = self[i];
+            }
+        }
         self.truncate(k + 1);
     }
 }

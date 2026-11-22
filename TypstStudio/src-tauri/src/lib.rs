@@ -2535,43 +2535,92 @@ fn SyncSelection
 
             for Cluster in Clusters
             {
-                let mut MinX = f64::INFINITY;
-                let mut MaxX = f64::NEG_INFINITY;
-                let mut MinY = f64::INFINITY;
-                let mut MaxY = f64::NEG_INFINITY;
-                let mut MinH = f64::INFINITY;
-                let mut MaxH = 0.0f64;
+                let mut SortedElems = Cluster.Elements;
+                SortedElems.sort_by
+                (
+                    | A, B |
+                    {
+                        let Ax = A.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let Bx = B.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        Ax.partial_cmp(&Bx).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                );
 
-                for E in Cluster.Elements
+                let mut Segments: Vec<Vec<&serde_json::Value>> = Vec::new();
+                for Elem in SortedElems
                 {
-                    let Ex = E.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
-                    let Ey = E.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
-                    let Ew = E.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
-                    let Eh = E.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+                    let Ex = Elem.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                    let SpanStr = Elem.get("span").and_then( | V | V.as_str()).unwrap_or("");
+                    let LineNum = Elem.get("line").and_then( | V | V.as_u64()).unwrap_or(0);
 
-                    MinX = MinX.min(Ex);
-                    MaxX = MaxX.max(Ex + Ew);
-                    MinY = MinY.min(Ey);
-                    MaxY = MaxY.max(Ey + Eh);
-                    MinH = MinH.min(Eh);
-                    MaxH = MaxH.max(Eh);
+                    let ShouldSplit = if let Some(LastSeg) = Segments.last()
+                    {
+                        let Prev = LastSeg.last().unwrap();
+                        let Px = Prev.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let Pw = Prev.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let PrevSpan = Prev.get("span").and_then( | V | V.as_str()).unwrap_or("");
+                        let PrevLine = Prev.get("line").and_then( | V | V.as_u64()).unwrap_or(0);
+
+                        let Gap = Ex - (Px + Pw);
+                        let DiffCall = (SpanStr.starts_with("call_box_") || PrevSpan.starts_with("call_box_")) && SpanStr != PrevSpan;
+                        let DiffLine = LineNum != PrevLine && Gap > 4.5;
+                        Gap > 5.5 || DiffCall || DiffLine
+                    }
+                    else
+                    {
+                        false
+                    };
+
+                    if ShouldSplit || Segments.is_empty()
+                    {
+                        Segments.push(vec![Elem]);
+                    }
+                    else
+                    {
+                        Segments.last_mut().unwrap().push(Elem);
+                    }
                 }
 
-                if MinX.is_finite() && MaxX.is_finite() && MaxX > MinX
+                for Seg in Segments
                 {
-                    ResultBoxes.push
-                    (
-                        Sync_Highlight_Box
-                        {
-                            Page: PageNum,
-                            X: MinX,
-                            Y: MinY,
-                            Width: (MaxX - MinX).max(2.0),
-                            Height: (MaxY - MinY).max(2.0),
-                            FirstLineHeight: if MinH.is_finite() { MinH } else { 10.5 },
-                            LastLineHeight: if MaxH > 0.0 { MaxH } else { 10.5 },
-                        }
-                    );
+                    let mut MinX = f64::INFINITY;
+                    let mut MaxX = f64::NEG_INFINITY;
+                    let mut MinY = f64::INFINITY;
+                    let mut MaxY = f64::NEG_INFINITY;
+                    let mut MinH = f64::INFINITY;
+                    let mut MaxH = 0.0f64;
+
+                    for E in Seg
+                    {
+                        let Ex = E.get("x").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let Ey = E.get("y").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let Ew = E.get("width").and_then( | V | V.as_f64()).unwrap_or(0.0);
+                        let Eh = E.get("height").and_then( | V | V.as_f64()).unwrap_or(10.5);
+
+                        MinX = MinX.min(Ex);
+                        MaxX = MaxX.max(Ex + Ew);
+                        MinY = MinY.min(Ey);
+                        MaxY = MaxY.max(Ey + Eh);
+                        MinH = MinH.min(Eh);
+                        MaxH = MaxH.max(Eh);
+                    }
+
+                    if MinX.is_finite() && MaxX.is_finite() && MaxX > MinX
+                    {
+                        ResultBoxes.push
+                        (
+                            Sync_Highlight_Box
+                            {
+                                Page: PageNum,
+                                X: MinX,
+                                Y: MinY,
+                                Width: (MaxX - MinX).max(2.0),
+                                Height: (MaxY - MinY).max(2.0),
+                                FirstLineHeight: if MinH.is_finite() { MinH } else { 10.5 },
+                                LastLineHeight: if MaxH > 0.0 { MaxH } else { 10.5 },
+                            }
+                        );
+                    }
                 }
             }
         }

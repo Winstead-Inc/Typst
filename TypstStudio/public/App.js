@@ -748,6 +748,7 @@ catch (Err)
 }
 
 let ActiveRecordingCommandId = null;
+let RecordingCooldownUntil = 0;
 
 function UpdateFontSizeUI()
 {
@@ -1454,6 +1455,25 @@ function RebuildSyncMapIndex(SyncMap)
         return ;
     }
 
+    let OutlineLine = -1;
+    if (MonacoInstance)
+    {
+        const Model = MonacoInstance.getModel();
+        if (Model)
+        {
+            const LineCount = Model.getLineCount();
+            for (let L = 1; L <= LineCount; L ++)
+            {
+                const LineContent = Model.getLineContent(L) || "";
+                if (/^\s*#outline\b/.test(LineContent))
+                {
+                    OutlineLine = L;
+                    break;
+                }
+            }
+        }
+    }
+
     const LinePages = new Map();
     const SpanPages = new Map();
 
@@ -1463,6 +1483,20 @@ function RebuildSyncMapIndex(SyncMap)
         const StartLine = Elem.line || 1;
         const EndLine = Elem.end_line || StartLine;
         const PageNum = Elem.page || 1;
+
+        const IsOutlineTOC = (PageNum === 1 && OutlineLine > 0 && StartLine > OutlineLine && ((Elem.y >= 180 && Elem.y <= 455) || StartLine >= 95));
+        if (IsOutlineTOC)
+        {
+            Elem.is_outline = true;
+            let OutlineList = ActiveSyncMapByLine.get(OutlineLine);
+            if (!OutlineList)
+            {
+                OutlineList = [];
+                ActiveSyncMapByLine.set(OutlineLine, OutlineList);
+            }
+            OutlineList.push(Elem);
+            continue;
+        }
 
         for (let L = StartLine; L <= EndLine; L ++)
         {
@@ -1491,10 +1525,11 @@ function RebuildSyncMapIndex(SyncMap)
         }
     }
 
-    // Layer A: Detect all lines and spans that repeat across more than 1 distinct page
+    // Layer A: Detect all lines and spans that repeat across more than 1 distinct page.
+    // Only template headers/preambles (L <= 2) should be treated as repeated chrome.
     for (const [L, Pages] of LinePages.entries())
     {
-        if (Pages.size > 1)
+        if (Pages.size > 1 && L <= 2)
         {
             RepeatedSyncLines.add(L);
         }
@@ -1515,7 +1550,7 @@ function RebuildSyncMapIndex(SyncMap)
         const Elem = SyncMap[I];
         const PageNum = Elem.page || 1;
         const LineNum = Elem.line || 1;
-        if (PageNum === 1 && !RepeatedSyncLines.has(LineNum))
+        if (PageNum === 1 && !RepeatedSyncLines.has(LineNum) && !Elem.is_outline)
         {
             if (LineNum < MinBodyLine)
             {
@@ -3805,8 +3840,11 @@ function InitializeMonaco()
 
                     if (Pos)
                     {
-                        IsEditorWheelScrolling = false;
-                        ApplyTypewriterScroll(Pos.lineNumber);
+                        const IsTyping = (Date.now() - LastTypingTimestamp) < 350;
+                        if (IsTyping)
+                        {
+                            ApplyTypewriterScroll(Pos.lineNumber);
+                        }
                         UpdateHemingwayFocus(Pos.lineNumber);
                     }
 
@@ -8220,7 +8258,7 @@ function SetupStructuralContainerDispatchHook()
 
 function ApplyTypewriterScroll(CursorLine)
 {
-    if (!IsTypewriterScrollEnabled || !MonacoInstance || IsEditorWheelScrolling)
+    if (!IsTypewriterScrollEnabled || !MonacoInstance || IsEditorWheelScrolling || (Date.now() - LastTypingTimestamp) >= 350)
     {
         return ;
     }
@@ -11198,6 +11236,7 @@ function StartRecordingKeybinding(CommandId)
 function CancelRecordingKeybinding()
 {
     ActiveRecordingCommandId = null;
+    RecordingCooldownUntil = Date.now() + 350;
     const Banner = document.getElementById("KeybindingsRecordingBanner");
     if (Banner)
     {
@@ -12278,6 +12317,118 @@ function SetupEventListeners()
             }
         );
     }
+
+    const ProjectsGridContainer = document.getElementById("DashboardProjectsGrid");
+    if (ProjectsGridContainer)
+    {
+        ProjectsGridContainer.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const ClearFilterBtn = Event.target.closest("[data-action='clear-dir-filter']");
+                if (ClearFilterBtn)
+                {
+                    SelectDashboardDirectory(null);
+                    return ;
+                }
+
+                const OpenProjectExplorerBtn = Event.target.closest("[data-action='open-project-explorer']");
+                if (OpenProjectExplorerBtn && OpenProjectExplorerBtn.dataset.projectPath)
+                {
+                    OpenProjectInExplorer(OpenProjectExplorerBtn.dataset.projectPath);
+                    return ;
+                }
+
+                const CreateProjectFileBtn = Event.target.closest("[data-action='create-project-file']");
+                if (CreateProjectFileBtn && CreateProjectFileBtn.dataset.projectPath)
+                {
+                    CreateFileInProject(CreateProjectFileBtn.dataset.projectPath);
+                    return ;
+                }
+
+                const OpenDocTarget = Event.target.closest("[data-action='open-document']");
+                if (OpenDocTarget && OpenDocTarget.dataset.filePath)
+                {
+                    OpenDocumentInTab(OpenDocTarget.dataset.filePath);
+                    return ;
+                }
+            }
+        );
+    }
+
+    const DirListContainer = document.getElementById("TrackedDirectoryList");
+    if (DirListContainer)
+    {
+        DirListContainer.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const DeleteBtn = Event.target.closest("[data-action='delete-dir']");
+                if (DeleteBtn && DeleteBtn.dataset.dirPath)
+                {
+                    Event.stopPropagation();
+                    RemoveWorkspaceDirectory(DeleteBtn.dataset.dirPath);
+                    return ;
+                }
+
+                const SelectAllItem = Event.target.closest("[data-action='select-all-dirs']");
+                if (SelectAllItem)
+                {
+                    SelectDashboardDirectory(null);
+                    return ;
+                }
+
+                const SelectDirItem = Event.target.closest("[data-action='select-dir']");
+                if (SelectDirItem && SelectDirItem.dataset.dirPath)
+                {
+                    SelectDashboardDirectory(SelectDirItem.dataset.dirPath);
+                    return ;
+                }
+            }
+        );
+    }
+
+    const EditorTabsList = document.getElementById("EditorTabsList");
+    if (EditorTabsList)
+    {
+        EditorTabsList.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const CloseBtn = Event.target.closest("[data-action='close-tab']");
+                if (CloseBtn && CloseBtn.dataset.tabPath)
+                {
+                    Event.stopPropagation();
+                    CloseTab(CloseBtn.dataset.tabPath);
+                    return ;
+                }
+
+                const TabItem = Event.target.closest("[data-action='switch-tab']");
+                if (TabItem && TabItem.dataset.tabPath)
+                {
+                    SwitchToTab(TabItem.dataset.tabPath);
+                    return ;
+                }
+            }
+        );
+    }
+
+    const DocDropdownList = document.getElementById("DocDropdownList");
+    if (DocDropdownList)
+    {
+        DocDropdownList.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const DropdownItem = Event.target.closest("[data-action='open-workspace-file']");
+                if (DropdownItem && DropdownItem.dataset.filePath)
+                {
+                    OpenFileFromWorkspace(DropdownItem.dataset.filePath);
+                    return ;
+                }
+            }
+        );
+    }
     // Global Keydown Handler with Dynamic Keybinding Support & Recording Mode
     window.addEventListener
     (
@@ -12741,7 +12892,7 @@ function RenderDocDropdownList(FilterQuery = "")
         const SafeParam = encodeURIComponent(File.Path);
 
         Html += `
-            <div Class = "DocDropdownItem ${ActiveClass}" onclick = "OpenFileFromWorkspace(decodeURIComponent('${SafeParam}'))">
+            <div Class = "DocDropdownItem ${ActiveClass}" data-action = "open-workspace-file" data-file-path = "${EscapeHtml(File.Path)}">
                 <div Class = "DocDropdownItemIcon">
                     <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                         <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -13328,11 +13479,11 @@ function RenderEditorTabs()
         const SafeTabPathParam = encodeURIComponent(Tab.Path);
 
         Html += `
-            <div Class = "EditorTab ${ActiveClass}" onclick = "SwitchToTab(decodeURIComponent('${SafeTabPathParam}'))" Title = "${EscapeHtml(Tab.Path)}">
+            <div Class = "EditorTab ${ActiveClass}" data-action = "switch-tab" data-tab-path = "${EscapeHtml(Tab.Path)}" Title = "${EscapeHtml(Tab.Path)}">
                 <span Class = "TabIcon">${GetFileIconSvg(Tab.Name)}</span>
                 <span Class = "TabTitle">${EscapeHtml(Tab.Name)}</span>
                 <span Class = "TabDirtyDot ${Tab.Dirty ? "Visible" : ""}" Title = "Unsaved changes"></span>
-                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" onclick = "event.stopPropagation(); CloseTab(decodeURIComponent('${SafeTabPathParam}'))">×</button>
+                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" data-action = "close-tab" data-tab-path = "${EscapeHtml(Tab.Path)}">×</button>
             </div>
         `;
     }
@@ -14100,7 +14251,7 @@ function RenderDashboard(FilterQuery = "")
         let DirHtml = "";
         const IsAllActive = ! ActiveSelectedDirectory;
         DirHtml += `
-            <div Class = "DirectoryItem ${IsAllActive ? "IsActiveDirectory" : ""}" onclick = "SelectDashboardDirectory(null)" Title = "View files from all tracked folders">
+            <div Class = "DirectoryItem ${IsAllActive ? "IsActiveDirectory" : ""}" data-action = "select-all-dirs" Title = "View files from all tracked folders">
                 <div Class = "DirectoryItemInfo">
                     <span Class = "DirectoryPathText" style = "font-weight: 500; display: flex; align-items: center; gap: 6px;">
                         <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#c084fc" Stroke-Width = "2">
@@ -14116,19 +14267,18 @@ function RenderDashboard(FilterQuery = "")
         for (const Dir of WorkspaceDirectories)
         {
             const ProjCount = Projects.filter((P) => P.Path.toLowerCase().startsWith(Dir.toLowerCase())).length;
-            const SafeDirParam = encodeURIComponent(Dir);
             const CanDelete = WorkspaceDirectories.length > 1;
             const IsSelected = ActiveSelectedDirectory && (ActiveSelectedDirectory.toLowerCase() === Dir.toLowerCase());
             const ActiveClass = IsSelected ? "IsActiveDirectory": "";
 
             DirHtml += `
-                <div Class = "DirectoryItem ${ActiveClass}" onclick = "SelectDashboardDirectory(decodeURIComponent('${SafeDirParam}'))" Title = "Filter projects in this directory">
+                <div Class = "DirectoryItem ${ActiveClass}" data-action = "select-dir" data-dir-path = "${EscapeHtml(Dir)}" Title = "Filter projects in this directory">
                     <div Class = "DirectoryItemInfo">
                         <span Class = "DirectoryPathText" Title = "${EscapeHtml(Dir)}">${EscapeHtml(Dir)}</span>
                         <span Class = "DirectoryCountBadge">${ProjCount} Projects</span>
                     </div>
                     ${CanDelete ? `
-                        <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" onclick = "event.stopPropagation(); RemoveWorkspaceDirectory(decodeURIComponent('${SafeDirParam}'))">
+                        <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" data-action = "delete-dir" data-dir-path = "${EscapeHtml(Dir)}">
                             <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                                 <line X1 = "18" Y1 = "6" X2 = "6" Y2 = "18" />
                                 <line X1 = "6" Y1 = "6" X2 = "18" Y2 = "18" />
@@ -14178,7 +14328,7 @@ function RenderDashboard(FilterQuery = "")
                         <strong Title = "${EscapeHtml(ActiveSelectedDirectory)}">${EscapeHtml(DirName)}</strong>
                         <span Class = "ActiveFolderFilterPath">(${EscapeHtml(ActiveSelectedDirectory)})</span>
                     </div>
-                    <button Type = "button" Class = "ClearFilterBtn" onclick = "SelectDashboardDirectory(null)">
+                    <button Type = "button" Class = "ClearFilterBtn" data-action = "clear-dir-filter">
                         Show All Folders ✕
                     </button>
                 </div>
@@ -14196,20 +14346,18 @@ function RenderDashboard(FilterQuery = "")
         {
             const IsActiveProject = CurrentFilePath && CurrentFilePath.toLowerCase().startsWith(Proj.Path.toLowerCase());
             const ActiveClass = IsActiveProject ? "IsActiveProject": "";
-            const EscapedPath = Proj.Path.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 
             let FilesListHtml = "";
             if (Proj.Files && Proj.Files.length > 0)
             {
                 for (const F of Proj.Files)
                 {
-                    const SafeFileParam = encodeURIComponent(F.Path);
                     FilesListHtml += `
-                        <div Class = "ProjectFileRow" onclick = "OpenDocumentInTab(decodeURIComponent('${SafeFileParam}'))" Title = "Open ${EscapeHtml(F.Name)} in Editor">
+                        <div Class = "ProjectFileRow" data-action = "open-document" data-file-path = "${EscapeHtml(F.Path)}" Title = "Open ${EscapeHtml(F.Name)} in Editor">
                             <span Class = "ProjectFileIcon">${GetFileIconSvg(F.Name)}</span>
                             <span Class = "ProjectFileName">${EscapeHtml(F.Name)}</span>
                             <span Class = "ProjectFileSize">${FormatFileSize(F.Size)}</span>
-                            <button Type = "button" Class = "ProjectFileOpenBtn">Open →</button>
+                            <button Type = "button" Class = "ProjectFileOpenBtn" data-action = "open-document" data-file-path = "${EscapeHtml(F.Path)}">Open →</button>
                         </div>
                     `;
                 }
@@ -14239,10 +14387,10 @@ function RenderDashboard(FilterQuery = "")
                     </div>
 
                     <div Class = "ProjectCardFooter">
-                        <button Type = "button" Class = "Button Primary Small" onclick = "OpenProjectInExplorer('${EscapedPath}')">
+                        <button Type = "button" Class = "Button Primary Small" data-action = "open-project-explorer" data-project-path = "${EscapeHtml(Proj.Path)}">
                             Open Project in Explorer →
                         </button>
-                        <button Type = "button" Class = "Button Secondary Small" onclick = "CreateFileInProject('${EscapedPath}')">
+                        <button Type = "button" Class = "Button Secondary Small" data-action = "create-project-file" data-project-path = "${EscapeHtml(Proj.Path)}">
                             + New Document
                         </button>
                     </div>
@@ -14725,6 +14873,98 @@ function MergeOverlappingBoxes(Boxes)
     return Result;
 }
 
+function IsFullTableShape(Elem)
+{
+    if (!Elem)
+    {
+        return false;
+    }
+    if (Elem.kind !== "shape")
+    {
+        return false;
+    }
+    const LineSpan = (Elem.end_line || Elem.line || 0) - (Elem.line || 0);
+    return LineSpan >= 2 || Elem.width === 0 || Elem.height === 0 || (Elem.width > 400 && Elem.height > 50);
+}
+
+function GetTrueGlyphBounds(Svg, Box)
+{
+    if (!Svg || !Box)
+    {
+        return null;
+    }
+    const Ctm = Svg.getScreenCTM();
+    if (!Ctm)
+    {
+        return null;
+    }
+    const InvCtm = Ctm.inverse();
+
+    let MinX = Infinity;
+    let MaxX = -Infinity;
+    let MinY = Infinity;
+    let MaxY = -Infinity;
+    let Matched = 0;
+
+    const Nodes = Svg.querySelectorAll("use, path:not(.SyncHighlightRect)");
+    for (const U of Nodes)
+    {
+        const R = U.getBoundingClientRect();
+        if (R.width === 0 || R.height === 0)
+        {
+            continue;
+        }
+
+        if (U.tagName.toLowerCase() === "path")
+        {
+            if (R.width > 200 || (R.width > 50 && R.height < 2.0) || (R.height > 50 && R.width < 2.0))
+            {
+                continue;
+            }
+        }
+
+        const Pt1 = Svg.createSVGPoint();
+        Pt1.x = R.left;
+        Pt1.y = R.top;
+        const S1 = Pt1.matrixTransform(InvCtm);
+
+        const Pt2 = Svg.createSVGPoint();
+        Pt2.x = R.right;
+        Pt2.y = R.bottom;
+        const S2 = Pt2.matrixTransform(InvCtm);
+
+        const Ux1 = Math.min(S1.x, S2.x);
+        const Ux2 = Math.max(S1.x, S2.x);
+        const Uy1 = Math.min(S1.y, S2.y);
+        const Uy2 = Math.max(S1.y, S2.y);
+
+        const TolY = Math.max(5.0, (Box.height || 10.5) * 0.25);
+        const OverlapX = (Math.min(Ux2, Box.x + Box.width) - Math.max(Ux1, Box.x)) >= -2.0;
+        const OverlapY = (Math.min(Uy2, Box.y + Box.height + TolY) - Math.max(Uy1, Box.y - TolY)) >= 0;
+
+        if (OverlapX && OverlapY)
+        {
+            MinX = Math.min(MinX, Ux1);
+            MaxX = Math.max(MaxX, Ux2);
+            MinY = Math.min(MinY, Uy1);
+            MaxY = Math.max(MaxY, Uy2);
+            Matched ++;
+        }
+    }
+
+    if (Matched > 0 && isFinite(MinX) && isFinite(MaxX) && isFinite(MinY) && isFinite(MaxY))
+    {
+        return {
+            x: MinX,
+            y: MinY,
+            width: MaxX - MinX,
+            height: MaxY - MinY,
+            matched: Matched
+        };
+    }
+    return null;
+}
+
 function GroupSelectedElementsIntoLineBoxes(Elements)
 {
     if (!Elements || Elements.length === 0)
@@ -14735,6 +14975,10 @@ function GroupSelectedElementsIntoLineBoxes(Elements)
     const PageGroups = new Map();
     for (const Elem of Elements)
     {
+        if (IsFullTableShape(Elem))
+        {
+            continue;
+        }
         const PageNum = Elem.page || 1;
         if (!PageGroups.has(PageNum))
         {
@@ -14774,24 +15018,53 @@ function GroupSelectedElementsIntoLineBoxes(Elements)
 
         for (const Cluster of LineClusters)
         {
-            const CBoxes = Cluster.Boxes;
-            const MinX = Math.min(...CBoxes.map((B) => B.x));
-            const MaxX = Math.max(...CBoxes.map((B) => B.x + B.width));
-            const MinY = Math.min(...CBoxes.map((B) => B.y));
-            const MaxY = Math.max(...CBoxes.map((B) => B.y + B.height));
-            const TopH = CBoxes.reduce((MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
-            const BottomH = CBoxes.reduce((MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
+            const CBoxes = [...Cluster.Boxes].sort((A, B) => A.x - B.x);
+            const Segments = [];
+            for (const Box of CBoxes)
+            {
+                const ShouldSplit = Segments.length > 0 && (() =>
+                {
+                    const LastSeg = Segments[Segments.length - 1];
+                    const PrevBox = LastSeg[LastSeg.length - 1];
+                    const Gap = Box.x - (PrevBox.x + PrevBox.width);
+                    const BoxSpan = String(Box.span || "");
+                    const PrevSpan = String(PrevBox.span || "");
+                    const DiffCall = (BoxSpan.startsWith("call_box_") || PrevSpan.startsWith("call_box_")) && BoxSpan !== PrevSpan;
+                    const DiffLine = Box.line !== PrevBox.line && Gap > 25.0;
+                    return DiffCall || DiffLine;
+                })();
 
-            FinalBoxes.push
-            ({
-                page: PageNum,
-                x: MinX,
-                y: MinY,
-                width: Math.max(2.0, MaxX - MinX),
-                height: Math.max(2.0, MaxY - MinY),
-                firstLineHeight: TopH === Infinity ? 10.5 : TopH,
-                lastLineHeight: BottomH === 0 ? 10.5 : BottomH
-            });
+                if (ShouldSplit || Segments.length === 0)
+                {
+                    Segments.push([Box]);
+                }
+                else
+                {
+                    Segments[Segments.length - 1].push(Box);
+                }
+            }
+
+            for (const Seg of Segments)
+            {
+                const MinX = Math.min(...Seg.map((B) => B.x));
+                const MaxX = Math.max(...Seg.map((B) => B.x + B.width));
+                const MinY = Math.min(...Seg.map((B) => B.y));
+                const MaxY = Math.max(...Seg.map((B) => B.y + B.height));
+                const TopH = Seg.reduce((MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
+                const BottomH = Seg.reduce((MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
+
+                FinalBoxes.push
+                ({
+                    page: PageNum,
+                    x: MinX,
+                    y: MinY,
+                    width: Math.max(2.0, MaxX - MinX),
+                    height: Math.max(2.0, MaxY - MinY),
+                    firstLineHeight: TopH === Infinity ? 10.5 : TopH,
+                    lastLineHeight: BottomH === 0 ? 10.5 : BottomH,
+                    line: Seg[0].line
+                });
+            }
         }
     }
 
@@ -14808,39 +15081,44 @@ function GroupElementsIntoVisualBoxes(Elements)
     const PageGroups = new Map();
     for (const Elem of Elements)
     {
+        if (IsFullTableShape(Elem))
+        {
+            continue;
+        }
         const PageNum = Elem.page || 1;
         if (!PageGroups.has(PageNum))
         {
-            PageGroups.set(PageNum,[]);
+            PageGroups.set(PageNum, []);
         }
-        PageGroups.get(PageNum).push( { ...Elem });
+        PageGroups.get(PageNum).push({ ...Elem });
     }
 
     const FinalBoxes = [];
 
-    for (const[PageNum, PageElements] of PageGroups.entries())
+    for (const [PageNum, PageElements] of PageGroups.entries())
     {
         const LineClusters = [];
         PageElements.sort
         (
-            (A, B) => ( (A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x)
+            (A, B) => ((A.y + A.height / 2) - (B.y + B.height / 2)) || (A.x - B.x)
         );
 
         for (const Box of PageElements)
         {
             const CenterY = Box.y + (Box.height / 2);
-            let Cluster = LineClusters.find( (C) => Math.abs(C.CenterY - CenterY) < 10.0);
+            let Cluster = LineClusters.find((C) => Math.abs(C.CenterY - CenterY) < 10.0);
             if (!Cluster)
             {
                 LineClusters.push
                 ({
-                    CenterY: CenterY, Boxes:[Box]
+                    CenterY: CenterY,
+                    Boxes: [Box]
                 });
             }
             else
             {
                 Cluster.Boxes.push(Box);
-                Cluster.CenterY = Cluster.Boxes.reduce( (Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
+                Cluster.CenterY = Cluster.Boxes.reduce((Sum, B) => Sum + B.y + B.height / 2, 0) / Cluster.Boxes.length;
             }
         }
 
@@ -14849,22 +15127,22 @@ function GroupElementsIntoVisualBoxes(Elements)
             const CBoxes = Cluster.Boxes;
             const MinX = Math.min
             (
-                ...CBoxes.map( (B) => B.x)
+                ...CBoxes.map((B) => B.x)
             );
             const MaxX = Math.max
             (
-                ...CBoxes.map( (B) => B.x + B.width)
+                ...CBoxes.map((B) => B.x + B.width)
             );
             const MinY = Math.min
             (
-                ...CBoxes.map( (B) => B.y)
+                ...CBoxes.map((B) => B.y)
             );
             const MaxY = Math.max
             (
-                ...CBoxes.map( (B) => B.y + B.height)
+                ...CBoxes.map((B) => B.y + B.height)
             );
-            const TopH = CBoxes.reduce( (MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
-            const BottomH = CBoxes.reduce( (MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
+            const TopH = CBoxes.reduce((MinH, B) => Math.min(MinH, B.height || 10.5), Infinity);
+            const BottomH = CBoxes.reduce((MaxH, B) => Math.max(MaxH, B.height || 10.5), 0);
 
             FinalBoxes.push
             ({
@@ -14873,8 +15151,8 @@ function GroupElementsIntoVisualBoxes(Elements)
                 y: MinY,
                 width: MaxX - MinX,
                 height: MaxY - MinY,
-                firstLineHeight: TopH === Infinity ? 10.5: TopH,
-                lastLineHeight: BottomH === 0 ? 10.5: BottomH
+                firstLineHeight: TopH === Infinity ? 10.5 : TopH,
+                lastLineHeight: BottomH === 0 ? 10.5 : BottomH
             });
         }
     }
@@ -14925,7 +15203,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
 
     const ScrollTargetPage = Boxes[0].page || 1;
     const FirstBoxLine = Boxes[0].line || 0;
-    const IsPreambleOrRepeated = FirstBoxLine > 0 && (FirstBoxLine <= FirstDocumentBodyLine || RepeatedSyncLines.has(FirstBoxLine));
+    const IsPreambleOrRepeated = FirstBoxLine === 1 || (FirstBoxLine > 0 && RepeatedSyncLines.has(FirstBoxLine) && (Boxes[0].page || 1) === 1);
     const EffectiveTargetPage = IsPreambleOrRepeated ? 1: ScrollTargetPage;
     let PrimaryPageSheet = document.getElementById(`PageSheet_${EffectiveTargetPage}`) || document.querySelectorAll(".PageSheet")[EffectiveTargetPage - 1];
     let PrimaryTopY = Infinity;
@@ -14989,34 +15267,59 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
                     const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     Rect.setAttribute("class", "SyncHighlightRect");
 
-                    const FirstH = Box.firstLineHeight || Box.height || 10;
-                    const LastH = Box.lastLineHeight || Box.height || 10;
+                    const TrueBounds = GetTrueGlyphBounds(Svg, Box);
+                    const PadX = 4.0;
+                    const PadY = 2.0;
+                    let RectX;
+                    let RectY;
+                    let RectW;
+                    let RectH;
 
-                    // Typst sets Box.y = Baseline_top - FirstH, where FirstH is font size / ascender frame.
-                    // Inked cap-height of characters is ~0.72 * FirstH above the top baseline.
-                    const TopBaseline = Box.y + FirstH;
-                    const InkedTop = TopBaseline - (FirstH * 0.72);
+                    if (TrueBounds && TrueBounds.matched > 0)
+                    {
+                        RectX = TrueBounds.x - PadX;
+                        RectW = Math.max(6.0, TrueBounds.width + (PadX * 2.0));
+                        RectY = TrueBounds.y - PadY;
+                        RectH = Math.max(6.0, TrueBounds.height + (PadY * 2.0));
+                    }
+                    else
+                    {
+                        const FirstH = Box.firstLineHeight || Box.height || 10;
+                        const LastH = Box.lastLineHeight || Box.height || 10;
 
-                    // Typst sets Box.y + Box.height = Baseline_bottom (raw baseline, 0 descender clearance).
-                    // Inked descenders (g, j, p, q, y, commas, semicolons) extend ~0.28 * LastH below the bottom baseline.
-                    const BottomBaseline = Box.y + Box.height;
-                    const InkedBottom = BottomBaseline + (LastH * 0.25);
+                        const TopBaseline = Box.y + FirstH;
+                        const InkedTop = TopBaseline - (FirstH * 0.78);
+                        const BottomBaseline = Box.y + Box.height;
+                        const InkedBottom = BottomBaseline + (LastH * 0.32);
 
-                    // Provide balanced, symmetric vertical and horizontal breathing room around true inked glyph bounds
-                    const PadY = Math.max(1.8, Math.min(4.5, LastH * 0.20));
-                    const PadX = Math.max(1.8, Math.min(3.5, LastH * 0.20));
+                        RectX = Box.x - PadX;
+                        RectW = Math.max(6.0, Box.width + (PadX * 2.0));
+                        RectY = Math.round((InkedTop - PadY) * 100) / 100;
+                        RectH = Math.max(6.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
+                    }
 
-                    const RectX = Box.x - PadX;
-                    const RectY = Math.round((InkedTop - PadY) * 100) / 100;
-                    const RectW = Math.max(6.0, Box.width + (PadX * 2.0));
-                    const RectH = Math.max(6.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
+                    const BoxLine = Box.line || 0;
+                    if (BoxLine > 0 && MonacoInstance)
+                    {
+                        const M = MonacoInstance.getModel();
+                        if (M && BoxLine <= M.getLineCount())
+                        {
+                            const LineContent = M.getLineContent(BoxLine) || "";
+                            if (/^\s*(?:[-+*•]|(?:\d+|[a-zA-Z])\.|(?:\(\d+\)))\s+/.test(LineContent) || /^\s*\[\s*(?:[-+*•]|(?:\d+|[a-zA-Z])\.|(?:\(\d+\)))\s+/.test(LineContent))
+                            {
+                                const BulletIndent = 12.0;
+                                RectX = Math.max(65.0, RectX - BulletIndent);
+                                RectW += BulletIndent;
+                            }
+                        }
+                    }
 
                     Rect.setAttribute("x", RectX.toFixed(2));
                     Rect.setAttribute("y", RectY.toFixed(2));
                     Rect.setAttribute("width", RectW.toFixed(2));
                     Rect.setAttribute("height", RectH.toFixed(2));
-                    Rect.setAttribute("rx", "2.2");
-                    Rect.setAttribute("ry", "2.2");
+                    Rect.setAttribute("rx", "3.0");
+                    Rect.setAttribute("ry", "3.0");
 
                     HighlightLayer.appendChild(Rect);
 
@@ -15043,7 +15346,7 @@ function HighlightSvgRects(Boxes, AutoScroll = true)
             const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
             const TargetContentY = SheetTopInContent + (PrimaryTopY * ScaleY);
             let TargetScrollTop = Math.max(0, TargetContentY - (Viewport.clientHeight / 2));
-            if (IsPreambleOrRepeated)
+            if (FirstBoxLine === 1)
             {
                 TargetScrollTop = 0;
             }
@@ -15400,8 +15703,8 @@ function ScrollPreviewToNearestLine(TargetLine)
         return ;
     }
 
-    // Preamble guard: if target line is <= FirstDocumentBodyLine or in RepeatedSyncLines, anchor cleanly to Page 1 top
-    if (TargetLine <= FirstDocumentBodyLine || RepeatedSyncLines.has(TargetLine))
+    // Preamble guard: if target line is 1, anchor cleanly to Page 1 top
+    if (TargetLine === 1)
     {
         if (Viewport.scrollTop > 10)
         {
@@ -15490,7 +15793,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         return ;
     }
 
-    if (Line <= FirstDocumentBodyLine || RepeatedSyncLines.has(Line))
+    if (Line === 1 && RepeatedSyncLines.has(Line))
     {
         ClearSyncHighlights();
         if (ForceAutoScroll)
@@ -15565,13 +15868,259 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
             }
         }
     }
-    // 2. Line Content Elements: Highlight Everything in that same Hierarchy
+    // 2. Line Content Elements & Syntax Tree Context
     const TrimmedLine = LineText.trim();
-    if
-    (
-        TrimmedLine.length <= 1 || ["$", "mat", "vec", "(", ")", "[", "]", "{", "}", ";", ",", "="].includes(TrimmedLine)
-    )
+    const CursorOffset = Model.getOffsetAt({ lineNumber: Line, column: Col });
+    const SourceText = Model.getValue();
+    const AllMathIntervals = GetMathIntervals(SourceText);
+    const ActiveMathInterval = AllMathIntervals.find((Int) => CursorOffset >= Int.Start && CursorOffset <= Int.End);
+
+    const MathSpans = [];
+    const MathRegex = /(?<!\\)\$(?:[^$]|\\\$)*\$/g;
+    let MMatch;
+    while ((MMatch = MathRegex.exec(LineText)) !== null)
     {
+        MathSpans.push
+        ({
+            StartCol: MMatch.index + 1,
+            EndCol: MMatch.index + MMatch[0].length
+        });
+    }
+    const ActiveMathSpan = MathSpans.find((M) => Col >= M.StartCol && Col <= M.EndCol);
+
+    const SameLineRaw = ActiveSyncMapByLine.get(Line) || (ActiveSyncMap.length < 500 ? ActiveSyncMap : []);
+    let SameLineCandidates = SameLineRaw.filter
+    (
+        (Elem) => (Elem.line === Line && Elem.end_line === Line) && !Elem.is_outline && !IsFullTableShape(Elem)
+    );
+    if (RepeatedSyncLines.has(Line))
+    {
+        SameLineCandidates = SameLineCandidates.filter((Elem) => (Elem.page || 1) === 1);
+    }
+
+    if (ActiveMathInterval)
+    {
+        // Cursor is INSIDE a math container (inline or multiline display equation)
+        const MathStartPos = Model.getPositionAt(ActiveMathInterval.Start);
+        const MathEndPos = Model.getPositionAt(ActiveMathInterval.End);
+        const MathStartLine = MathStartPos.lineNumber;
+        const MathEndLine = MathEndPos.lineNumber;
+
+        // Check if cursor is on a math container/delimiter line (e.g. mat(, vec(, cases(, or "(")
+        const IsMathDelimLine = TrimmedLine === "(" || TrimmedLine === ")" || TrimmedLine === "mat" || TrimmedLine === "vec" || TrimmedLine === "cases" || /^(mat|vec|cases)\s*\(/.test(TrimmedLine);
+        if (IsMathDelimLine)
+        {
+            let DelimStartLine = Line;
+            if (Line > MathStartLine)
+            {
+                const PrevLineText = (Model.getLineContent(Line - 1) || "").trim();
+                if (/^(mat|vec|cases)$/.test(PrevLineText))
+                {
+                    DelimStartLine = Line - 1;
+                }
+            }
+
+            let DelimEndLine = Line;
+            let ParenDepth = 0;
+            let FoundOpen = false;
+            for (let L = DelimStartLine; L <= MathEndLine; L++)
+            {
+                const CurLText = Model.getLineContent(L) || "";
+                for (let CharIdx = 0; CharIdx < CurLText.length; CharIdx++)
+                {
+                    if (CurLText[CharIdx] === "(")
+                    {
+                        ParenDepth++;
+                        FoundOpen = true;
+                    }
+                    else if (CurLText[CharIdx] === ")")
+                    {
+                        ParenDepth--;
+                        if (FoundOpen && ParenDepth === 0)
+                        {
+                            DelimEndLine = L;
+                            break;
+                        }
+                    }
+                }
+                if (FoundOpen && ParenDepth === 0)
+                {
+                    break;
+                }
+            }
+
+            const MathDelimElems = ActiveSyncMap.filter
+            (
+                (Elem) => Elem.line >= DelimStartLine && Elem.line <= DelimEndLine && !Elem.is_outline && !IsFullTableShape(Elem) && !(Elem.width < 50 && Elem.x > 450)
+            );
+            if (MathDelimElems.length > 0)
+            {
+                const FormulaBoxes = GroupElementsIntoVisualBoxes(MathDelimElems);
+                for (const Box of FormulaBoxes)
+                {
+                    Box.x -= 8.5;
+                    Box.width += 13.5;
+                }
+                HighlightSvgRects(FormulaBoxes, ForceAutoScroll);
+                return ;
+            }
+        }
+
+        let MathCandidates = SameLineCandidates.filter((Elem) => !(Elem.width < 50 && Elem.x > 450));
+        if (ActiveMathSpan)
+        {
+            MathCandidates = MathCandidates.filter
+            (
+                (Elem) => Elem.col >= ActiveMathSpan.StartCol && Elem.end_col <= (ActiveMathSpan.EndCol + 1)
+            );
+        }
+
+        if (MathCandidates.length > 0)
+        {
+            const ColIdx = Col - 1;
+            let TokenStart = ColIdx;
+            while (TokenStart > 0 && /[a-zA-Z0-9_]/.test(LineText[TokenStart - 1])) { TokenStart--; }
+            let TokenEnd = ColIdx;
+            while (TokenEnd < LineText.length && /[a-zA-Z0-9_]/.test(LineText[TokenEnd])) { TokenEnd++; }
+
+            // Check if cursor is on a function call atom e.g. f(x)
+            let AtomEnd = TokenEnd;
+            if (TokenEnd < LineText.length && LineText[TokenEnd] === "(")
+            {
+                let Depth = 1;
+                let Pos = TokenEnd + 1;
+                while (Pos < LineText.length && Depth > 0)
+                {
+                    if (LineText[Pos] === "(") { Depth++; }
+                    else if (LineText[Pos] === ")") { Depth--; }
+                    Pos++;
+                }
+                if (Depth === 0)
+                {
+                    AtomEnd = Pos;
+                }
+            }
+
+            if (AtomEnd > TokenEnd)
+            {
+                const AtomStartCol = TokenStart + 1;
+                const AtomEndCol = AtomEnd;
+                const AtomElems = MathCandidates.filter
+                (
+                    (Elem) => Elem.col >= AtomStartCol && Elem.col <= (AtomEndCol + 1)
+                );
+                if (AtomElems.length > 0)
+                {
+                    const AtomBoxes = GroupElementsIntoVisualBoxes(AtomElems);
+                    HighlightSvgRects(AtomBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+
+            const TokenStartCol = TokenStart + 1;
+            const TokenEndCol = Math.max(TokenStartCol, TokenEnd);
+            let BestSubElem = MathCandidates.find((Elem) => Elem.col >= TokenStartCol && Elem.col <= TokenEndCol);
+            if (!BestSubElem)
+            {
+                BestSubElem = MathCandidates.find((Elem) => Col >= Elem.col && Col <= Elem.end_col);
+            }
+            if (!BestSubElem)
+            {
+                let MinDist = Infinity;
+                for (const Elem of MathCandidates)
+                {
+                    const Mid = (Elem.col + Elem.end_col) / 2;
+                    const Dist = Math.abs(Col - Mid);
+                    if (Dist < MinDist && Dist <= 4.0)
+                    {
+                        MinDist = Dist;
+                        BestSubElem = Elem;
+                    }
+                }
+            }
+
+            if (BestSubElem)
+            {
+                HighlightSvgRects([BestSubElem], ForceAutoScroll);
+                return ;
+            }
+
+            const FormulaBoxes = GroupElementsIntoVisualBoxes(MathCandidates);
+            HighlightSvgRects(FormulaBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
+
+    // Check if cursor is on table.cell [ or [ of a table.cell
+    const IsTableCellBracket = TrimmedLine === "[" && (Line > 1 && (Model.getLineContent(Line - 1) || "").includes("table.cell"));
+    const IsTableCellHeader = /^\s*table\.cell\b/.test(LineText);
+    if (IsTableCellBracket || IsTableCellHeader)
+    {
+        const BracketStartLine = IsTableCellBracket ? Line : Line;
+        let BracketDepth = 0;
+        let CellEndLine = Line;
+        let FoundOpen = false;
+        const MaxScan = Math.min(Model.getLineCount(), Line + 35);
+
+        for (let L = BracketStartLine; L <= MaxScan; L++)
+        {
+            const CurLText = Model.getLineContent(L) || "";
+            for (let CharIdx = 0; CharIdx < CurLText.length; CharIdx++)
+            {
+                if (CurLText[CharIdx] === "[")
+                {
+                    BracketDepth++;
+                    FoundOpen = true;
+                }
+                else if (CurLText[CharIdx] === "]")
+                {
+                    BracketDepth--;
+                    if (FoundOpen && BracketDepth === 0)
+                    {
+                        CellEndLine = L;
+                        break;
+                    }
+                }
+            }
+            if (FoundOpen && BracketDepth === 0)
+            {
+                break;
+            }
+        }
+
+        const CellElems = ActiveSyncMap.filter
+        (
+            (Elem) => Elem.line >= Line && Elem.line <= CellEndLine && !Elem.is_outline && !IsFullTableShape(Elem)
+        );
+        if (CellElems.length > 0)
+        {
+            const GroupedBoxes = GroupElementsIntoVisualBoxes(CellElems);
+            HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
+
+    if (SameLineCandidates.length === 0)
+    {
+        // Container header or block boundary: check if cursor is on a container declaration
+        if (/^\s*(#table|table\.cell|table\.header|#grid|#block|#rect|#box)\b/.test(LineText) || TrimmedLine === "[" || TrimmedLine === "]" || TrimmedLine === "(" || TrimmedLine === ")")
+        {
+            const ContainerElems = ActiveSyncMap.filter((E) => E.line > Line && E.line <= (Line + 25) && Math.abs(E.line - Line) <= 15 && !E.is_outline && !IsFullTableShape(E));
+            if (ContainerElems.length > 0)
+            {
+                const ValidElems = (OutlineLine > 0 && Line > OutlineLine) ? ContainerElems.filter((E) => (E.page || 1) !== 1) : ContainerElems;
+                const TargetList = ValidElems.length > 0 ? ValidElems : ContainerElems;
+                const FirstTargetPage = TargetList[0].page || 1;
+                const PageElems = TargetList.filter((E) => (E.page || 1) === FirstTargetPage);
+                if (PageElems.length > 0)
+                {
+                    const GroupedBoxes = GroupElementsIntoVisualBoxes(PageElems);
+                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+        }
+
         ClearSyncHighlights();
         if (ForceAutoScroll)
         {
@@ -15579,60 +16128,66 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         }
         return ;
     }
-
-    const SameLineRaw = ActiveSyncMapByLine.get(Line) || (ActiveSyncMap.length < 500 ? ActiveSyncMap: []);
-    let SameLineCandidates = SameLineRaw.filter
-    (
-        (Elem) => (Elem.line === Line && Elem.end_line === Line) && ! (Elem.width < 50 && Elem.x > 450)
-    );
-    if (RepeatedSyncLines.has(Line))
+    else if (MathSpans.length > 0)
     {
-        SameLineCandidates = SameLineCandidates.filter( (Elem) => (Elem.page || 1) === 1);
+        // Cursor is OUTSIDE $ ... $: filter out all math elements so ONLY prose is highlighted!
+        SameLineCandidates = SameLineCandidates.filter
+        (
+            (Elem) => !MathSpans.some((M) => Elem.col >= M.StartCol && Elem.end_col <= (M.EndCol + 1))
+        );
+        if (SameLineCandidates.length === 0)
+        {
+            ClearSyncHighlights();
+            return ;
+        }
     }
 
-    if (SameLineCandidates.length > 0)
+    // 3. Table Cells on this line (support nested brackets)
+    const LineCells = [];
+    let BracketDepth = 0;
+    let CellStart = -1;
+    for (let I = 0; I < LineText.length; I++)
     {
-        // Check for multiple table cells on this line: [*Component*], [*Status*],
-        const CellRegex = /\[([^\]]*)\]/g;
-        let CellMatch;
-        const LineCells = [];
-
-        while
-        (
-            (CellMatch = CellRegex.exec(LineText)) !== null
-        )
+        const Ch = LineText[I];
+        if (Ch === "[")
         {
-            LineCells.push
-            ({
-                StartCol: CellMatch.index + 1,
-                EndCol: CellMatch.index + CellMatch[0].length
-            });
+            if (BracketDepth === 0) { CellStart = I + 1; }
+            BracketDepth++;
         }
-
-        if (LineCells.length > 1)
+        else if (Ch === "]")
         {
-            const InsideCell = LineCells.find( (C) => Col >= C.StartCol && Col <= C.EndCol);
-            if (InsideCell)
+            BracketDepth--;
+            if (BracketDepth === 0 && CellStart !== -1)
             {
-                const MatchingCellElems = SameLineCandidates.filter
-                (
-                    (Elem) => Elem.col >= InsideCell.StartCol && Elem.end_col <= (InsideCell.EndCol + 1)
-                );
-                if (MatchingCellElems.length > 0)
-                {
-                    const GroupedBoxes = GroupElementsIntoVisualBoxes(MatchingCellElems);
-                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
-                    return ;
-                }
+                LineCells.push({ StartCol: CellStart, EndCol: I + 1 });
+                CellStart = -1;
             }
-            else
+        }
+    }
+
+    if (LineCells.length > 1)
+    {
+        const InsideCell = LineCells.find((C) => Col >= C.StartCol && Col <= C.EndCol);
+        if (InsideCell)
+        {
+            const MatchingCellElems = SameLineCandidates.filter
+            (
+                (Elem) => Elem.col >= InsideCell.StartCol && Elem.end_col <= (InsideCell.EndCol + 1)
+            );
+            if (MatchingCellElems.length > 0)
             {
-                // Cursor is in the space or comma between cells -> highlight all cells in the row
-                const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
+                const GroupedBoxes = GroupElementsIntoVisualBoxes(MatchingCellElems);
                 HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
                 return ;
             }
         }
+        else
+        {
+            const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
+            HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
         // Check for function call arguments on this line (e.g. MetricBadge("Throughput", 98))
         const CallBoxElem = SameLineCandidates.find( (E) => String(E.span).startsWith("call_box_"));
         const CallArgElems = SameLineCandidates.filter( (E) => String(E.span).startsWith("call_arg_"));
@@ -15763,15 +16318,7 @@ function PerformForwardSync(Line, Col, ForceAutoScroll = true)
         }
 
         HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
-        return ;
     }
-    // Line has no rendered glyphs (empty line, blank spaces, $, mat, delimiters) -> NO HIGHLIGHT
-    ClearSyncHighlights();
-    if (ForceAutoScroll)
-    {
-        ScrollPreviewToNearestLine(Line);
-    }
-}
 // Make functions accessible from onclick handlers
 window.OpenFileFromWorkspace = OpenFileFromWorkspace;
 window.RemoveWorkspaceDirectory = RemoveWorkspaceDirectory;
@@ -15809,7 +16356,20 @@ window.addEventListener
         UpdateBlackPageMode();
         SetUIMode(CurrentUIMode);
         UpdateFontSizeUI();
-        UpdateFullscreenUI(false);
+        if (window.__TAURI__ && window.__TAURI__.window && typeof window.__TAURI__.window.getCurrentWindow === "function")
+        {
+            window.__TAURI__.window.getCurrentWindow().isFullscreen()
+                .then((IsFs) =>
+                {
+                    IsAppFullscreen = Boolean(IsFs);
+                    UpdateFullscreenUI(IsAppFullscreen);
+                })
+                .catch(() => { UpdateFullscreenUI(false); });
+        }
+        else
+        {
+            UpdateFullscreenUI(false);
+        }
         SetupZoomControls();
         try
         {

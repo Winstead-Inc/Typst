@@ -463,7 +463,7 @@ cast!
 {
     GridChild,
     self => match self { Self::Header(header) => header.into_value(), Self::Footer(footer) => footer.into_value(), Self::Item(item) => item.into_value(), },
-    v: Content => { v.try_into()? },
+    v: Content => v.try_into()?,
 }
 
 impl TryFrom<Content> for GridChild
@@ -490,7 +490,7 @@ cast!
 {
     GridItem,
     self => match self { Self::HLine(hline) => hline.into_value(), Self::VLine(vline) => vline.into_value(), Self::Cell(cell) => cell.into_value(), },
-    v: Content => { v.try_into()? }
+    v: Content => v.try_into()?,
 }
 
 impl TryFrom<Content> for GridItem

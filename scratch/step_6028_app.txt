@@ -1,0 +1,7 @@
+TARGET:
+            SetupSmartTypographyKeydownListener();
+            SetupZeroDialogClipboardPasting();
+===REPLACEMENT===
+            SetupSmartTypographyKeydownListener();
+            SetupStructuralContainerDispatchHook();
+            SetupZeroDialogClipboardPasting();
