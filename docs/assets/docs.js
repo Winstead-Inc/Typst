@@ -7,21 +7,12 @@ const copyIconSrc = assetBase + "icons/16-copy.svg";
 const searchIndexSrc = assetBase + "search.json";
 
 const hasTransitionEnd = "ontransitionend" in window;
-const prefersReducedMotion = window.matchMedia
-(
-    "(prefers-reduced-motion: reduce)",
-)
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)",)
 .matches;
 
 const hoverQuery = window.matchMedia("(hover: hover)");
 let isHover = hoverQuery.matches;
-hoverQuery.addEventListener
-(
-    "change", (e) =>
-    {
-        isHover = e.matches;
-    }
-);
+hoverQuery.addEventListener("change", (e) => { isHover = e.matches; });
 /**
  * Called at the bottom. Should hold all actual logic (no top-level set up
  * code).
@@ -30,7 +21,8 @@ function main()
 {
     document.addEventListener
     (
-        "DOMContentLoaded", () =>
+        "DOMContentLoaded",
+        () =>
         {
             setUpKeyboardNavigation();
             setUpCollapsingSidebar();
@@ -60,24 +52,16 @@ function setUpKeyboardNavigation()
 
     window.addEventListener
     (
-        "keyup", (e) =>
+        "keyup",
+        (e) =>
         {
             const inputs = document.querySelectorAll("textarea:focus, input:focus");
-            if (inputs.length > 0)
-            {
-                return ;
-            }
+            if (inputs.length > 0) { return; }
 
             if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey)
             {
-                if (e.key === "ArrowLeft" && prevBtn)
-                {
-                    window.location.href = prevBtn.href;
-                }
-                else if (e.key === "ArrowRight" && nextBtn)
-                {
-                    window.location.href = nextBtn.href;
-                }
+                if (e.key === "ArrowLeft" && prevBtn) { window.location.href = prevBtn.href; }
+                else if (e.key === "ArrowRight" && nextBtn) { window.location.href = nextBtn.href; }
             }
         }
     );
@@ -87,53 +71,23 @@ function setUpCollapsingSidebar()
 {
     /** @type {HTMLElement | null} */
     const nav = document.querySelector("nav.folding");
-    if (!nav) return ;
+    if (!nav) return;
 
     nav.classList.add("mobile-hidden");
     nav.style.opacity = "1";
 
-    const handleWindowClick = (e) =>
-    {
-        if (!nav.classList.contains("mobile-hidden") && !nav.contains(e.target))
-        {
-            hide();
-            e.preventDefault();
-        }
-    };
+    const handleWindowClick = (e) => { if (!nav.classList.contains("mobile-hidden") && !nav.contains(e.target)) { hide(); e.preventDefault(); } };
 
-    const finallyHide = () =>
-    {
-        nav.classList.add("mobile-hidden");
-        nav.style.transform = "translateX(0)";
-    };
+    const finallyHide = () => { nav.classList.add("mobile-hidden"); nav.style.transform = "translateX(0)"; };
 
-    const hide = () =>
-    {
-        window.removeEventListener("click", handleWindowClick);
-        if (hasTransitionEnd && !prefersReducedMotion)
-        {
-            nav.style.transform = "translateX(-100%)";
-            nav.addEventListener("transitionend", finallyHide, { once: true });
-        }
-        else
-        {
-            finallyHide();
-        }
-    };
+    const hide = () => { window.removeEventListener("click", handleWindowClick); if (hasTransitionEnd && !prefersReducedMotion) { nav.style.transform = "translateX(-100%)"; nav.addEventListener("transitionend", finallyHide, { once: true }); } else { finallyHide(); } };
 
     const show = () =>
     {
         nav.removeEventListener("transitionend", finallyHide);
         nav.style.transform = "translateX(-100%)";
         nav.classList.remove("mobile-hidden");
-        requestAnimationFrame
-        (
-            () =>
-            {
-                window.addEventListener("click", handleWindowClick);
-                nav.style.transform = "translateX(0)";
-            }
-        );
+        requestAnimationFrame( () => { window.addEventListener("click", handleWindowClick); nav.style.transform = "translateX(0)"; });
     };
 
     document.querySelector("button.hamburger")?.addEventListener("click", show);
@@ -143,10 +97,7 @@ function setUpCollapsingSidebar()
  * Sets up the navigation bar on the left of the docs, enabling automatic
  * expansion/collapsing.
  */
-function setUpFoldingNav()
-{
-    document.querySelectorAll("nav.folding > ul").forEach(setUpAccordion);
-}
+function setUpFoldingNav() { document.querySelectorAll("nav.folding > ul").forEach(setUpAccordion); }
 /**
  * Sets up an expanding/collapsing accordion.
  *
@@ -156,11 +107,7 @@ function setUpFoldingNav()
 function setUpAccordion(target)
 {
     const children = Array.from (target.children);
-    const hasCurrent = children.some
-    (
-        (child) =>
-        child.querySelector("li > a[aria-current]"),
-    );
+    const hasCurrent = children.some( (child) => child.querySelector("li > a[aria-current]"),);
     // All extensible elements, their button, their child and their expanded
     // height.
     let animated = false;
@@ -171,32 +118,19 @@ function setUpAccordion(target)
         const buttons = target.getElementsByTagName("button");
         const children = target.getElementsByTagName("ul");
         const anchors = target.getElementsByTagName("a");
-        if (buttons.length === 0 || children.length === 0)
-        {
-            continue;
-        }
+        if (buttons.length === 0 || children.length === 0) { continue; }
 
         const button = buttons[0];
         const child = children[0];
         const childHasCurrent = setUpAccordion(child);
         const isCurrent = anchors[0]?.getAttribute("aria-current") === "page";
 
-        setUpAccordionItem
-        (
-            target,
-            button,
-            child,
-            childHasCurrent || isCurrent,
-            false,
-        );
+        setUpAccordionItem(target, button, child, childHasCurrent || isCurrent, false,);
 
         animated = true;
     }
 
-    if (animated)
-    {
-        target.classList.add("animated");
-    }
+    if (animated) { target.classList.add("animated"); }
 
     return hasCurrent;
 }
@@ -208,40 +142,20 @@ function setUpAccordion(target)
  * @param child The child that is folded
  * @param initiallyOpen Whether the child should be open initially
  */
-function setUpAccordionItem
-(
-    target,
-    button,
-    child,
-    initiallyOpen,
-    preventDefault = false,
-)
+function setUpAccordionItem(target, button, child, initiallyOpen, preventDefault = false,)
 {
     const { toggle, expand, collapse }
     = toggleFactory(target, child);
     child.style.overflow = "visible hidden";
 
     const childHeight = Math.max(child.offsetHeight, 40 * child.children.length);
-    if (!initiallyOpen)
-    {
-        collapse(childHeight, false);
-    }
-    else
-    {
-        expand(childHeight, false);
-    }
+    if (!initiallyOpen) { collapse(childHeight, false); }
+    else { expand(childHeight, false); }
 
     button.addEventListener
     (
-        "click", (e) =>
-        {
-            if (preventDefault)
-            {
-                e.preventDefault();
-            }
-
-            toggle(childHeight);
-        }
+        "click",
+        (e) => { if (preventDefault) { e.preventDefault(); } toggle(childHeight); }
     );
 }
 /**
@@ -258,48 +172,38 @@ function toggleFactory(target, child)
     const collapse = collapseFactory(target, child, handler);
 
     return {
-        toggle: (childHeight) =>
-        {
-            if (target.getAttribute("aria-expanded") === "true")
-            {
-                collapse(childHeight, true);
-            }
-            else
-            {
-                expand(childHeight, true);
-            }
-        },
-        expand,
-        collapse,
-    };
+               toggle: (childHeight) =>
+               {
+                   if (target.getAttribute("aria-expanded") === "true") { collapse(childHeight, true); }
+                   else { expand(childHeight, true); }
+               },
+
+               expand,
+               collapse,
+           };
 }
 /** Sets up an expansion handler for an element. */
 function expandFactory(target, child)
 {
-    const handler = () =>
-    {
-        child.style.maxHeight = "none";
-    };
+    const handler = () => { child.style.maxHeight = "none"; };
 
     return {
-        expand: (childHeight, animated) =>
-        {
-            if (hasTransitionEnd && animated)
-            {
-                child.addEventListener("transitionend", handler, { once: true });
-                child.style.maxHeight = `${childHeight}px`;
-                child.style.pointerEvents = "auto";
-                child.style.userSelect = "auto";
-                child.style.opacity = "1";
-            }
-            else
-            {
-                handler();
-            }
-            target.setAttribute("aria-expanded", "true");
-        },
-        handler,
-    };
+               expand: (childHeight, animated) =>
+               {
+                   if (hasTransitionEnd && animated)
+                   {
+                       child.addEventListener("transitionend", handler, { once: true });
+                       child.style.maxHeight = `${childHeight}px`;
+                       child.style.pointerEvents = "auto";
+                       child.style.userSelect = "auto";
+                       child.style.opacity = "1";
+                   }
+                   else { handler(); }
+                   target.setAttribute("aria-expanded", "true");
+               },
+
+               handler,
+           };
 }
 /** Sets up a collapsing handler for an element. */
 function collapseFactory(target, child, handler)
@@ -307,10 +211,7 @@ function collapseFactory(target, child, handler)
     return (childHeight, animated) =>
     {
         child.removeEventListener("transitionend", handler);
-        if (animated)
-        {
-            child.style.maxHeight = `${childHeight}px`;
-        }
+        if (animated) { child.style.maxHeight = `${childHeight}px`; }
         window.requestAnimationFrame
         (
             () =>
@@ -350,41 +251,24 @@ function setUpOnThisPage()
             const url = new URL(anchor.href);
             const assocId = url.hash.replace(/^#/, "");
             const assoc = document.getElementById(assocId);
-            if (assoc)
-            {
-                entries.push( { item: item, assoc, anchor });
-            }
+            if (assoc) { entries.push( { item: item, assoc, anchor }); }
         }
     }
 
-    const update = () =>
-    {
-        const current = entries.find( (item) => isElementInViewport(item.assoc));
-        if (current)
-        {
-            for (const entry of entries)
-            {
-                entry.item.removeAttribute("aria-current");
-            }
-            current.item.setAttribute("aria-current", "true");
-        }
-    };
+    const update = () => { const current = entries.find( (item) => isElementInViewport(item.assoc)); if (current) { for (const entry of entries) { entry.item.removeAttribute("aria-current"); } current.item.setAttribute("aria-current", "true"); } };
 
     update();
     window.addEventListener("scroll", update);
     window.addEventListener("resize", update);
 }
 /** Makes all tooltips on the page interactive. */
-function setUpTooltips()
-{
-    document.querySelectorAll("div.tooltip-context").forEach(setUpTooltip);
-}
+function setUpTooltips() { document.querySelectorAll("div.tooltip-context").forEach(setUpTooltip); }
 /** Makes a tooltip div interactive. */
 function setUpTooltip(target)
 {
     const button = target.querySelector("svg");
     const tooltip = target.querySelector("div[role='tooltip']");
-    if (!button || !tooltip) return ;
+    if (!button || !tooltip) return;
 
     const title = button.getElementsByTagName("title")[0];
     const titleText = title.textContent;
@@ -403,16 +287,8 @@ function setUpTooltip(target)
             tooltip.style.left = `${windowWidth - tooltipWidth - rect.left - 32}px`;
             tooltip.classList.add("mobile");
         }
-        else if (rect.left - tooltipWidth / 2 < 0)
-        {
-            tooltip.style.left = `${-rect.left + 32}px`;
-            tooltip.classList.add("mobile");
-        }
-        else
-        {
-            tooltip.style.left = "-120px";
-            tooltip.classList.remove("mobile");
-        }
+        else if (rect.left - tooltipWidth / 2 < 0) { tooltip.style.left = `${- rect.left + 32}px`; tooltip.classList.add("mobile"); }
+        else { tooltip.style.left = "-120px"; tooltip.classList.remove("mobile"); }
 
         isOpen = true;
         title.innerHTML = "";
@@ -439,85 +315,31 @@ function setUpTooltip(target)
             tooltip.style.pointerEvents = "none";
             tooltip.setAttribute("aria-hidden", "true");
         };
-        if (hasTransitionEnd && !prefersReducedMotion)
-        {
-            tooltip.addEventListener("transitionend", handler, { once: true });
-        }
-        else
-        {
-            handler();
-        }
-        window.requestAnimationFrame
-        (
-            () =>
-            {
-                if (hasTransitionEnd && !prefersReducedMotion)
-                {
-                    tooltip.style.opacity = "0";
-                }
-            }
-        );
+        if (hasTransitionEnd && !prefersReducedMotion) { tooltip.addEventListener("transitionend", handler, { once: true }); }
+        else { handler(); }
+        window.requestAnimationFrame( () => { if (hasTransitionEnd && !prefersReducedMotion) { tooltip.style.opacity = "0"; } });
     };
 
     button.addEventListener
     (
-        "click", () =>
+        "click",
+        () =>
         {
-            if (!isHover)
-            {
-                if (isOpen && Date.now() - lastShow > 100)
-                {
-                    hide();
-                }
-                else
-                {
-                    show();
-                }
-            }
+            if (!isHover) { if (isOpen && Date.now() - lastShow > 100) { hide(); } else { show(); } }
         }
     );
-    button.addEventListener
-    (
-        "mouseenter", (e) =>
-        {
-            e.preventDefault();
-            show();
-        }
-    );
-    button.addEventListener
-    (
-        "mousemove", (e) =>
-        {
-            if (isOpen)
-            {
-                e.preventDefault();
-            }
-        }
-    );
+    button.addEventListener("mouseenter", (e) => { e.preventDefault(); show(); });
+    button.addEventListener("mousemove", (e) => { if (isOpen) { e.preventDefault(); } });
     button.addEventListener("focus", show);
     button.addEventListener("blur", hide);
     button.addEventListener("mouseleave", hide);
     window.addEventListener
     (
-        "click", (e) =>
-        {
-            if (isOpen && !target.contains(e.target))
-            {
-                hide();
-            }
-        }
+        "click",
+        (e) => { if (isOpen && !target.contains(e.target)) { hide(); } }
     );
     window.addEventListener("mouseleave", hide);
-    window.addEventListener
-    (
-        "keydown", (e) =>
-        {
-            if (isOpen && e.key === "Escape")
-            {
-                hide();
-            }
-        }
-    );
+    window.addEventListener("keydown", (e) => { if (isOpen && e.key === "Escape") { hide(); } });
 }
 /**
  * Sets up how the examples with previews are split.
@@ -529,10 +351,7 @@ function setUpPreviewSplits()
 {
     for (const example of document.querySelectorAll(".previewed-code > pre"))
     {
-        if (example.clientWidth < example.scrollWidth)
-        {
-            example.classList.add("big");
-        }
+        if (example.clientWidth < example.scrollWidth) { example.classList.add("big"); }
     }
 }
 /**
@@ -548,20 +367,15 @@ function setUpPreviewCopy()
         let timeoutId;
         pre.addEventListener
         (
-            "click", () =>
+            "click",
+            () =>
             {
                 pre.classList.add("tapped");
                 clearTimeout(timeoutId);
                 timeoutId = setTimeout( () => pre.classList.remove("tapped"), 30_000);
             }
         );
-        button.addEventListener
-        (
-            "click", () =>
-            {
-                copyText(pre.innerText);
-            }
-        );
+        button.addEventListener("click", () => { copyText(pre.innerText); });
         button.disabled = false;
     }
 }
@@ -569,42 +383,17 @@ function setUpPreviewCopy()
  * Sets up the overlays/flyouts that can be revealed by clicking on a symbol box
  * in a symbol lists.
  */
-function setUpSymbolFlyouts()
-{
-    for (const symbolGrid of document.querySelectorAll("main > .symbol-grid"))
-    {
-        setUpSymbolFlyout(symbolGrid);
-    }
-}
+function setUpSymbolFlyouts() { for (const symbolGrid of document.querySelectorAll("main > .symbol-grid")) { setUpSymbolFlyout(symbolGrid); } }
 /** Sets up the overlay/flyout for a single symbol list. */
 function setUpSymbolFlyout(symbolGrid)
 {
-    const flyoutTemplate = /** @type {HTMLTemplateElement} */
-    (
-        document.getElementById("flyout-template")
-    );
-    const flyoutRowTemplate = /** @type {HTMLTemplateElement} */
-    (
-        document.getElementById("flyout-sym-row")
-    );
-    if (!symbolGrid || !flyoutTemplate || !flyoutRowTemplate)
-    {
-        return ;
-    }
+    const flyoutTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("flyout-template"));
+    const flyoutRowTemplate = /** @type {HTMLTemplateElement} */ (document.getElementById("flyout-sym-row"));
+    if (!symbolGrid || !flyoutTemplate || !flyoutRowTemplate) { return; }
 
-    if
-    (
-        ! ("content" in document.createElement("template"))
-    )
-    {
-        console.warn("Browser does not support template elements");
-        return ;
-    }
+    if (! ("content" in document.createElement("template"))) { console.warn("Browser does not support template elements"); return; }
 
-    const flyout = /** @type {HTMLDivElement} */
-    (
-        flyoutTemplate.content.firstElementChild.cloneNode(true)
-    );
+    const flyout = /** @type {HTMLDivElement} */ (flyoutTemplate.content.firstElementChild.cloneNode(true));
 
     flyout.style.display = "none";
     symbolGrid.appendChild(flyout);
@@ -615,10 +404,7 @@ function setUpSymbolFlyout(symbolGrid)
     /** @type {HTMLElement | null} */
     const foDeprecation = flyout.querySelector(".info .sym-deprecation");
     /** @type {HTMLElement | null} */
-    const foDeprecationText = flyout.querySelector
-    (
-        ".info .sym-deprecation .text",
-    );
+    const foDeprecationText = flyout.querySelector(".info .sym-deprecation .text",);
     /** @type {HTMLElement | null} */
     const foName = flyout.querySelector(".info .sym-name");
     /** @type {HTMLElement | null} */
@@ -659,35 +445,15 @@ function setUpSymbolFlyout(symbolGrid)
     let flyoutOpenId = undefined;
     const closeFlyout = () =>
     {
-        const btn = flyoutOpenId ? document.getElementById(flyoutOpenId): null;
-        if (btn)
-        {
-            btn.ariaHasPopup = "false";
-        }
+        const btn = flyoutOpenId ? document.getElementById(flyoutOpenId) : null;
+        if (btn) { btn.ariaHasPopup = "false"; }
         flyoutOpenId = undefined;
         flyout.style.display = "none";
         window.removeEventListener("click", windowClickHandler);
-        for (const { target, listener } of listeners)
-        {
-            target.removeEventListener("click", listener);
-        }
+        for (const { target, listener } of listeners) { target.removeEventListener("click", listener); }
     };
 
-    const windowClickHandler = (e) =>
-    {
-        if
-        (
-            flyoutOpenId !== undefined &&
-            e.target &&
-            "id" in e.target &&
-            flyoutOpenId !== e.target?.id &&
-            ! flyout.contains(e.target)
-        )
-        {
-            closeFlyout();
-            e.preventDefault();
-        }
-    };
+    const windowClickHandler = (e) => { if (flyoutOpenId !== undefined && e.target && "id" in e.target && flyoutOpenId !== e.target?.id && !flyout.contains(e.target)) { closeFlyout(); e.preventDefault(); } };
     /** @param item List item with the data- attributes configure on the HTML. */
     const populateFlyout = (item) =>
     {
@@ -702,7 +468,7 @@ function setUpSymbolFlyout(symbolGrid)
         const accent = item.dataset.accent != null;
         const alternates = item.dataset.alternates
         ? item.dataset.alternates.split(" ")
-        :[];
+        : [];
         const mathShorthand = item.dataset.mathShorthand;
         const markupShorthand = item.dataset.markupShorthand;
         const shorthand = markupShorthand ?? mathShorthand;
@@ -712,57 +478,28 @@ function setUpSymbolFlyout(symbolGrid)
         copyText(actualChar);
 
         const escapeTextParts = [];
-        for (const c of value)
-        {
-            const codepoint = c.codePointAt(0);
-            escapeTextParts.push(`\\u{${codepoint.toString(16)}}`)
-        }
+        for (const c of value) { const codepoint = c.codePointAt(0); escapeTextParts.push(`\\u{${codepoint.toString(16)}}`) }
         const escapeText = escapeTextParts.join("");
 
         flyout.classList.toggle("override", override != null);
         foSymbol.textContent = override ?? actualChar;
 
-        foDeprecation.style.display = deprecation ? "flex": "none";
-        if (deprecation)
-        {
-            foDeprecationText.textContent = deprecation.replaceAll("`", "");
-        }
+        foDeprecation.style.display = deprecation ? "flex" : "none";
+        if (deprecation) { foDeprecationText.textContent = deprecation.replaceAll("`", ""); }
 
-        if (codexName)
-        {
-            foName.style.display = "block";
-            foNameCode.textContent = codexName;
-        }
-        else
-        {
-            foName.style.display = "none";
-        }
+        if (codexName) { foName.style.display = "block"; foNameCode.textContent = codexName; }
+        else { foName.style.display = "none"; }
         foUnicName.textContent = unicName ?? "";
         foEscape.textContent = escapeText;
-        foAccent.style.display = accent ? null: "none";
-        foShorthand.style.display =
-        shorthand && shorthand.length > 0 ? "block": "none";
+        foAccent.style.display = accent ? null : "none";
+        foShorthand.style.display = shorthand && shorthand.length > 0 ? "block" : "none";
         foShorthandCode.textContent = shorthand ?? "";
 
-        if (latexName)
-        {
-            foLaTeXName.style.display = "block";
-            foLaTeXNameCode.textContent = latexName;
-        }
-        else
-        {
-            foLaTeXName.style.display = "none";
-        }
+        if (latexName) { foLaTeXName.style.display = "block"; foLaTeXNameCode.textContent = latexName; }
+        else { foLaTeXName.style.display = "none"; }
 
-        if (mathClass)
-        {
-            foMathClass.style.display = "block";
-            foMathClassSpan.textContent = mathClass;
-        }
-        else
-        {
-            foMathClass.style.display = "none";
-        }
+        if (mathClass) { foMathClass.style.display = "block"; foMathClassSpan.textContent = mathClass; }
+        else { foMathClass.style.display = "none"; }
 
         const nameListener = () => copyText(codexName);
         foCopySymNameBtn.addEventListener("click", nameListener);
@@ -772,28 +509,17 @@ function setUpSymbolFlyout(symbolGrid)
         {
             const shorthandListener = () => copyText(shorthand);
             foCopyShorthandBtn.addEventListener("click", shorthandListener);
-            listeners.push
-            ({
-                target: foCopyShorthandBtn,
-                listener: shorthandListener,
-            });
+            listeners.push( { target: foCopyShorthandBtn, listener: shorthandListener, });
 
             if (foShorthandRemark)
             {
-                if (mathShorthand && !markupShorthand)
-                {
-                    foShorthandRemark.textContent = "(only in math)";
-                    foShorthandRemark.style.display = "inline";
-                }
+                if (mathShorthand && !markupShorthand) { foShorthandRemark.textContent = "(only in math)"; foShorthandRemark.style.display = "inline"; }
                 else if (!mathShorthand && markupShorthand)
                 {
                     foShorthandRemark.textContent = "(only in markup)";
                     foShorthandRemark.style.display = "inline";
                 }
-                else
-                {
-                    foShorthandRemark.style.display = "none";
-                }
+                else { foShorthandRemark.style.display = "none"; }
             }
         }
 
@@ -809,10 +535,7 @@ function setUpSymbolFlyout(symbolGrid)
             (
                 (alt) =>
                 {
-                    const row = /** @type {HTMLLIElement} */
-                    (
-                        flyoutRowTemplate.content.firstElementChild.cloneNode(true)
-                    );
+                    const row = /** @type {HTMLLIElement} */ (flyoutRowTemplate.content.firstElementChild.cloneNode(true));
                     const altSymbol = row.querySelector(".sym");
                     const altBtn = row.querySelector("button");
                     const item = document.getElementById(`symbol-${alt}`);
@@ -823,14 +546,12 @@ function setUpSymbolFlyout(symbolGrid)
                         altBtn.classList.toggle("override", altOverride != null);
                         altSymbol.textContent = altOverride ?? item.dataset.value ?? "";
                     }
-                    else
-                    {
-                        return null;
-                    }
+                    else { return null; }
 
                     altBtn.addEventListener
                     (
-                        "click", (e) =>
+                        "click",
+                        (e) =>
                         {
                             populateFlyout(item);
                             item.scrollIntoView();
@@ -843,8 +564,7 @@ function setUpSymbolFlyout(symbolGrid)
             )
             .filter( (r) => r != null);
 
-            foVariantsBox.style.display =
-            alternateElems.length > 0 ? "block": "none";
+            foVariantsBox.style.display = alternateElems.length > 0 ? "block" : "none";
             foAlternates.replaceChildren(...alternateElems);
         }
         // Position the flyout
@@ -853,11 +573,7 @@ function setUpSymbolFlyout(symbolGrid)
 
         if (item.getBoundingClientRect().left + 408 > window.innerWidth)
         {
-            left = Math.max
-            (
-                8,
-                window.innerWidth - symbolGrid.getBoundingClientRect().left - 424,
-            );
+            left = Math.max(8, window.innerWidth - symbolGrid.getBoundingClientRect().left - 424,);
         }
 
         flyout.style.left = `${left}px`;
@@ -868,36 +584,19 @@ function setUpSymbolFlyout(symbolGrid)
 
     window.addEventListener
     (
-        "keydown", (e) =>
-        {
-            if (e.key === "Escape" && flyoutOpenId !== undefined)
-            {
-                closeFlyout();
-                e.preventDefault();
-            }
-        }
+        "keydown",
+        (e) => { if (e.key === "Escape" && flyoutOpenId !== undefined) { closeFlyout(); e.preventDefault(); } }
     );
 
     for (const item of symbolGrid.children)
     {
         if (item.tagName !== "LI") continue;
-        item.addEventListener
-        (
-            "click", (e) =>
-            {
-                populateFlyout(item);
-                e.preventDefault();
-            }
-        );
+        item.addEventListener("click", (e) => { populateFlyout(item); e.preventDefault(); });
     }
 
     window.requestAnimationFrame
     (
-        () =>
-        {
-            window.removeEventListener("click", windowClickHandler);
-            window.addEventListener("click", windowClickHandler, { capture: true });
-        }
+        () => { window.removeEventListener("click", windowClickHandler); window.addEventListener("click", windowClickHandler, { capture: true }); }
     );
 }
 /**
@@ -916,15 +615,12 @@ function setUpSymbolFlyout(symbolGrid)
  */ /** Sets up the docs-wide search. */
 async function setUpGlobalSearch()
 {
-    const textBox = /** @type {HTMLInputElement} */
-    (
-        document.getElementById("docs-search")
-    );
+    const textBox = /** @type {HTMLInputElement} */ (document.getElementById("docs-search"));
     const resultList = document.getElementById("search-results");
-    if (!textBox || !resultList) return ;
+    if (!textBox || !resultList) return;
 
     const index = await fetchSearchIndex();
-    if (!index) return ;
+    if (!index) return;
 
     const search = () =>
     {
@@ -937,12 +633,7 @@ async function setUpGlobalSearch()
             {
                 const item = index.items[hit];
                 let url = item.route;
-                if
-                (
-                    item.kind == "Symbols" &&
-                    ! "symbols".startsWith(query.toLowerCase()) &&
-                    ! "emojis".startsWith(query.toLowerCase())
-                )
+                if (item.kind == "Symbols" && !"symbols".startsWith(query.toLowerCase()) && !"emojis".startsWith(query.toLowerCase()))
                 {
                     // Prefill the symbol list search box unless the user searched for
                     // something like "symbols", "sym", or "emoji".
@@ -959,20 +650,12 @@ async function setUpGlobalSearch()
                     let first = true;
                     for (const part of item.path.split("."))
                     {
-                        if (!first)
-                        {
-                            title.append(".");
-                            title.appendChild(document.createElement("wbr"));
-                        }
+                        if (!first) { title.append("."); title.appendChild(document.createElement("wbr")); }
                         title.append(part);
                         first = false;
                     }
                 }
-                else
-                {
-                    title = document.createElement("span");
-                    title.textContent = item.title;
-                }
+                else { title = document.createElement("span"); title.textContent = item.title; }
                 title.classList.add("result-title");
                 a.appendChild(title);
 
@@ -993,20 +676,11 @@ async function setUpGlobalSearch()
     textBox.addEventListener("keyup", search);
     document.addEventListener
     (
-        "keyup", (event) =>
-        {
-            if (event.key && event.key.toLowerCase() == "s")
-            {
-                event.stopPropagation();
-                textBox.focus();
-            }
-        }
+        "keyup",
+        (event) => { if (event.key && event.key.toLowerCase() == "s") { event.stopPropagation(); textBox.focus(); } }
     );
 
-    if (textBox.value != "")
-    {
-        search();
-    }
+    if (textBox.value != "") { search(); }
 }
 /**
  * Returns matches for docs-wide search.
@@ -1024,37 +698,17 @@ function searchGlobally(index, query)
     function registerHit(hit)
     {
         // This is fast because the match list never exceeds a length of ten.
-        if (matches.includes(hit)) return ;
+        if (matches.includes(hit)) return;
 
         const item = index.items[hit];
         scores[hit] = scoreItem(item, query);
         // We keep the match list small...
-        if (matches.length < 10)
-        {
-            matches.push(hit);
-            return ;
-        }
+        if (matches.length < 10) { matches.push(hit); return; }
         // ...if it gets too long, we replace worse matches.
         let worst = 0;
-        for (let i = 0; i < matches.length; i ++)
-        {
-            if
-            (
-                scores[matches[i]] < scores[matches[worst]]
-            )
-            {
-                worst = i;
-            }
-        }
+        for (let i = 0; i < matches.length; i++) { if (scores[matches[i]] < scores[matches[worst]]) { worst = i; } }
 
-        if
-        (
-            scores[hit] > scores[matches[worst]]
-        )
-        {
-            matches[worst] = hit;
-            return ;
-        }
+        if (scores[hit] > scores[matches[worst]]) { matches[worst] = hit; return; }
     }
     // Each word is searches for separately.
     const queries = query
@@ -1071,33 +725,16 @@ function searchGlobally(index, query)
         while (start < end)
         {
             let mid = Math.floor( (start + end) / 2);
-            if (index.words[mid].startsWith(subquery))
-            {
-                start = mid;
-                break;
-            }
-            else if (subquery < index.words[mid])
-            {
-                end = mid - 1;
-            }
-            else
-            {
-                start = mid + 1;
-            }
+            if (index.words[mid].startsWith(subquery)) { start = mid; break; }
+            else if (subquery < index.words[mid]) { end = mid - 1; }
+            else { start = mid + 1; }
         }
         // Go back to find the first word that starts with the subquery.
         let i = start;
-        while (i > 0 && index.words[i].startsWith(subquery)) i --;
-        i ++;
+        while (i > 0 && index.words[i].startsWith(subquery)) i--;
+        i++;
         // Walk through all words that start with the subquery.
-        while (i < index.words.length && index.words[i].startsWith(subquery))
-        {
-            for (const hit of index.hits[i])
-            {
-                registerHit(hit);
-            }
-            i ++;
-        }
+        while (i < index.words.length && index.words[i].startsWith(subquery)) { for (const hit of index.hits[i]) { registerHit(hit); } i++; }
     }
     // Rank by score.
     matches.sort( (a, b) => scores[b] - scores[a]);
@@ -1109,25 +746,9 @@ async function fetchSearchIndex()
 {
     const abortController = new AbortController();
     const timeout = setTimeout( () => abortController.abort(), 10000);
-    const index = await fetch
-    (
-        searchIndexSrc,
-        {
-            signal: abortController.signal,
-        }
-    )
-    .then
-    (
-        (r) => (r.ok ? r.json(): null)
-    )
-    .catch
-    (
-        (r) =>
-        {
-            console.warn("Failed to fetch search index", r);
-            return null;
-        }
-    );
+    const index = await fetch(searchIndexSrc, { signal: abortController.signal, })
+    .then( (r) =>(r.ok ? r.json() : null))
+    .catch ( (r) => { console.warn("Failed to fetch search index", r); return null; });
 
     clearTimeout(timeout);
     return index;
@@ -1142,26 +763,17 @@ async function fetchSearchIndex()
 function scoreItem(item, query)
 {
     // Different kinds of index item have different priority in the ranking.
-    const factors =
-    {
-        Type: 1.0,
-        Function: 0.9,
-        Parameter: 0.8,
-        Method: 0.7,
-        Symbols: 0.6,
-        Chapter: 0.5,
-        Category: 0.5,
-    };
-    const f = factors[item.kind.split(" ")[0]] ?? 0.4;
+    const factors = { Type: 1.0, Function: 0.9, Parameter: 0.8, Method: 0.7, Symbols: 0.6, Chapter: 0.5, Category: 0.5, };
+    const f = factors[item.kind.split(" ") [0]] ?? 0.4;
     return (
-        f *
-        Math.max
-        (
-            scoreText(item.title, query),
-            "path" in item ? scoreText(item.path, query): 0,
-            ...(item.keywords ||[]).map( (keyword) => scoreText(keyword, query)),
-        )
-    );
+               f *
+               Math.max
+               (
+                   scoreText(item.title, query),
+                   "path" in item ? scoreText(item.path, query) : 0,
+                   ...(item.keywords || []).map( (keyword) => scoreText(keyword, query)),
+               )
+           );
 }
 /**
  * Computes a similarly score for a potential hit and a search query. A higher
@@ -1181,37 +793,24 @@ function scoreText(text, query)
     //
     // All else being equal, we prefer shorter matches. E.g., for the query
     // "Numb", we'd prefer "Numbering" over "Numbered List".
-    return textSimple.includes(querySimple) ? 100 - text.length: 0;
+    return textSimple.includes(querySimple) ? 100 - text.length : 0;
 }
 /** Removes punctuation and symbols from text. */
-function simplifyText(text)
-{
-    return text.toLowerCase().replaceAll(/[!-/:-@[-`{-~\s]/g, "");
-}
+function simplifyText(text) { return text.toLowerCase().replaceAll(/[!-/:-@[-`{-~\s]/g, ""); }
 /** Makes the search box on the same pages active. */
 function setUpSymbolSearch()
 {
     const symbolGrid = document.querySelector("main > .symbol-grid");
-    const searchBox = /** @type {HTMLInputElement} */
-    (
-        document.getElementById("symbol-search")
-    );
-    if (!symbolGrid || !searchBox) return ;
+    const searchBox = /** @type {HTMLInputElement} */ (document.getElementById("symbol-search"));
+    if (!symbolGrid || !searchBox) return;
 
-    const symbols = /** @type {HTMLLIElement[]} */
-    (
-        Array.from (symbolGrid.children).filter( (c) => c.tagName === "LI")
-    );
+    const symbols = /** @type {HTMLLIElement[]} */ (Array.from(symbolGrid.children).filter( (c) => c.tagName === "LI"));
 
     const search = (event) =>
     {
         const query = searchBox.value;
-        for (const symbol of symbols)
-        {
-            symbol.style.display = "none";
-        }
-        const results =
-        query.length === 0 ? symbols: searchSymbols(symbols, query);
+        for (const symbol of symbols) { symbol.style.display = "none"; }
+        const results = query.length === 0 ? symbols : searchSymbols(symbols, query);
         for (const result of results)
         {
             result.remove();
@@ -1227,15 +826,9 @@ function setUpSymbolSearch()
 
     const urlParams = new URLSearchParams(window.location.search);
     const query = urlParams.get("query");
-    if (query)
-    {
-        searchBox.value = query;
-    }
+    if (query) { searchBox.value = query; }
 
-    if (searchBox.value !== "")
-    {
-        search();
-    }
+    if (searchBox.value !== "") { search(); }
 }
 /**
  * Find matches for a query in a symbol grid.
@@ -1249,22 +842,10 @@ function searchSymbols(symbols, query)
 {
     const computeScore = buildSymbolScoringFunction(query);
     return symbols
-    .map
-    (
-        (symbol) => [symbol, computeScore(symbol)]
-    )
-    .filter
-    (
-        ([_result, score]) => score > 0.0
-    )
-    .toSorted
-    (
-        ([_r1, s1],[_r2, s2]) => s2 - s1
-    )
-    .map
-    (
-        ([result, _score]) => result
-    );
+    .map( (symbol) => [symbol, computeScore(symbol)])
+    .filter( ([_result, score]) => score > 0.0)
+    .toSorted( ([_r1, s1], [_r2, s2]) => s2 - s1)
+    .map( ([result, _score]) => result);
 }
 /**
  * Creates a scoring function from a symbol search query.
@@ -1283,15 +864,10 @@ function buildSymbolScoringFunction(query)
     // - U +12
     // - \u{abD3a}
     // - ua0
-    const codepointText = query.match
-    (
-        /^\s*\\?U\s*[+{]?\s*(?<value>[0-9A-F]+)\s*}?\s*$/i,
-    )
+    const codepointText = query.match(/^\s*\\?U\s*[+{]?\s*(?<value>[0-9A-F]+)\s*}?\s*$/i,)
     ?.groups.value;
-    const codepoint =
-    codepointText !== undefined ? parseInt(codepointText, 16): null;
-    const codepointChar =
-    ! Number.isNaN(codepoint) && 0 <= codepoint && codepoint <= 0x10ffff
+    const codepoint = codepointText !== undefined ? parseInt(codepointText, 16) : null;
+    const codepointChar = ! Number.isNaN(codepoint) && 0 <= codepoint && codepoint <= 0x10ffff
     ? String.fromCodePoint(codepoint)
     : null;
     // To allow searching for Codex names, split the query into parts separated by
@@ -1307,45 +883,17 @@ function buildSymbolScoringFunction(query)
         // the best score.
         let score = 0.0;
         // Match the value of the result against the query itself.
-        if (result.dataset.value.includes(query))
-        {
-            score = Math.max
-            (
-                score,
-                result.dataset.value.length === query.length ? 1.0: 0.95,
-            );
-        }
+        if (result.dataset.value.includes(query)) { score = Math.max(score, result.dataset.value.length === query.length ? 1.0 : 0.95,); }
         // Match the value of the result against a codepoint value.
-        if
-        (
-            codepointChar !== null &&
-            result.dataset.value.includes(codepointChar)
-        )
+        if (codepointChar !== null && result.dataset.value.includes(codepointChar))
         {
-            score = Math.max
-            (
-                score,
-                result.dataset.value.length === codepointChar.length ? 1.0: 0.95,
-            );
+            score = Math.max(score, result.dataset.value.length === codepointChar.length ? 1.0 : 0.95,);
         }
         // Match shorthands.
-        for
-        (
-            const shorthand of
-            [
-                result.dataset.shorthand,
-                result.dataset.mathShorthand,
-            ]
-        )
+        for (const shorthand of [result.dataset.shorthand, result.dataset.mathShorthand,])
         {
-            if (shorthand === undefined)
-            {
-                continue;
-            }
-            if (shorthand.includes(query))
-            {
-                score = Math.max(score, shorthand.length === query.length ? 1.0: 0.9);
-            }
+            if (shorthand === undefined) { continue; }
+            if (shorthand.includes(query)) { score = Math.max(score, shorthand.length === query.length ? 1.0 : 0.9); }
         }
         // Match Codex name.
         if (result.dataset.codexName !== undefined && queryParts.length > 0)
@@ -1366,12 +914,8 @@ function buildSymbolScoringFunction(query)
                             // showing results for "arrows" when the query is "arr", while hiding
                             // results like "arrow.l" when the query is "long" (the user typed all
                             // those letters for a reason).
-                            const s =
-                            1.0 - normalizedEditDistance(queryPart, codexPart.toLowerCase());
-                            if (i === 0)
-                            {
-                                return s;
-                            }
+                            const s = 1.0 - normalizedEditDistance(queryPart, codexPart.toLowerCase());
+                            if (i === 0) { return s; }
                             else
                             {
                                 // We favor matching the base name of a symbol. For example, the
@@ -1382,40 +926,20 @@ function buildSymbolScoringFunction(query)
                     ),
                 );
                 // If a part of the query is not present in this result, we hide it.
-                if (partScore < 0.7)
-                {
-                    bad = true;
-                    break;
-                }
+                if (partScore < 0.7) { bad = true; break; }
                 // We cube the part score to be more forgiving for minor typos, and less
                 // forgiving toward major differences. `3.0` was chosen arbitrarily
                 // based on a few tests.
                 thisScore *= Math.pow(partScore, 3.0);
             }
-            if (!bad)
-            {
-                score = Math.max(score, thisScore);
-            }
+            if (!bad) { score = Math.max(score, thisScore); }
         }
         // Match LaTeX name and keywords.
-        for
-        (
-            const name of
-            [
-                result.dataset.latexName,
-                ...result.dataset.keywords.split(/\s+/).filter( (k) => k.length > 0),
-            ]
-        )
+        for (const name of [result.dataset.latexName, ...result.dataset.keywords.split(/\s+/).filter( (k) => k.length > 0),])
         {
-            if (name === undefined)
-            {
-                continue;
-            }
+            if (name === undefined) { continue; }
             const distance = normalizedEditDistance(lowerQuery, name.toLowerCase());
-            if (distance < 0.3)
-            {
-                score = Math.max(score, 1.0 - distance);
-            }
+            if (distance < 0.3) { score = Math.max(score, 1.0 - distance); }
         }
         // Match Unicode name.
         if (result.dataset.unicName !== undefined)
@@ -1429,23 +953,10 @@ function buildSymbolScoringFunction(query)
                 const nameParts = result.dataset.unicName
                 .split(/\s+/)
                 .filter( (p) => p.length > 0);
-                const distance = Math.min
-                (
-                    ...nameParts.map
-                    (
-                        (namePart) =>
-                        {
-                            return normalizedEditDistance(queryPart, namePart.toLowerCase());
-                        }
-                    ),
-                );
+                const distance = Math.min(...nameParts.map( (namePart) => { return normalizedEditDistance(queryPart, namePart.toLowerCase()); }),);
                 // We are very strict about the user typing a word that appears in the
                 // Unicode name, otherwise this yields too many results.
-                if (distance > 0.1)
-                {
-                    bad = true;
-                    break;
-                }
+                if (distance > 0.1) { bad = true; break; }
                 thisScore *= Math.pow(1.0 - distance, 3.0);
             }
             if (!bad)
@@ -1481,10 +992,7 @@ function normalizedEditDistance(left, right)
     const leftLength = [...left].length;
     const rightLength = [...right].length;
 
-    if (leftLength + rightLength === 0)
-    {
-        return 0.0;
-    }
+    if (leftLength + rightLength === 0) { return 0.0; }
 
     const INSERTION_COST = 0.7;
     // We use a lower cost for inserting at the end.
@@ -1495,23 +1003,20 @@ function normalizedEditDistance(left, right)
 
     let previous = Array(rightLength + 1).fill(0.0);
     let current = Array(rightLength + 1).fill(0.0);
-    for (let j = 0; j <= rightLength; j ++)
-    {
-        current[j] = j * TAIL_INSERTION_COST;
-    }
-    for (let i = 1; i <= leftLength; i ++)
+    for (let j = 0; j <= rightLength; j++) { current[j] = j * TAIL_INSERTION_COST; }
+    for (let i = 1; i <= leftLength; i++)
     {
         const tmp = previous;
         previous = current;
         current = tmp;
         current[0] = i * DELETION_COST;
-        for (let j = 1; j <= rightLength; j ++)
+        for (let j = 1; j <= rightLength; j++)
         {
             current[j] = Math.min
             (
-                current[j - 1] + (i == leftLength ? TAIL_INSERTION_COST: INSERTION_COST),
+                current[j - 1] + (i == leftLength ? TAIL_INSERTION_COST : INSERTION_COST),
                 previous[j] + DELETION_COST,
-                previous[j - 1] + (left[i - 1] === right[j - 1] ? 0.0: SUBSTITUTION_COST),
+                previous[j - 1] + (left[i - 1] === right[j - 1] ? 0.0 : SUBSTITUTION_COST),
             );
         }
     }
@@ -1523,15 +1028,8 @@ function copyText(text)
 {
     if ("clipboard" in navigator)
     {
-        navigator.clipboard.writeText(text).catch
-        (
-            (err) =>
-            {
-                console.error("Failed to copy text to clipboard");
-                console.error(err);
-            }
-        );
-        return ;
+        navigator.clipboard.writeText(text).catch ( (err) => { console.error("Failed to copy text to clipboard"); console.error(err); });
+        return;
     }
     else
     {
@@ -1548,11 +1046,11 @@ function isElementInViewport(el)
 {
     const rect = el.getBoundingClientRect();
     return (
-        rect.top >= 0 &&
-        rect.left >= 0 &&
-        rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
-        rect.right <= (window.innerWidth || document.documentElement.clientWidth)
-    );
+               rect.top >= 0 &&
+               rect.left >= 0 &&
+               rect.bottom <= (window.innerHeight || document.documentElement.clientHeight) &&
+               rect.right <= (window.innerWidth || document.documentElement.clientWidth)
+           );
 }
 
 main();

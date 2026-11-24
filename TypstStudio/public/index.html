@@ -515,90 +515,169 @@
         </section>
     </main>
 
-    <section Class = "DashboardView" Id = "DashboardView">
-        <div Class = "DashboardContainer">
-            <div Class = "DashboardTopRow">
-                <div Class = "DashboardHeadingGroup">
-                    <h2 Class = "DashboardTitle">Workspace Dashboard</h2>
-                    <p Class = "DashboardSubtitle">Track local Typst project directories and quickly switch between saved files.</p>
+    <section Class = "DashboardView HomepageView" Id = "DashboardView">
+        <div Class = "HomepageMainLayout">
+            <!-- Left / Main Column: Projects & Gallery -->
+            <div Class = "HomepageLeftColumn">
+                <!-- Top Row: Search in Projects -->
+                <div Class = "HomepageTopHeader">
+                    <div Class = "HomepageSearchWrapper">
+                        <svg Class = "HomepageSearchIcon" Width = "15" Height = "15" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A1A1AA" Stroke-Width = "2">
+                            <circle Cx = "11" Cy = "11" R = "8" />
+                            <line X1 = "21" Y1 = "21" X2 = "16.65" Y2 = "16.65" />
+                        </svg>
+                        <input Type        = "text"
+                               Id          = "DashboardProjectSearch"
+                               Class       = "HomepageSearchInput"
+                               Title       = "Search in projects"
+                               Aria-Label  = "Search in projects"
+                               Placeholder = "Search in projects" />
+                    </div>
                 </div>
-                <div Class = "DashboardActionGroup">
 
-                    <button Type  = "button"
-                            Id    = "DashboardRefreshBtn"
-                            Class = "Button Secondary"
-                            Title = "Refresh directories and files">
-                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                            <polyline Points = "23 4 23 10 17 10" />
-                            <polyline Points = "1 20 1 14 7 14" />
-                            <path D = "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                        </svg>
-                        <span>Rescan</span>
+                <div Class = "HomepageTitleSection">
+                    <h1 Class = "HomepageMainTitle">Dashboard</h1>
+                </div>
+
+                <!-- Hero Action Cards (Steve Jobs Expected Design) -->
+                <div Class = "HomepageHeroActions">
+                    <button Type = "button" Class = "HeroActionCard" Id = "HeroEmptyProjectBtn" Title = "Create and open an empty Typst Studio project">
+                        <div Class = "HeroActionIconBox PlusIconBox">
+                            <svg Width = "20" Height = "20" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
+                                <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
+                            </svg>
+                        </div>
+                        <div Class = "HeroActionTextBox">
+                            <div Class = "HeroActionTitle">Empty project</div>
+                            <div Class = "HeroActionSub">Start from scratch</div>
+                        </div>
                     </button>
-                    <button Type  = "button"
-                            Id    = "DashboardSettingsBtn"
-                            Class = "Button Secondary"
-                            Title = "Preferences &amp; Settings (Ctrl+, / ⌘,)">
-                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                            <circle Cx = "12" Cy = "12" R = "3" />
-                            <path D = "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+
+                    <button Type = "button" Class = "HeroActionCard" Id = "HeroTemplateProjectBtn" Title = "Configure a template to get going">
+                        <div Class = "HeroActionIconBox TemplateIconBox">
+                            <svg Width = "18" Height = "18" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <rect X = "3" Y = "3" Width = "18" Height = "18" Rx = "2" />
+                                <line X1 = "3" Y1 = "9" X2 = "21" Y2 = "9" />
+                                <line X1 = "9" Y1 = "21" X2 = "9" Y2 = "9" />
+                            </svg>
+                        </div>
+                        <div Class = "HeroActionTextBox">
+                            <div Class = "HeroActionTitle">Start from template</div>
+                            <div Class = "HeroActionSub">Configure a template to get going</div>
+                        </div>
+                        <svg Class = "HeroActionChevron" Width = "15" Height = "15" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#71717A" Stroke-Width = "2">
+                            <polyline Points = "6 9 12 15 18 9" />
                         </svg>
-                        <span>Settings</span>
                     </button>
-                    <button Type  = "button"
-                            Id    = "DashboardNewFileBtn"
-                            Class = "Button Primary"
-                            Title = "Create a new Typst document">
-                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                </div>
+
+                <!-- Secondary Action Row: New Folder & Toolbar -->
+                <div Class = "HomepageSecondaryRow">
+                    <button Type = "button" Class = "HomepageFolderBtn" Id = "HomepageNewFolderBtn" Title = "Open or track a new workspace directory">
+                        <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                             <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
                             <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
                         </svg>
-                        <span>New Typst Document</span>
+                        <span>New folder</span>
                     </button>
-                </div>
-            </div>
 
-            <div Class = "DashboardStatsGrid">
-                <div Class = "StatBox">
-                    <span Class = "StatBoxLabel">Tracked Projects</span>
-                    <span Class = "StatBoxValue" Id = "StatDirCount">0</span>
-                </div>
-                <div Class = "StatBox">
-                    <span Class = "StatBoxLabel">Project Documents</span>
-                    <span Class = "StatBoxValue" Id = "StatFileCount">0</span>
-                </div>
-                <div Class = "StatBox StatBoxHighlight">
-                    <span Class = "StatBoxLabel">Currently Editing</span>
-                    <span Class = "StatBoxValue StatBoxDocName" Id = "StatActiveDoc">GenesisOfTheVanguard.typ</span>
-                    <button Type = "button" Id = "StatResumeBtn" Class = "MiniActionBtn">Open in Editor →</button>
-                </div>
-            </div>
-
-            <div Class = "DashboardSplitLayout DashboardProjectsOnly">
-                <!-- Section: Workspace Projects (Hero Visual Launcher) -->
-                <div Class = "DashboardPanel ProjectsPanel FullWidth">
-                    <div Class = "PanelHeader">
-                        <div Class = "PanelHeaderTitle">
-                            <svg Width = "16" Height = "16" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
-                                <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                            </svg>
-                            <h3>Workspace Projects (<span Id = "ProjectsCountBadge">0</span>)</h3>
+                    <div Class = "HomepageToolbarRight">
+                        <span Class = "HomepageSortLabel">sort by</span>
+                        <div Class = "HomepageSortDropdownWrapper">
+                            <select Id = "HomepageSortSelect" Class = "HomepageSortSelect" Title = "Sort documents">
+                                <option Value = "modified" Selected>last modified</option>
+                                <option Value = "name">name (A-Z)</option>
+                                <option Value = "created">created</option>
+                                <option Value = "size">file size</option>
+                            </select>
                         </div>
-                        <div Class = "PanelSearchWrapper">
-                            <input Type        = "text"
-                                   Id          = "DashboardProjectSearch"
-                                   Class       = "DashboardSearchInput"
-                                   Title       = "Search Workspace Projects"
-                                   Aria-Label  = "Search Workspace Projects"
-                                   Placeholder = "Filter projects by name or directory..." />
+                        <div Class = "HomepageViewToggle">
+                            <button Type = "button" Id = "ViewModeGridBtn" Class = "ViewToggleBtn Active" Title = "Grid View">
+                                <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                    <rect X = "3" Y = "3" Width = "7" Height = "7" />
+                                    <rect X = "14" Y = "3" Width = "7" Height = "7" />
+                                    <rect X = "14" Y = "14" Width = "7" Height = "7" />
+                                    <rect X = "3" Y = "14" Width = "7" Height = "7" />
+                                </svg>
+                            </button>
+                            <button Type = "button" Id = "ViewModeListBtn" Class = "ViewToggleBtn" Title = "List View">
+                                <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                    <line X1 = "8" Y1 = "6" X2 = "21" Y2 = "6" />
+                                    <line X1 = "8" Y1 = "12" X2 = "21" Y2 = "12" />
+                                    <line X1 = "8" Y1 = "18" X2 = "21" Y2 = "18" />
+                                    <line X1 = "3" Y1 = "6" X2 = "3.01" Y2 = "6" />
+                                    <line X1 = "3" Y1 = "12" X2 = "3.01" Y2 = "12" />
+                                    <line X1 = "3" Y1 = "18" X2 = "3.01" Y2 = "18" />
+                                </svg>
+                            </button>
                         </div>
                     </div>
+                </div>
 
-                    <div Class = "ProjectsCardsGrid" Id = "DashboardProjectsGrid">
-                        <!-- Populated dynamically by App.js -->
-                    </div>
+                <!-- Document Gallery Grid (Photorealistic Physical Paper Sheets) -->
+                <div Class = "HomepageGalleryContainer" Id = "DashboardProjectsGrid">
+                    <!-- Populated dynamically by App.js with .HomepagePaperCard elements -->
                 </div>
             </div>
+
+            <!-- Right Column: Sidebar with Help Resources & Updates Feed -->
+            <div Class = "HomepageRightColumn">
+                <!-- Resource Link Cards -->
+                <div Class = "HomepageResourceLinks">
+                    <a Href = "#" Class = "ResourceLinkCard" data-link = "https://typst.app/docs/" Title = "Read official Typst Studio documentation">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <path D = "M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                            <path D = "M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>
+                        <span>Learn how to use Typst Studio</span>
+                    </a>
+
+                    <a Href = "#" Class = "ResourceLinkCard" data-link = "https://typst.app/universe/" Title = "Explore packages and templates on Typst Studio Universe">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <line X1 = "16.5" Y1 = "9.4" X2 = "7.5" Y2 = "4.21" />
+                            <path D = "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                            <polyline Points = "3.27 6.96 12 12.01 20.73 6.96" />
+                            <line X1 = "12" Y1 = "22.08" X2 = "12" Y2 = "12" />
+                        </svg>
+                        <span>Explore packages and templates</span>
+                    </a>
+
+                    <a Href = "#" Class = "ResourceLinkCard" data-link = "https://discord.gg/2uTNGQsqBt" Title = "Join the Typst Studio Discord Community">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <path D = "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        <span>Chat and learn with the community</span>
+                    </a>
+
+                    <a Href = "#" Class = "ResourceLinkCard" data-link = "https://forum.typst.app/" Title = "Ask questions on the Typst Studio Community Forum">
+                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <circle Cx = "12" Cy = "12" R = "10" />
+                            <path D = "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                            <line X1 = "12" Y1 = "17" X2 = "12.01" Y2 = "17" />
+                        </svg>
+                        <span>Ask questions on the Forum</span>
+                    </a>
+                </div>
+
+                <!-- Footer GitHub Link -->
+                <div Class = "HomepageRightFooter">
+                    <a Href = "https://github.com/Winstead-Inc/Typst" Target = "_blank" Rel = "noopener noreferrer" Class = "HomepageGithubLink" Title = "Typst Studio on GitHub">
+                        GitHub
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden Plumbing Anchors for internal state stability -->
+        <div Class = "HomepageHiddenPlumbing" Style = "display: none;">
+            <span Id = "StatDirCount">0</span>
+            <span Id = "StatFileCount">0</span>
+            <span Id = "ProjectsCountBadge">0</span>
+            <span Id = "StatActiveDoc"></span>
+            <button Type = "button" Id = "DashboardRefreshBtn"></button>
+            <button Type = "button" Id = "DashboardSettingsBtn"></button>
+            <button Type = "button" Id = "DashboardNewFileBtn"></button>
         </div>
     </section>
 
@@ -1348,6 +1427,58 @@
                 <div Style = "display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
                     <button Type = "button" Id = "NewDocModalCancelBtn" Class = "Button Secondary Small">Cancel</button>
                     <button Type = "button" Id = "NewDocModalCreateBtn" Class = "Button Primary Small">Create Document</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Chooser Modal (Steve Jobs Start from Template) -->
+    <div Class = "ModalOverlay" Id = "TemplateChooserModal" Style = "display: none;">
+        <div Class = "ModalDialog TemplateChooserDialog">
+            <div Class = "ModalHeader">
+                <div Class = "ModalHeaderTitle">
+                    <svg Width = "18" Height = "18" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#A855F7" Stroke-Width = "2">
+                        <rect X = "3" Y = "3" Width = "18" Height = "18" Rx = "2" />
+                        <line X1 = "3" Y1 = "9" X2 = "21" Y2 = "9" />
+                        <line X1 = "9" Y1 = "21" X2 = "9" Y2 = "9" />
+                    </svg>
+                    <h3>Choose a Typst Template</h3>
+                </div>
+                <button Type = "button" Id = "CloseTemplateModalBtn" Class = "MiniCloseBtn" Title = "Cancel (Escape)">×</button>
+            </div>
+            <div Class = "ModalBody TemplateChooserBody">
+                <p Class = "TemplateChooserIntro">Select a pre-configured template to bootstrap your document with clean typography and layout.</p>
+                <div Class = "TemplateCardsGrid">
+                    <div Class = "TemplateOptionCard" data-template = "showcase">
+                        <div Class = "TemplateCardIcon">✦</div>
+                        <div Class = "TemplateCardTitle">Showcase Suite</div>
+                        <div Class = "TemplateCardDesc">Complete Typst demonstration featuring tables, equations, code, and figures.</div>
+                    </div>
+                    <div Class = "TemplateOptionCard" data-template = "paper">
+                        <div Class = "TemplateCardIcon">📄</div>
+                        <div Class = "TemplateCardTitle">Scientific Paper</div>
+                        <div Class = "TemplateCardDesc">Two-column academic article format with abstract, citations, and AMS math.</div>
+                    </div>
+                    <div Class = "TemplateOptionCard" data-template = "novel">
+                        <div Class = "TemplateCardIcon">📖</div>
+                        <div Class = "TemplateCardTitle">Book &amp; Novel</div>
+                        <div Class = "TemplateCardDesc">Classic A5 book proportions with elegant margins, drop caps, and table of contents.</div>
+                    </div>
+                    <div Class = "TemplateOptionCard" data-template = "report">
+                        <div Class = "TemplateCardIcon">📊</div>
+                        <div Class = "TemplateCardTitle">Executive Report</div>
+                        <div Class = "TemplateCardDesc">Corporate technical brief with branded header, metric cards, and figures.</div>
+                    </div>
+                    <div Class = "TemplateOptionCard" data-template = "resume">
+                        <div Class = "TemplateCardIcon">👤</div>
+                        <div Class = "TemplateCardTitle">Modern Resume</div>
+                        <div Class = "TemplateCardDesc">Polished single-page curriculum vitae with contact grid, skills, and timeline.</div>
+                    </div>
+                    <div Class = "TemplateOptionCard" data-template = "blank">
+                        <div Class = "TemplateCardIcon">📝</div>
+                        <div Class = "TemplateCardTitle">Clean Canvas</div>
+                        <div Class = "TemplateCardDesc">Pristine empty document with standard A4 margins, ready for freeform writing.</div>
+                    </div>
                 </div>
             </div>
         </div>

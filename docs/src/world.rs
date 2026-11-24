@@ -54,7 +54,7 @@ impl DocWorld
 {
     /// Creates a new world for docs compilation, with the given root directory
     /// and entrypoint file.
-    pub fn new (config: & Config)->Self
+    pub fn new (config: & Config) -> Self
     {
         Self
         {
@@ -65,7 +65,7 @@ impl DocWorld
     }
 
     /// Return all paths the last compilation depended on.
-    pub fn dependencies( & mut self)-> impl Iterator < Item = PathBuf > + '_
+    pub fn dependencies( & mut self) -> impl Iterator < Item = PathBuf > + '_
     {
         let (loader, deps) = self.files.dependencies();
         deps.filter_map( | id | loader.resolve(id).ok())
@@ -77,24 +77,24 @@ impl DocWorld
 
 impl World for DocWorld
 {
-    fn library( & self)-> & LazyHash<Library> { & self.library }
+    fn library( & self) -> & LazyHash<Library> { & self.library }
 
-    fn book( & self)-> & LazyHash<FontBook> { & FONTS .0 }
+    fn book( & self) -> & LazyHash<FontBook> { & FONTS.0 }
 
-    fn main( & self)->FileId { self.files.loader().main }
+    fn main( & self) -> FileId { self.files.loader().main }
 
-    fn source( & self, id: FileId)->FileResult<Source> { self.files.source(id) }
+    fn source( & self, id: FileId) -> FileResult<Source> { self.files.source(id) }
 
-    fn file( & self, id: FileId)->FileResult<Bytes> { self.files.file(id) }
+    fn file( & self, id: FileId) -> FileResult<Bytes> { self.files.file(id) }
 
-    fn font( & self, index: usize)->Option<Font> { FONTS .1.get(index).cloned() }
+    fn font( & self, index: usize) -> Option<Font> { FONTS.1 .get (index).cloned() }
 
-    fn today( & self, offset: Option<Duration>)->Option<Datetime> { self.now.today(offset) }
+    fn today( & self, offset: Option<Duration>) -> Option<Datetime> { self.now.today(offset) }
 }
 
 impl DiagnosticWorld for DocWorld
 {
-    fn name( & self, id: FileId)->String
+    fn name( & self, id: FileId) -> String
     {
         let vpath = id.vpath();
         match id.root()
@@ -110,7 +110,7 @@ struct DocsFiles { pub main: FileId, pub project: FsRoot, pub repo: FsRoot, pub 
 
 impl DocsFiles
 {
-    fn new (input: & Path, workspace: & Path)->Self
+    fn new (input: & Path, workspace: & Path) -> Self
     {
         // Resolve the system-global input path.
         let path = input.canonicalize().unwrap();
@@ -120,14 +120,14 @@ impl DocsFiles
 
         // Resolve the virtual path of the main file within the project root.
         let main = RootedPath:: new (VirtualRoot::Project, VirtualPath::virtualize( & root, & path).unwrap(),)
-        .intern();
+       .intern();
 
         Self { main, project: FsRoot::new (root), repo: FsRoot::new (workspace.into()), docs: FsRoot::new (workspace.join("docs")), }
     }
 
-    fn resolve( & self, id: FileId)->FileResult<PathBuf> { self.root(id)?.resolve(id.vpath()) }
+    fn resolve( & self, id: FileId) -> FileResult<PathBuf> { self.root(id)?.resolve(id.vpath()) }
 
-    fn root( & self, id: FileId)->FileResult<FsRoot>
+    fn root( & self, id: FileId) -> FileResult<FsRoot>
     {
         match id.root()
         {
@@ -142,17 +142,17 @@ impl DocsFiles
     }
 }
 
-impl FileLoader for DocsFiles { fn load( & self, id: FileId)->FileResult<Bytes> { self.root(id)?.load(id.vpath()) } }
+impl FileLoader for DocsFiles { fn load( & self, id: FileId) -> FileResult<Bytes> { self.root(id)?.load(id.vpath()) } }
 
 /// The fonts available to docs compilation.
 pub static FONTS: LazyLock < (LazyHash<FontBook>, Vec<Font>) > = LazyLock:: new
 (
     ||
     {
-        let fonts: Vec < _ > = typst_assets::fonts()
-        .chain(typst_dev_assets::fonts())
-        .flat_map( | data | Font::iter(Bytes::new (data)))
-        .collect();
+        let fonts: Vec<_> = typst_assets::fonts()
+       .chain(typst_dev_assets::fonts())
+       .flat_map( | data | Font::iter(Bytes::new (data)))
+       .collect();
         let book = FontBook::from_fonts( & fonts);
         (LazyHash::new (book), fonts)
     }
@@ -161,18 +161,18 @@ pub static FONTS: LazyLock < (LazyHash<FontBook>, Vec<Font>) > = LazyLock:: new
 /// A standard library that is extended for docs compilation. Includes
 /// - an `stdx` module with various utilities
 /// - a few patched show rules
-fn library(is_dev_version: bool , sys_inputs: & [(String, String)])->Library
+fn library(is_dev_version: bool , sys_inputs: & [(String, String)]) -> Library
 {
     // Convert the input pairs to a dictionary.
     let inputs: Dict = sys_inputs
-    .iter()
-    .map( | (k, v) | (k.as_str().into(), v.as_str().into_value()))
-    .collect();
+   .iter()
+   .map( | (k, v) | (k.as_str().into(), v.as_str().into_value()))
+   .collect();
 
     let mut lib = Library::builder([typst_html::FORMAT, typst_pdf::FORMAT, typst_svg::FORMAT, typst_render::FORMAT, typst_bundle::FORMAT,])
-    .with_inputs(inputs)
-    .with_features(Features::all())
-    .build();
+   .with_inputs(inputs)
+   .with_features(Features::all())
+   .build();
     let scope = lib.global.scope_mut();
     scope.define("stdx", stdx_module(is_dev_version));
     lib.rules.replace(Target::Html, PATCHED_LINK_RULE);
@@ -182,7 +182,7 @@ fn library(is_dev_version: bool , sys_inputs: & [(String, String)])->Library
 }
 
 /// A module with various utilities for the docs.
-fn stdx_module(is_dev_version: bool)->Module
+fn stdx_module(is_dev_version: bool) -> Module
 {
     let mut scope = Scope:: new ();
     scope.define_elem::<ConfigElem>();
@@ -219,24 +219,24 @@ pub struct ConfigElem { pub content_base: EcoString, pub asset_base: EcoString, 
 ///
 /// This does not include the package spec.
 #[func]
-fn str_from_path(path: RootedPath)->EcoString { path.vpath().get_with_slash().into() }
+fn str_from_path(path: RootedPath) -> EcoString { path.vpath().get_with_slash().into() }
 
 /// Loads an asset from the `typst_dev_assets` crate by file name.
 #[func]
-fn read_dev_asset(filename: EcoString)->StrResult<Bytes> { typst_dev_assets::get_by_name( & filename).ok_or_else( || eco_format ! ("asset not found: {}", filename.repr())).map(Bytes::new) }
+fn read_dev_asset(filename: EcoString) -> StrResult<Bytes> { typst_dev_assets::get_by_name( & filename).ok_or_else( || eco_format ! ("asset not found: {}", filename.repr())).map(Bytes::new) }
 
 /// Loads one of the fonts that's available to the docs by PostScript name.
 #[func]
-fn read_font(post_script_name: EcoString)->StrResult<Bytes>
+fn read_font(post_script_name: EcoString) -> StrResult<Bytes>
 {
     Ok
     (
         FONTS
-        .1
+       .1
         .iter()
-        .find( | font | { font.post_script_name().as_deref() == Some(post_script_name.as_str()) })
-        .map( | font | font.data().clone())
-        .ok_or("unknown font")?
+       .find( | font | { font.post_script_name().as_deref() == Some(post_script_name.as_str()) })
+       .map( | font | font.data().clone())
+       .ok_or("unknown font")?
     )
 }
 
@@ -258,22 +258,22 @@ fn eval_mapped
     /// The sum of all `end - start` in `ranges` is the length of the `text`.
     ranges: Spanned<Vec<RangePair>>,
     /// The syntactical mode in which the string is parsed.
-    # [named]
-    # [default (SyntaxMode::Code)]
+    #[named]
+   #[default (SyntaxMode::Code)]
     mode: SyntaxMode,
     /// A scope of definitions that are made available.
-    # [named]
-    # [default]
+    #[named]
+   #[default]
     scope: Dict,
 )
-->SourceResult<Value>
+-> SourceResult<Value>
 {
     let dict = scope;
     let mut scope = Scope:: new ();
     for (key, value) in dict { scope.bind(key.into(), Binding::new (value, path.span)); }
 
     let id = path.v.resolve_if_some(path.span.id()).at(path.span)?.intern();
-    let mapper = RangeMapper:: new (ranges.v.into_iter().map( | p | p .0)).at(ranges.span)?;
+    let mapper = RangeMapper:: new (ranges.v.into_iter().map( | p | p.0)).at(ranges.span)?;
     let spans = SpanMode::Mapped { id, mapper: & mapper, mapper_error_span: ranges.span, };
 
     typst_eval::eval_string
@@ -294,7 +294,7 @@ fn eval_mapped
 // write absolute links _and_ also avoid the explicit `index.html` in the
 // path. Until there is a better built-in support for configuring these
 // kinds of details, we override the built-in show rule for links.
-const PATCHED_LINK_RULE: ShowFn < LinkElem > = | elem, engine, _ |
+const PATCHED_LINK_RULE: ShowFn<LinkElem> = | elem, engine, _ |
 {
     let span = elem.span();
     let dest = elem.dest.resolve_early(engine, span)?;
@@ -302,12 +302,12 @@ const PATCHED_LINK_RULE: ShowFn < LinkElem > = | elem, engine, _ |
     let href = match dest
     {
         Destination::Url(url) => Some(url.clone().into_inner()),
-        Destination::Position(_) => { bail ! (elem.span(),"positional links are not supported") }
+        Destination::Position(_) => { bail ! (elem.span(), "positional links are not supported") }
         Destination::Location(location) => Some
         ({
             let resolved = EarlyLinkResolver:: new (elem.location().unwrap(), span)
-            .resolve(engine, location)
-            .at(span)?;
+           .resolve(engine, location)
+           .at(span)?;
             match resolved
             {
                 ResolvedLink::Local { anchor }
@@ -316,10 +316,10 @@ const PATCHED_LINK_RULE: ShowFn < LinkElem > = | elem, engine, _ |
                 =>
                 {
                     let path = to
-                    .get_with_slash()
-                    .strip_suffix("index.html")
-                    .ok_or("expected path to end with index.html")
-                    .at(span)?;
+                   .get_with_slash()
+                   .strip_suffix("index.html")
+                   .ok_or("expected path to end with index.html")
+                   .at(span)?;
                     if anchor.is_empty() { path.into() }
                     else { eco_format ! ("{path}#{anchor}") }
                 }
@@ -337,9 +337,9 @@ const PATCHED_LINK_RULE: ShowFn < LinkElem > = | elem, engine, _ |
 /// This rule emits `metadata` labelled `<metadata-asset>` holding (path, data)
 /// pairs. This metadata is queried by the asset handling code to produce
 /// real asset. The paths are auto-generated based on hashes of the images.
-const PATCHED_IMAGE_RULE: ShowFn < ImageElem > = | elem, engine, styles |
+const PATCHED_IMAGE_RULE: ShowFn<ImageElem> = | elem, engine, styles |
 {
-    fn encode_hash(hash: u128)->String
+    fn encode_hash(hash: u128) -> String
     {
         use base64:: { Engine, engine::general_purpose::URL_SAFE_NO_PAD };
         URL_SAFE_NO_PAD.encode(hash.to_be_bytes())
@@ -354,8 +354,8 @@ const PATCHED_IMAGE_RULE: ShowFn < ImageElem > = | elem, engine, styles |
     let path = eco_format!("{base}images/{}.{}", encode_hash(hash), web_image.format.extension());
     let label = Label:: new (PicoStr::intern("metadata-asset")).unwrap();
     let meta = MetadataElem:: new (array ! [path.clone(), web_image.data].into_value())
-    .pack()
-    .labelled(label);
+   .pack()
+   .labelled(label);
 
     let mut attrs = HtmlAttrs:: new ();
     attrs.push(attr::src, path);

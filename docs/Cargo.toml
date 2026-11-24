@@ -42,15 +42,7 @@ unscanny = { workspace = true }
 
 [dependencies.typst-kit]
 workspace = true
-features = [
-    "bundle",
-    "embedded-fonts",
-    "emit-diagnostics",
-    "watcher",
-    "datetime",
-    "timer",
-    "http-server",
-]
+features = ["bundle", "embedded-fonts", "emit-diagnostics", "watcher", "datetime", "timer", "http-server",]
 
 [lints]
 workspace = true

@@ -1,0 +1,1198 @@
+                        const B2 = PageBoxes[J];
+                        const XContained = (B1.x >= B2.x - 2.5) && ( (B1.x + B1.width) <= (B2.x + B2.width + 2.5));
+                        const YContained = (B1.y >= B2.y - 2.5) && ( (B1.y + B1.height) <= (B2.y + B2.height + 2.5));
+                        if (XContained && YContained)
+                        {
+                            Contained = true;
+                            break;
+                        }
+                    }
+                    if (!Contained)
+                    {
+                        CleanBoxes.push(B1);
+                    }
+                }
+
+                for (const Box of CleanBoxes)
+                {
+                    const Rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    Rect.setAttribute("class", "SyncHighlightRect");
+
+                    const TrueBounds = GetTrueGlyphBounds(Svg, Box);
+                    const PadX = 4.0;
+                    const PadY = 2.0;
+                    let RectX;
+                    let RectY;
+                    let RectW;
+                    let RectH;
+
+                    if (TrueBounds && TrueBounds.matched > 0)
+                    {
+                        RectX = TrueBounds.x - PadX;
+                        RectW = Math.max(6.0, TrueBounds.width + (PadX * 2.0));
+                        RectY = TrueBounds.y - PadY;
+                        RectH = Math.max(6.0, TrueBounds.height + (PadY * 2.0));
+                    }
+                    else
+                    {
+                        const FirstH = Box.firstLineHeight || Box.height || 10;
+                        const LastH = Box.lastLineHeight || Box.height || 10;
+
+                        const TopBaseline = Box.y + FirstH;
+                        const InkedTop = TopBaseline - (FirstH * 0.78);
+                        const BottomBaseline = Box.y + Box.height;
+                        const InkedBottom = BottomBaseline + (LastH * 0.32);
+
+                        RectX = Box.x - PadX;
+                        RectW = Math.max(6.0, Box.width + (PadX * 2.0));
+                        RectY = Math.round((InkedTop - PadY) * 100) / 100;
+                        RectH = Math.max(6.0, Math.round(((InkedBottom + PadY) - RectY) * 100) / 100);
+                    }
+
+                    const BoxLine = Box.line || 0;
+                    if (BoxLine > 0 && MonacoInstance)
+                    {
+                        const M = MonacoInstance.getModel();
+                        if (M && BoxLine <= M.getLineCount())
+                        {
+                            const LineContent = M.getLineContent(BoxLine) || "";
+                            if (/^\s*(?:[-+*•]|(?:\d+|[a-zA-Z])\.|(?:\(\d+\)))\s+/.test(LineContent) || /^\s*\[\s*(?:[-+*•]|(?:\d+|[a-zA-Z])\.|(?:\(\d+\)))\s+/.test(LineContent))
+                            {
+                                const BulletIndent = 12.0;
+                                RectX = Math.max(65.0, RectX - BulletIndent);
+                                RectW += BulletIndent;
+                            }
+                        }
+                    }
+
+                    Rect.setAttribute("x", RectX.toFixed(2));
+                    Rect.setAttribute("y", RectY.toFixed(2));
+                    Rect.setAttribute("width", RectW.toFixed(2));
+                    Rect.setAttribute("height", RectH.toFixed(2));
+                    Rect.setAttribute("rx", "3.0");
+                    Rect.setAttribute("ry", "3.0");
+
+                    HighlightLayer.appendChild(Rect);
+
+                    if (PageNum === ScrollTargetPage)
+                    {
+                        if (RectY < PrimaryTopY)
+                        {
+                            PrimaryTopY = RectY;
+                        }
+                        if ((RectY + RectH) > PrimaryBottomY)
+                        {
+                            PrimaryBottomY = RectY + RectH;
+                        }
+                    }
+                }
+            }
+        );
+    }
+
+    if (AutoScroll && PrimaryPageSheet && PrimaryTopY !== Infinity && PrimaryBottomY !== -Infinity)
+    {
+        const Viewport = document.getElementById("PreviewViewport");
+        if (Viewport)
+        {
+            const ViewportRect = Viewport.getBoundingClientRect();
+            const PageRect = PrimaryPageSheet.getBoundingClientRect();
+            const VbH = parseFloat(PrimaryPageSheet.dataset.baseHeight) || 864;
+            const ScaleY = PageRect.height / VbH;
+
+            const ArtifactTopInViewport = PageRect.top + (PrimaryTopY * ScaleY);
+            const ArtifactBottomInViewport = PageRect.top + (PrimaryBottomY * ScaleY);
+            const IsArtifactVisible =
+                (ArtifactTopInViewport >= ViewportRect.top && ArtifactBottomInViewport <= ViewportRect.bottom) ||
+                (ArtifactTopInViewport <= ViewportRect.top && ArtifactBottomInViewport >= ViewportRect.bottom);
+
+            if (!IsArtifactVisible)
+            {
+                // Invariant Sheet top relative to scroll container content
+                const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+                const ArtifactCenterContentY = SheetTopInContent + (((PrimaryTopY + PrimaryBottomY) * 0.5) * ScaleY);
+                let TargetScrollTop = Math.max(0, ArtifactCenterContentY - (Viewport.clientHeight / 2));
+                if (FirstBoxLine === 1)
+                {
+                    TargetScrollTop = 0;
+                }
+                else
+                {
+                    const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
+                    TargetScrollTop = Math.max(0, Math.min(TargetScrollTop, MaxScroll));
+                }
+
+                const CurrentDiff = Math.abs(Viewport.scrollTop - TargetScrollTop);
+                if (CurrentDiff > 4)
+                {
+                    const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+                    Viewport.scrollTo
+                    ({
+                        top: TargetScrollTop,
+                        behavior: ScrollBehavior
+                    });
+                }
+            }
+        }
+    }
+}
+
+function HighlightSvgRect(PageNum, X, Y, Width, Height, AutoScroll = true)
+{
+    HighlightSvgRects
+    (
+        [ { page: PageNum, x: X, y: Y, width: Width, height: Height }], AutoScroll
+    );
+}
+
+function HighlightSvgSpan(SpanId, AutoScroll = true)
+{
+    if (!IsSyncTexEnabled || !SpanId)
+    {
+        return ;
+    }
+
+    const Elem = ActiveSyncMap.find( (E) => E.span === SpanId) || (ActiveSpanMap && ActiveSpanMap[SpanId]);
+    if (Elem && typeof Elem.x === "number")
+    {
+        HighlightSvgRect(Elem.page || 1, Elem.x, Elem.y, Elem.width, Elem.height, AutoScroll);
+    }
+}
+
+const MATH_DEFINITION_FUNCTIONS = new Set
+([
+    "mat", "vec", "cases", "binom", "root", "round", "abs", "norm",
+    "floor", "ceil", "lr"
+]);
+
+function FindEnclosingMathDefinitionBlock(SourceCode, CursorLine, CursorCol)
+{
+    if (!SourceCode)
+    {
+        return null;
+    }
+
+    const Lines = SourceCode.split(/\r?\n/);
+    let CursorOffset = 0;
+    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
+    {
+        CursorOffset += Lines[I].length + 1;
+    }
+    CursorOffset += Math.max(0, CursorCol - 1);
+
+    const DefRegex = /\b([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(/g;
+    let Match;
+    const Blocks = [];
+
+    while
+    (
+        (Match = DefRegex.exec(SourceCode)) !== null
+    )
+    {
+        const Ident = Match[1];
+        if (!MATH_DEFINITION_FUNCTIONS.has(Ident))
+        {
+            continue;
+        }
+
+        const StartOffset = Match.index;
+        const OpenParenOffset = SourceCode.indexOf("(", StartOffset);
+        if (OpenParenOffset === - 1)
+        {
+            continue;
+        }
+
+        let Depth = 1;
+        let InStr = false;
+        let CloseOffset = - 1;
+
+        for (let I = OpenParenOffset + 1; I < SourceCode.length; I ++)
+        {
+            const Ch = SourceCode[I];
+            const Prev = I > 0 ? SourceCode[I - 1]: "";
+
+            if (Ch === '"' && Prev !== "\\")
+            {
+                InStr = ! InStr;
+            }
+            else if (!InStr)
+            {
+                if (Ch === "(")
+                {
+                    Depth ++;
+                }
+                else if (Ch === ")")
+                {
+                    Depth --;
+                    if (Depth === 0)
+                    {
+                        CloseOffset = I;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (CloseOffset !== - 1)
+        {
+            if (CursorOffset > OpenParenOffset && CursorOffset <= CloseOffset)
+            {
+                Blocks.push
+                ({
+                    Name: Ident,
+                    StartOffset: StartOffset,
+                    OpenOffset: OpenParenOffset,
+                    CloseOffset: CloseOffset,
+                    Length: CloseOffset - StartOffset
+                });
+            }
+        }
+    }
+
+    if (Blocks.length === 0)
+    {
+        return null;
+    }
+
+    Blocks.sort( (A, B) => A.Length - B.Length);
+    return Blocks[0];
+}
+
+function FindTableCellBlock(SourceCode, CursorLine, CursorCol)
+{
+    if (!SourceCode)
+    {
+        return null;
+    }
+
+    const Lines = SourceCode.split(/\r?\n/);
+    let CursorOffset = 0;
+    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
+    {
+        CursorOffset += Lines[I].length + 1;
+    }
+    CursorOffset += Math.max(0, CursorCol - 1);
+
+    const CellRegex = /\btable\.cell(?:\s*\([^)]*\))?\s*\[/g;
+    let Match;
+    const Cells = [];
+
+    while
+    (
+        (Match = CellRegex.exec(SourceCode)) !== null
+    )
+    {
+        const StartOffset = Match.index;
+        const OpenBracketOffset = SourceCode.indexOf("[", StartOffset);
+        if (OpenBracketOffset === - 1)
+        {
+            continue;
+        }
+
+        let Depth = 1;
+        let CloseOffset = - 1;
+        for (let I = OpenBracketOffset + 1; I < SourceCode.length; I ++)
+        {
+            const Ch = SourceCode[I];
+            const Prev = I > 0 ? SourceCode[I - 1]: "";
+            if (Ch === "[" && Prev !== "\\")
+            {
+                Depth ++;
+            }
+            else if (Ch === "]" && Prev !== "\\")
+            {
+                Depth --;
+                if (Depth === 0)
+                {
+                    CloseOffset = I;
+                    break;
+                }
+            }
+        }
+
+        if (CloseOffset !== - 1)
+        {
+            if (CursorOffset >= StartOffset && CursorOffset <= CloseOffset + 1)
+            {
+                Cells.push
+                ({
+                    StartOffset: StartOffset,
+                    OpenOffset: OpenBracketOffset,
+                    CloseOffset: CloseOffset,
+                    Length: CloseOffset - StartOffset
+                });
+            }
+        }
+    }
+
+    if (Cells.length === 0)
+    {
+        return null;
+    }
+
+    Cells.sort( (A, B) => A.Length - B.Length);
+    return Cells[0];
+}
+
+function FindAllMathEquationBlocks(SourceCode)
+{
+    if (!SourceCode)
+    {
+        return [];
+    }
+
+    const Lines = SourceCode.split(/\r?\n/);
+    let InBlockComment = false;
+    let InRaw = false;
+    let InMath = false;
+    let MathStart = - 1;
+    let MathStartLine = 1;
+    let MathStartCol = 1;
+    let ByteOffset = 0;
+    const Equations = [];
+
+    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    {
+        const LineText = Lines[LineIdx];
+        const LineNum = LineIdx + 1;
+
+        for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
+        {
+            const Ch = LineText[ColIdx];
+            const Prev = ColIdx > 0 ? LineText[ColIdx - 1]: "";
+            const Next = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
+
+            if (!InMath && Ch === "/" && Next === "*")
+            {
+                InBlockComment = true;
+            }
+            if (InBlockComment && Ch === "*" && Next === "/")
+            {
+                InBlockComment = false;
+            }
+            if (InBlockComment)
+            {
+                continue;
+            }
+
+            if (Ch === "`")
+            {
+                InRaw = ! InRaw;
+                continue;
+            }
+            if (InRaw)
+            {
+                continue;
+            }
+
+            if (Ch === "$" && Prev !== "\\")
+            {
+                const Offset = ByteOffset + ColIdx;
+                if (!InMath)
+                {
+                    InMath = true;
+                    MathStart = Offset;
+                    MathStartLine = LineNum;
+                    MathStartCol = ColIdx + 1;
+                }
+                else
+                {
+                    const MathEnd = Offset + 1;
+                    const MathEndLine = LineNum;
+                    const MathEndCol = ColIdx + 1;
+
+                    let LabelEnd = MathEnd;
+                    const Remainder = LineText.substring(ColIdx + 1);
+                    const LabelMatch = Remainder.match(/^\s*<[a-zA-Z0-9_\-:]+>/);
+                    if (LabelMatch)
+                    {
+                        LabelEnd += LabelMatch[0].length;
+                    }
+
+                    Equations.push
+                    ({
+                        StartOffset: MathStart,
+                        EndOffset: LabelEnd,
+                        StartLine: MathStartLine,
+                        StartCol: MathStartCol,
+                        EndLine: MathEndLine,
+                        EndCol: MathEndCol,
+                        IsDisplay: (MathEndLine > MathStartLine)
+                    });
+                    InMath = false;
+                }
+            }
+        }
+
+        ByteOffset += LineText.length + 1;
+    }
+
+    return Equations;
+}
+
+function FindEnclosingMathEquation(SourceCode, CursorLine, CursorCol)
+{
+    if (!SourceCode)
+    {
+        return null;
+    }
+
+    const Lines = SourceCode.split(/\r?\n/);
+    let CursorOffset = 0;
+    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
+    {
+        CursorOffset += Lines[I].length + 1;
+    }
+    CursorOffset += Math.max(0, CursorCol - 1);
+
+    const Equations = FindAllMathEquationBlocks(SourceCode);
+    const Matches = Equations.filter( (Eq) => CursorOffset >= Eq.StartOffset && CursorOffset <= Eq.EndOffset);
+    if (Matches.length === 0)
+    {
+        return null;
+    }
+
+    Matches.sort( (A, B) => (A.EndOffset - A.StartOffset) - (B.EndOffset - B.StartOffset));
+    return Matches[0];
+}
+
+function ScrollPreviewToNearestLine(TargetLine)
+{
+    if (!ActiveSyncMapByLine || ActiveSyncMapByLine.size === 0)
+    {
+        return ;
+    }
+
+    const Viewport = document.getElementById("PreviewViewport");
+    if (!Viewport)
+    {
+        return ;
+    }
+
+    // Preamble guard: if target line is 1, anchor cleanly to Page 1 top
+    if (TargetLine === 1)
+    {
+        if (Viewport.scrollTop > 10)
+        {
+            const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+            Viewport.scrollTo
+            ({
+                top: 0,
+                behavior: ScrollBehavior
+            });
+        }
+        return ;
+    }
+
+    let BestLine = null;
+    let BestDist = Infinity;
+
+    // Scan nearby lines only (within 6 lines max) to avoid jumping to document head
+    for (let Offset = 1; Offset <= 6; Offset ++)
+    {
+        const CheckLines = [TargetLine + Offset, TargetLine - Offset];
+        for (const CL of CheckLines)
+        {
+            if (CL >= 1 && ActiveSyncMapByLine.has(CL) && CL > FirstDocumentBodyLine && !RepeatedSyncLines.has(CL))
+            {
+                const Candidates = ActiveSyncMapByLine.get(CL);
+                if (Candidates && Candidates.length > 0)
+                {
+                    BestLine = CL;
+                    BestDist = Offset;
+                    break;
+                }
+            }
+        }
+        if (BestLine !== null)
+        {
+            break;
+        }
+    }
+
+    if (BestLine === null)
+    {
+        return ;
+    }
+
+    const LineElems = ActiveSyncMapByLine.get(BestLine);
+    if (!LineElems || LineElems.length === 0)
+    {
+        return ;
+    }
+
+    const FirstElem = LineElems[0];
+    const PageNum = FirstElem.page || 1;
+    const TargetPageSheet = document.getElementById(`PageSheet_${PageNum}`) || document.querySelectorAll(".PageSheet")[PageNum - 1];
+    if (!TargetPageSheet)
+    {
+        return ;
+    }
+
+    const ViewportRect = Viewport.getBoundingClientRect();
+    const PageRect = TargetPageSheet.getBoundingClientRect();
+    const VbH = parseFloat(TargetPageSheet.dataset.baseHeight) || 864;
+    const ScaleY = PageRect.height / VbH;
+
+    const ElemHeight = FirstElem.height || 12;
+    const ElemTopInViewport = PageRect.top + (FirstElem.y * ScaleY);
+    const ElemBottomInViewport = PageRect.top + ((FirstElem.y + ElemHeight) * ScaleY);
+    const IsElemVisible =
+        (ElemTopInViewport >= ViewportRect.top && ElemBottomInViewport <= ViewportRect.bottom) ||
+        (ElemTopInViewport <= ViewportRect.top && ElemBottomInViewport >= ViewportRect.bottom);
+
+    if (IsElemVisible)
+    {
+        return ;
+    }
+
+    // Invariant Sheet top relative to scroll container content
+    const SheetTopInContent = (PageRect.top - ViewportRect.top) + Viewport.scrollTop;
+    const TargetContentY = SheetTopInContent + ((FirstElem.y + (ElemHeight * 0.5)) * ScaleY);
+    const MaxScroll = Math.max(0, Viewport.scrollHeight - Viewport.clientHeight);
+    const TargetScrollTop = Math.max(0, Math.min(TargetContentY - (Viewport.clientHeight / 2), MaxScroll));
+
+    if (Math.abs(Viewport.scrollTop - TargetScrollTop) > 4)
+    {
+        const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+        Viewport.scrollTo
+        ({
+            top: TargetScrollTop,
+            behavior: ScrollBehavior
+        });
+    }
+}
+
+function PerformForwardSync(Line, Col, ForceAutoScroll = true)
+{
+    if (!IsSyncTexEnabled || !ActiveSyncMap || ActiveSyncMap.length === 0)
+    {
+        ClearSyncHighlights();
+        return ;
+    }
+
+    if (Line === 1 && RepeatedSyncLines.has(Line))
+    {
+        ClearSyncHighlights();
+        if (ForceAutoScroll)
+        {
+            const Viewport = document.getElementById("PreviewViewport");
+            if (Viewport && Viewport.scrollTop > 10)
+            {
+                const ScrollBehavior = (Date.now() - LastTypingTimestamp < 800) ? "auto": "smooth";
+                Viewport.scrollTo
+                ({
+                    top: 0,
+                    behavior: ScrollBehavior
+                });
+            }
+        }
+        return ;
+    }
+
+    const Model = MonacoInstance ? MonacoInstance.getModel(): null;
+    if (!Model)
+    {
+        return ;
+    }
+
+    const LineText = Model.getLineContent(Line) || "";
+    // 1. Text Selection in Monaco (Tier 1: Character-to-Character Precision)
+    if (MonacoInstance)
+    {
+        const Selection = MonacoInstance.getSelection();
+        if (Selection && !Selection.isEmpty())
+        {
+            const SelStartLine = Selection.startLineNumber;
+            const SelStartCol = Selection.startColumn;
+            const SelEndLine = Selection.endLineNumber;
+            const SelEndCol = Selection.endColumn;
+
+            const StartOffsetUtf16 = Model.getOffsetAt({ lineNumber: SelStartLine, column: SelStartCol });
+            const EndOffsetUtf16 = Model.getOffsetAt({ lineNumber: SelEndLine, column: SelEndCol });
+            const SourceText = Model.getValue();
+            const StartByte = new TextEncoder().encode(SourceText.slice(0, StartOffsetUtf16)).length;
+            const EndByte = new TextEncoder().encode(SourceText.slice(0, EndOffsetUtf16)).length;
+
+            if (StartByte < EndByte)
+            {
+                // Filter to ONLY elements whose source byte falls inside [StartByte, EndByte)
+                const Matched = ActiveSyncMap.filter
+                (
+                    (Elem) =>
+                    {
+                        const IsMultiLine = (Elem.end_line - Elem.line) >= 2;
+                        const IsNumbering = IsMultiLine && Elem.width < 50 && Elem.x > 450;
+                        if (IsNumbering)
+                        {
+                            return false;
+                        }
+                        return Elem.start < EndByte && Elem.end > StartByte;
+                    }
+                );
+
+                if (Matched.length > 0)
+                {
+                    const LineBoxes = GroupSelectedElementsIntoLineBoxes(Matched);
+                    if (LineBoxes.length > 0)
+                    {
+                        HighlightSvgRects(LineBoxes, ForceAutoScroll);
+                        return ;
+                    }
+                }
+
+                ClearSyncHighlights();
+                return ;
+            }
+        }
+    }
+    // 2. Line Content Elements & Syntax Tree Context
+    const TrimmedLine = LineText.trim();
+    const CursorOffset = Model.getOffsetAt({ lineNumber: Line, column: Col });
+    const SourceText = Model.getValue();
+    const AllMathIntervals = GetMathIntervals(SourceText);
+    const ActiveMathInterval = AllMathIntervals.find((Int) => CursorOffset >= Int.Start && CursorOffset <= Int.End);
+
+    const MathSpans = [];
+    const MathRegex = /(?<!\\)\$(?:[^$]|\\\$)*\$/g;
+    let MMatch;
+    while ((MMatch = MathRegex.exec(LineText)) !== null)
+    {
+        MathSpans.push
+        ({
+            StartCol: MMatch.index + 1,
+            EndCol: MMatch.index + MMatch[0].length
+        });
+    }
+    const ActiveMathSpan = MathSpans.find((M) => Col >= M.StartCol && Col <= M.EndCol);
+
+    const SameLineRaw = ActiveSyncMapByLine.get(Line) || (ActiveSyncMap.length < 500 ? ActiveSyncMap : []);
+    let SameLineCandidates = SameLineRaw.filter
+    (
+        (Elem) => (Elem.line === Line && Elem.end_line === Line) && !Elem.is_outline && !IsFullTableShape(Elem)
+    );
+    if (RepeatedSyncLines.has(Line))
+    {
+        SameLineCandidates = SameLineCandidates.filter((Elem) => (Elem.page || 1) === 1);
+    }
+
+    if (ActiveMathInterval)
+    {
+        // Cursor is INSIDE a math container (inline or multiline display equation)
+        const MathStartPos = Model.getPositionAt(ActiveMathInterval.Start);
+        const MathEndPos = Model.getPositionAt(ActiveMathInterval.End);
+        const MathStartLine = MathStartPos.lineNumber;
+        const MathEndLine = MathEndPos.lineNumber;
+
+        // Check if cursor is on a math container/delimiter line (e.g. mat(, vec(, cases(, or "(")
+        const IsMathDelimLine = TrimmedLine === "(" || TrimmedLine === ")" || TrimmedLine === "mat" || TrimmedLine === "vec" || TrimmedLine === "cases" || /^(mat|vec|cases)\s*\(/.test(TrimmedLine);
+        if (IsMathDelimLine)
+        {
+            let DelimStartLine = Line;
+            if (Line > MathStartLine)
+            {
+                const PrevLineText = (Model.getLineContent(Line - 1) || "").trim();
+                if (/^(mat|vec|cases)$/.test(PrevLineText))
+                {
+                    DelimStartLine = Line - 1;
+                }
+            }
+
+            let DelimEndLine = Line;
+            let ParenDepth = 0;
+            let FoundOpen = false;
+            for (let L = DelimStartLine; L <= MathEndLine; L++)
+            {
+                const CurLText = Model.getLineContent(L) || "";
+                for (let CharIdx = 0; CharIdx < CurLText.length; CharIdx++)
+                {
+                    if (CurLText[CharIdx] === "(")
+                    {
+                        ParenDepth++;
+                        FoundOpen = true;
+                    }
+                    else if (CurLText[CharIdx] === ")")
+                    {
+                        ParenDepth--;
+                        if (FoundOpen && ParenDepth === 0)
+                        {
+                            DelimEndLine = L;
+                            break;
+                        }
+                    }
+                }
+                if (FoundOpen && ParenDepth === 0)
+                {
+                    break;
+                }
+            }
+
+            const MathDelimElems = ActiveSyncMap.filter
+            (
+                (Elem) => Elem.line >= DelimStartLine && Elem.line <= DelimEndLine && !Elem.is_outline && !IsFullTableShape(Elem) && !(Elem.width < 50 && Elem.x > 450)
+            );
+            if (MathDelimElems.length > 0)
+            {
+                const FormulaBoxes = GroupElementsIntoVisualBoxes(MathDelimElems);
+                for (const Box of FormulaBoxes)
+                {
+                    Box.x -= 8.5;
+                    Box.width += 13.5;
+                }
+                HighlightSvgRects(FormulaBoxes, ForceAutoScroll);
+                return ;
+            }
+        }
+
+        let MathCandidates = SameLineCandidates.filter((Elem) => !(Elem.width < 50 && Elem.x > 450));
+        if (ActiveMathSpan)
+        {
+            MathCandidates = MathCandidates.filter
+            (
+                (Elem) => Elem.col >= ActiveMathSpan.StartCol && Elem.end_col <= (ActiveMathSpan.EndCol + 1)
+            );
+        }
+
+        if (MathCandidates.length > 0)
+        {
+            const ColIdx = Col - 1;
+            let TokenStart = ColIdx;
+            while (TokenStart > 0 && /[a-zA-Z0-9_]/.test(LineText[TokenStart - 1])) { TokenStart--; }
+            let TokenEnd = ColIdx;
+            while (TokenEnd < LineText.length && /[a-zA-Z0-9_]/.test(LineText[TokenEnd])) { TokenEnd++; }
+
+            // Check if cursor is on a function call atom e.g. f(x)
+            let AtomEnd = TokenEnd;
+            if (TokenEnd < LineText.length && LineText[TokenEnd] === "(")
+            {
+                let Depth = 1;
+                let Pos = TokenEnd + 1;
+                while (Pos < LineText.length && Depth > 0)
+                {
+                    if (LineText[Pos] === "(") { Depth++; }
+                    else if (LineText[Pos] === ")") { Depth--; }
+                    Pos++;
+                }
+                if (Depth === 0)
+                {
+                    AtomEnd = Pos;
+                }
+            }
+
+            if (AtomEnd > TokenEnd)
+            {
+                const AtomStartCol = TokenStart + 1;
+                const AtomEndCol = AtomEnd;
+                const AtomElems = MathCandidates.filter
+                (
+                    (Elem) => Elem.col >= AtomStartCol && Elem.col <= (AtomEndCol + 1)
+                );
+                if (AtomElems.length > 0)
+                {
+                    const AtomBoxes = GroupElementsIntoVisualBoxes(AtomElems);
+                    HighlightSvgRects(AtomBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+
+            const TokenStartCol = TokenStart + 1;
+            const TokenEndCol = Math.max(TokenStartCol, TokenEnd);
+            let BestSubElem = MathCandidates.find((Elem) => Elem.col >= TokenStartCol && Elem.col <= TokenEndCol);
+            if (!BestSubElem)
+            {
+                BestSubElem = MathCandidates.find((Elem) => Col >= Elem.col && Col <= Elem.end_col);
+            }
+            if (!BestSubElem)
+            {
+                let MinDist = Infinity;
+                for (const Elem of MathCandidates)
+                {
+                    const Mid = (Elem.col + Elem.end_col) / 2;
+                    const Dist = Math.abs(Col - Mid);
+                    if (Dist < MinDist && Dist <= 4.0)
+                    {
+                        MinDist = Dist;
+                        BestSubElem = Elem;
+                    }
+                }
+            }
+
+            if (BestSubElem)
+            {
+                HighlightSvgRects([BestSubElem], ForceAutoScroll);
+                return ;
+            }
+
+            const FormulaBoxes = GroupElementsIntoVisualBoxes(MathCandidates);
+            HighlightSvgRects(FormulaBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
+
+    // Check if cursor is on table.cell [ or [ of a table.cell
+    const IsTableCellBracket = TrimmedLine === "[" && (Line > 1 && (Model.getLineContent(Line - 1) || "").includes("table.cell"));
+    const IsTableCellHeader = /^\s*table\.cell\b/.test(LineText);
+    if (IsTableCellBracket || IsTableCellHeader)
+    {
+        const BracketStartLine = IsTableCellBracket ? Line : Line;
+        let BracketDepth = 0;
+        let CellEndLine = Line;
+        let FoundOpen = false;
+        const MaxScan = Math.min(Model.getLineCount(), Line + 35);
+
+        for (let L = BracketStartLine; L <= MaxScan; L++)
+        {
+            const CurLText = Model.getLineContent(L) || "";
+            for (let CharIdx = 0; CharIdx < CurLText.length; CharIdx++)
+            {
+                if (CurLText[CharIdx] === "[")
+                {
+                    BracketDepth++;
+                    FoundOpen = true;
+                }
+                else if (CurLText[CharIdx] === "]")
+                {
+                    BracketDepth--;
+                    if (FoundOpen && BracketDepth === 0)
+                    {
+                        CellEndLine = L;
+                        break;
+                    }
+                }
+            }
+            if (FoundOpen && BracketDepth === 0)
+            {
+                break;
+            }
+        }
+
+        const CellElems = ActiveSyncMap.filter
+        (
+            (Elem) => Elem.line >= Line && Elem.line <= CellEndLine && !Elem.is_outline && !IsFullTableShape(Elem)
+        );
+        if (CellElems.length > 0)
+        {
+            const GroupedBoxes = GroupElementsIntoVisualBoxes(CellElems);
+            HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
+
+    if (SameLineCandidates.length === 0)
+    {
+        // Container header or block boundary: check if cursor is on a container declaration
+        if (/^\s*(#table|table\.cell|table\.header|#grid|#block|#rect|#box)\b/.test(LineText) || TrimmedLine === "[" || TrimmedLine === "]" || TrimmedLine === "(" || TrimmedLine === ")")
+        {
+            const ContainerElems = ActiveSyncMap.filter((E) => E.line > Line && E.line <= (Line + 25) && Math.abs(E.line - Line) <= 15 && !E.is_outline && !IsFullTableShape(E));
+            if (ContainerElems.length > 0)
+            {
+                const ValidElems = (ActiveOutlineLine > 0 && Line > ActiveOutlineLine) ? ContainerElems.filter((E) => (E.page || 1) !== 1) : ContainerElems;
+                const TargetList = ValidElems.length > 0 ? ValidElems : ContainerElems;
+                const FirstTargetPage = TargetList[0].page || 1;
+                const PageElems = TargetList.filter((E) => (E.page || 1) === FirstTargetPage);
+                if (PageElems.length > 0)
+                {
+                    const GroupedBoxes = GroupElementsIntoVisualBoxes(PageElems);
+                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+        }
+
+        ClearSyncHighlights();
+        if (ForceAutoScroll)
+        {
+            ScrollPreviewToNearestLine(Line);
+        }
+        return ;
+    }
+    else if (MathSpans.length > 0)
+    {
+        // Cursor is OUTSIDE $ ... $: filter out all math elements so ONLY prose is highlighted!
+        SameLineCandidates = SameLineCandidates.filter
+        (
+            (Elem) => !MathSpans.some((M) => Elem.col >= M.StartCol && Elem.end_col <= (M.EndCol + 1))
+        );
+        if (SameLineCandidates.length === 0)
+        {
+            ClearSyncHighlights();
+            return ;
+        }
+    }
+
+    // 3. Table Cells on this line (support nested brackets)
+    const LineCells = [];
+    let BracketDepth = 0;
+    let CellStart = -1;
+    for (let I = 0; I < LineText.length; I++)
+    {
+        const Ch = LineText[I];
+        if (Ch === "[")
+        {
+            if (BracketDepth === 0) { CellStart = I + 1; }
+            BracketDepth++;
+        }
+        else if (Ch === "]")
+        {
+            BracketDepth--;
+            if (BracketDepth === 0 && CellStart !== -1)
+            {
+                LineCells.push({ StartCol: CellStart, EndCol: I + 1 });
+                CellStart = -1;
+            }
+        }
+    }
+
+    if (LineCells.length > 1)
+    {
+        const InsideCell = LineCells.find((C) => Col >= C.StartCol && Col <= C.EndCol);
+        if (InsideCell)
+        {
+            const MatchingCellElems = SameLineCandidates.filter
+            (
+                (Elem) => Elem.col >= InsideCell.StartCol && Elem.end_col <= (InsideCell.EndCol + 1)
+            );
+            if (MatchingCellElems.length > 0)
+            {
+                const GroupedBoxes = GroupElementsIntoVisualBoxes(MatchingCellElems);
+                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                return ;
+            }
+        }
+        else
+        {
+            const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
+            HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+            return ;
+        }
+    }
+        // Check for function call arguments on this line (e.g. MetricBadge("Throughput", 98))
+        const CallBoxElem = SameLineCandidates.find( (E) => String(E.span).startsWith("call_box_"));
+        const CallArgElems = SameLineCandidates.filter( (E) => String(E.span).startsWith("call_arg_"));
+
+        if (CallBoxElem && CallArgElems.length > 0)
+        {
+            const InsideArg = CallArgElems.find( (E) => Col >= E.col && Col <= E.end_col);
+            if (InsideArg)
+            {
+                const GroupedBoxes = GroupElementsIntoVisualBoxes([InsideArg]);
+                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                return ;
+            }
+            else if (Col >= CallBoxElem.col && Col <= CallBoxElem.end_col)
+            {
+                const GroupedBoxes = GroupElementsIntoVisualBoxes([CallBoxElem]);
+                HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                return ;
+            }
+        }
+
+        // Check for footnote calls on this line: #footnote[...] or #footnote(...)
+        const FootnoteRegex = /#footnote(?:\s*\[|\s*\()/g;
+        let FnMatch;
+        const FootnoteRanges = [];
+        while ((FnMatch = FootnoteRegex.exec(LineText)) !== null)
+        {
+            const StartIdx = FnMatch.index + 1;
+            const OpenBracket = LineText[FnMatch.index + FnMatch[0].length - 1];
+            const CloseBracket = OpenBracket === "[" ? "]" : ")";
+            let Depth = 1;
+            let EndIdx = FnMatch.index + FnMatch[0].length;
+            while (EndIdx < LineText.length && Depth > 0)
+            {
+                if (LineText[EndIdx] === OpenBracket) Depth++;
+                else if (LineText[EndIdx] === CloseBracket) Depth--;
+                EndIdx++;
+            }
+            FootnoteRanges.push({ StartCol: StartIdx, EndCol: EndIdx });
+        }
+
+        if (FootnoteRanges.length > 0)
+        {
+            const ActiveFootnote = FootnoteRanges.find( (R) => Col >= R.StartCol && Col <= R.EndCol);
+            if (ActiveFootnote)
+            {
+                // Cursor is inside footnote: highlight only the footnote element(s)
+                const FootnoteElems = SameLineCandidates.filter
+                (
+                    (Elem) => (Elem.col >= ActiveFootnote.StartCol && Elem.end_col <= ActiveFootnote.EndCol + 2) || (Elem.y > 650 && Elem.line === Line)
+                );
+                if (FootnoteElems.length > 0)
+                {
+                    const GroupedBoxes = GroupElementsIntoVisualBoxes(FootnoteElems);
+                    HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+                    return ;
+                }
+            }
+            else
+            {
+                // Cursor is outside footnote: filter out footnote elements from line candidates
+                SameLineCandidates = SameLineCandidates.filter
+                (
+                    (Elem) =>
+                    {
+                        const InsideFn = FootnoteRanges.some( (R) => Elem.col >= R.StartCol && Elem.end_col <= R.EndCol + 2);
+                        return !InsideFn && Elem.y < 700;
+                    }
+                );
+            }
+        }
+
+        // Vertical proximity filtering: ensure highlighted elements belong to the same visual vertical band as target element
+        if (SameLineCandidates.length > 1)
+        {
+            let PivotElem = SameLineCandidates[0];
+            let BestDist = Infinity;
+            for (const Elem of SameLineCandidates)
+            {
+                if (Col >= Elem.col && Col <= Elem.end_col)
+                {
+                    PivotElem = Elem;
+                    break;
+                }
+                const Mid = (Elem.col + Elem.end_col) / 2;
+                const Dist = Math.abs(Col - Mid);
+                if (Dist < BestDist)
+                {
+                    BestDist = Dist;
+                    PivotElem = Elem;
+                }
+            }
+
+            const PivotPage = PivotElem.page || 1;
+            SameLineCandidates = SameLineCandidates.filter
+            (
+                (Elem) => (Elem.page || 1) === PivotPage && Math.abs(Elem.y - PivotElem.y) < 90.0
+            );
+        }
+
+        // Highlight everything on this line in that same hierarchy
+        const GroupedBoxes = GroupElementsIntoVisualBoxes(SameLineCandidates);
+        // If line contains a math vector/matrix, expand to frame outer delimiters
+        if
+        (
+            TrimmedLine.includes("vec(") ||
+            TrimmedLine.includes("mat(") ||
+            TrimmedLine.includes("cases(")
+        )
+        {
+            for (const Box of GroupedBoxes)
+            {
+                Box.x -= 8.5;
+                Box.width += 13.5;
+            }
+        }
+        // Never highlight a lone character/glyph unless selected in editor
+        if
+        (
+            GroupedBoxes.length === 1 &&
+            GroupedBoxes[0].width < 12.0 &&
+            GroupedBoxes[0].height < 15.0 &&
+            TrimmedLine.length <= 2
+        )
+        {
+            ClearSyncHighlights();
+            return ;
+        }
+
+        HighlightSvgRects(GroupedBoxes, ForceAutoScroll);
+    }
+// Make functions accessible from onclick handlers
+window.OpenFileFromWorkspace = OpenFileFromWorkspace;
+window.RemoveWorkspaceDirectory = RemoveWorkspaceDirectory;
+window.DeleteWorkspaceFile = DeleteWorkspaceFile;
+window.SelectDashboardDirectory = SelectDashboardDirectory;
+window.PickFolderFromDisk = PickFolderFromDisk;
+window.SetEditorFontSize = SetEditorFontSize;
+window.IncreaseEditorFontSize = IncreaseEditorFontSize;
+window.DecreaseEditorFontSize = DecreaseEditorFontSize;
+window.ResetEditorFontSize = ResetEditorFontSize;
+window.ToggleFullscreen = ToggleFullscreen;
+window.SetZoom = SetZoom;
+window.FitWidth = FitWidth;
+window.FitPage = FitPage;
+window.ToggleShortcutsModal = ToggleShortcutsModal;
+window.OpenDocumentInTab = OpenDocumentInTab;
+window.SwitchToTab = SwitchToTab;
+window.CloseTab = CloseTab;
+window.OpenProjectInExplorer = OpenProjectInExplorer;
+window.CreateFileInProject = CreateFileInProject;
+window.ShowNewDocumentModal = ShowNewDocumentModal;
+window.CloseNewDocumentModal = CloseNewDocumentModal;
+window.ConfirmCreateNewDocument = ConfirmCreateNewDocument;
+
+window.addEventListener
+(
+    "DOMContentLoaded",
+    async () =>
+    {
+        await EnsureSessionAuthToken();
+        LoadUISettings();
+        ApplyUISettings();
+        SetupEventListeners();
+        SetupAppearanceEventListeners();
+        UpdateBlackPageMode();
+        SetUIMode(CurrentUIMode);
+        UpdateFontSizeUI();
+        if (window.__TAURI__ && window.__TAURI__.window && typeof window.__TAURI__.window.getCurrentWindow === "function")
+        {
+            window.__TAURI__.window.getCurrentWindow().isFullscreen()
+                .then((IsFs) =>
+                {
+                    IsAppFullscreen = Boolean(IsFs);
+                    UpdateFullscreenUI(IsAppFullscreen);
+                })
+                .catch(() => { UpdateFullscreenUI(false); });
+        }
+        else
+        {
+            UpdateFullscreenUI(false);
+        }
+        SetupZoomControls();
+        try
+        {
+            localStorage.removeItem("TypstStudio_PageZoom");
+            document.body.style.zoom = "";
+        }
+        catch (Ignored) {}
+        UpdateCheatSheetBadges();
+
+        // 1. Initialize Monaco and wait for complete readiness
+        await InitializeMonaco();
+        InitializeSyncTex();
+
+        // 2. Load tracked directories and workspace files
+        await LoadWorkspaceInfo();
+
+        // 3. Initialize Explorer sidebar, resizing, and project view
+        await InitExplorer();
+
+        // 4. Initialize Tabs and open the active / target document
+        await InitEditorTabs();
+
+        LoadAvailableFonts();
+        SetupAssetDragAndDrop();
+        SetViewportLayout(localStorage.getItem("TypstStudio_Layout") || "split");
+        if (localStorage.getItem("TypstStudio_OutlineVisible") === "true")
+        {
+            ToggleDocumentOutline(true);
+        }
+
+        // Steve Jobs Homepage: The starting page when the app runs
+        SwitchView("dashboard");
+
+        // Safety fallback: ensure splash is never permanently stuck
+        setTimeout
+        (
+            () =>
+            {
+                const Splash = document.getElementById("LoadingSplash");
+                if (Splash)
+                {
+                    Splash.remove();
+                }
+            },
+            6000
+        );
+    }
+);

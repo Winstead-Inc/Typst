@@ -59,59 +59,53 @@
 // - If the `def-target` is a value, attempts to locate its path in the standard
 //   library and returns the canonical label for it.
 // - If the `def-target` is already a label, returns it unchanged.
-#let def-label(def-target) = {
-  if type(def-target) == label {
-    def-target
-  } else {
-    label(std-path-of(def-target))
-  }
-}
+#let def-label(def-target) =
+{ if type(def-target) == label { def-target } else { label(std-path-of(def-target)) } }
 
 // Retrieves the metadata for a definition.
 //
 // Returns a pair of a destination and a title. Requires context.
-#let def-metadata(def-target) = {
-  let def-label = def-label(def-target)
-  let targets = query(selector.and(metadata, def-label))
-  let len = targets.len()
-  if len == 1 {
-    targets.first().value
-  } else if len == 0 {
-    panic("found no definition for: " + repr(def-label))
-  } else {
-    panic({
-      "found multiple definitions for: "
-      repr(def-label)
-      " ("
-      targets
-        .map(m => if type(m.value) == str { m.value } else { repr(m.value) })
-        .join(", ")
-      ")"
-    })
-  }
+#let def-metadata(def-target) =
+{
+    let def-label = def-label(def-target)
+    let targets = query(selector.and (metadata, def-label))
+    let len = targets.len()
+    if len == 1
+    { targets.first().value }
+    else if len == 0
+    { panic("found no definition for: " + repr(def-label)) }
+    else
+    {
+        panic
+        ({
+            "found multiple definitions for: "
+            repr(def-label)
+            " ("
+            targets
+                .map(m => if type(m.value) == str { m.value } else { repr(m.value) })
+                .join(", ")
+            ")"
+        })
+    }
 }
 
 // Retrieves the linking destination for a definition.
 #let def-dest(def-target) = def-metadata(def-target).first()
 
 // Registers the destination under which a definition is documented.
-#let register-def(
-  // Either a label or a value that is defined in the standard library.
-  def-target,
-  // Where the target is documented.
-  //
-  // May be either a `location` or a route (the latter only in the HTML version
-  // where both variants are used).
-  dest,
-  // What a reference to the target should display. Defaults to just the
-  // resolved label's value in raw (e.g. `@int` => `` `int` ``), but could be
-  // set to something else, like a heading's body (e.g.
-  // `@introduction` => `[Introduction]`).
-  title: auto,
-) = {
-  let def-label = def-label(def-target)
-  if title == auto {
-    title = raw(str(def-label))
-  }
-  labelled(metadata((dest, title)), def-label)
-}
+#let register-def
+(
+    // Either a label or a value that is defined in the standard library.
+    def-target,
+    // Where the target is documented.
+    //
+    // May be either a `location` or a route (the latter only in the HTML version
+    // where both variants are used).
+    dest,
+    // What a reference to the target should display. Defaults to just the
+    // resolved label's value in raw (e.g. `@int` => `` `int` ``), but could be
+    // set to something else, like a heading's body (e.g.
+    // `@introduction` => `[Introduction]`).
+    title: auto,
+) =
+{ let def-label = def-label(def-target) if title == auto { title = raw(str(def-label)) } labelled(metadata((dest, title)), def-label) }

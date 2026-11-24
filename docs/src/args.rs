@@ -11,7 +11,7 @@ use typst_utils:: { display_possible_values, parse_sys_input_pair };
 pub struct CliArguments
 {
     /// The command to run.
-    # [command(subcommand)]
+    #[command(subcommand)]
     pub command: Command,
 }
 
@@ -24,14 +24,14 @@ pub enum Command
     ///
     /// - When exporting to a website, the output is written to `docs/dist/site`
     /// - When exporting to a PDF, the output is written to `docs/dist/docs.pdf`
-    # [command(visible_alias = "c")]
+   #[command(visible_alias = "c")]
     Compile(CompileCommand),
     /// Compiles the documentation continuously.
     ///
     /// - When exporting to a website, serves on a live-reload server instead of
     ///   writing to disk.
     /// - When exporting to a PDF, writes to disk.
-    # [command(visible_alias = "w")]
+    #[command(visible_alias = "w")]
     Watch(WatchCommand),
 }
 
@@ -40,10 +40,10 @@ pub enum Command
 pub struct CompileCommand
 {
     /// Arguments for compilation.
-    # [clap(flatten)]
+    #[clap(flatten)]
     pub args: CompileArgs,
     /// Whether to exit with an error code if there were warnings.
-    # [arg(long)]
+    #[arg(long)]
     pub deny_warnings: bool,
 }
 
@@ -52,11 +52,11 @@ pub struct CompileCommand
 pub struct WatchCommand
 {
     /// Arguments for compilation.
-    # [clap(flatten)]
+    #[clap(flatten)]
     pub args: CompileArgs,
 
     /// Whether to emit the files when the source changes, instead of serving them.
-    # [arg(long)]
+    #[arg(long)]
     pub no_serve: bool,
 }
 
@@ -78,22 +78,22 @@ pub struct CompileArgs
     ///   watching).
     ///
     /// The default values are relative to the workspace.
-    # [arg(verbatim_doc_comment)]
+    #[arg(verbatim_doc_comment)]
     pub output: Option<PathBuf>,
     /// The output format.
-    # [arg(long = "format", short = 'f', default_value_t)]
+    #[arg(long = "format", short = 'f', default_value_t)]
     pub format: OutputFormat,
     /// Add a string key-value pair visible through `sys.inputs`.
-    # [clap(short = 'i', long = "input", value_name = "key=value", action = ArgAction::Append, value_parser = ValueParser::new (parse_sys_input_pair),)]
-    pub inputs: Vec<(String, String)>,
+    #[clap(short = 'i', long = "input", value_name = "key=value", action = ArgAction::Append, value_parser = ValueParser::new (parse_sys_input_pair),)]
+    pub inputs: Vec < (String, String) > ,
     /// Do not add the "development version" warning to the generated PDF.
-    # [arg(long)]
+    #[arg(long)]
     pub release: bool,
     /// Produces performance timings of the compilation process.
-    # [arg(long = "timings", value_name = "OUTPUT_JSON")]
+    #[arg(long = "timings", value_name = "OUTPUT_JSON")]
     pub timings: Option<PathBuf>,
     /// Open the generated output when finished.
-    # [arg(long)]
+    #[arg(long)]
     pub open: bool,
     /// Path to the workspace from which to load files for documentation.
     ///
@@ -103,12 +103,12 @@ pub struct CompileArgs
     /// codebase. To do so, set this option to that clone's root directory.
     ///
     /// The default INPUT and OUTPUT are relative to the value of this option.
-    # [arg(long)]
+    #[arg(long)]
     pub workspace: Option<PathBuf>,
 }
 
 /// Which kind of output to generate.
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, ValueEnum)]
-pub enum OutputFormat { # [default] Website, Pdf, }
+pub enum OutputFormat {#[default] Website, Pdf, }
 
 display_possible_values!(OutputFormat);

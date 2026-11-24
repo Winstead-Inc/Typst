@@ -15,6 +15,7 @@ tests/fuzz/coverage
 tarpaulin-report.html
 
 docs/dist
+*.log
 
 # Rust
 /target

@@ -6,86 +6,76 @@ mod search;
 mod world;
 
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path:: { Path, PathBuf };
 use std::process::ExitCode;
-use std::sync::{Arc, LazyLock};
+use std::sync:: { Arc, LazyLock };
 
 use clap::Parser;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
-use typst::diag::{At, SourceResult, Warned};
+use rayon::iter:: { IntoParallelRefIterator, ParallelIterator };
+use typst::diag:: { At, SourceResult, Warned };
 use typst::foundations::Bytes;
 use typst::syntax::Span;
-use typst_bundle::{Bundle, BundleFile, BundleOptions, VirtualFs};
-use typst_kit::diagnostics::{self, termcolor};
+use typst_bundle:: { Bundle, BundleFile, BundleOptions, VirtualFs };
+use typst_kit::diagnostics:: { self, termcolor };
 use typst_kit::server::HttpServer;
 use typst_kit::timer::Timer;
 use typst_kit::watcher::Watcher;
 use typst_layout::PagedDocument;
 use typst_pdf::PdfOptions;
 
-use crate::args::{
-    CliArguments, Command, CompileArgs, CompileCommand, OutputFormat, WatchCommand,
-};
+use crate::args:: { CliArguments, Command, CompileArgs, CompileCommand, OutputFormat, WatchCommand, };
 use crate::world::DocWorld;
 
 /// The parsed command line arguments.
-static ARGS: LazyLock<CliArguments> = LazyLock::new(CliArguments::parse);
+static ARGS: LazyLock<CliArguments> = LazyLock:: new (CliArguments::parse);
 
 /// The default entrypoint into the docs.
-const ENTRYPOINT: &str = "docs/main.typ";
+const ENTRYPOINT: & str = "docs/main.typ";
 
 // Paths.
-const PDF_PATH: &str = "docs/dist/docs.pdf";
-const SITE_PATH: &str = "docs/dist/site";
+const PDF_PATH: & str = "docs/dist/docs.pdf";
+const SITE_PATH: & str = "docs/dist/site";
 
 /// Entry point.
 fn main() -> ExitCode
-{
-    match &ARGS.command
-    {
-        Command::Compile(command) => compile(command),
-        Command::Watch(command) => watch(command),
-    }
-}
+{ match & ARGS.command { Command::Compile(command) => compile(command), Command::Watch(command) => watch(command), } }
 
 /// Execute a compilation command.
-fn compile(command: &CompileCommand) -> ExitCode
+fn compile(command: & CompileCommand) -> ExitCode
 {
     let mut timer = Timer::new_or_placeholder(command.args.timings.clone());
-    let mut config = Config::new(&command.args, false);
-    let mut world = DocWorld::new(&config);
+    let mut config = Config:: new ( & command.args, false);
+    let mut world = DocWorld:: new ( & config);
     let report = timer
-        .record(&mut world, |world| compile_once(world, &mut config))
-        .unwrap();
-    report.print(&world);
+   . record( & mut world, | world | compile_once(world, & mut config))
+   .unwrap();
+    report.print( & world);
 
-    if report.0.output.is_err()
-        || (command.deny_warnings && !report.0.warnings.is_empty())
-    {
-        return ExitCode::FAILURE;
-    }
+    if report.0 .output.is_err()
+    || (command.deny_warnings && ! report.0 .warnings.is_empty())
+    { return ExitCode::FAILURE; }
 
     ExitCode::SUCCESS
 }
 
 /// Execute a watching compilation command.
-fn watch(command: &WatchCommand) -> !
+fn watch(command: & WatchCommand) -> !
 {
     let mut timer = Timer::new_or_placeholder(command.args.timings.clone());
-    let mut watcher = Watcher::new(None).unwrap();
-    let mut config = Config::new(&command.args, !command.no_serve);
-    let mut world = DocWorld::new(&config);
+    let mut watcher = Watcher:: new (None).unwrap();
+    let mut config = Config:: new ( & command.args, ! command.no_serve);
+    let mut world = DocWorld:: new ( & config);
 
     loop
     {
-        print_watch_header(&config);
+        print_watch_header( & config);
         writeln!(out(), "compiling ...").unwrap();
         let report = timer
-            .record(&mut world, |world| compile_once(world, &mut config))
-            .unwrap();
+       . record( & mut world, | world | compile_once(world, & mut config))
+       .unwrap();
 
-        print_watch_header(&config);
-        report.print(&world);
+        print_watch_header( & config);
+        report.print( & world);
 
         comemo::evict(10);
         watcher.update(world.dependencies()).unwrap();
@@ -95,21 +85,15 @@ fn watch(command: &WatchCommand) -> !
 }
 
 /// Prints the status line in watch mode.
-fn print_watch_header(config: &Config)
+fn print_watch_header(config: & Config)
 {
     let mut out = out();
     let clear = "\x1B[2J\x1B[1;1H";
     write!(out, "{clear}").unwrap();
-    if let Some(server) = &config.server
-    {
-        writeln!(out, "serving docs on http://{}", server.addr()).unwrap();
-        writeln!(out).unwrap();
-    }
-    if let Some(path) = &config.output
-    {
-        writeln!(out, "writing to {}", path.display()).unwrap();
-        writeln!(out).unwrap();
-    }
+    if let Some(server) = & config.server
+    { writeln ! (out, "serving docs on http://{}", server.addr()).unwrap(); writeln ! (out).unwrap(); }
+    if let Some(path) = & config.output
+    { writeln ! (out, "writing to {}", path.display()).unwrap(); writeln ! (out).unwrap(); }
 }
 
 /// Preprocessing configuration for compilation.
@@ -126,7 +110,7 @@ struct Config
     /// The kind of output to produce.
     output_format: OutputFormat,
     /// String key-value pairs visible through `sys.inputs`.
-    sys_inputs: Vec<(String, String)>,
+    sys_inputs: Vec < (String, String) > ,
     /// Whether to include a "development version" warning in the documentation.
     is_dev_version: bool,
     /// A live reload server for the `watch` subcommand.
@@ -138,27 +122,35 @@ struct Config
 impl Config
 {
     /// Preprocess `CompileArgs`, producing a compilation config.
-    fn new(args: &CompileArgs, serve: bool) -> Self
+    fn new (args: & CompileArgs, serve: bool) -> Self
     {
-        let workspace = args.workspace.clone().unwrap_or_else(|| {
-            // Default to the workspace in which this program was compiled.
-            Path::new(env!("CARGO_MANIFEST_DIR")).join(std::path::Component::ParentDir)
-        });
-
-        Self {
-            input: args.input.clone().unwrap_or(workspace.join(ENTRYPOINT)),
-            output: args.output.clone().or_else(|| match args.format
+        let workspace = args.workspace.clone().unwrap_or_else
+        (
+            ||
             {
-                OutputFormat::Pdf => Some(workspace.join(PDF_PATH)),
-                OutputFormat::Website if serve => None,
-                OutputFormat::Website => Some(workspace.join(SITE_PATH)),
-            }),
+                // Default to the workspace in which this program was compiled.
+                Path:: new (env ! ("CARGO_MANIFEST_DIR")).join(std::path::Component::ParentDir)
+            }
+        );
+
+        Self
+        {
+            input: args.input.clone().unwrap_or(workspace.join(ENTRYPOINT)),
+            output: args.output.clone().or_else
+            (
+                || match args.format
+                {
+                    OutputFormat::Pdf => Some(workspace.join(PDF_PATH)),
+                    OutputFormat::Website if serve => None,
+                    OutputFormat::Website => Some(workspace.join(SITE_PATH)),
+                }
+            ),
             workspace,
             output_format: args.format,
             sys_inputs: args.inputs.clone(),
-            is_dev_version: !args.release,
+            is_dev_version: ! args.release,
             server: (serve && args.format == OutputFormat::Website)
-                .then(|| HttpServer::new("docs", None, true).unwrap()),
+           .then( || HttpServer::new ("docs", None, true).unwrap()),
             open: args.open,
         }
     }
@@ -167,122 +159,114 @@ impl Config
 /// Compiles the documentation, potentially writing it to disk and/or updating
 /// the live reload server, and returns compilation diagnostics ready for
 /// printing.
-fn compile_once(world: &DocWorld, config: &mut Config) -> Report
+fn compile_once(world: & DocWorld, config: & mut Config) -> Report
 {
     let mut warned = match config.output_format
     {
         OutputFormat::Website => typst::compile::<Bundle>(world)
-            .and_then(|bundle| export_website(bundle, config)),
+       .and_then( | bundle | export_website(bundle, config)),
         OutputFormat::Pdf => typst::compile::<PagedDocument>(world)
-            .and_then(|document| export_pdf(&document, config)),
+       .and_then( | document | export_pdf( & document, config)),
     };
 
     if config.open && warned.output.is_ok()
     {
-        if let Some(server) = &config.server
-        {
-            let url = format!("http://{}", server.addr());
-            open::that_detached(url).unwrap();
-        }
-        else if let Some(output) = &config.output
-        {
-            open::that_detached(output).unwrap();
-        }
+        if let Some(server) = & config.server
+        { let url = format ! ("http://{}", server.addr()); open::that_detached(url).unwrap(); }
+        else if let Some(output) = & config.output
+        { open::that_detached(output).unwrap(); }
         config.open = false;
     }
 
     warned
-        .warnings
-        .retain(|diag| !diag.message.starts_with("bundle export is experimental"));
+   .warnings
+   .retain( | diag | ! diag.message.starts_with("bundle export is experimental"));
 
     Report(warned)
 }
 
 /// Exports the built website, adding a search index, and refreshes the live
 /// reload server.
-fn export_website(mut bundle: Bundle, config: &Config) -> Warned<SourceResult<()>>
+fn export_website(mut bundle: Bundle, config: & Config) -> Warned < SourceResult < () >>
 {
     Warned::from(Ok(()))
-        .and_then(|()| {
-            let index = crate::search::build_search_index(&bundle)?;
-            let search_path = crate::search::index_path(&bundle).at(Span::detached())?;
-            Arc::make_mut(&mut bundle.files).insert(
-                search_path,
-                BundleFile::Asset(Bytes::new(serde_json::to_vec(&index).unwrap())),
-            );
+   .and_then
+    (
+        | () |
+        {
+            let index = crate::search::build_search_index( & bundle)?;
+            let search_path = crate::search::index_path( & bundle).at(Span::detached())?;
+            Arc::make_mut( & mut bundle.files).insert(search_path, BundleFile::Asset(Bytes::new (serde_json::to_vec( & index).unwrap())),);
 
-            Ok(BundleOptions::default())
-        })
-        .and_then(|options| typst_bundle::export(&bundle, &options))
-        .and_then(|fs| {
-            if let Some(path) = &config.output
-            {
-                write_virtual_fs(path, &fs);
-            }
+            Ok(BundleOptions::default ())
+        }
+    )
+   .and_then( | options | typst_bundle::export( & bundle, & options))
+   .and_then
+    (
+        | fs |
+        {
+            if let Some(path) = & config.output
+            { write_virtual_fs(path, & fs); }
 
-            if let Some(server) = &config.server
-            {
-                server.set_bundle(bundle, fs);
-            }
+            if let Some(server) = & config.server
+            { server.set_bundle(bundle, fs); }
 
             Ok(())
-        })
+        }
+    )
 }
 
 /// Writes a bundle's files to disk.
-fn write_virtual_fs(root: &Path, fs: &VirtualFs)
+fn write_virtual_fs(root: & Path, fs: & VirtualFs)
 {
     std::fs::create_dir_all(root).unwrap();
     fs.par_iter().for_each
-    (|(path, data)|
-    {
-        let realized = path.realize(root).unwrap();
-        if let Some(parent) = realized.parent()
+    (
+        | (path, data) |
         {
-            std::fs::create_dir_all(parent).unwrap();
+            let realized = path.realize(root).unwrap();
+            if let Some(parent) = realized.parent()
+            { std::fs::create_dir_all(parent).unwrap(); }
+            std::fs::write( & realized, data).unwrap();
         }
-        std::fs::write(&realized, data).unwrap();
-    });
+    );
 }
 
 /// Exports a document to PDF and writes it to disk.
-fn export_pdf(document: &PagedDocument, config: &Config) -> Warned<SourceResult<()>>
+fn export_pdf(document: & PagedDocument, config: & Config) -> Warned < SourceResult < () >>
 {
-    typst_pdf::pdf(document, &PdfOptions::default()).and_then(|data| {
-        if let Some(path) = &config.output
+    typst_pdf::pdf(document, & PdfOptions::default ()).and_then
+    (
+        | data |
         {
-            if let Some(parent) = path.parent()
+            if let Some(path) = & config.output
             {
-                std::fs::create_dir_all(parent).unwrap();
+                if let Some(parent) = path.parent()
+                { std::fs::create_dir_all(parent).unwrap(); }
+                std::fs::write(path, data).unwrap();
             }
-            std::fs::write(path, data).unwrap();
+            Ok(())
         }
-        Ok(())
-    })
+    )
 }
 
 /// Acquires the output stream for user-facing messages.
 fn out() -> termcolor::StandardStream
-{
-    termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto)
-}
+{ termcolor::StandardStream::stderr(termcolor::ColorChoice::Auto) }
 
 /// Holds diagnostics, ready for printing.
-struct Report(Warned<SourceResult<()>>);
+struct Report(Warned < SourceResult < () >>);
 
 impl Report
 {
     /// Prints the diagnostics.
-    fn print(&self, world: &DocWorld)
+    fn print( & self, world: & DocWorld)
     {
-        let Warned { output, warnings } = &self.0;
-        let errors = output.as_ref().err().map(|v| v.as_slice()).unwrap_or_default();
-        diagnostics::emit(
-            &mut out(),
-            world,
-            errors.iter().chain(warnings),
-            diagnostics::DiagnosticFormat::Human,
-        )
-        .unwrap();
+        let Warned { output, warnings }
+        = & self.0;
+        let errors = output.as_ref().err().map( | v | v.as_slice()).unwrap_or_default();
+        diagnostics::emit( & mut out(), world, errors.iter().chain(warnings), diagnostics::DiagnosticFormat::Human,)
+       .unwrap();
     }
 }

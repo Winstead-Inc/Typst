@@ -2264,15 +2264,21 @@ body.dragging .PreviewPane
     max-height: 250px;
     background-color: #1a0507 !important;
     border-top: 2px solid #ef4444 !important;
-    display: none;
+    display: flex;
     flex-direction: column;
     z-index: 20;
     box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.95), 0 -2px 12px rgba(239, 68, 68, 0.35);
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
 }
 
 .ErrorDrawer.Visible
 {
-    display: flex;
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .ErrorHeader
@@ -2352,18 +2358,804 @@ body.dragging .PreviewPane
     font-weight: 800 !important;
 }
 
-/* --- DASHBOARD VIEW --- */
-.DashboardView
+/* --- DASHBOARD / HOMEPAGE VIEW (STEVE JOBS DESIGN AESTHETIC) --- */
+.DashboardView,
+.DashboardView.HomepageView
 {
     flex: 1;
     overflow-y: auto;
-    background-color: #070708;
-    background-image: radial-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 0);
-    background-size: 24px 24px;
-    padding: 28px 36px 64px 36px;
-    color: #f4f4f5;
+    background-color: #070709;
+    color: #F4F4F5;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
 }
 
+.HomepageMainLayout
+{
+    display: flex;
+    width: 100%;
+    min-height: 100%;
+    box-sizing: border-box;
+}
+
+.HomepageLeftColumn
+{
+    flex: 1;
+    min-width: 0;
+    padding: 28px 48px 64px 48px;
+    box-sizing: border-box;
+}
+
+.HomepageTopHeader
+{
+    display: flex;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.HomepageSearchWrapper
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #121215;
+    border: 1px solid #27272A;
+    border-radius: 8px;
+    padding: 8px 16px;
+    width: 320px;
+    transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.HomepageSearchWrapper:focus-within
+{
+    border-color: #7100FF;
+    background-color: #16161B;
+    box-shadow: 0 0 0 2px rgba(113, 0, 255, 0.25);
+}
+
+.HomepageSearchIcon
+{
+    flex-shrink: 0;
+    stroke: #A1A1AA;
+}
+
+.HomepageSearchInput
+{
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #FFFFFF;
+    font-size: 13px;
+    width: 100%;
+}
+
+.HomepageSearchInput::placeholder
+{
+    color: #71717A;
+}
+
+.HomepageTitleSection
+{
+    margin-bottom: 20px;
+}
+
+.HomepageMainTitle
+{
+    font-size: 28px;
+    font-weight: 700;
+    color: #FFFFFF;
+    letter-spacing: -0.02em;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.HomepageHeroActions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.HeroActionCard
+{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background-color: #131317;
+    border: 1px solid #26262B;
+    border-radius: 8px;
+    padding: 16px 22px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+    color: inherit;
+    min-width: 250px;
+    flex: 1;
+    max-width: 380px;
+}
+
+.HeroActionCard:hover
+{
+    background-color: #1A1A20;
+    border-color: #3F3F46;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.5);
+}
+
+.HeroActionIconBox
+{
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #E4E4E7;
+    flex-shrink: 0;
+}
+
+.HeroActionTextBox
+{
+    flex: 1;
+    min-width: 0;
+}
+
+.HeroActionTitle
+{
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #FFFFFF;
+    margin-bottom: 3px;
+}
+
+.HeroActionSub
+{
+    font-size: 12px;
+    color: #71717A;
+}
+
+.HeroActionChevron
+{
+    flex-shrink: 0;
+    color: #71717A;
+    margin-left: 6px;
+}
+
+.HomepageSecondaryRow
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #1C1C21;
+}
+
+.HomepageFolderBtn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #131317;
+    border: 1px solid #26262B;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: #E4E4E7;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.HomepageFolderBtn:hover
+{
+    background-color: #1C1C22;
+    border-color: #3F3F46;
+    color: #FFFFFF;
+}
+
+.HomepageToolbarRight
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.HomepageSortLabel
+{
+    font-size: 12px;
+    color: #71717A;
+}
+
+.HomepageSortDropdownWrapper
+{
+    position: relative;
+}
+
+.HomepageSortSelect
+{
+    appearance: none;
+    background: #131317;
+    border: 1px solid #26262B;
+    border-radius: 6px;
+    color: #E4E4E7;
+    padding: 6px 28px 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717A' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+}
+
+.HomepageSortSelect:hover
+{
+    border-color: #3F3F46;
+}
+
+.HomepageViewToggle
+{
+    display: flex;
+    align-items: center;
+    background-color: #131317;
+    border: 1px solid #26262B;
+    border-radius: 6px;
+    padding: 2px;
+}
+
+.ViewToggleBtn
+{
+    background: transparent;
+    border: none;
+    padding: 4px 6px;
+    border-radius: 4px;
+    color: #71717A;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.ViewToggleBtn.Active,
+.ViewToggleBtn:hover
+{
+    background-color: #27272A;
+    color: #FFFFFF;
+}
+
+/* Document Gallery Grid (Photorealistic Paper Sheets) */
+.HomepageGalleryContainer
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 36px 28px;
+    align-items: start;
+    width: 100%;
+}
+
+.HomepageGalleryContainer.ListView
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.HomepagePaperCard
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    max-width: 200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.HomepagePaperCard:hover
+{
+    transform: translateY(-8px);
+}
+
+.PaperSheetOuter
+{
+    width: 100%;
+    aspect-ratio: 1 / 1.414;
+    background-color: #FFFFFF;
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+}
+
+.HomepagePaperCard:hover .PaperSheetOuter
+{
+    box-shadow: 0 20px 40px -6px rgba(113, 0, 255, 0.35), 0 8px 16px rgba(0, 0, 0, 0.6);
+    border-color: rgba(168, 85, 247, 0.5);
+}
+
+.PaperSheetInner
+{
+    width: 100%;
+    height: 100%;
+    position: relative;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow: hidden;
+    background-color: #FFFFFF;
+}
+
+.PaperSheetInner svg
+{
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    pointer-events: none;
+    border-radius: 4px;
+}
+
+/* Steve Jobs Mockup Typography for Pending / Initial Previews */
+.PaperMockup
+{
+    width: 100%;
+    height: 100%;
+    padding: 24px 18px;
+    display: flex;
+    flex-direction: column;
+    background: #FFFFFF;
+    color: #18181B;
+    font-family: -apple-system, "Georgia", "Times New Roman", serif;
+    box-sizing: border-box;
+}
+
+.PaperMockupTitle
+{
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #111827;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 24px;
+    margin-bottom: 6px;
+    line-height: 1.3;
+}
+
+.PaperMockupSubtitle
+{
+    font-size: 8.5px;
+    color: #6B7280;
+    text-align: center;
+    font-style: italic;
+    margin-bottom: 20px;
+}
+
+.PaperMockupDivider
+{
+    width: 24px;
+    height: 1px;
+    background: #D1D5DB;
+    margin: 0 auto 16px auto;
+}
+
+.PaperMockupLine
+{
+    height: 2.5px;
+    background-color: #E5E7EB;
+    border-radius: 1px;
+    margin-bottom: 5px;
+}
+
+.PaperMockupLine.Short
+{
+    width: 65%;
+}
+
+.PaperMockupLine.Medium
+{
+    width: 85%;
+}
+
+.PaperDocMeta
+{
+    margin-top: 12px;
+    text-align: center;
+    width: 100%;
+    max-width: 190px;
+}
+
+.PaperDocTitle
+{
+    font-size: 13px;
+    font-weight: 500;
+    color: #F4F4F5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+}
+
+.HomepagePaperCard:hover .PaperDocTitle
+{
+    color: #FFFFFF;
+}
+
+.PaperDocSub
+{
+    font-size: 11px;
+    color: #71717A;
+    margin-top: 2px;
+}
+
+/* --- HOMEPAGE PREVIEW PAPER COLOR MODES --- */
+.PaperSheetOuter.PaperMode_Light,
+.PaperSheetInner.PaperMode_Light,
+.PaperMockup.PaperMode_Light
+{
+    background-color: #FFFFFF !important;
+    color: #18181B !important;
+}
+
+.PaperSheetOuter.PaperMode_Optimized,
+.PaperSheetInner.PaperMode_Optimized,
+.PaperMockup.PaperMode_Optimized
+{
+    background-color: #18181B !important;
+    color: #F4F4F5 !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.PaperSheetOuter.PaperMode_PureBlack,
+.PaperSheetInner.PaperMode_PureBlack,
+.PaperMockup.PaperMode_PureBlack
+{
+    background-color: #000000 !important;
+    color: #FFFFFF !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.PaperMockup.PaperMode_Optimized .PaperMockupTitle
+{
+    color: #F4F4F5 !important;
+}
+
+.PaperMockup.PaperMode_Optimized .PaperMockupSubtitle
+{
+    color: #A1A1AA !important;
+}
+
+.PaperMockup.PaperMode_Optimized .PaperMockupDivider
+{
+    background: #3F3F46 !important;
+}
+
+.PaperMockup.PaperMode_Optimized .PaperMockupLine
+{
+    background-color: #27272A !important;
+}
+
+.PaperMockup.PaperMode_PureBlack .PaperMockupTitle
+{
+    color: #FFFFFF !important;
+}
+
+.PaperMockup.PaperMode_PureBlack .PaperMockupSubtitle
+{
+    color: #71717A !important;
+}
+
+.PaperMockup.PaperMode_PureBlack .PaperMockupDivider
+{
+    background: #27272A !important;
+}
+
+.PaperMockup.PaperMode_PureBlack .PaperMockupLine
+{
+    background-color: #18181B !important;
+}
+
+/* --- REDESIGNED LIST VIEW TABLE (MATCHING STEVE JOBS / DASHBOARD SPEC) --- */
+.HomepageListViewContainer
+{
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(18, 18, 20, 0.6);
+    overflow: hidden;
+}
+
+.HomepageListTable
+{
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 13px;
+}
+
+.HomepageListTable th
+{
+    padding: 12px 18px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #A1A1AA;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(24, 24, 27, 0.85);
+    user-select: none;
+}
+
+.HomepageListTable th.SortableHeader
+{
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.HomepageListTable th.SortableHeader:hover
+{
+    color: #FFFFFF;
+}
+
+.HomepageListTable td
+{
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    vertical-align: middle;
+}
+
+.HomepageListRow
+{
+    transition: background-color 0.15s ease;
+}
+
+.HomepageListRow:hover
+{
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.HomepageListRow:last-child td
+{
+    border-bottom: none;
+}
+
+.ListColProject
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 500;
+    color: #F4F4F5;
+    cursor: pointer;
+}
+
+.ListColProject:hover
+{
+    color: #38BDF8;
+}
+
+.ListDocIcon
+{
+    color: #A1A1AA;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+}
+
+.ListColCreated
+{
+    color: #71717A;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    width: 130px;
+}
+
+.ListColModified
+{
+    color: #71717A;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    width: 140px;
+}
+
+.ListColActions
+{
+    width: 140px;
+    text-align: right;
+}
+
+.ListActionsWrapper
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.ListActionBtn
+{
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    color: #A1A1AA;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+    padding: 0;
+}
+
+.ListActionBtn:hover
+{
+    background: rgba(255, 255, 255, 0.1);
+    color: #FFFFFF;
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.ListActionBtn.DeleteBtn:hover
+{
+    background: rgba(239, 68, 68, 0.15);
+    color: #EF4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+/* Right Sidebar (Help Resources & Updates Feed) */
+.HomepageRightColumn
+{
+    width: 280px;
+    border-left: 1px solid #1C1C21;
+    padding: 28px 24px 64px 24px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    background-color: #070709;
+}
+
+.HomepageResourceLinks
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ResourceLinkCard
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: #131317;
+    border: 1px solid #26262B;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #E4E4E7;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.ResourceLinkCard:hover
+{
+    background-color: #1A1A20;
+    border-color: #3F3F46;
+    color: #FFFFFF;
+    transform: translateX(2px);
+}
+
+/* Template Chooser Dialog */
+.TemplateChooserDialog
+{
+    max-width: 680px;
+    width: 90%;
+    background-color: #121215;
+    border: 1px solid #27272A;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+.TemplateChooserIntro
+{
+    font-size: 12.5px;
+    color: #A1A1AA;
+    margin-bottom: 20px;
+}
+
+.TemplateCardsGrid
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.TemplateOptionCard
+{
+    background-color: #16161A;
+    border: 1px solid #27272A;
+    border-radius: 8px;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.TemplateOptionCard:hover
+{
+    background-color: #1C1C22;
+    border-color: #7100FF;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px -4px rgba(113, 0, 255, 0.25);
+}
+
+.TemplateCardIcon
+{
+    font-size: 22px;
+}
+
+.TemplateCardTitle
+{
+    font-size: 14px;
+    font-weight: 600;
+    color: #FFFFFF;
+}
+
+.TemplateCardDesc
+{
+    font-size: 11.5px;
+    color: #71717A;
+    line-height: 1.4;
+}
+
+/* --- UNIFIED APP HEADER (DASHBOARD & PROJECTS MODE) --- */
+.AppHeader.DashboardMode #ModeSwitcherNav,
+.AppHeader.DashboardMode #ExportGroupWrapper,
+.AppHeader.DashboardMode #ShortcutsHelpBtn,
+.AppHeader.DashboardMode #LayoutSwitcherNav,
+.AppHeader.DashboardMode #ToggleExplorerBtn,
+.AppHeader.DashboardMode #CompilationErrorIndicator
+{
+    display: none !important;
+}
+
+/* Homepage Footer Link */
+.HomepageRightFooter
+{
+    margin-top: auto;
+    padding-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.HomepageGithubLink
+{
+    font-size: 11.5px;
+    color: #71717A;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.15s ease;
+}
+
+.HomepageGithubLink:hover
+{
+    color: #FFFFFF;
+}
+
+/* Legacy Dashboard Plumbing Styles */
 .DashboardContainer
 {
     max-width: 1400px;
@@ -3536,9 +4328,10 @@ body.dragging .PreviewPane
 /* Viewport Layout States on MainSplitArea */
 .MainSplitArea.LayoutEditorOnly .EditorPane
 {
-    flex: 1 1 100% !important;
-    max-width: 100% !important;
-    width: 100% !important;
+    flex: 1 1 0% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    width: auto !important;
 }
 
 .MainSplitArea.LayoutEditorOnly .SplitResizer,
@@ -4628,7 +5421,7 @@ kbd
 .ExplorerSidebar
 {
     width: 250px;
-    min-width: 160px;
+    min-width: 0;
     max-width: 600px;
     background-color: #0D0D0F;
     border-right: 1px solid #1E1E24;
@@ -4636,13 +5429,35 @@ kbd
     flex-direction: column;
     overflow: hidden;
     flex-shrink: 0;
-    transition: opacity 0.18s ease;
+    transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.22s ease,
+                transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
     z-index: 6;
+    will-change: width, opacity, transform;
 }
 
 .ExplorerSidebar.Collapsed
 {
-    display: none !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    opacity: 0 !important;
+    border-right-width: 0 !important;
+    border-right-color: transparent !important;
+    pointer-events: none !important;
+    visibility: hidden;
+    transform: translateX(-10px);
+    transition: width 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+                border-color 0.2s ease,
+                transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+                visibility 0s linear 0.28s;
+}
+
+.ExplorerSidebar.Resizing
+{
+    transition: none !important;
 }
 
 /* Sidebar Resizer Splitter */
@@ -4653,7 +5468,7 @@ kbd
     margin-right: -3px;
     cursor: col-resize;
     background: transparent;
-    transition: background-color 0.15s ease;
+    transition: background-color 0.15s ease, opacity 0.18s ease, width 0.22s ease;
     z-index: 10;
     flex-shrink: 0;
     -webkit-user-select: none;
@@ -4668,7 +5483,11 @@ kbd
 
 .ExplorerSidebar.Collapsed + .SidebarResizeHandle
 {
-    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
 
 .TabsExplorerBtn
@@ -4686,13 +5505,28 @@ kbd
     margin-right: 4px;
     margin-left: 2px;
     flex-shrink: 0;
-    transition: all 0.12s ease;
+    transition: background-color 0.18s ease, color 0.18s ease, transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease;
+}
+
+.TabsExplorerBtn svg
+{
+    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.18s ease;
 }
 
 .TabsExplorerBtn:hover
 {
     background-color: #1F1F24;
     color: #FFFFFF;
+}
+
+.TabsExplorerBtn:hover svg
+{
+    transform: scale(1.08);
+}
+
+.TabsExplorerBtn:active
+{
+    transform: scale(0.90);
 }
 
 .TabsExplorerBtn.Active
@@ -5363,9 +6197,7 @@ kbd
 }
 
 /* --- DUAL EXPERIENCE STATES (FOCUS VS. STUDIO) --- */
-body.UIMode_Focus .ExplorerSidebar,
 body.UIMode_Focus .OutlineSidebar,
-body.UIMode_Focus .SidebarResizeHandle,
 body.UIMode_Focus .StatusBarLeft,
 body.UIMode_Focus #CursorPosition,
 body.UIMode_Focus #ToggleExplorerBtn

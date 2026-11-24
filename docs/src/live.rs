@@ -24,7 +24,7 @@ use typst::foundations:: { Array, Dict, IntoValue, Str, array, cast, func };
 /// The ranges are represented as arrays of (start, end) pairs. They plug right
 /// into `eval_mapped`'s `ranges` parameter.
 #[func]
-pub fn live_item_data(source: Str)->Dict
+pub fn live_item_data(source: Str) -> Dict
 {
     let mut v = LiveVisitor { items: Dict::new () };
     let file = syn::parse_file( & source);
@@ -65,7 +65,7 @@ impl LiveVisitor
             syn::Item::Fn(f) if has_attr( & f.attrs, "func") => { self.visit_func(f.span(), & f.attrs, & f.sig, None); }
             syn::Item::Impl(i) =>
             {
-                if let syn::Type::Path(path) = &* i.self_ty
+                if let syn::Type::Path(path) = & * i.self_ty
                 && let Some(parent) = path.path.get_ident()
                 {
                     for item in & i.items
@@ -95,7 +95,7 @@ impl LiveVisitor
         }
     }
 
-    fn visit_func( & mut self, span: Span, attrs: & [syn::Attribute], sig: & syn::Signature, parent: Option <& syn::Ident > ,)
+    fn visit_func( & mut self, span: Span, attrs: & [syn::Attribute], sig: & syn::Signature, parent: Option< & syn::Ident>,)
     {
         let ident = & sig.ident;
         let key = match parent { Some(parent) => format ! ("{parent}::{ident}"), None => ident.to_string(), };
@@ -103,7 +103,7 @@ impl LiveVisitor
         for input in & sig.inputs
         {
             if let syn::FnArg::Typed(pat_type) = input
-            && let syn::Pat::Ident(pat) = &* pat_type.pat
+            && let syn::Pat::Ident(pat) = & * pat_type.pat
             {
                 let key = format!("{key}::{}", pat.ident);
                 self.save_docs(key, pat_type.span(), & pat_type.attrs);
@@ -144,7 +144,7 @@ impl LiveVisitor
 }
 
 /// Whether the attribute list contains an attribute with the given identifier.
-fn has_attr(attrs: & [syn::Attribute], ident: & str)-> bool { attrs.iter().any( | attr | attr.path().is_ident(ident)) }
+fn has_attr(attrs: & [syn::Attribute], ident: & str) -> bool { attrs.iter().any( | attr | attr.path().is_ident(ident)) }
 
 /// Parse a bare `type Name;` item.
 #[expect(dead_code)]
@@ -152,7 +152,7 @@ struct BareType { attrs: Vec<syn::Attribute>, type_token: syn::Token ! [type], i
 
 impl syn::parse::Parse for BareType
 {
-    fn parse(input: syn::parse::ParseStream)->syn::Result<Self>
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self>
     {
         Ok
         (
@@ -173,7 +173,7 @@ pub struct RangePair(pub Range<usize>);
 cast!
 {
     RangePair,
-    self => array![self .0.start, self .0.end].into_value(),
+    self => array![self.0 .start, self.0 .end].into_value(),
     array: Array =>
     {
         let mut iter = array.into_iter();

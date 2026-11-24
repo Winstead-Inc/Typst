@@ -288,7 +288,7 @@ Hello World!
   #v(0.5em)
   #text(12pt, style: "italic", fill: rgb("555555"))[Demonstrating Modern Vector Typesetting, Scripting, Tables & Math]\\
   #v(0.8em)
-  #text(10pt)[By Dr. Antigravity #footnote[Advanced Agentic Coding Research Group] • Published: #datetime.today().display()]\\
+  #text(10pt)[By Dr. NullVoid #footnote[Advanced Coding Research Group] • Published: #datetime.today().display()]\\
   #v(1em)
 ]
 
@@ -625,7 +625,7 @@ let SyncLineDecorations = null;
 let ForwardSyncDebounceTimer = null;
 let PendingClickAutoScroll = false;
 let CurrentEditorFontSize = parseInt(localStorage.getItem("TypstStudio_EditorFontSize") || "14", 10);
-if (isNaN(CurrentEditorFontSize) || CurrentEditorFontSize < 9 || CurrentEditorFontSize > 36)
+if (isNaN(CurrentEditorFontSize) || CurrentEditorFontSize < 10 || CurrentEditorFontSize > 28)
 {
     CurrentEditorFontSize = 14;
 }
@@ -635,7 +635,7 @@ let CurrentEditorFont = localStorage.getItem("TypstStudio_EditorFont") || "iA Wr
 let CurrentFocusEditorFont = localStorage.getItem("TypstStudio_FocusEditorFont") || "iA Writer Duo";
 let UseDifferentFocusFont = localStorage.getItem("TypstStudio_UseDifferentFocusFont") === "true";
 let CurrentEditorLineHeight = parseFloat(localStorage.getItem("TypstStudio_EditorLineHeight") || "1.55");
-if (isNaN(CurrentEditorLineHeight) || CurrentEditorLineHeight < 1.0 || CurrentEditorLineHeight > 2.5)
+if (isNaN(CurrentEditorLineHeight) || CurrentEditorLineHeight < 1.1 || CurrentEditorLineHeight > 2.0)
 {
     CurrentEditorLineHeight = 1.55;
 }
@@ -694,7 +694,8 @@ const DEFAULT_KEYBINDINGS =
     "enter_stage_mode": "F5",
     "open_command_palette": "Ctrl+K",
     "open_settings": "Ctrl+,",
-    "open_export_sheet": "Ctrl+E"
+    "open_export_sheet": "Ctrl+E",
+    "toggle_explorer": "Ctrl+B"
 };
 
 const APPLICATION_COMMANDS_META =
@@ -721,6 +722,7 @@ const APPLICATION_COMMANDS_META =
     { Id: "enter_stage_mode", Label: "Keynote Stage Mode (Present Slides)", Category: "Views & Navigation", Source: "App" },
     { Id: "open_command_palette", Label: "Open Command Palette", Category: "Views & Navigation", Source: "App" },
     { Id: "open_settings", Label: "Preferences & Settings", Category: "Views & Navigation", Source: "App" },
+    { Id: "toggle_explorer", Label: "Toggle Explorer Sidebar", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_outline", Label: "Toggle Document Outline", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_fullscreen", Label: "Toggle Fullscreen Mode", Category: "Views & Navigation", Source: "App" },
     { Id: "toggle_devtools", Label: "Toggle Developer Tools", Category: "Views & Navigation", Source: "App" },
@@ -1976,9 +1978,11 @@ function ApplyUISettings()
     const EditorFontSize = Math.round(13 + (Scale - 100) * (1 / 25.0));
     if (MonacoInstance)
     {
+        const ClampedFs = Math.max(10, Math.min(28, EditorFontSize));
         MonacoInstance.updateOptions
         ({
-            fontSize: Math.max(12, EditorFontSize)
+            fontSize: ClampedFs,
+            lineHeight: Math.round(ClampedFs * CurrentEditorLineHeight)
         });
     }
 
@@ -2546,6 +2550,17 @@ function DetectKnrSlop(Source, FileName = "main.typ")
     let InRawInline = false;
     let BlockCommentDepth = 0;
     const MaskCache = new Map();
+
+    function IsEscaped(Str, Idx)
+    {
+        let SlashCount = 0;
+        for (let I = Idx - 1; I >= 0 && Str[I] === "\\"; I --)
+        {
+            SlashCount ++;
+        }
+        return SlashCount % 2 === 1;
+    }
+
     // Helper to get clean line text with strings/comments masked
     function GetMaskedLine(LineText)
     {
@@ -2561,8 +2576,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         {
             const C = LineText[I];
             const NextC = I + 1 < LineText.length ? LineText[I + 1]: "";
-            const PrevC = I > 0 ? LineText[I - 1]: "";
-            if (C === '"' && PrevC !== "\\")
+            if (C === '"' && !IsEscaped(LineText, I))
             {
                 InStr = ! InStr;
                 Masked += " ";
@@ -2573,7 +2587,7 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 Masked += " ";
                 continue;
             }
-            if (C === "/" && NextC === "/")
+            if (C === "/" && NextC === "/" && !IsEscaped(LineText, I))
             {
                 Masked += " ".repeat(LineText.length - I);
                 break;
@@ -2594,10 +2608,17 @@ function DetectKnrSlop(Source, FileName = "main.typ")
         {
             const ColNum = ColIdx + 1;
             const Char = LineText[ColIdx];
-            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
             const PrevChar = ColIdx > 0 ? LineText[ColIdx - 1]: "";
+            const NextChar = ColIdx + 1 < LineText.length ? LineText[ColIdx + 1]: "";
 
             if (InLineComment) { break; }
+
+            // Escaped characters in Typst: \(, \), \[, \], \{, \}, \$, \", \`
+            if (IsEscaped(LineText, ColIdx))
+            {
+                continue;
+            }
+
             // Raw blocks ```
             if (!InString && BlockCommentDepth === 0 && Char === "`")
             {
@@ -2740,6 +2761,21 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                 }
                 continue;
             }
+            // Ignore Typst content literal parentheses, braces, and delimiters inside [...], e.g. [(], [)], [{], [}]
+            if (Char === "(" || Char === ")" || Char === "{" || Char === "}" || Char === "$")
+            {
+                const OpenBracketIdx = LineText.lastIndexOf("[", ColIdx);
+                const CloseBracketIdx = LineText.indexOf("]", ColIdx);
+                if (OpenBracketIdx !== -1 && CloseBracketIdx !== -1 && OpenBracketIdx < ColIdx && CloseBracketIdx > ColIdx)
+                {
+                    const Between = LineText.substring(OpenBracketIdx + 1, CloseBracketIdx).trim();
+                    if (Between === "(" || Between === ")" || Between === "{" || Between === "}" || Between === "$" || Between === "[" || Between === "]")
+                    {
+                        continue;
+                    }
+                }
+            }
+
             // Standard containers: (, [, {
             if (Char === "(" || Char === "{" || Char === "[")
             {
@@ -2755,8 +2791,161 @@ function DetectKnrSlop(Source, FileName = "main.typ")
             {
                 const MatchDelim = Char === ")" ? "(": (Char === "}" ? "{": "[");
 
-                if (Stack.length === 0 || Stack[Stack.length - 1].Delim !== MatchDelim)
+                // Check if closing delimiter matches top of stack
+                if (Stack.length > 0 && Stack[Stack.length - 1].Delim === MatchDelim)
                 {
+                    const Opener = Stack.pop();
+                    if (LineNum === Opener.Line)
+                    {
+                        continue;
+                    }
+
+                    const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
+                    const MaskedCloserLine = GetMaskedLine(LineText);
+
+                    const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
+                    const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
+                    const OpenerPrefixSemantic = OpenerPrefix.replace(/[\(\[\{\$]/g, "").trim();
+                    const OpenerSuffixSemantic = OpenerSuffix.replace(/[\(\[\{\$]/g, "").trim();
+
+                    if (OpenerPrefixSemantic.length > 0)
+                    {
+                        const Anchor = OpenerPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefix;
+                        Errors.push
+                        ({
+                            Type: "KNR_SLOP",
+                            Vector: 1,
+                            Subtype: "PRECEDING",
+                            Delim: Opener.Delim,
+                            Line: Opener.Line,
+                            Col: Opener.Col,
+                            LineText: Lines[Opener.Line - 1],
+                            Anchor: Anchor,
+                            Reason: "Preceding Semantic Content on Unpaired Opening Container"
+                        });
+                    }
+                    else if (OpenerSuffixSemantic.length > 0)
+                    {
+                        const Anchor = OpenerSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || OpenerSuffixSemantic;
+                        Errors.push
+                        ({
+                            Type: "KNR_SLOP",
+                            Vector: 1,
+                            Subtype: "PROCEEDING",
+                            Delim: Opener.Delim,
+                            Line: Opener.Line,
+                            Col: Opener.Col,
+                            LineText: Lines[Opener.Line - 1],
+                            Anchor: Anchor,
+                            Reason: "Proceeding Semantic Content on Unpaired Opening Container"
+                        });
+                    }
+
+                    const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
+                    const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
+                    const CloserPrefixSemantic = CloserPrefix.replace(/[\)\]\}\$]/g, "").trim();
+                    const CloserSuffixSemantic = CloserSuffix.replace(/[\)\]\}\$]/g, "").trim();
+
+                    if (CloserPrefixSemantic.length > 0)
+                    {
+                        const Anchor = CloserPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || CloserPrefix;
+                        Errors.push
+                        ({
+                            Type: "KNR_SLOP",
+                            Vector: 2,
+                            Subtype: "PRECEDING",
+                            Delim: Char,
+                            Line: LineNum,
+                            Col: ColNum,
+                            LineText: LineText,
+                            Anchor: Anchor,
+                            Reason: "Preceding Semantic Content on Unpaired Closing Container"
+                        });
+                    }
+                    // Allow legal suffix glue: commas, semicolons, labels, method chaining (.filter(...)), assignment (=, = context), concatenation (+), or import aliases (as)
+                    else if (CloserSuffixSemantic.length > 0 && !/^(,|;|\.|=|\+|as\b|<[a-zA-Z0-9_\-:]+>)/.test(CloserSuffixSemantic))
+                    {
+                        const Anchor = CloserSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || CloserSuffixSemantic;
+                        Errors.push
+                        ({
+                            Type: "KNR_SLOP",
+                            Vector: 2,
+                            Subtype: "PROCEEDING",
+                            Delim: Char,
+                            Line: LineNum,
+                            Col: ColNum,
+                            LineText: LineText,
+                            Anchor: Anchor,
+                            Reason: "Proceeding Semantic Content on Unpaired Closing Container"
+                        });
+                    }
+                }
+                else
+                {
+                    // Typst-aware content mode delimiter recovery:
+                    // 1. If ']' closes an enclosing '[', discard any content-mode '(' or '{' inside that '['
+                    if (Char === "]")
+                    {
+                        let BracketIdx = -1;
+                        for (let SIdx = Stack.length - 1; SIdx >= 0; SIdx --)
+                        {
+                            if (Stack[SIdx].Delim === "[")
+                            {
+                                BracketIdx = SIdx;
+                                break;
+                            }
+                        }
+                        if (BracketIdx !== -1)
+                        {
+                            while (Stack.length > BracketIdx + 1)
+                            {
+                                Stack.pop();
+                            }
+                            const Opener = Stack.pop();
+                            if (LineNum === Opener.Line)
+                            {
+                                continue;
+                            }
+                            const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
+                            const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
+                            const OpenerPrefixSemantic = OpenerPrefix.replace(/[\(\[\{\$]/g, "").trim();
+                            if (OpenerPrefixSemantic.length > 0)
+                            {
+                                const Anchor = OpenerPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefix;
+                                Errors.push
+                                ({
+                                    Type: "KNR_SLOP",
+                                    Vector: 1,
+                                    Subtype: "PRECEDING",
+                                    Delim: "[",
+                                    Line: Opener.Line,
+                                    Col: Opener.Col,
+                                    LineText: Lines[Opener.Line - 1],
+                                    Anchor: Anchor,
+                                    Reason: "Preceding Semantic Content on Unpaired Opening Container"
+                                });
+                            }
+                            continue;
+                        }
+                    }
+
+                    // 2. If ')' or '}' is encountered inside a content block '[' where no matching '(' or '{' was opened inside that block,
+                    // in Typst markup mode it is literal text (e.g. '[)]', '[:)]', '[1) point]')
+                    let InsideContentBlock = false;
+                    for (let SIdx = Stack.length - 1; SIdx >= 0; SIdx --)
+                    {
+                        if (Stack[SIdx].Delim === "[")
+                        {
+                            InsideContentBlock = true;
+                            break;
+                        }
+                    }
+                    if (InsideContentBlock && (Char === ")" || Char === "}"))
+                    {
+                        // Literal punctuation in content block - not a syntax container error
+                        continue;
+                    }
+
                     Errors.push
                     ({
                         Type: "KNR_SLOP",
@@ -2768,93 +2957,6 @@ function DetectKnrSlop(Source, FileName = "main.typ")
                         LineText: LineText,
                         Anchor: Char,
                         Reason: "Mismatched Closing Container not mirrored in the Opening Run"
-                    });
-                    continue;
-                }
-
-                const Opener = Stack.pop();
-                // Monolith Check: Same line openers and closers are valid Monoliths
-                if (LineNum === Opener.Line)
-                {
-                    continue;
-                }
-                // Multiline container: Evaluate Vector 1 (Opener line) and Vector 2 (Closer line)
-                const MaskedOpenerLine = GetMaskedLine(Lines[Opener.Line - 1]);
-                const MaskedCloserLine = GetMaskedLine(LineText);
-                // --- VECTOR 1 EVALUATION (Opening Container Line) ---
-                const OpenerPrefix = MaskedOpenerLine.substring(0, Opener.Col - 1).trim();
-                const OpenerSuffix = MaskedOpenerLine.substring(Opener.Col).trim();
-                const OpenerPrefixSemantic = OpenerPrefix.replace(/[\(\[\{\$]/g, "").trim();
-                const OpenerSuffixSemantic = OpenerSuffix.replace(/[\(\[\{\$]/g, "").trim();
-
-                if (OpenerPrefixSemantic.length > 0)
-                {
-                    const Anchor = OpenerPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || OpenerPrefix;
-                    Errors.push
-                    ({
-                        Type: "KNR_SLOP",
-                        Vector: 1,
-                        Subtype: "PRECEDING",
-                        Delim: Opener.Delim,
-                        Line: Opener.Line,
-                        Col: Opener.Col,
-                        LineText: Lines[Opener.Line - 1],
-                        Anchor: Anchor,
-                        Reason: "Preceding Semantic Content on Unpaired Opening Container"
-                    });
-                }
-                else if (OpenerSuffixSemantic.length > 0)
-                {
-                    const Anchor = OpenerSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || OpenerSuffixSemantic;
-                    Errors.push
-                    ({
-                        Type: "KNR_SLOP",
-                        Vector: 1,
-                        Subtype: "PROCEEDING",
-                        Delim: Opener.Delim,
-                        Line: Opener.Line,
-                        Col: Opener.Col,
-                        LineText: Lines[Opener.Line - 1],
-                        Anchor: Anchor,
-                        Reason: "Proceeding Semantic Content on Unpaired Opening Container"
-                    });
-                }
-                // --- VECTOR 2 EVALUATION (Closing Container Line) ---
-                const CloserPrefix = MaskedCloserLine.substring(0, ColNum - 1).trim();
-                const CloserSuffix = MaskedCloserLine.substring(ColNum).trim();
-                const CloserPrefixSemantic = CloserPrefix.replace(/[\)\]\}\$]/g, "").trim();
-                const CloserSuffixSemantic = CloserSuffix.replace(/[\)\]\}\$]/g, "").trim();
-
-                if (CloserPrefixSemantic.length > 0)
-                {
-                    const Anchor = CloserPrefix.match(/([#a-zA-Z0-9_\-\.]+)\s*$/)?.[1] || CloserPrefix;
-                    Errors.push
-                    ({
-                        Type: "KNR_SLOP",
-                        Vector: 2,
-                        Subtype: "PRECEDING",
-                        Delim: Char,
-                        Line: LineNum,
-                        Col: ColNum,
-                        LineText: LineText,
-                        Anchor: Anchor,
-                        Reason: "Preceding Semantic Content on Unpaired Closing Container"
-                    });
-                }
-                else if (CloserSuffixSemantic.length > 0 && !/^(,|;|<[a-zA-Z0-9_\-:]+>)/.test(CloserSuffixSemantic))
-                {
-                    const Anchor = CloserSuffixSemantic.match(/^([#a-zA-Z0-9_\-\.]+)/)?.[1] || CloserSuffixSemantic;
-                    Errors.push
-                    ({
-                        Type: "KNR_SLOP",
-                        Vector: 2,
-                        Subtype: "PROCEEDING",
-                        Delim: Char,
-                        Line: LineNum,
-                        Col: ColNum,
-                        LineText: LineText,
-                        Anchor: Anchor,
-                        Reason: "Proceeding Semantic Content on Unpaired Closing Container"
                     });
                 }
             }
@@ -3008,16 +3110,6 @@ function ValidateEditorLAFS()
             })
         );
         monaco.editor.setModelMarkers(Model, "lafs-validator", Markers);
-
-        const PagesContainer = document.getElementById("PagesContainer");
-        if (PagesContainer)
-        {
-            PagesContainer.innerHTML = "";
-        }
-        ClearSyncHighlights();
-        LastCompiledPages = [];
-        CurrentPageCount = 0;
-        UpdatePagination();
     }
     else
     {
@@ -3119,6 +3211,97 @@ function FormatTypstLAFS(Source)
             ResultLines.push(Line);
             continue;
         }
+
+        // Standalone equals sign on its own line: '='
+        // Attach '=' to the end of the previous parameter run or closure signature
+        if (Trimmed === "=")
+        {
+            let Attached = false;
+            for (let PrevIdx = ResultLines.length - 1; PrevIdx >= 0; PrevIdx--)
+            {
+                const PrevTrim = ResultLines[PrevIdx].trim();
+                if (PrevTrim === "" || PrevTrim.startsWith("//") || PrevTrim.startsWith("/*"))
+                {
+                    continue;
+                }
+                if (PrevTrim.endsWith(")") || PrevTrim.endsWith("]"))
+                {
+                    ResultLines[PrevIdx] = ResultLines[PrevIdx] + " =";
+                    Attached = true;
+                }
+                break;
+            }
+            if (Attached)
+            {
+                continue;
+            }
+        }
+
+        // If this line is an opening '{' (or starts with '{')
+        // Ensure let bindings have '=' attached before '{'
+        if (Trimmed === "{" || Trimmed.startsWith("{\n") || Trimmed.startsWith("{ "))
+        {
+            for (let PrevIdx = ResultLines.length - 1; PrevIdx >= 0; PrevIdx--)
+            {
+                const PrevTrim = ResultLines[PrevIdx].trim();
+                if (PrevTrim === "" || PrevTrim.startsWith("//") || PrevTrim.startsWith("/*"))
+                {
+                    continue;
+                }
+                if (PrevTrim.endsWith(")") && !PrevTrim.endsWith("=") && !PrevTrim.endsWith("=>"))
+                {
+                    let IsLet = false;
+                    for (let ScanIdx = PrevIdx; ScanIdx >= 0 && ScanIdx >= PrevIdx - 20; ScanIdx--)
+                    {
+                        const ScanTrim = ResultLines[ScanIdx].trim();
+                        if (ScanTrim.startsWith("#let ") || ScanTrim.startsWith("let "))
+                        {
+                            IsLet = true;
+                            break;
+                        }
+                        if (ScanTrim.endsWith("}") || ScanTrim.endsWith(";"))
+                        {
+                            break;
+                        }
+                    }
+                    if (IsLet)
+                    {
+                        ResultLines[PrevIdx] = ResultLines[PrevIdx] + " =";
+                    }
+                }
+                break;
+            }
+        }
+
+        // Already pure opening delimiter or compound delimiter run on its own line: '({', '([', '{', '(', '['
+        if (/^[\(\[\{]+$/.test(Trimmed))
+        {
+            ResultLines.push(Line);
+            continue;
+        }
+
+        // Already pure closing delimiter or compound delimiter run: '})', '])', '}', ')', ']', optionally with trailing punctuation
+        if (/^[\)\]\}]+[;,]?$/.test(Trimmed))
+        {
+            ResultLines.push(Line);
+            continue;
+        }
+
+        // Typst content literals on their own line: '[(]', '[)]', '[,]', '[.]', '[..]'
+        if (/^\s*\[\s*[\(\)\,\.\;\:\-\+\*\/\`]+\s*\][;,]?$/.test(Line))
+        {
+            ResultLines.push(Line);
+            continue;
+        }
+
+        // Check if inside string literal or single-line raw block
+        if ((Trimmed.startsWith("`") && Trimmed.endsWith("`") && Trimmed.length >= 2) ||
+            (Trimmed.startsWith('"') && Trimmed.endsWith('"') && Trimmed.length >= 2))
+        {
+            ResultLines.push(Line);
+            continue;
+        }
+
         // Handle '} else if (...) {' or '} else {'
         const ElseIfMatch = Trimmed.match(/^(\})\s*(else\s+if\s+.*?)(\s*\{)?$/);
         if (ElseIfMatch)
@@ -3139,22 +3322,29 @@ function FormatTypstLAFS(Source)
             if (ElseMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
             continue;
         }
-        // Handle trailing delimiters '{', '(', '[' on multiline constructs
-        const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[])\s*$/);
+
+        // Handle trailing single or compound opening delimiters '{', '(', '({', '([', '[{' on multiline constructs
+        const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[]+)\s*$/);
         if (EndsWithDelimiter)
         {
             const Prefix = EndsWithDelimiter[1].trim();
-            const Delim = EndsWithDelimiter[3];
+            const Delims = EndsWithDelimiter[3];
             const Indent = Line.match(/^\s*/)[0];
 
-            if (Prefix === "") { ResultLines.push(Line); continue; }
-
-            if (Prefix.includes("//")) { ResultLines.push(Line); continue; }
-
-            ResultLines.push(`${Indent}${Prefix}`);
-            ResultLines.push(`${Indent}${Delim}`);
-            continue;
+            if (Prefix !== "" && !Prefix.includes("//"))
+            {
+                // Ensure prefix does not end with backtick or unclosed quote
+                const Backticks = (Prefix.match(/`/g) || []).length;
+                const Quotes = (Prefix.match(/"/g) || []).length;
+                if (Backticks % 2 === 0 && Quotes % 2 === 0)
+                {
+                    ResultLines.push(`${Indent}${Prefix}`);
+                    ResultLines.push(`${Indent}${Delims}`);
+                    continue;
+                }
+            }
         }
+
         // Handle control flow statements like 'if ... {' or 'while ... {' or 'for ... {'
         const ControlMatch = Trimmed.match(/^(if\s+.*?|while\s+.*?|for\s+.*?|context)\s*\{$/);
         if (ControlMatch)
@@ -3182,7 +3372,7 @@ async function ApplyFormattingToEditor()
     {
         try
         {
-            const Resp = await window.__TAURI__.core.invoke("FormatTypst", { Source: CurrentValue });
+            const Resp = await window.__TAURI__.core.invoke("FormatTypst", { source: CurrentValue, Source: CurrentValue });
             if (Resp && Resp.Success && Resp.Formatted)
             {
                 FormattedValue = Resp.Formatted;
@@ -3398,6 +3588,8 @@ function InitializeMonaco()
                                     }
                                 }
                             ],
+                            // Typst content literals like [(], [)], [{], [}], [,], [.], [..]
+                            [/\[\s*[\(\)\{\}\[\]\.,:;\\` ]+\s*\]/, "markup.content.literal"],
                             [/[{}()\[\]]/, "@brackets"],[/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],[/[=+\-*/<>!&|~]/, "operator"]
                         ],
                         comment:
@@ -3777,12 +3969,34 @@ function InitializeMonaco()
                 {
                     if (Event.hasChanged(monaco.editor.EditorOption.fontSize))
                     {
-                        const NewSize = MonacoInstance.getOption(monaco.editor.EditorOption.fontSize);
-                        if (NewSize && NewSize !== CurrentEditorFontSize)
+                        const RawSize = MonacoInstance.getOption(monaco.editor.EditorOption.fontSize);
+                        const ClampedSize = Math.max(10, Math.min(28, RawSize || 14));
+                        if (ClampedSize !== RawSize)
                         {
-                            CurrentEditorFontSize = NewSize;
-                            localStorage.setItem("TypstStudio_EditorFontSize", String(NewSize));
+                            MonacoInstance.updateOptions({ fontSize: ClampedSize });
+                        }
+                        if (ClampedSize && ClampedSize !== CurrentEditorFontSize)
+                        {
+                            CurrentEditorFontSize = ClampedSize;
+                            localStorage.setItem("TypstStudio_EditorFontSize", String(ClampedSize));
                             UpdateFontSizeUI();
+                            const ComputedLineHeight = Math.round(ClampedSize * CurrentEditorLineHeight);
+                            MonacoInstance.updateOptions
+                            ({
+                                lineHeight: ComputedLineHeight
+                            });
+                        }
+                    }
+                    if (Event.hasChanged(monaco.editor.EditorOption.lineHeight))
+                    {
+                        const CurrentOptLineHeight = MonacoInstance.getOption(monaco.editor.EditorOption.lineHeight);
+                        const ExpectedLineHeight = Math.round(CurrentEditorFontSize * CurrentEditorLineHeight);
+                        if (Math.abs(CurrentOptLineHeight - ExpectedLineHeight) > 3)
+                        {
+                            MonacoInstance.updateOptions
+                            ({
+                                lineHeight: ExpectedLineHeight
+                            });
                         }
                     }
                 }
@@ -4577,34 +4791,8 @@ async function TriggerCompileNow()
     const DurationText = document.getElementById("DurationText");
     const ErrorDrawer = document.getElementById("ErrorDrawer");
 
-    const LAFSValidation = ValidateEditorLAFS();
-    if (LAFSValidation && LAFSValidation.HasError)
-    {
-        IsCompiling = false;
-        const Splash = document.getElementById("LoadingSplash");
-        if (Splash)
-        {
-            Splash.remove();
-        }
-        const PagesContainer = document.getElementById("PagesContainer");
-        if (PagesContainer)
-        {
-            PagesContainer.innerHTML = "";
-        }
-        ClearSyncHighlights();
-        LastCompiledPages = [];
-        CurrentPageCount = 0;
-        UpdatePagination();
-        StatusDot.className = "StatusDot Error";
-        StatusText.textContent = "Error";
-        DurationText.textContent = "0ms";
-        SetStatusPill("Error", "Error", 0);
-        ShowCompilationError
-        (
-            `Defecated (Deprecated | Outdated | Legacy) Structural Failure of 1978 K&R Slop detected: ${LAFSValidation.Errors[0] ? LAFSValidation.Errors[0].Reason : "Violation of LAFS"}`
-        );
-        return ;
-    }
+    // Run LAFS validation so errors are shown as Monaco markers without blocking the render
+    ValidateEditorLAFS();
 
     StatusDot.className = "StatusDot Compiling";
     StatusText.textContent = "Compiling...";
@@ -4690,6 +4878,17 @@ async function TriggerCompileNow()
             if (ErrorIndicator) { ErrorIndicator.style.display = "none"; }
 
             LastCompiledPages = Result.Pages;
+            if (Result.Pages && Result.Pages[0] && CurrentFilePath)
+            {
+                const NormKey = CurrentFilePath.toLowerCase();
+                if (!window.DocPreviewSvgCache) { window.DocPreviewSvgCache = {}; }
+                window.DocPreviewSvgCache[NormKey] = Result.Pages[0];
+                try
+                {
+                    localStorage.setItem("typst_preview_cache_" + btoa(NormKey), Result.Pages[0]);
+                }
+                catch (Ignored) {}
+            }
             CurrentPageCount = Result.PageCount;
             ActiveSpanMap = Result.SpanMap || {};
             let RawSyncMap = Result.SyncMap || [];
@@ -5757,6 +5956,11 @@ function SetPaperColorMode(NewMode)
     if (LastCompiledPages && LastCompiledPages.length > 0)
     {
         RenderPages(LastCompiledPages);
+    }
+
+    if (typeof RenderHomepage === "function")
+    {
+        RenderHomepage();
     }
 }
 
@@ -7540,727 +7744,13 @@ function SetupSmartTypographyKeydownListener()
     );
 }
 
-// --- UNIVERSAL CHARACTER-AGNOSTIC CONTAINER PHYSICS (LAFS 0, 3, 6.2) ---
-
-const _0x9b =
-[
-    ["[{(", ")}]"], ["([", "])"], ["[(", ")]"], ["`${", "}`"], ["${", "}"],
-    ["<!--", "-->"], ["$$", "$$"], ["\"\"\"", "\"\"\""], ["```", "```"],
-    ["(", ")"], ["[", "]"], ["{", "}"], ["$", "$"], ["`", "`"], ["|", "|"]
-];
-
-function _0x3a1(_0xt)
-{
-    const _0xl = _0xt.split("\n");
-    let _c0 = 0, _c1 = 0, _c2 = 0, _c3 = 0, _c4 = 0;
-    const _0xk = [];
-    for (let _l = 0; _l < _0xl.length; _l++)
-    {
-        const _ln = _0xl[_l];
-        let _i = 0;
-        while (_i < _ln.length)
-        {
-            if (_ln[_i] === "/" && _i + 1 < _ln.length && _ln[_i + 1] === "/")
-            {
-                break;
-            }
-            if (_ln[_i] === "\\" && _i + 1 < _ln.length)
-            {
-                _i += 2;
-                continue;
-            }
-            if (_ln.slice(_i, _i + 3) === "```")
-            {
-                _0xk.push({ t: 1, g: "```", l: _l, c: _i, o: (_c1 % 2 === 0) });
-                _c1++;
-                _i += 3;
-                continue;
-            }
-            if (_ln[_i] === "`")
-            {
-                _0xk.push({ t: 2, g: "`", l: _l, c: _i, o: (_c2 % 2 === 0) });
-                _c2++;
-                _i++;
-                continue;
-            }
-            if (_ln.slice(_i, _i + 2) === "$$")
-            {
-                _0xk.push({ t: 3, g: "$$", l: _l, c: _i, o: (_c3 % 2 === 0) });
-                _c3++;
-                _i += 2;
-                continue;
-            }
-            if (_ln[_i] === "$")
-            {
-                _0xk.push({ t: 4, g: "$", l: _l, c: _i, o: (_c0 % 2 === 0) });
-                _c0++;
-                _i++;
-                continue;
-            }
-            if (_ln.slice(_i, _i + 3) === "\"\"\"")
-            {
-                _0xk.push({ t: 5, g: "\"\"\"", l: _l, c: _i, o: (_c4 % 2 === 0) });
-                _c4++;
-                _i += 3;
-                continue;
-            }
-            if (_ln[_i] === "<")
-            {
-                const _lm = _ln.slice(_i).match(/^<([a-zA-Z0-9_\-:]+)>/);
-                if (_lm)
-                {
-                    _i += _lm[0].length;
-                    continue;
-                }
-                const _am = _ln.slice(_i).match(/^(->|<-|=>|<=|==>|<==>|<->)/);
-                if (_am)
-                {
-                    _i += _am[0].length;
-                    continue;
-                }
-            }
-            if (_ln[_i] === "(")
-            {
-                _0xk.push({ t: 6, g: "(", l: _l, c: _i, o: true });
-            }
-            else if (_ln[_i] === ")")
-            {
-                _0xk.push({ t: 6, g: ")", l: _l, c: _i, o: false });
-            }
-            else if (_ln[_i] === "[")
-            {
-                _0xk.push({ t: 7, g: "[", l: _l, c: _i, o: true });
-            }
-            else if (_ln[_i] === "]")
-            {
-                _0xk.push({ t: 7, g: "]", l: _l, c: _i, o: false });
-            }
-            else if (_ln[_i] === "{")
-            {
-                _0xk.push({ t: 8, g: "{", l: _l, c: _i, o: true });
-            }
-            else if (_ln[_i] === "}")
-            {
-                _0xk.push({ t: 8, g: "}", l: _l, c: _i, o: false });
-            }
-            _i++;
-        }
-    }
-    return _0xk;
-}
-
-function _0x7f4(_0xt, _0xlIdx, _0xcIdx)
-{
-    const _0xl = _0xt.split("\n");
-    if (_0xlIdx < 0 || _0xlIdx >= _0xl.length)
-    {
-        return null;
-    }
-    const _ln = _0xl[_0xlIdx];
-    const _pr = _ln.slice(0, _0xcIdx);
-    const _ps = _ln.slice(_0xcIdx);
-
-    for (const [_op, _cl] of _0x9b)
-    {
-        if (_pr.endsWith(_op) && _ps.startsWith(_cl))
-        {
-            const _h = _pr.slice(0, _pr.length - _op.length);
-            const _tl = _ps.slice(_cl.length);
-            const _im = _ln.match(/^(\s*)/);
-            const _bi = _im ? _im[1] : "";
-            const _ii = _bi + "    ";
-            const _ht = _h.trimEnd();
-            const _nl = [];
-            let _cln = 0;
-            if (_ht.length > 0)
-            {
-                _nl.push(_ht, _bi + _op, _ii, _bi + _cl + _tl.trimStart());
-                _cln = _0xlIdx + 2;
-            }
-            else
-            {
-                _nl.push(_bi + _op, _ii, _bi + _cl + _tl.trimStart());
-                _cln = _0xlIdx + 1;
-            }
-            return { s: 1, startLine: _0xlIdx + 1, endLine: _0xlIdx + 1, repl: _nl.join("\n"), cursorLine: _cln + 1, cursorCol: _ii.length + 1 };
-        }
-        const _oi = _pr.lastIndexOf(_op);
-        const _ci = _ps.indexOf(_cl);
-        if (_oi !== -1 && _ci !== -1)
-        {
-            const _h = _pr.slice(0, _oi);
-            if (_h.trim().length > 0)
-            {
-                const _ip = _pr.slice(_oi + _op.length);
-                const _iq = _ps.slice(0, _ci);
-                const _tl = _ps.slice(_ci + _cl.length);
-                const _im = _ln.match(/^(\s*)/);
-                const _bi = _im ? _im[1] : "";
-                const _ii = _bi + "    ";
-                let _nl;
-                let _cln;
-                let _ccol;
-                if (_ip.trim().length === 0)
-                {
-                    _nl = [_h.trimEnd(), _bi + _op, _ii + _iq, _bi + _cl + _tl.trimStart()];
-                    _cln = _0xlIdx + 2;
-                    _ccol = _ii.length + 1;
-                }
-                else
-                {
-                    _nl = [_h.trimEnd(), _bi + _op, _ii + _ip, _ii + _iq, _bi + _cl + _tl.trimStart()];
-                    _cln = _0xlIdx + 3;
-                    _ccol = _ii.length + 1;
-                }
-                return { s: 1, startLine: _0xlIdx + 1, endLine: _0xlIdx + 1, repl: _nl.join("\n"), cursorLine: _cln + 1, cursorCol: _ccol };
-            }
-        }
-    }
-    return null;
-}
-
-function _0x2e8(_0xt, _0xk, _0xlIdx, _0xcIdx, _lim = 160)
-{
-    const _0xl = _0xt.split("\n");
-    if (_0xlIdx < 0 || _0xlIdx >= _0xl.length)
-    {
-        return null;
-    }
-    let _tol = -1, _pol = -1;
-    if (_0xk === "Backspace")
-    {
-        if (_0xlIdx <= 0)
-        {
-            return null;
-        }
-        if (/^\s*$/.test(_0xl[_0xlIdx].slice(0, _0xcIdx)))
-        {
-            _pol = _0xlIdx - 1;
-            _tol = _0xlIdx;
-        }
-        else
-        {
-            return null;
-        }
-    }
-    else if (_0xk === "Delete")
-    {
-        if (_0xlIdx >= _0xl.length - 1)
-        {
-            return null;
-        }
-        const _l = _0xl[_0xlIdx];
-        if (/^\s*$/.test(_l.slice(_0xcIdx)) && _l.slice(0, _0xcIdx).trim().length > 0)
-        {
-            _pol = _0xlIdx;
-            _tol = _0xlIdx + 1;
-        }
-        else
-        {
-            return null;
-        }
-    }
-    else
-    {
-        return null;
-    }
-
-    const _pv = _0xl[_pol];
-    if (_pv.trim().length === 0)
-    {
-        return null;
-    }
-    const _tl = _0xl[_tol];
-    const _mo = _tl.match(/^(\s*)([\[\{\(\$]|```|`|\$\$|\||""")/);
-    if (!_mo)
-    {
-        return null;
-    }
-    const _og = _mo[2], _oc = _mo[1].length;
-    const _tokens = _0x3a1(_0xt);
-    const _tokIdx = _tokens.findIndex(t => t.l === _tol && t.c === _oc);
-    if (_tokIdx === -1 || !_tokens[_tokIdx].o)
-    {
-        return null;
-    }
-
-    let _mt = null, _d = 0;
-    for (let _i = _tokIdx; _i < _tokens.length; _i++)
-    {
-        const _t = _tokens[_i];
-        if (_t.t === _tokens[_tokIdx].t)
-        {
-            if (_t.o)
-            {
-                _d++;
-            }
-            else
-            {
-                _d--;
-                if (_d === 0)
-                {
-                    _mt = _t;
-                    break;
-                }
-            }
-        }
-    }
-    if (!_mt)
-    {
-        return { s: 0, r: "unclosed" };
-    }
-
-    for (let _l = _tol; _l <= _mt.l; _l++)
-    {
-        if (_0xl[_l].includes("//"))
-        {
-            return { s: 0, r: "cmt" };
-        }
-    }
-    let _sc = 0;
-    for (let _l = _tol; _l <= _mt.l; _l++)
-    {
-        const _tr = _0xl[_l].trim();
-        if (_tr.endsWith(";") || _tr.endsWith(","))
-        {
-            _sc++;
-        }
-    }
-    if (_sc > 4)
-    {
-        return { s: 0, r: "cpx" };
-    }
-
-    const _ht = _pv.trimEnd();
-    let _bd = "";
-    if (_tol === _mt.l)
-    {
-        _bd = _tl.slice(_oc + _og.length, _mt.c).trim().replace(/\s+/g, " ");
-    }
-    else
-    {
-        const _fl = _tl.slice(_oc + _og.length);
-        const _ml = _0xl.slice(_tol + 1, _mt.l);
-        const _ll = _0xl[_mt.l].slice(0, _mt.c);
-        _bd = [_fl, ..._ml, _ll].join(" ").trim().replace(/\s+/g, " ");
-    }
-
-    let _pi = _bd;
-    if (_og === "{" || _og === "$")
-    {
-        _pi = _bd.length > 0 ? ` ${_bd} ` : "";
-    }
-    const _cs = _0xl[_mt.l].slice(_mt.c + _mt.g.length).trimEnd();
-    let _at = "";
-    if ((_og === "{" || _og === "$" || _og === "$$" || _og === "\"\"\"" || _og === "```") && !_ht.endsWith(" "))
-    {
-        _at = " ";
-    }
-    const _mono = `${_ht}${_at}${_og}${_pi}${_mt.g}${_cs}`;
-    if (_mono.length > _lim)
-    {
-        return { s: 0, r: "len" };
-    }
-
-    return { s: 2, startLine: _pol + 1, endLine: _mt.l + 1, repl: _mono, cursorLine: _pol + 1, cursorCol: _ht.length + _at.length + 1 };
-}
-
-function _0x4c2(_0xl, _sel, _k, _ins = "")
-{
-    const _a = _sel.startLineNumber;
-    const _b = _sel.endLineNumber;
-    if (_a >= _b || _b > _0xl.length || _a <= 0)
-    {
-        return null;
-    }
-
-    const _lnB = _0xl[_b - 1] || "";
-    const _trB = _lnB.trimStart();
-    const _ldB = _lnB.length - _trB.length;
-
-    const _mo = _trB.match(/^([\[\{\(\$]|```|`|\$\$|\||""")/);
-    if (!_mo)
-    {
-        return null;
-    }
-
-    const _oc = _ldB + 1;
-    if (_sel.endColumn > _oc)
-    {
-        return null;
-    }
-
-    const _lnA = _0xl[_a - 1] || "";
-    const _scA = _sel.startColumn;
-    const _preA = _lnA.slice(0, _scA - 1);
-    const _selA = _lnA.slice(_scA - 1);
-
-    const _isDel = ["Backspace", "Delete", "Cut", "deleteContentBackward", "deleteContentForward", "deleteWordBackward", "deleteWordForward", "deleteSoftLineBackward", "deleteByCut", "deleteByDrag"].includes(_k);
-
-    if (_isDel)
-    {
-        if (_selA.trim().length === 0)
-        {
-            return { s: 0, r: "trail_ws" };
-        }
-        else
-        {
-            return { s: 3, line: _a, col: _scA, endCol: _lnA.length + 1, repl: "" };
-        }
-    }
-    else
-    {
-        return { s: 4, line: _a, col: _scA, endCol: _lnA.length + 1, repl: _ins };
-    }
-}
-
-function _0x8d5(_0xt)
-{
-    const _lines = _0xt.split("\n");
-    let _ch = false;
-    const _nl = [];
-    const _og = ["```", "\"\"\"", "$$", "[{(", "([", "[(", "`", "$", "|", "[", "{", "("];
-
-    for (let _i = 0; _i < _lines.length; _i++)
-    {
-        const _l = _lines[_i];
-        if (_l.trim().startsWith("//"))
-        {
-            _nl.push(_l);
-            continue;
-        }
-
-        let _m = null;
-        for (const _g of _og)
-        {
-            if (_l.endsWith(_g))
-            {
-                const _h = _l.slice(0, _l.length - _g.length);
-                if (_h.trim().length > 0)
-                {
-                    _m = { g: _g, h: _h };
-                    break;
-                }
-            }
-        }
-
-        if (_m)
-        {
-            const _im = _l.match(/^(\s*)/);
-            const _bi = _im ? _im[1] : "";
-            _nl.push(_m.h.trimEnd());
-            _nl.push(_bi + _m.g);
-            _ch = true;
-        }
-        else
-        {
-            _nl.push(_l);
-        }
-    }
-
-    return { ch: _ch, res: _nl.join("\n") };
-}
-
-let _0xng = false;
+// --- STRUCTURAL CONTAINER DISPATCH HOOK (UNHINDERED USER EDITING) ---
 
 function SetupStructuralContainerDispatchHook()
 {
-    if (!MonacoInstance)
-    {
-        return ;
-    }
-
-    MonacoInstance.onKeyDown
-    (
-        (Event) =>
-        {
-            const BrowserEvent = Event.browserEvent;
-            const Key = BrowserEvent.key;
-
-            const Selection = MonacoInstance.getSelection();
-            if (!Selection)
-            {
-                return ;
-            }
-
-            const Model = MonacoInstance.getModel();
-            if (!Model)
-            {
-                return ;
-            }
-
-            const DocText = Model.getValue();
-            const Lines = DocText.split("\n");
-
-            // 1. Cross-line selection guard
-            if (!Selection.isEmpty())
-            {
-                const IsCut = (BrowserEvent.ctrlKey || BrowserEvent.metaKey) && (Key === "x" || Key === "X");
-                const IsDelKey = Key === "Backspace" || Key === "Delete" || IsCut;
-                const IsPrintable = Key.length === 1 && !BrowserEvent.ctrlKey && !BrowserEvent.metaKey && !BrowserEvent.altKey;
-
-                if (IsDelKey || IsPrintable)
-                {
-                    const CrossRes = _0x4c2(Lines, Selection, IsCut ? "Cut": (IsDelKey ? Key: "insertText"), IsPrintable ? Key: "");
-                    if (CrossRes)
-                    {
-                        BrowserEvent.preventDefault();
-                        Event.stopPropagation();
-
-                        if (CrossRes.s === 0)
-                        {
-                            return ;
-                        }
-                        if (CrossRes.s === 3 || CrossRes.s === 4)
-                        {
-                            const PrevScrollTop = MonacoInstance.getScrollTop();
-                            const PrevScrollLeft = MonacoInstance.getScrollLeft();
-                            const Range = new monaco.Range(CrossRes.line, CrossRes.col, CrossRes.line, CrossRes.endCol);
-                            MonacoInstance.executeEdits
-                            (
-                                "cf_clamp",
-                                [{
-                                    range: Range,
-                                    text: CrossRes.repl,
-                                    forceMoveMarkers: true
-                                }]
-                            );
-                            MonacoInstance.setPosition({ lineNumber: CrossRes.line, column: CrossRes.col + CrossRes.repl.length });
-                            MonacoInstance.setScrollTop(PrevScrollTop);
-                            MonacoInstance.setScrollLeft(PrevScrollLeft);
-                            return ;
-                        }
-                    }
-                }
-                return ;
-            }
-
-            // 2. Collapsed selection (Rule A & Rule B)
-            if (Key !== "Enter" && Key !== "Backspace" && Key !== "Delete")
-            {
-                return ;
-            }
-
-            const Line = Selection.positionLineNumber;
-            const Col = Selection.positionColumn;
-
-            const Layout = MonacoInstance.getLayoutInfo ? MonacoInstance.getLayoutInfo(): null;
-            const CanvasLimit = Layout && Layout.width ? Math.max(120, Math.min(180, Math.floor(Layout.width / 8.5))): 160;
-
-            let Result = null;
-            if (Key === "Enter")
-            {
-                Result = _0x7f4(DocText, Line - 1, Col - 1);
-            }
-            else
-            {
-                Result = _0x2e8(DocText, Key, Line - 1, Col - 1, CanvasLimit);
-            }
-
-            if (!Result)
-            {
-                return ;
-            }
-
-            BrowserEvent.preventDefault();
-            Event.stopPropagation();
-
-            if (Result.s === 0)
-            {
-                return ;
-            }
-
-            if (Result.s === 1 || Result.s === 2)
-            {
-                const PrevScrollTop = MonacoInstance.getScrollTop();
-                const PrevScrollLeft = MonacoInstance.getScrollLeft();
-                const Range = new monaco.Range
-                (
-                    Result.startLine,
-                    1,
-                    Result.endLine,
-                    Model.getLineMaxColumn(Result.endLine)
-                );
-
-                MonacoInstance.executeEdits
-                (
-                    "cf_dispatch",
-                    [{
-                        range: Range,
-                        text: Result.repl,
-                        forceMoveMarkers: true
-                    }]
-                );
-
-                MonacoInstance.setPosition({ lineNumber: Result.cursorLine, column: Result.cursorCol });
-                MonacoInstance.setScrollTop(PrevScrollTop);
-                MonacoInstance.setScrollLeft(PrevScrollLeft);
-
-                if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
-                {
-                    window.__TAURI__.core.invoke
-                    (
-                        "EnforceContainerPhysics",
-                        {
-                            Request:
-                            {
-                                text: DocText,
-                                key: Key,
-                                line: Line - 1,
-                                col: Col - 1,
-                                canvas_limit: CanvasLimit
-                            }
-                        }
-                    ).catch(() => {});
-                }
-            }
-        }
-    );
-
-    // 3. beforeinput backdoor closure
-    const DomNode = MonacoInstance.getDomNode ? MonacoInstance.getDomNode(): null;
-    if (DomNode)
-    {
-        DomNode.addEventListener
-        (
-            "beforeinput",
-            (Event) =>
-            {
-                const InputType = Event.inputType;
-                if (!InputType)
-                {
-                    return ;
-                }
-
-                const Selection = MonacoInstance.getSelection();
-                if (!Selection)
-                {
-                    return ;
-                }
-
-                const Model = MonacoInstance.getModel();
-                if (!Model)
-                {
-                    return ;
-                }
-
-                const DocText = Model.getValue();
-                const Lines = DocText.split("\n");
-
-                if (!Selection.isEmpty())
-                {
-                    const Inserted = (Event.dataTransfer ? Event.dataTransfer.getData("text/plain"): Event.data) || "";
-                    const CrossRes = _0x4c2(Lines, Selection, InputType, Inserted);
-                    if (CrossRes)
-                    {
-                        Event.preventDefault();
-                        Event.stopPropagation();
-
-                        if (CrossRes.s === 0)
-                        {
-                            return ;
-                        }
-                        if (CrossRes.s === 3 || CrossRes.s === 4)
-                        {
-                            const PrevScrollTop = MonacoInstance.getScrollTop();
-                            const PrevScrollLeft = MonacoInstance.getScrollLeft();
-                            const Range = new monaco.Range(CrossRes.line, CrossRes.col, CrossRes.line, CrossRes.endCol);
-                            MonacoInstance.executeEdits
-                            (
-                                "cf_clamp",
-                                [{
-                                    range: Range,
-                                    text: CrossRes.repl,
-                                    forceMoveMarkers: true
-                                }]
-                            );
-                            MonacoInstance.setPosition({ lineNumber: CrossRes.line, column: CrossRes.col + CrossRes.repl.length });
-                            MonacoInstance.setScrollTop(PrevScrollTop);
-                            MonacoInstance.setScrollLeft(PrevScrollLeft);
-                        }
-                    }
-                }
-                else
-                {
-                    let VirtualKey = null;
-                    if (InputType.startsWith("deleteContentBackward") || InputType.startsWith("deleteWordBackward") || InputType.startsWith("deleteSoftLineBackward"))
-                    {
-                        VirtualKey = "Backspace";
-                    }
-                    else if (InputType.startsWith("deleteContentForward") || InputType.startsWith("deleteWordForward"))
-                    {
-                        VirtualKey = "Delete";
-                    }
-
-                    if (VirtualKey)
-                    {
-                        const Line = Selection.positionLineNumber;
-                        const Col = Selection.positionColumn;
-                        const Layout = MonacoInstance.getLayoutInfo ? MonacoInstance.getLayoutInfo(): null;
-                        const CanvasLimit = Layout && Layout.width ? Math.max(120, Math.min(180, Math.floor(Layout.width / 8.5))): 160;
-
-                        const Result = _0x2e8(DocText, VirtualKey, Line - 1, Col - 1, CanvasLimit);
-                        if (Result)
-                        {
-                            Event.preventDefault();
-                            Event.stopPropagation();
-
-                            if (Result.s === 0)
-                            {
-                                return ;
-                            }
-                            if (Result.s === 2)
-                            {
-                                const PrevScrollTop = MonacoInstance.getScrollTop();
-                                const PrevScrollLeft = MonacoInstance.getScrollLeft();
-                                const Range = new monaco.Range(Result.startLine, 1, Result.endLine, Model.getLineMaxColumn(Result.endLine));
-                                MonacoInstance.executeEdits("cf_dispatch", [{ range: Range, text: Result.repl, forceMoveMarkers: true }]);
-                                MonacoInstance.setPosition({ lineNumber: Result.cursorLine, column: Result.cursorCol });
-                                MonacoInstance.setScrollTop(PrevScrollTop);
-                                MonacoInstance.setScrollLeft(PrevScrollLeft);
-                            }
-                        }
-                    }
-                }
-            },
-            true
-        );
-    }
-
-    // 4. Post-edit structural invariant gate
-    const Model = MonacoInstance.getModel();
-    if (Model)
-    {
-        Model.onDidChangeContent
-        (
-            () =>
-            {
-                if (_0xng)
-                {
-                    return ;
-                }
-                const CurrentText = Model.getValue();
-                const InvariantCheck = _0x8d5(CurrentText);
-                if (InvariantCheck.ch)
-                {
-                    _0xng = true;
-                    try
-                    {
-                        const PrevScrollTop = MonacoInstance.getScrollTop();
-                        const PrevScrollLeft = MonacoInstance.getScrollLeft();
-                        const FullRange = new monaco.Range(1, 1, Model.getLineCount(), Model.getLineMaxColumn(Model.getLineCount()));
-                        MonacoInstance.executeEdits("cf_norm", [{ range: FullRange, text: InvariantCheck.res, forceMoveMarkers: true }]);
-                        MonacoInstance.setScrollTop(PrevScrollTop);
-                        MonacoInstance.setScrollLeft(PrevScrollLeft);
-                    }
-                    finally
-                    {
-                        _0xng = false;
-                    }
-                }
-            }
-        );
-    }
+    // Real-time keystroke interception and modification blocking disabled.
+    // Users retain full, unhindered freedom to use Backspace, Delete, Cut, Paste, and Replace.
+    return ;
 }
 
 // --- TYPEWRITER & HEMINGWAY FOCUS LIGHT (PHASE 7.2) ---
@@ -11397,6 +10887,9 @@ function ExecuteStudioCommand(CommandId)
         case "layout_preview":
             SetViewportLayout("preview");
             break;
+        case "toggle_explorer":
+            ToggleExplorerSidebar();
+            break;
         case "toggle_outline":
             ToggleDocumentOutline();
             break;
@@ -11532,6 +11025,23 @@ function ToggleExportMenu(ForceState)
 
 function SetupEventListeners()
 {
+    // Sidebar Explorer Toggle Controls (Synchronous Early Binding)
+    const ToggleBtn = document.getElementById("ToggleExplorerBtn");
+    if (ToggleBtn)
+    {
+        ToggleBtn.addEventListener("click", () => { ToggleExplorerSidebar(); });
+    }
+    const TabsToggleBtn = document.getElementById("TabsToggleExplorerBtn");
+    if (TabsToggleBtn)
+    {
+        TabsToggleBtn.addEventListener("click", () => { ToggleExplorerSidebar(); });
+    }
+    const CloseBtn = document.getElementById("CloseExplorerBtn");
+    if (CloseBtn)
+    {
+        CloseBtn.addEventListener("click", () => { ToggleExplorerSidebar(false); });
+    }
+
     // Priority 2: Viewport Layout Controls
     const SplitBtn = document.getElementById("LayoutSplitBtn");
     const EditorBtn = document.getElementById("LayoutEditorBtn");
@@ -12322,7 +11832,155 @@ function SetupEventListeners()
         (
             "input", (E) =>
             {
-                RenderDashboard(E.target.value);
+                RenderHomepage(E.target.value);
+            }
+        );
+    }
+
+    // Steve Jobs Homepage Hero Actions
+    const HeroEmptyBtn = document.getElementById("HeroEmptyProjectBtn");
+    if (HeroEmptyBtn)
+    {
+        HeroEmptyBtn.addEventListener
+        (
+            "click", () =>
+            {
+                ShowNewDocumentModal();
+            }
+        );
+    }
+
+    const HeroTemplateBtn = document.getElementById("HeroTemplateProjectBtn");
+    if (HeroTemplateBtn)
+    {
+        HeroTemplateBtn.addEventListener
+        (
+            "click", () =>
+            {
+                ShowTemplateChooserModal();
+            }
+        );
+    }
+
+    const HomepageFolderBtn = document.getElementById("HomepageNewFolderBtn");
+    if (HomepageFolderBtn)
+    {
+        HomepageFolderBtn.addEventListener
+        (
+            "click", () =>
+            {
+                PickFolderFromDisk();
+            }
+        );
+    }
+
+    const HomepageSortSelect = document.getElementById("HomepageSortSelect");
+    if (HomepageSortSelect)
+    {
+        HomepageSortSelect.addEventListener
+        (
+            "change", (E) =>
+            {
+                CurrentHomepageSort = E.target.value;
+                const SearchVal = DashboardSearch ? DashboardSearch.value: "";
+                RenderHomepage(SearchVal);
+            }
+        );
+    }
+
+    const ViewGridBtn = document.getElementById("ViewModeGridBtn");
+    const ViewListBtn = document.getElementById("ViewModeListBtn");
+    CurrentHomepageViewMode = localStorage.getItem("typst_homepage_view_mode") || "grid";
+    if (ViewGridBtn && ViewListBtn)
+    {
+        if (CurrentHomepageViewMode === "list")
+        {
+            ViewListBtn.classList.add("Active");
+            ViewGridBtn.classList.remove("Active");
+        }
+        else
+        {
+            ViewGridBtn.classList.add("Active");
+            ViewListBtn.classList.remove("Active");
+        }
+
+        ViewGridBtn.addEventListener
+        (
+            "click", () =>
+            {
+                CurrentHomepageViewMode = "grid";
+                localStorage.setItem("typst_homepage_view_mode", "grid");
+                ViewGridBtn.classList.add("Active");
+                ViewListBtn.classList.remove("Active");
+                const SearchVal = DashboardProjectSearch ? DashboardProjectSearch.value: "";
+                RenderHomepage(SearchVal);
+            }
+        );
+
+        ViewListBtn.addEventListener
+        (
+            "click", () =>
+            {
+                CurrentHomepageViewMode = "list";
+                localStorage.setItem("typst_homepage_view_mode", "list");
+                ViewListBtn.classList.add("Active");
+                ViewGridBtn.classList.remove("Active");
+                const SearchVal = DashboardProjectSearch ? DashboardProjectSearch.value: "";
+                RenderHomepage(SearchVal);
+            }
+        );
+    }
+
+    const CloseTemplateBtn = document.getElementById("CloseTemplateModalBtn");
+    if (CloseTemplateBtn)
+    {
+        CloseTemplateBtn.addEventListener
+        (
+            "click", () =>
+            {
+                CloseTemplateChooserModal();
+            }
+        );
+    }
+
+    const TemplateModal = document.getElementById("TemplateChooserModal");
+    if (TemplateModal)
+    {
+        TemplateModal.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const Card = Event.target.closest(".TemplateOptionCard");
+                if (Card && Card.dataset.template)
+                {
+                    ApplyDocumentTemplate(Card.dataset.template);
+                }
+            }
+        );
+    }
+
+    // Delegated click on Resource Links
+    const HomepageRightCol = document.querySelector(".HomepageRightColumn");
+    if (HomepageRightCol)
+    {
+        HomepageRightCol.addEventListener
+        (
+            "click", (Event) =>
+            {
+                const LinkCard = Event.target.closest(".ResourceLinkCard");
+                if (LinkCard && LinkCard.dataset.link)
+                {
+                    Event.preventDefault();
+                    const TargetUrl = LinkCard.dataset.link;
+                    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+                    {
+                        window.__TAURI__.core.invoke("OpenExternalUrl", { url: TargetUrl, Url: TargetUrl }).catch((Err) => { console.warn("Open external URL:", Err); });
+                    }
+                    else
+                    {
+                        window.open(TargetUrl, "_blank");
+                    }
+                }
             }
         );
     }
@@ -12334,6 +11992,87 @@ function SetupEventListeners()
         (
             "click", (Event) =>
             {
+                // Action Buttons inside List View or Cards
+                const ActionBtn = Event.target.closest("[data-action]");
+                if (ActionBtn)
+                {
+                    const Action = ActionBtn.dataset.action;
+                    const Row = ActionBtn.closest("[data-file-path]");
+                    const TargetFilePath = Row ? Row.dataset.filePath : ActionBtn.dataset.filePath;
+                    const TargetFileName = Row ? (Row.dataset.fileName || TargetFilePath.split(/[\\/]/).pop()) : (TargetFilePath ? TargetFilePath.split(/[\\/]/).pop() : "");
+
+                    if (!TargetFilePath) { return ; }
+
+                    if (Action === "open-doc" || Action === "open-homepage-doc")
+                    {
+                        OpenDocumentInTab(TargetFilePath, TargetFileName).then(() => { SwitchView("editor"); });
+                        return ;
+                    }
+                    else if (Action === "export-doc")
+                    {
+                        OpenDocumentInTab(TargetFilePath, TargetFileName).then
+                        (
+                            () =>
+                            {
+                                SwitchView("editor");
+                                setTimeout(() => { ExportDocument("pdf"); }, 300);
+                            }
+                        );
+                        return ;
+                    }
+                    else if (Action === "rename-doc")
+                    {
+                        RenameWorkspaceDocument(TargetFilePath, TargetFileName);
+                        return ;
+                    }
+                    else if (Action === "delete-doc")
+                    {
+                        DeleteWorkspaceFile(TargetFilePath, TargetFileName);
+                        return ;
+                    }
+                }
+
+                // Table Sortable Headers
+                const SortHeader = Event.target.closest("th.SortableHeader");
+                if (SortHeader && SortHeader.dataset.sortKey)
+                {
+                    CurrentHomepageSort = SortHeader.dataset.sortKey;
+                    const Select = document.getElementById("HomepageSortSelect");
+                    if (Select) { Select.value = CurrentHomepageSort; }
+                    const SearchInput = document.getElementById("DashboardProjectSearch");
+                    RenderHomepage(SearchInput ? SearchInput.value : "");
+                    return ;
+                }
+
+                // Click on List View Table Row
+                const ListRow = Event.target.closest(".HomepageListRow");
+                if (ListRow && ListRow.dataset.filePath)
+                {
+                    OpenDocumentInTab(ListRow.dataset.filePath, ListRow.dataset.fileName || ListRow.dataset.filePath.split(/[\\/]/).pop()).then
+                    (
+                        () =>
+                        {
+                            SwitchView("editor");
+                        }
+                    );
+                    return ;
+                }
+
+                // Click on photorealistic paper card
+                const PaperCard = Event.target.closest(".HomepagePaperCard");
+                if (PaperCard && PaperCard.dataset.filePath)
+                {
+                    const FilePath = PaperCard.dataset.filePath;
+                    OpenDocumentInTab(FilePath).then
+                    (
+                        () =>
+                        {
+                            SwitchView("editor");
+                        }
+                    );
+                    return ;
+                }
+
                 const ClearFilterBtn = Event.target.closest("[data-action='clear-dir-filter']");
                 if (ClearFilterBtn)
                 {
@@ -12358,7 +12097,13 @@ function SetupEventListeners()
                 const OpenDocTarget = Event.target.closest("[data-action='open-document']");
                 if (OpenDocTarget && OpenDocTarget.dataset.filePath)
                 {
-                    OpenDocumentInTab(OpenDocTarget.dataset.filePath);
+                    OpenDocumentInTab(OpenDocTarget.dataset.filePath).then
+                    (
+                        () =>
+                        {
+                            SwitchView("editor");
+                        }
+                    );
                     return ;
                 }
             }
@@ -12516,6 +12261,11 @@ function SetupEventListeners()
             {
                 E.preventDefault();
                 ToggleFullscreen();
+            }
+            else if ((E.ctrlKey || E.metaKey) && (E.key === "b" || E.key === "B"))
+            {
+                E.preventDefault();
+                ToggleExplorerSidebar();
             }
             else if (E.key === "F12" || ( (E.ctrlKey || E.metaKey) && E.shiftKey && (E.key === "I" || E.key === "i")))
             {
@@ -12676,10 +12426,12 @@ async function PickFolderFromDisk()
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
             const SelectedPath = await window.__TAURI__.core.invoke("PickFolder");
-            if (SelectedPath && DirInput)
+            if (SelectedPath)
             {
-                DirInput.value = SelectedPath;
-                DirInput.focus();
+                if (DirInput) { DirInput.value = SelectedPath; }
+                await window.__TAURI__.core.invoke("AddWorkspaceDirectory", { pathStr: SelectedPath, PathStr: SelectedPath });
+                await LoadWorkspaceInfo();
+                ShowToast(`Added folder: ${SelectedPath}`, "success");
                 return ;
             }
         }
@@ -12995,6 +12747,7 @@ async function OpenFileFromWorkspace(FilePath)
 
             ShowToast(`Loaded ${FileName}`, "info");
             CloseDocDropdown();
+            TrackRecentDocument(FilePath, FileName);
             SwitchView("editor");
             TriggerCompileNow();
             RenderDocDropdownList();
@@ -13060,6 +12813,14 @@ async function SaveCurrentFile()
         return ;
     }
 
+    // Silently run the formatter when K&R slop is detected on Ctrl+S / Save
+    const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop(): "main.typ";
+    const KnrCheck = DetectKnrSlop(MonacoInstance.getValue(), ActiveFileName);
+    if (KnrCheck.HasError)
+    {
+        await ApplyFormattingToEditor();
+    }
+
     const Content = MonacoInstance.getValue();
     let TargetPath = CurrentFilePath;
 
@@ -13089,6 +12850,7 @@ async function SaveCurrentFile()
         {
             await window.__TAURI__.core.invoke("SaveWorkspaceFile", { pathStr: TargetPath, PathStr: TargetPath, content: Content, Content: Content });
             MarkDocumentClean(Content);
+            TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             ShowToast("Saved to disk", "success");
             if (SaveBtn && Label)
             {
@@ -13120,6 +12882,7 @@ async function SaveCurrentFile()
         const Data = await Response.json();
         if (Data.Success)
         {
+            TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             if (SaveBtn && Label)
             {
                 SaveBtn.classList.add("SavedSuccess");
@@ -13198,6 +12961,7 @@ async function AddWorkspaceDirectory()
         const Data = await Response.json();
         if (Data.Success)
         {
+            TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             Input.value = "";
             await LoadWorkspaceInfo();
         }
@@ -13240,6 +13004,7 @@ async function RemoveWorkspaceDirectory(DirPath)
         const Data = await Response.json();
         if (Data.Success)
         {
+            TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             await LoadWorkspaceInfo();
         }
         else
@@ -13253,9 +13018,23 @@ async function RemoveWorkspaceDirectory(DirPath)
     }
 }
 
+function RemoveRecentDocument(FilePath)
+{
+    if (!FilePath) { return ; }
+    try
+    {
+        let Recent = JSON.parse(localStorage.getItem("TypstStudio_RecentDocuments") || "[]");
+        const Norm = FilePath.toLowerCase();
+        Recent = Recent.filter((R) => R && R.Path && R.Path.toLowerCase() !== Norm);
+        localStorage.setItem("TypstStudio_RecentDocuments", JSON.stringify(Recent));
+    }
+    catch (Ignored) {}
+}
+
 async function DeleteWorkspaceFile(FilePath, FileName)
 {
-    if (!confirm(`Are you sure you want to permanently delete:\n\n${FileName}\n(${FilePath})`))
+    const CleanName = FileName || (FilePath ? FilePath.split(/[\\/]/).pop() : "document");
+    if (!confirm(`Are you sure you want to permanently delete:\n\n${CleanName}\n(${FilePath})`))
     {
         return ;
     }
@@ -13265,44 +13044,133 @@ async function DeleteWorkspaceFile(FilePath, FileName)
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
             await window.__TAURI__.core.invoke("DeleteWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
-            await LoadWorkspaceInfo();
-            if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
-            {
-                if (WorkspaceFiles.length > 0)
-                {
-                    OpenFileFromWorkspace(WorkspaceFiles[0].Path);
-                }
-            }
-            return ;
-        }
-
-        const Response = await AuthenticatedFetch
-        (
-            `/api/workspace/file?path=${encodeURIComponent(FilePath)}`,
-            {
-                method: "DELETE"
-            }
-        );
-        const Data = await Response.json();
-        if (Data.Success)
-        {
-            await LoadWorkspaceInfo();
-            if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
-            {
-                if (WorkspaceFiles.length > 0)
-                {
-                    OpenFileFromWorkspace(WorkspaceFiles[0].Path);
-                }
-            }
         }
         else
         {
-            ShowToast("Delete failed: " + (Data ? Data.Message: "Error"), "error");
+            const Response = await AuthenticatedFetch
+            (
+                `/api/workspace/file?path=${encodeURIComponent(FilePath)}`,
+                {
+                    method: "DELETE"
+                }
+            );
+            const Data = await Response.json();
+            if (!Data || !Data.Success)
+            {
+                ShowToast("Delete failed: " + (Data ? Data.Message: "Error"), "error");
+                return ;
+            }
         }
+
+        RemoveRecentDocument(FilePath);
+
+        // Close tab if open
+        if (Array.isArray(OpenTabs))
+        {
+            const TabIdx = OpenTabs.findIndex((T) => T && T.Path && T.Path.toLowerCase() === FilePath.toLowerCase());
+            if (TabIdx !== -1)
+            {
+                CloseTab(TabIdx);
+            }
+        }
+
+        await LoadWorkspaceInfo();
+        if (typeof RenderHomepage === "function")
+        {
+            RenderHomepage();
+        }
+
+        if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
+        {
+            if (WorkspaceFiles.length > 0)
+            {
+                OpenFileFromWorkspace(WorkspaceFiles[0].Path);
+            }
+        }
+
+        ShowToast(`Deleted ${CleanName}`, "info");
     }
     catch (Err)
     {
         console.error("Delete file error:", Err);
+        ShowToast("Delete failed: " + Err.message, "error");
+    }
+}
+
+async function RenameWorkspaceDocument(FilePath, CurrentName)
+{
+    const CleanName = (CurrentName || FilePath.split(/[\\/]/).pop()).replace(/\.typ$/i, "");
+    const NewBase = prompt("Enter new document name:", CleanName);
+    if (!NewBase || !NewBase.trim() || NewBase.trim() === CleanName)
+    {
+        return ;
+    }
+    const ValidatedNewName = NewBase.trim().endsWith(".typ") ? NewBase.trim() : `${NewBase.trim()}.typ`;
+
+    try
+    {
+        let NewPath = "";
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            NewPath = await window.__TAURI__.core.invoke("RenameWorkspaceFile", { oldPathStr: FilePath, newNameStr: ValidatedNewName, OldPathStr: FilePath, NewNameStr: ValidatedNewName });
+        }
+        else
+        {
+            const Resp = await AuthenticatedFetch
+            (
+                "/api/workspace/rename",
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ oldPath: FilePath, newName: ValidatedNewName })
+                }
+            );
+            const Data = await Resp.json();
+            if (Data && Data.Success)
+            {
+                NewPath = Data.NewPath;
+            }
+            else
+            {
+                ShowToast("Rename failed: " + (Data ? Data.Message : "Error"), "error");
+                return ;
+            }
+        }
+
+        if (NewPath)
+        {
+            // Update open tabs if this file is open
+            if (Array.isArray(OpenTabs))
+            {
+                const Tab = OpenTabs.find((T) => T && T.Path && T.Path.toLowerCase() === FilePath.toLowerCase());
+                if (Tab)
+                {
+                    Tab.Path = NewPath;
+                    Tab.Name = ValidatedNewName;
+                    RenderEditorTabs();
+                }
+            }
+
+            if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
+            {
+                CurrentFilePath = NewPath;
+                ActiveDocumentCanonicalPath = NewPath;
+            }
+
+            RemoveRecentDocument(FilePath);
+            TrackRecentDocument(NewPath, ValidatedNewName);
+            await LoadWorkspaceInfo();
+            if (typeof RenderHomepage === "function")
+            {
+                RenderHomepage();
+            }
+            ShowToast(`Renamed to ${ValidatedNewName}`, "success");
+        }
+    }
+    catch (Err)
+    {
+        console.error("Rename document error:", Err);
+        ShowToast("Rename failed: " + Err.message, "error");
     }
 }
 
@@ -13509,8 +13377,20 @@ function OpenDocumentInTab(FilePath, FileName = null)
 
     const Normalized = FilePath.trim();
     const Name = FileName || Normalized.split(/[\\/]/).pop();
+    const CleanPath = Normalized.replace(/\\/g, "/");
+    const BaseFileName = CleanPath.split("/").pop().toLowerCase();
 
-    const Existing = OpenTabs.find( (T) => T.Path.toLowerCase() === Normalized.toLowerCase());
+    const Existing = OpenTabs.find
+    (
+        (T) =>
+        {
+            const TClean = (T.Path || "").trim().replace(/\\/g, "/");
+            return TClean.toLowerCase() === CleanPath.toLowerCase() ||
+                   (TClean.split("/").pop().toLowerCase() === BaseFileName &&
+                    (TClean.endsWith("/" + CleanPath) || CleanPath.endsWith("/" + TClean)));
+        }
+    );
+
     if (!Existing)
     {
         OpenTabs.push
@@ -13526,9 +13406,12 @@ function OpenDocumentInTab(FilePath, FileName = null)
         catch (Ignored)
         {
         }
+        SwitchToTab(Normalized);
     }
-
-    SwitchToTab(Normalized);
+    else
+    {
+        SwitchToTab(Existing.Path);
+    }
 }
 
 function SwitchToTab(FilePath)
@@ -13649,6 +13532,32 @@ function SetTabDirty(FilePath, IsDirty)
     }
 }
 
+function AnimateMonacoLayout(DurationMs = 260)
+{
+    if (!MonacoInstance)
+    {
+        return ;
+    }
+
+    const StartTime = performance.now();
+    function Step()
+    {
+        if (MonacoInstance)
+        {
+            MonacoInstance.layout();
+        }
+        if (performance.now() - StartTime < DurationMs)
+        {
+            requestAnimationFrame(Step);
+        }
+        else if (MonacoInstance)
+        {
+            MonacoInstance.layout();
+        }
+    }
+    requestAnimationFrame(Step);
+}
+
 function ToggleExplorerSidebar(ForceState = null)
 {
     const Sidebar = document.getElementById("ExplorerSidebar");
@@ -13688,55 +13597,51 @@ function ToggleExplorerSidebar(ForceState = null)
         RenderExplorerTree();
     }
 
-    if (MonacoInstance)
-    {
-        setTimeout
-        (
-            () => { MonacoInstance.layout(); },
-            60
-        );
-    }
+    AnimateMonacoLayout(260);
 }
 
 async function InitExplorer()
 {
-    const ToggleBtn = document.getElementById("ToggleExplorerBtn");
-    if (ToggleBtn)
+    const Sidebar = document.getElementById("ExplorerSidebar");
+    if (Sidebar)
     {
-        ToggleBtn.onclick = () => { ToggleExplorerSidebar(); };
+        Sidebar.addEventListener
+        (
+            "transitionend", (E) =>
+            {
+                if (E.propertyName === "width" && MonacoInstance)
+                {
+                    MonacoInstance.layout();
+                }
+            }
+        );
     }
-    const TabsToggleBtn = document.getElementById("TabsToggleExplorerBtn");
-    if (TabsToggleBtn)
-    {
-        TabsToggleBtn.onclick = () => { ToggleExplorerSidebar(); };
-    }
-    const CloseBtn = document.getElementById("CloseExplorerBtn");
-    if (CloseBtn)
-    {
-        CloseBtn.onclick = () => { ToggleExplorerSidebar(false); };
-    }
+
     const RefreshBtn = document.getElementById("ExplorerRefreshBtn");
     if (RefreshBtn)
     {
-        RefreshBtn.onclick = () => { ExplorerTreeCache.clear(); RenderExplorerTree(); };
+        RefreshBtn.addEventListener("click", () => { ExplorerTreeCache.clear(); RenderExplorerTree(); });
     }
     const CollapseAllBtn = document.getElementById("ExplorerCollapseAllBtn");
     if (CollapseAllBtn)
     {
-        CollapseAllBtn.onclick = () =>
-        {
-            ExplorerExpandedFolders.clear();
-            if (ExplorerCurrentRoot)
+        CollapseAllBtn.addEventListener
+        (
+            "click", () =>
             {
-                ExplorerExpandedFolders.add(ExplorerCurrentRoot);
+                ExplorerExpandedFolders.clear();
+                if (ExplorerCurrentRoot)
+                {
+                    ExplorerExpandedFolders.add(ExplorerCurrentRoot);
+                }
+                RenderExplorerTree();
             }
-            RenderExplorerTree();
-        };
+        );
     }
     const NewFileBtn = document.getElementById("ExplorerNewFileBtn");
     if (NewFileBtn)
     {
-        NewFileBtn.onclick = () => { CreateNewWorkspaceFile(); };
+        NewFileBtn.addEventListener("click", () => { CreateNewWorkspaceFile(); });
     }
 
     // Sidebar Resizing Support
@@ -13767,6 +13672,10 @@ async function InitExplorer()
             IsDragging = true;
             StartX = E.clientX;
             const Sidebar = document.getElementById("ExplorerSidebar");
+            if (Sidebar)
+            {
+                Sidebar.classList.add("Resizing");
+            }
             StartWidth = Sidebar ? Sidebar.getBoundingClientRect().width: 250;
             ResizeHandle.classList.add("Dragging");
             document.body.style.cursor = "col-resize";
@@ -13806,6 +13715,7 @@ async function InitExplorer()
                     const Sidebar = document.getElementById("ExplorerSidebar");
                     if (Sidebar)
                     {
+                        Sidebar.classList.remove("Resizing");
                         const FinalWidth = Math.round(Sidebar.getBoundingClientRect().width);
                         localStorage.setItem("TypstStudio_ExplorerWidth", String(FinalWidth));
                     }
@@ -14153,6 +14063,24 @@ function CloseNewDocumentModal()
     TargetNewDocProjectPath = null;
 }
 
+async function SaveWorkspaceFile(FilePath, Content)
+{
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        return await window.__TAURI__.core.invoke("SaveWorkspaceFile", { pathStr: FilePath, PathStr: FilePath, content: Content, Content: Content });
+    }
+    const Response = await AuthenticatedFetch
+    (
+        "/api/workspace/file",
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify( { Path: FilePath, Content: Content })
+        }
+    );
+    return await Response.json();
+}
+
 function ConfirmCreateNewDocument()
 {
     const Input = document.getElementById("NewDocModalInput");
@@ -14207,207 +14135,665 @@ function SwitchView(ViewName)
     const NavEditor = document.getElementById("NavEditorBtn");
     const NavDashboard = document.getElementById("NavDashboardBtn");
     const LayoutSwitcherNav = document.getElementById("LayoutSwitcherNav");
+    const ModeSwitcherNav = document.getElementById("ModeSwitcherNav");
+    const ToggleExplorerBtn = document.getElementById("ToggleExplorerBtn");
+    const ExportGroupWrapper = document.getElementById("ExportGroupWrapper");
+    const ShortcutsHelpBtn = document.getElementById("ShortcutsHelpBtn");
+    const AppHeader = document.querySelector(".AppHeader");
 
     if (ViewName === "editor")
     {
         EditorView.style.display = "flex";
         DashboardView.style.display = "none";
+        if (AppHeader) { AppHeader.classList.remove("DashboardMode"); }
         if (NavEditor) { NavEditor.classList.add("Active"); }
         if (NavDashboard) { NavDashboard.classList.remove("Active"); }
-        if (LayoutSwitcherNav) { LayoutSwitcherNav.style.display = "inline-flex"; }
+        if (LayoutSwitcherNav) { LayoutSwitcherNav.style.display = ""; }
+        if (ModeSwitcherNav) { ModeSwitcherNav.style.display = ""; }
+        if (ToggleExplorerBtn) { ToggleExplorerBtn.style.display = ""; }
+        if (ExportGroupWrapper) { ExportGroupWrapper.style.display = ""; }
+        if (ShortcutsHelpBtn) { ShortcutsHelpBtn.style.display = ""; }
         if (MonacoInstance)
         {
             setTimeout(() => { MonacoInstance.layout(); }, 50);
         }
     }
-    else if (ViewName === "dashboard")
+    else if (ViewName === "dashboard" || ViewName === "home")
     {
         EditorView.style.display = "none";
         DashboardView.style.display = "block";
+        if (AppHeader) { AppHeader.classList.add("DashboardMode"); }
         if (NavEditor) { NavEditor.classList.remove("Active"); }
         if (NavDashboard) { NavDashboard.classList.add("Active"); }
         if (LayoutSwitcherNav) { LayoutSwitcherNav.style.display = "none"; }
-        RenderDashboard();
+        if (ModeSwitcherNav) { ModeSwitcherNav.style.display = "none"; }
+        if (ToggleExplorerBtn) { ToggleExplorerBtn.style.display = "none"; }
+        if (ExportGroupWrapper) { ExportGroupWrapper.style.display = "none"; }
+        if (ShortcutsHelpBtn) { ShortcutsHelpBtn.style.display = "none"; }
+        RenderHomepage();
+    }
+}
+
+// Global SVG Thumbnail & Preview Cache
+window.DocPreviewSvgCache = window.DocPreviewSvgCache || {};
+let CurrentHomepageSort = "modified";
+let CurrentHomepageViewMode = "grid";
+
+function HashCode(Str)
+{
+    let Hash = 0;
+    if (!Str || Str.length === 0) { return Hash; }
+    for (let I = 0; I < Str.length; I++)
+    {
+        const Char = Str.charCodeAt(I);
+        Hash = ((Hash << 5) - Hash) + Char;
+        Hash |= 0;
+    }
+    return Hash;
+}
+
+function FormatDocTimeAgo(Timestamp)
+{
+    if (!Timestamp) { return "Recently edited"; }
+    const Now = Date.now();
+    const DiffMs = Now - Timestamp;
+    const DiffSec = Math.floor(DiffMs / 1000);
+    const DiffMin = Math.floor(DiffSec / 60);
+    const DiffHours = Math.floor(DiffMin / 60);
+    const DiffDays = Math.floor(DiffHours / 24);
+
+    if (DiffMin < 2) { return "Just now"; }
+    if (DiffMin < 60) { return `${DiffMin} minutes ago`; }
+    if (DiffHours < 24) { return `${DiffHours} hours ago`; }
+    if (DiffDays === 1) { return "Yesterday"; }
+    if (DiffDays < 7) { return `${DiffDays} days ago`; }
+
+    const D = new Date(Timestamp);
+    return D.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function FormatTableDate(Timestamp)
+{
+    if (!Timestamp) { return "—"; }
+    const D = new Date(Timestamp);
+    if (isNaN(D.getTime())) { return "—"; }
+    return `${D.getMonth() + 1}/${D.getDate()}/${D.getFullYear()}`;
+}
+
+function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
+{
+    const NormKey = (FilePath || "").toLowerCase();
+    let Svg = null;
+    if (window.DocPreviewSvgCache[NormKey])
+    {
+        Svg = window.DocPreviewSvgCache[NormKey];
+    }
+    else
+    {
+        try
+        {
+            const Saved = localStorage.getItem("typst_preview_cache_" + btoa(NormKey));
+            if (Saved && Saved.includes("<svg"))
+            {
+                window.DocPreviewSvgCache[NormKey] = Saved;
+                Svg = Saved;
+            }
+        }
+        catch (Ignored) {}
+    }
+
+    if (!Svg && CurrentFilePath && CurrentFilePath.toLowerCase() === NormKey && LastCompiledPages && LastCompiledPages[0])
+    {
+        Svg = LastCompiledPages[0];
+        window.DocPreviewSvgCache[NormKey] = Svg;
+    }
+
+    if (Svg)
+    {
+        if (CurrentPaperColorMode !== "light")
+        {
+            return ConvertSvgToDarkMode(Svg, false, CurrentPaperColorMode);
+        }
+        return Svg;
+    }
+
+    const MockupClass = (CurrentPaperColorMode === "pure_black")
+        ? "PaperMockup PaperMode_PureBlack"
+        : (CurrentPaperColorMode === "optimized")
+            ? "PaperMockup PaperMode_Optimized"
+            : "PaperMockup PaperMode_Light";
+
+    return `
+        <div Class = "${MockupClass}">
+            <div Class = "PaperMockupTitle">${EscapeHtml(DisplayTitle)}</div>
+            <div Class = "PaperMockupSubtitle">Typst Studio Document</div>
+            <div Class = "PaperMockupDivider"></div>
+            <div Class = "PaperMockupLine"></div>
+            <div Class = "PaperMockupLine Medium"></div>
+            <div Class = "PaperMockupLine Short"></div>
+            <div Class = "PaperMockupLine"></div>
+            <div Class = "PaperMockupLine Medium"></div>
+        </div>
+    `;
+}
+
+async function QueueDocumentSvgPreview(FilePath, ElementId)
+{
+    if (!FilePath) { return ; }
+    const NormKey = FilePath.toLowerCase();
+    if (window.DocPreviewSvgCache[NormKey])
+    {
+        const Elem = document.getElementById(ElementId);
+        if (Elem)
+        {
+            let DisplaySvg = window.DocPreviewSvgCache[NormKey];
+            if (CurrentPaperColorMode !== "light")
+            {
+                DisplaySvg = ConvertSvgToDarkMode(DisplaySvg, false, CurrentPaperColorMode);
+            }
+            Elem.innerHTML = DisplaySvg;
+        }
+        return ;
+    }
+
+    try
+    {
+        let RawSvg = null;
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
+            if (Content)
+            {
+                const Res = await window.__TAURI__.core.invoke("CompileTypst", { source: Content, filePath: FilePath, Source: Content, FilePath: FilePath });
+                if (Res && Res.pages && Res.pages[0])
+                {
+                    RawSvg = Res.pages[0];
+                }
+            }
+        }
+        else
+        {
+            const FileResp = await AuthenticatedFetch("/api/workspace/file?path=" + encodeURIComponent(FilePath));
+            if (FileResp.ok)
+            {
+                const FileData = await FileResp.json();
+                if (FileData && FileData.Success && FileData.Content)
+                {
+                    const CompileResp = await AuthenticatedFetch
+                    (
+                        "/api/compile",
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ source: FileData.Content, filePath: FilePath })
+                        }
+                    );
+                    if (CompileResp.ok)
+                    {
+                        const Res = await CompileResp.json();
+                        if (Res && Res.pages && Res.pages[0])
+                        {
+                            RawSvg = Res.pages[0];
+                        }
+                    }
+                }
+            }
+        }
+
+        if (RawSvg)
+        {
+            window.DocPreviewSvgCache[NormKey] = RawSvg;
+            try
+            {
+                localStorage.setItem("typst_preview_cache_" + btoa(NormKey), RawSvg);
+            }
+            catch (Ignored) {}
+
+            const TargetElem = document.getElementById(ElementId);
+            if (TargetElem)
+            {
+                let OutputSvg = RawSvg;
+                if (CurrentPaperColorMode !== "light")
+                {
+                    OutputSvg = ConvertSvgToDarkMode(OutputSvg, false, CurrentPaperColorMode);
+                }
+                TargetElem.innerHTML = OutputSvg;
+            }
+        }
+    }
+    catch (Err)
+    {
+        console.warn("QueueDocumentSvgPreview non-fatal background compile:", Err);
+    }
+}
+
+function TrackRecentDocument(FilePath, Name)
+{
+    if (!FilePath) { return ; }
+    try
+    {
+        const CleanName = Name || FilePath.split(/[\/\\]/).pop();
+        let Recent = [];
+        try
+        {
+            Recent = JSON.parse(localStorage.getItem("TypstStudio_RecentDocuments") || "[]");
+        }
+        catch (Err)
+        {
+            Recent = [];
+        }
+        const Norm = FilePath.toLowerCase();
+        const Existing = Recent.find((R) => R && R.Path && R.Path.toLowerCase() === Norm);
+        Recent = Recent.filter((R) => R && R.Path && R.Path.toLowerCase() !== Norm);
+        Recent.unshift
+        ({
+            Path: FilePath,
+            Name: CleanName,
+            Created: (Existing && Existing.Created) ? Existing.Created : Date.now(),
+            Modified: Date.now()
+        });
+        if (Recent.length > 50) { Recent = Recent.slice(0, 50); }
+        localStorage.setItem("TypstStudio_RecentDocuments", JSON.stringify(Recent));
+    }
+    catch (Ignored) {}
+}
+
+function RenderHomepage(FilterQuery = "")
+{
+    const GridContainer = document.getElementById("DashboardProjectsGrid");
+    if (!GridContainer) { return ; }
+
+    // Aggregate all user documents: Open tabs, WorkspaceFiles, and Recent documents
+    const AllDocs = [];
+    const SeenPaths = new Set();
+
+    // 0. Recent documents from localStorage (opened, created, or edited by the user)
+    try
+    {
+        const Recent = JSON.parse(localStorage.getItem("TypstStudio_RecentDocuments") || "[]");
+        if (Array.isArray(Recent))
+        {
+            for (const R of Recent)
+            {
+                if (R && R.Path && !SeenPaths.has(R.Path.toLowerCase()))
+                {
+                    SeenPaths.add(R.Path.toLowerCase());
+                    AllDocs.push
+                    ({
+                        Path: R.Path,
+                        Name: R.Name || R.Path.split(/[\\/]/).pop(),
+                        Directory: R.Path.substring(0, Math.max(R.Path.lastIndexOf('/'), R.Path.lastIndexOf('\\'))),
+                        Created: R.Created || R.Modified || Date.now(),
+                        Modified: R.Modified || Date.now(),
+                        Size: 8404
+                    });
+                }
+            }
+        }
+    }
+    catch (Ignored) {}
+
+    // 1. Open tabs
+    if (Array.isArray(OpenTabs))
+    {
+        for (const Tab of OpenTabs)
+        {
+            if (Tab && Tab.Path && !SeenPaths.has(Tab.Path.toLowerCase()))
+            {
+                SeenPaths.add(Tab.Path.toLowerCase());
+                AllDocs.push
+                ({
+                    Path: Tab.Path,
+                    Name: Tab.Name || Tab.Path.split(/[\\/]/).pop(),
+                    Directory: Tab.Path.substring(0, Math.max(Tab.Path.lastIndexOf('/'), Tab.Path.lastIndexOf('\\'))),
+                    Created: Date.now(),
+                    Modified: Date.now(),
+                    Size: 8404
+                });
+            }
+        }
+    }
+
+    // 2. Workspace Files
+    if (Array.isArray(WorkspaceFiles))
+    {
+        for (const F of WorkspaceFiles)
+        {
+            if (F && F.Path && !SeenPaths.has(F.Path.toLowerCase()))
+            {
+                SeenPaths.add(F.Path.toLowerCase());
+                AllDocs.push
+                ({
+                    Path: F.Path,
+                    Name: F.Name || F.Path.split(/[\\/]/).pop(),
+                    Directory: F.Directory || F.Path.substring(0, Math.max(F.Path.lastIndexOf('/'), F.Path.lastIndexOf('\\'))),
+                    Created: F.Created || F.Modified || Date.now(),
+                    Modified: F.Modified || Date.now(),
+                    Size: F.Size || 8404
+                });
+            }
+        }
+    }
+
+    // 3. Fallback: current file if not yet included
+    if (CurrentFilePath && !SeenPaths.has(CurrentFilePath.toLowerCase()))
+    {
+        SeenPaths.add(CurrentFilePath.toLowerCase());
+        AllDocs.push
+        ({
+            Path: CurrentFilePath,
+            Name: CurrentFilePath.split(/[\\/]/).pop(),
+            Directory: CurrentFilePath.substring(0, Math.max(CurrentFilePath.lastIndexOf('/'), CurrentFilePath.lastIndexOf('\\'))),
+            Created: Date.now(),
+            Modified: Date.now(),
+            Size: 8404
+        });
+    }
+
+    // 4. Filter Query
+    let DisplayDocs = AllDocs;
+    const Query = (FilterQuery || "").toLowerCase().trim();
+    if (Query)
+    {
+        DisplayDocs = DisplayDocs.filter
+        (
+            (D) => (D.Name && D.Name.toLowerCase().includes(Query)) || (D.Path && D.Path.toLowerCase().includes(Query))
+        );
+    }
+
+    // 5. Sorting
+    if (CurrentHomepageSort === "name")
+    {
+        DisplayDocs.sort((A, B) => (A.Name || "").localeCompare(B.Name || ""));
+    }
+    else if (CurrentHomepageSort === "size")
+    {
+        DisplayDocs.sort((A, B) => (B.Size || 0) - (A.Size || 0));
+    }
+    else if (CurrentHomepageSort === "created")
+    {
+        DisplayDocs.sort((A, B) => (B.Created || B.Modified || 0) - (A.Created || A.Modified || 0));
+    }
+    else
+    {
+        // Default: last modified (most recent first)
+        DisplayDocs.sort((A, B) => (B.Modified || 0) - (A.Modified || 0));
+    }
+
+    if (DisplayDocs.length === 0)
+    {
+        GridContainer.innerHTML = `
+            <div style = "grid-column: 1 / -1; padding: 48px 0; text-align: center; color: #71717A;">
+                <svg Width = "36" Height = "36" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#3F3F46" Stroke-Width = "1.5" style = "margin-bottom: 12px;">
+                    <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline Points = "14 2 14 8 20 8" />
+                </svg>
+                <div style = "font-size: 14.5px; font-weight: 500; color: #E4E4E7; margin-bottom: 4px;">No documents found</div>
+                <div style = "font-size: 12px; color: #71717A;">Click "Empty project" above to create your first Typst Studio document.</div>
+            </div>
+        `;
+        return ;
+    }
+
+    if (CurrentHomepageViewMode === "list")
+    {
+        let TableRowsHtml = "";
+        for (let Idx = 0; Idx < DisplayDocs.length; Idx++)
+        {
+            const Doc = DisplayDocs[Idx];
+            const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
+            const CreatedDate = FormatTableDate(Doc.Created || Doc.Modified);
+            const ModifiedDate = FormatTableDate(Doc.Modified);
+
+            TableRowsHtml += `
+                <tr Class = "HomepageListRow" data-file-path = "${EscapeHtml(Doc.Path)}" data-file-name = "${EscapeHtml(Doc.Name)}">
+                    <td>
+                        <div Class = "ListColProject" data-action = "open-doc" Title = "Open ${EscapeHtml(Doc.Name)} in Editor">
+                            <span Class = "ListDocIcon">
+                                <svg Width = "15" Height = "15" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "1.8">
+                                    <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline Points = "14 2 14 8 20 8" />
+                                </svg>
+                            </span>
+                            <span>${EscapeHtml(DisplayTitle)}</span>
+                        </div>
+                    </td>
+                    <td Class = "ListColCreated">${CreatedDate}</td>
+                    <td Class = "ListColModified">${ModifiedDate}</td>
+                    <td Class = "ListColActions">
+                        <div Class = "ListActionsWrapper">
+                            <button Type = "button" Class = "ListActionBtn" Title = "Open in Editor" data-action = "open-doc">
+                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "currentColor">
+                                    <polygon Points = "5 3 19 12 5 21 5 3" />
+                                </svg>
+                            </button>
+                            <button Type = "button" Class = "ListActionBtn" Title = "Export PDF" data-action = "export-doc">
+                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                    <path D = "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline Points = "7 10 12 15 17 10" />
+                                    <line X1 = "12" Y1 = "15" X2 = "12" Y2 = "3" />
+                                </svg>
+                            </button>
+                            <button Type = "button" Class = "ListActionBtn" Title = "Rename / Document Options" data-action = "rename-doc">
+                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                    <circle Cx = "12" Cy = "12" R = "3" />
+                                    <path D = "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                </svg>
+                            </button>
+                            <button Type = "button" Class = "ListActionBtn DeleteBtn" Title = "Delete Document" data-action = "delete-doc">
+                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                    <polyline Points = "3 6 5 6 21 6" />
+                                    <path D = "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        const ModifiedSortIndicator = (CurrentHomepageSort === "modified") ? " ▾" : "";
+        GridContainer.classList.add("ListView");
+        GridContainer.innerHTML = `
+            <div Class = "HomepageListViewContainer">
+                <table Class = "HomepageListTable">
+                    <thead>
+                        <tr>
+                            <th Class = "SortableHeader" data-sort-key = "name">Project</th>
+                            <th Class = "SortableHeader" data-sort-key = "created">Created</th>
+                            <th Class = "SortableHeader" data-sort-key = "modified">Last modified${ModifiedSortIndicator}</th>
+                            <th Style = "text-align: right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${TableRowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+    else
+    {
+        GridContainer.classList.remove("ListView");
+        const PaperModeClass = (CurrentPaperColorMode === "pure_black")
+            ? "PaperMode_PureBlack"
+            : (CurrentPaperColorMode === "optimized")
+                ? "PaperMode_Optimized"
+                : "PaperMode_Light";
+
+        let CardsHtml = "";
+        const FetchQueue = [];
+
+        for (let Idx = 0; Idx < DisplayDocs.length; Idx++)
+        {
+            const Doc = DisplayDocs[Idx];
+            const SafeId = `PaperCard_${Idx}_${Math.abs(HashCode(Doc.Path || `doc_${Idx}`))}`;
+            const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
+            const TimeAgo = FormatDocTimeAgo(Doc.Modified);
+            const InnerHtml = GetCachedPreviewOrMockup(Doc.Path, DisplayTitle);
+
+            CardsHtml += `
+                <div Class = "HomepagePaperCard" data-action = "open-homepage-doc" data-file-path = "${EscapeHtml(Doc.Path)}" Title = "Open ${EscapeHtml(Doc.Name)} in Editor">
+                    <div Class = "PaperSheetOuter ${PaperModeClass}">
+                        <div Class = "PaperSheetInner ${PaperModeClass}" Id = "${SafeId}">
+                            ${InnerHtml}
+                        </div>
+                    </div>
+                    <div Class = "PaperDocMeta">
+                        <div Class = "PaperDocTitle" Title = "${EscapeHtml(Doc.Name)}">${EscapeHtml(DisplayTitle)}</div>
+                        <div Class = "PaperDocSub">${TimeAgo}</div>
+                    </div>
+                </div>
+            `;
+
+            const NormKey = (Doc.Path || "").toLowerCase();
+            if (!window.DocPreviewSvgCache[NormKey])
+            {
+                FetchQueue.push({ Path: Doc.Path, ElementId: SafeId });
+            }
+        }
+
+        GridContainer.innerHTML = CardsHtml;
+
+        for (const Item of FetchQueue)
+        {
+            QueueDocumentSvgPreview(Item.Path, Item.ElementId);
+        }
     }
 }
 
 function RenderDashboard(FilterQuery = "")
 {
-    const DirCountElem = document.getElementById("StatDirCount");
-    const FileCountElem = document.getElementById("StatFileCount");
-    const BadgeElem = document.getElementById("ProjectsCountBadge");
-    const ActiveDocElem = document.getElementById("StatActiveDoc");
+    RenderHomepage(FilterQuery);
+}
 
-    const Projects = GroupWorkspaceIntoProjects();
-
-    if (DirCountElem)
+// Template Chooser Handlers
+function ShowTemplateChooserModal()
+{
+    const Modal = document.getElementById("TemplateChooserModal");
+    if (Modal)
     {
-        DirCountElem.textContent = Projects.length;
+        Modal.style.display = "flex";
     }
-    if (FileCountElem)
+}
+
+function CloseTemplateChooserModal()
+{
+    const Modal = document.getElementById("TemplateChooserModal");
+    if (Modal)
     {
-        FileCountElem.textContent = WorkspaceFiles.length;
+        Modal.style.display = "none";
     }
-    if (ActiveDocElem)
-    {
-        ActiveDocElem.textContent = CurrentFilePath ? CurrentFilePath.split(/[\\/]/).pop(): "None";
-    }
+}
 
-    // Render Tracked Directories
-    const DirListContainer = document.getElementById("TrackedDirectoryList");
-    if (DirListContainer)
-    {
-        let DirHtml = "";
-        const IsAllActive = ! ActiveSelectedDirectory;
-        DirHtml += `
-            <div Class = "DirectoryItem ${IsAllActive ? "IsActiveDirectory" : ""}" data-action = "select-all-dirs" Title = "View files from all tracked folders">
-                <div Class = "DirectoryItemInfo">
-                    <span Class = "DirectoryPathText" style = "font-weight: 500; display: flex; align-items: center; gap: 6px;">
-                        <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#c084fc" Stroke-Width = "2">
-                            <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                        </svg>
-                        <span>All Tracked Folders</span>
-                    </span>
-                    <span Class = "DirectoryCountBadge">${Projects.length} Projects</span>
-                </div>
-            </div>
-        `;
+const TypstTemplates =
+{
+    showcase: `// Typst Studio Showcase Template
+#set page(paper: "a4", margin: (x: 2cm, y: 2.5cm))
+#set text(font: "Liberation Serif", size: 10.5pt)
 
-        for (const Dir of WorkspaceDirectories)
-        {
-            const ProjCount = Projects.filter((P) => P.Path.toLowerCase().startsWith(Dir.toLowerCase())).length;
-            const CanDelete = WorkspaceDirectories.length > 1;
-            const IsSelected = ActiveSelectedDirectory && (ActiveSelectedDirectory.toLowerCase() === Dir.toLowerCase());
-            const ActiveClass = IsSelected ? "IsActiveDirectory": "";
+#align(center)[
+  #text(18pt, weight: "bold")[Comprehensive Typst Showcase] \\
+  #v(2pt)
+  #text(11pt, fill: rgb("7100FF"))[High-Performance Vector Typesetting & Document Architecture]
+]
 
-            DirHtml += `
-                <div Class = "DirectoryItem ${ActiveClass}" data-action = "select-dir" data-dir-path = "${EscapeHtml(Dir)}" Title = "Filter projects in this directory">
-                    <div Class = "DirectoryItemInfo">
-                        <span Class = "DirectoryPathText" Title = "${EscapeHtml(Dir)}">${EscapeHtml(Dir)}</span>
-                        <span Class = "DirectoryCountBadge">${ProjCount} Projects</span>
-                    </div>
-                    ${CanDelete ? `
-                        <button Type = "button" Class = "DirectoryDeleteBtn" Title = "Remove from workspace" data-action = "delete-dir" data-dir-path = "${EscapeHtml(Dir)}">
-                            <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                <line X1 = "18" Y1 = "6" X2 = "6" Y2 = "18" />
-                                <line X1 = "6" Y1 = "6" X2 = "18" Y2 = "18" />
-                            </svg>
-                        </button>
-                    ` : ""}
-                </div>
-            `;
-        }
-        DirListContainer.innerHTML = DirHtml;
-    }
+#v(10pt)
+== 1 Document Overview
+Typst is an innovative typesetting engine combining intuitive lightweight syntax with deterministic vector rendering.
 
-    // Render Projects Grid
-    const ProjectsGridContainer = document.getElementById("DashboardProjectsGrid");
-    if (ProjectsGridContainer)
-    {
-        let FilteredProjects = Projects;
+== 2 Mathematical Formulation
+Inline math integrates seamlessly, such as $E = m c^2$ or matrix mapping:
+$ mat(cos theta, -sin theta; sin theta, cos theta) vec(x, y) = vec(x', y') $
+`,
+    paper: `// Scientific Paper Template
+#set page(paper: "a4", columns: 2, margin: (x: 2cm, y: 2.5cm))
+#set text(font: "Linux Libertine", size: 10pt)
 
-        if (ActiveSelectedDirectory)
-        {
-            const NormDir = ActiveSelectedDirectory.toLowerCase();
-            FilteredProjects = FilteredProjects.filter((P) => P.Path.toLowerCase().startsWith(NormDir));
-        }
+#place(top + center, scope: "parent", float: true)[
+  #align(center)[
+    #text(16pt, weight: "bold")[Deterministic Architecture for High-Throughput Document Rendering] \\
+    #v(4pt)
+    #text(10pt, style: "italic")[Typst Research Group]
+  ]
+  #v(12pt)
+]
 
-        const Query = FilterQuery.toLowerCase().trim();
-        if (Query)
-        {
-            FilteredProjects = FilteredProjects.filter
-            (
-                (P) => P.Name.toLowerCase().includes(Query) || P.Path.toLowerCase().includes(Query)
-            );
-        }
+== Abstract
+We evaluate latency optimizations in modern incremental typesetting engines.
 
-        if (BadgeElem)
-        {
-            BadgeElem.textContent = FilteredProjects.length;
-        }
+== 1 Introduction
+Modern desktop authoring environments require continuous sub-second rendering.
+`,
+    novel: `// Book & Novel Template
+#set page(paper: "a5", margin: (x: 2.2cm, y: 2.8cm))
+#set text(font: "Georgia", size: 10.5pt)
+#set par(justify: true, first-line-indent: 1.5em)
 
-        let BannerHtml = "";
-        if (ActiveSelectedDirectory)
-        {
-            const DirName = ActiveSelectedDirectory.split(/[\\/]/).filter(Boolean).pop() || ActiveSelectedDirectory;
-            BannerHtml = `
-                <div Class = "ActiveFolderFilterBanner">
-                    <div Class = "ActiveFolderFilterInfo">
-                        <span>Viewing folder:</span>
-                        <strong Title = "${EscapeHtml(ActiveSelectedDirectory)}">${EscapeHtml(DirName)}</strong>
-                        <span Class = "ActiveFolderFilterPath">(${EscapeHtml(ActiveSelectedDirectory)})</span>
-                    </div>
-                    <button Type = "button" Class = "ClearFilterBtn" data-action = "clear-dir-filter">
-                        Show All Folders ✕
-                    </button>
-                </div>
-            `;
-        }
+#v(40pt)
+#align(center)[
+  #text(22pt, weight: "bold")[THE CHRONICLES OF HORIZON] \\
+  #v(10pt)
+  #text(11pt, style: "italic")[A Tale of Two Worlds]
+]
 
-        if (FilteredProjects.length === 0)
-        {
-            ProjectsGridContainer.innerHTML = BannerHtml + `<div Class = "EmptyNotice">No Typst projects found in this directory</div>`;
-            return ;
-        }
+#pagebreak()
 
-        let ProjectsHtml = BannerHtml;
-        for (const Proj of FilteredProjects)
-        {
-            const IsActiveProject = CurrentFilePath && CurrentFilePath.toLowerCase().startsWith(Proj.Path.toLowerCase());
-            const ActiveClass = IsActiveProject ? "IsActiveProject": "";
+= Chapter 1: The Gathering Storm
 
-            let FilesListHtml = "";
-            if (Proj.Files && Proj.Files.length > 0)
-            {
-                for (const F of Proj.Files)
-                {
-                    FilesListHtml += `
-                        <div Class = "ProjectFileRow" data-action = "open-document" data-file-path = "${EscapeHtml(F.Path)}" Title = "Open ${EscapeHtml(F.Name)} in Editor">
-                            <span Class = "ProjectFileIcon">${GetFileIconSvg(F.Name)}</span>
-                            <span Class = "ProjectFileName">${EscapeHtml(F.Name)}</span>
-                            <span Class = "ProjectFileSize">${FormatFileSize(F.Size)}</span>
-                            <button Type = "button" Class = "ProjectFileOpenBtn" data-action = "open-document" data-file-path = "${EscapeHtml(F.Path)}">Open →</button>
-                        </div>
-                    `;
-                }
-            }
-            else
-            {
-                FilesListHtml = `<div style = "padding: 6px 8px; color: #71717A; font-size: 11.5px;">No .typ files inside folder yet</div>`;
-            }
+The midnight bell tolled across the obsidian towers of Valoria as the autumn rain began to fall.
+`,
+    report: `// Executive Report Template
+#set page(paper: "a4", margin: (x: 2cm, y: 2.5cm), header: align(right)[#text(8pt, fill: luma(120))[*Quarterly Technical Briefing*]])
+#set text(font: "Inter", size: 10pt)
 
-            ProjectsHtml += `
-                <div Class = "ProjectCard ${ActiveClass}">
-                    <div Class = "ProjectCardHeader">
-                        <div Class = "ProjectCardIcon">
-                            <svg Width = "20" Height = "20" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                            </svg>
-                        </div>
-                        <div Class = "ProjectCardTitleGroup">
-                            <div Class = "ProjectCardName" Title = "${EscapeHtml(Proj.Name)}">${EscapeHtml(Proj.Name)}</div>
-                            <div Class = "ProjectCardPath" Title = "${EscapeHtml(Proj.Path)}">${EscapeHtml(Proj.Path)}</div>
-                        </div>
-                        <span Class = "ProjectDocCountBadge">${Proj.Files.length} Documents</span>
-                    </div>
+#align(left)[
+  #text(20pt, weight: "bold")[Executive Performance Report] \\
+  #text(11pt, fill: rgb("00D26A"))[System Architecture & Latency Audit]
+]
 
-                    <div Class = "ProjectFilesList">
-                        ${FilesListHtml}
-                    </div>
+#v(12pt)
+== Executive Summary
+All primary subsystems demonstrated 100% adherence to synchronous SLA thresholds.
+`,
+    resume: `// Modern CV / Resume Template
+#set page(paper: "a4", margin: (x: 1.8cm, y: 1.8cm))
+#set text(font: "Inter", size: 9.5pt)
 
-                    <div Class = "ProjectCardFooter">
-                        <button Type = "button" Class = "Button Primary Small" data-action = "open-project-explorer" data-project-path = "${EscapeHtml(Proj.Path)}">
-                            Open Project in Explorer →
-                        </button>
-                        <button Type = "button" Class = "Button Secondary Small" data-action = "create-project-file" data-project-path = "${EscapeHtml(Proj.Path)}">
-                            + New Document
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-        ProjectsGridContainer.innerHTML = ProjectsHtml;
-    }
+#align(center)[
+  #text(18pt, weight: "bold")[Alex Mercer] \\
+  #text(10pt)[Staff Software Engineer | alex@mercer.dev | San Francisco, CA]
+]
+
+#v(10pt)
+== Technical Skills
+- *Languages:* Rust, TypeScript, C++, Python, Go, Typst
+- *Platforms:* Tauri, Chromium, WebAssembly, Linux, macOS
+`,
+    blank: `// Clean Typst Canvas
+#set page(paper: "a4", margin: (x: 2.5cm, y: 2.5cm))
+#set text(font: "Liberation Sans", size: 11pt)
+
+= Untitled Document
+
+Start writing your Typst document here...
+`
+};
+
+async function ApplyDocumentTemplate(TemplateKey)
+{
+    CloseTemplateChooserModal();
+    const Source = TypstTemplates[TemplateKey] || TypstTemplates.blank;
+    const BaseName = TemplateKey.charAt(0).toUpperCase() + TemplateKey.slice(1);
+    const FileName = `${BaseName}Document.typ`;
+    const TargetDir = (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
+    const FullPath = `${TargetDir}\\${FileName}`;
+
+    await SaveWorkspaceFile(FullPath, Source);
+    await LoadWorkspaceInfo();
+    await OpenDocumentInTab(FullPath, FileName);
+    SwitchView("editor");
+    ShowToast(`Created ${FileName} from template`, "success");
 }
 // =============================================================================
 // SyncTeX Bidirectional Synchronization Engine
@@ -14843,7 +15229,10 @@ function MergeOverlappingBoxes(Boxes)
 
                     const MinHeight = Math.min(BoxA.height, BoxB.height);
                     const SameLine = DistY < 7.5 || (OverlapY > MinHeight * 0.45);
-                    const VerticallyAdjacent = OverlapX && (OverlapY >= - 14.0) && (Math.abs(BoxA.x - BoxB.x) < 25.0);
+                    const SameSpanOrSameNode = !BoxA.span || !BoxB.span || BoxA.span === BoxB.span;
+                    const SameLineNumber = (BoxA.line && BoxB.line) ? (BoxA.line === BoxB.line) : true;
+                    const IsTableCell = Boolean(BoxA.is_table_cell || BoxB.is_table_cell);
+                    const VerticallyAdjacent = !IsTableCell && SameSpanOrSameNode && SameLineNumber && OverlapX && (OverlapY >= - 14.0) && (Math.abs(BoxA.x - BoxB.x) < 25.0);
 
                     if (OverlapX && (SameLine || OverlapY >= - 1.0 || VerticallyAdjacent))
                     {
@@ -15039,8 +15428,9 @@ function GroupSelectedElementsIntoLineBoxes(Elements)
                     const BoxSpan = String(Box.span || "");
                     const PrevSpan = String(PrevBox.span || "");
                     const DiffCall = (BoxSpan.startsWith("call_box_") || PrevSpan.startsWith("call_box_")) && BoxSpan !== PrevSpan;
+                    const DiffSpan = BoxSpan !== PrevSpan && (Gap > 12.0 || Box.line !== PrevBox.line || Box.is_table_cell || PrevBox.is_table_cell);
                     const DiffLine = Box.line !== PrevBox.line && Gap > 25.0;
-                    return DiffCall || DiffLine;
+                    return DiffCall || DiffSpan || DiffLine;
                 })();
 
                 if (ShouldSplit || Segments.length === 0)
@@ -15071,13 +15461,60 @@ function GroupSelectedElementsIntoLineBoxes(Elements)
                     height: Math.max(2.0, MaxY - MinY),
                     firstLineHeight: TopH === Infinity ? 10.5 : TopH,
                     lastLineHeight: BottomH === 0 ? 10.5 : BottomH,
-                    line: Seg[0].line
+                    line: Seg[0].line,
+                    span: Seg[0].span
                 });
             }
         }
     }
 
-    return FinalBoxes;
+    const UnifiedBoxes = [];
+    const SpanMap = new Map();
+    for (const Box of FinalBoxes)
+    {
+        if (Box.span)
+        {
+            const Key = `${Box.page || 1}_${Box.span}`;
+            if (!SpanMap.has(Key))
+            {
+                SpanMap.set(Key, []);
+            }
+            SpanMap.get(Key).push(Box);
+        }
+        else
+        {
+            UnifiedBoxes.push(Box);
+        }
+    }
+
+    for (const [Key, List] of SpanMap.entries())
+    {
+        if (List.length === 1)
+        {
+            UnifiedBoxes.push(List[0]);
+        }
+        else
+        {
+            const MinX = Math.min(...List.map((B) => B.x));
+            const MaxX = Math.max(...List.map((B) => B.x + B.width));
+            const MinY = Math.min(...List.map((B) => B.y));
+            const MaxY = Math.max(...List.map((B) => B.y + B.height));
+            UnifiedBoxes.push
+            ({
+                page: List[0].page,
+                x: MinX,
+                y: MinY,
+                width: MaxX - MinX,
+                height: MaxY - MinY,
+                firstLineHeight: List[0].firstLineHeight || 10.5,
+                lastLineHeight: List[List.length - 1].lastLineHeight || 10.5,
+                line: List[0].line,
+                span: List[0].span
+            });
+        }
+    }
+
+    return UnifiedBoxes;
 }
 
 function GroupElementsIntoVisualBoxes(Elements)
@@ -16379,6 +16816,21 @@ window.CreateFileInProject = CreateFileInProject;
 window.ShowNewDocumentModal = ShowNewDocumentModal;
 window.CloseNewDocumentModal = CloseNewDocumentModal;
 window.ConfirmCreateNewDocument = ConfirmCreateNewDocument;
+window.ToggleSettingsModal = (Show) =>
+{
+    if (Show)
+    {
+        OpenSettingsModal("appearance");
+    }
+    else
+    {
+        CloseSettingsModal();
+    }
+};
+window.OpenSettingsModal = OpenSettingsModal;
+window.CloseSettingsModal = CloseSettingsModal;
+window.RenameWorkspaceDocument = RenameWorkspaceDocument;
+window.RemoveRecentDocument = RemoveRecentDocument;
 
 window.addEventListener
 (
@@ -16436,6 +16888,9 @@ window.addEventListener
         {
             ToggleDocumentOutline(true);
         }
+
+        // Steve Jobs Homepage: The starting page when the app runs
+        SwitchView("dashboard");
 
         // Safety fallback: ensure splash is never permanently stuck
         setTimeout

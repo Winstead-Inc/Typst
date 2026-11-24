@@ -65,7 +65,7 @@ use crate::text:: { Lang, LocalName, Region, SmallcapsElem, SubElem, SuperElem, 
 /// = Styles <styles>
 /// Typst offers a wide selection of built-in
 /// @bibliography.style[citation and bibliography styles]. Beyond those, you can
-/// add and use custom #link("https://citationstyles.org/")[CSL] (Citation Style
+/// add and use custom #link("https://citationstyles.org/")[CSL] \(Citation Style
 /// Language) files. Wondering which style to use? Here are some good defaults
 /// based on what discipline you're working in:
 ///

@@ -10,31 +10,31 @@
 - Fixed bug with citations in footnotes
 
 = Text and Layout <text-and-layout>
-- Fixed interaction of @par.first-line-indent[`first-line-indent`] and @outline
+- Fixed interaction of @ par.first-line-indent[`first-line-indent`] and @ outline
 - Fixed compression of CJK punctuation marks at line start and end
-- Fixed handling of @rect[rectangles] with negative dimensions
+- Fixed handling of @ rect[rectangles] with negative dimensions
 - Fixed layout of `path` in explicitly sized container
-- Fixed broken @raw text in right-to-left paragraphs
+- Fixed broken @ raw text in right-to-left paragraphs
 - Fixed tab rendering in `raw` text with language `typ` or `typc`
 - Fixed highlighting of multi-line `raw` text enclosed by single backticks
 - Fixed indentation of overflowing lines in `raw` blocks
 - Fixed extra space when `raw` text ends with a backtick
 
 = Math <math>
-- Fixed broken @math.equation[equations] in right-to-left paragraphs
-- Fixed missing @math.bb[blackboard bold] letters
-- Fixed error on empty arguments in 2D math argument list
-- Fixed stretching via @math.mid[`mid`] for various characters
+- Fixed broken @ math.equation[equations] in right-to-left paragraphs
+- Fixed missing @ math.bb[blackboard bold] letters
+- Fixed error on empty arguments in 2 D math argument list
+- Fixed stretching via @ math.mid[`mid`] for various characters
 - Fixed that alignment points in equations were affected by `{set align(..)}`
 
 = Export <export>
-- Fixed @smartquote[smart quotes] in PDF outline
-- Fixed @tiling[patterns] with spacing in PDF
-- Fixed wrong PDF page labels when @page.numbering[page numbering] was disabled after being previously enabled
+- Fixed @ smartquote[smart quotes] in PDF outline
+- Fixed @ tiling[patterns] with spacing in PDF
+- Fixed wrong PDF page labels when @ page.numbering[page numbering] was disabled after being previously enabled
 
 = Scripting <scripting>
-- Fixed overflow for large numbers in external data files (by converting to floats instead)
-- Fixed @str.trim[`{str.trim(regex, at: end)}`] when the whole string is matched
+- Fixed overflow for large numbers in external data files(by converting to floats instead)
+- Fixed @ str.trim[`{str.trim(regex, at: end)}`] when the whole string is matched
 
 = Miscellaneous <miscellaneous>
 - Fixed deformed strokes for specific shapes and thicknesses

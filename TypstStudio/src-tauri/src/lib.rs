@@ -1664,6 +1664,45 @@ fn DeleteWorkspaceFile(PathStr: String) -> Result<(), String>
 }
 
 #[tauri::command]
+fn RenameWorkspaceFile(OldPathStr: String, NewNameStr: String) -> Result<String, String>
+{
+    let CleanOld = OldPathStr.trim().replace('/', "\\");
+    let ValidatedOld = ValidateWorkspacePath(&CleanOld, true, true)?;
+    let Parent = ValidatedOld.parent().ok_or_else
+    (
+        || "Target file has no parent directory".to_string()
+    )?;
+
+    let SanitizedNewName = NewNameStr.trim().replace('/', "").replace('\\', "").replace("..", "");
+    if SanitizedNewName.is_empty() || SanitizedNewName == "."
+    {
+        return Err("Invalid new document name".to_string());
+    }
+    let FinalName = if SanitizedNewName.to_lowercase().ends_with(".typ")
+    {
+        SanitizedNewName
+    }
+    else
+    {
+        format!("{}.typ", SanitizedNewName)
+    };
+
+    let NewTarget = Parent.join(&FinalName);
+    let ValidatedNew = ValidateWorkspacePath(&NewTarget.to_string_lossy(), false, true)?;
+
+    if ValidatedNew.exists() && ValidatedNew != ValidatedOld
+    {
+        return Err(format!("A document named '{}' already exists in this folder", FinalName));
+    }
+
+    std::fs::rename(&ValidatedOld, &ValidatedNew).map_err
+    (
+        |Error| format!("Failed to rename file: {}", Error)
+    )?;
+    Ok(ValidatedNew.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
 {
     let Trimmed = PathStr.trim();
@@ -2892,10 +2931,18 @@ fn InProcessLafsFormatSnippet(Code: &str) -> String
         if Trimmed.ends_with('{') && !Trimmed.starts_with('{')
         {
             let Prefix = Trimmed[..Trimmed.len() - 1].trim_end();
-            let Indent = Line.chars().take_while(|C| C.is_whitespace()).collect::<String>();
-            Output.push(format!("{}{}", Indent, Prefix));
-            Output.push(format!("{}{{", Indent));
-            continue;
+            if !Prefix.chars().all(|C| C == '(' || C == '[' || C == '{') && !Prefix.contains("//")
+            {
+                let Backticks = Prefix.chars().filter(|&C| C == '`').count();
+                let Quotes = Prefix.chars().filter(|&C| C == '"').count();
+                if Backticks % 2 == 0 && Quotes % 2 == 0
+                {
+                    let Indent = Line.chars().take_while(|C| C.is_whitespace()).collect::<String>();
+                    Output.push(format!("{}{}", Indent, Prefix));
+                    Output.push(format!("{}{{", Indent));
+                    continue;
+                }
+            }
         }
         Output.push(Line.to_string());
     }
@@ -3123,6 +3170,7 @@ pub fn run()
             GetWorkspaceInfo,
             CreateWorkspaceFile,
             DeleteWorkspaceFile,
+            RenameWorkspaceFile,
             AddWorkspaceDirectory,
             RemoveWorkspaceDirectory,
             UploadAsset,

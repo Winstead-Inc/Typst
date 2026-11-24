@@ -556,11 +556,19 @@ fn code_exprs(p: & mut Parser, stop_set: SyntaxSet)
                 code_expr(p);
                 if ! p.at_set(stop_set) && ! p.eat_if(SyntaxKind::Semicolon)
                 {
-                    p.expected("semicolon or line break");
-                    if p.at(SyntaxKind::Label)
+                    if p.at_set(set::CODE_EXPR) && ! p.at(SyntaxKind::Label)
                     {
-                        p.hint("labels can only be applied in markup mode");
-                        p.hint("try wrapping your code in a markup block (`[ ]`)");
+                        // Automatic Semicolon Insertion (ASI):
+                        // Contiguous code expressions on the same line are cleanly separated.
+                    }
+                    else
+                    {
+                        p.expected("semicolon or line break");
+                        if p.at(SyntaxKind::Label)
+                        {
+                            p.hint("labels can only be applied in markup mode");
+                            p.hint("try wrapping your code in a markup block (`[ ]`)");
+                        }
                     }
                 }
             }
@@ -613,13 +621,21 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
     }
     else { code_primary(p, atomic); }
 
+    let mut had_content_block_arg = false;
     loop
     {
         let at_args = p.with_nl_mode(AtNewline::StopParBreak, | p | { p.at(SyntaxKind::LeftParen) || p.at(SyntaxKind::LeftBracket) });
-        if at_args { p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p); }); p.wrap(m, SyntaxKind::FuncCall); continue ; }
+        if at_args
+        {
+            let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p) });
+            if had_bracket { had_content_block_arg = true; }
+            p.wrap(m, SyntaxKind::FuncCall);
+            continue ;
+        }
 
-        let at_field_or_method = p.directly_at(SyntaxKind::Dot)
-        && p.lexer.clone().next() .0 == SyntaxKind::Ident;
+        let at_field_or_method = (!had_content_block_arg || !atomic)
+            && p.directly_at(SyntaxKind::Dot)
+            && p.lexer.clone().next() .0 == SyntaxKind::Ident;
 
         if atomic && ! at_field_or_method { break ; }
 
@@ -782,8 +798,20 @@ fn let_binding(p: & mut Parser)
     }
     else { pattern(p, false, & mut FxHashSet::default (), None); other = true; }
 
-    let f = if closure || other { Parser::expect } else { Parser::eat_if };
-    if f(p, SyntaxKind::Eq) { p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); }); }
+    let at_eq = p.with_nl_mode(AtNewline::Continue, | p | p.at(SyntaxKind::Eq));
+    if at_eq
+    {
+        p.with_nl_mode(AtNewline::Continue, | p | p.assert(SyntaxKind::Eq));
+        p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); });
+    }
+    else if closure && p.with_nl_mode(AtNewline::Continue, | p | p.at(SyntaxKind::LeftBrace))
+    {
+        p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); });
+    }
+    else if closure || other
+    {
+        p.expect(SyntaxKind::Eq);
+    }
 
     if closure { p.wrap(m2, SyntaxKind::Closure); }
 
@@ -893,7 +921,12 @@ fn module_import(p: & mut Parser)
 
     if p.eat_if(SyntaxKind::Colon)
     {
-        if p.at(SyntaxKind::LeftParen)
+        let is_paren = p.at(SyntaxKind::LeftParen)
+            || (p.token.newline.is_some()
+                && p.token.kind == SyntaxKind::End
+                && p.token.node.kind() == SyntaxKind::LeftParen);
+
+        if is_paren
         {
             p.with_nl_mode
             (
@@ -1129,7 +1162,7 @@ fn array_or_dict_item(p: & mut Parser, state: & mut GroupState)
 }
 
 /// Parses a function call's argument list: `(12pt, y)`.
-fn args(p: & mut Parser)
+fn args(p: & mut Parser) -> bool
 {
     if ! p.at(SyntaxKind::LeftParen) && ! p.at(SyntaxKind::LeftBracket) { p.expected("argument list"); }
 
@@ -1158,9 +1191,21 @@ fn args(p: & mut Parser)
         );
     }
 
-    p.with_nl_mode(AtNewline::StopParBreak, | p | { while p.at(SyntaxKind::LeftBracket) { content_block(p); } });
+    let mut had_bracket = false;
+    p.with_nl_mode
+    (
+        AtNewline::StopParBreak, | p |
+        {
+            while p.at(SyntaxKind::LeftBracket)
+            {
+                had_bracket = true;
+                content_block(p);
+            }
+        }
+    );
 
     p.wrap(m, SyntaxKind::Args);
+    had_bracket
 }
 
 /// Parses a single argument in an argument list.

@@ -40,8 +40,8 @@ use crate::foundations:: { Base, Bytes, Cast, Decimal, Repr, Str, Value, cast, f
 /// Typst integers can be entered in code mode using the decimal digits 0--9. In
 /// addition, if a lone digit 0 is followed by `x`, `o`, or `b` (`0x`, `0o`,
 /// `0b`), Typst will treat following digits as a
-/// #wiki("Hexadecimal")[hexadecimal] (base 16), #wiki("Octal")[octal] (base 8),
-/// or#wiki("Binary_number")[binary] (base 2) number.
+/// #wiki("Hexadecimal")[hexadecimal] \(base 16), #wiki("Octal")[octal] \(base 8),
+/// or #wiki("Binary_number")[binary] \(base 2) number.
 ///
 /// Hexadecimal numbers use the letters a--f or A--F for the values 10--15.
 ///

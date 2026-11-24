@@ -3572,6 +3572,61 @@ async function HandleDeleteFile(Request, Response, QueryPath)
     }
 }
 
+async function HandleRenameFile(Request, Response)
+{
+    try
+    {
+        const RawBody = await ReadRequestBody(Request);
+        const Payload = JSON.parse(RawBody || "{}");
+        const OldPath = Payload.oldPath || Payload.OldPath;
+        const NewName = Payload.newName || Payload.NewName;
+
+        if (!OldPath || !NewName)
+        {
+            Response.writeHead(400, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Message: "Missing oldPath or newName" }));
+            return ;
+        }
+
+        const OldValidation = ValidateWorkspacePath(OldPath, true, true);
+        if (!OldValidation.Valid)
+        {
+            Response.writeHead(403, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Message: OldValidation.Error }));
+            return ;
+        }
+
+        const ParentDir = Path.dirname(OldValidation.Path);
+        const SanitizedName = Path.basename(NewName.trim()).replace(/[\\\/]/g, "");
+        const FinalName = SanitizedName.toLowerCase().endsWith(".typ") ? SanitizedName : `${SanitizedName}.typ`;
+        const TargetNewPath = Path.join(ParentDir, FinalName);
+
+        const NewValidation = ValidateWorkspacePath(TargetNewPath, false, true);
+        if (!NewValidation.Valid)
+        {
+            Response.writeHead(403, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Message: NewValidation.Error }));
+            return ;
+        }
+
+        if (FS.existsSync(NewValidation.Path) && NewValidation.Path.toLowerCase() !== OldValidation.Path.toLowerCase())
+        {
+            Response.writeHead(409, { "Content-Type": "application/json" });
+            Response.end(JSON.stringify({ Success: false, Message: `A file named '${FinalName}' already exists` }));
+            return ;
+        }
+
+        await FSPromises.rename(OldValidation.Path, NewValidation.Path);
+        Response.writeHead(200, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: true, NewPath: NewValidation.Path }));
+    }
+    catch (E)
+    {
+        Response.writeHead(500, { "Content-Type": "application/json" });
+        Response.end(JSON.stringify({ Success: false, Message: E.message }));
+    }
+}
+
 function ServeStatic(Request, Response, FilePath)
 {
     let NormalizedPath = Path.normalize(FilePath);
@@ -4418,6 +4473,12 @@ const Server = HTTP.createServer
         {
             const TargetPath = URLInstance.searchParams.get("path");
             await HandleDeleteFile(Request, Response, TargetPath);
+            return ;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/workspace/rename")
+        {
+            await HandleRenameFile(Request, Response);
             return ;
         }
 

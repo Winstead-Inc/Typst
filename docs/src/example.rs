@@ -45,21 +45,21 @@ pub fn compile_example
     /// to point _into_ the example in case of an error.
     raw: Packed<RawElem>,
     /// Whether to trim all but the first page.
-    # [named]
-    # [default (false)]
+    #[named]
+   #[default (false)]
     single: bool,
     /// If given, should be an array of four relative lengths which define a
     /// `(x, y, w, h)` trimmed view into the first page. Providing this implies
     /// `single: true`.
-    # [named]
-    # [default]
+    #[named]
+   #[default]
     zoom: Option<Zoom>,
     /// Whether warnings from the example should be propagated.
-    # [named]
-    # [default (true)]
+    #[named]
+   #[default (true)]
     warnings: bool,
 )
-->SourceResult<Vec<Content>>
+-> SourceResult<Vec<Content>>
 {
     let styles = context.styles().at(span)?;
     let source = create_source( & raw, engine.world)?;
@@ -85,13 +85,13 @@ pub fn compile_example
 /// The nodes in the resulting `Source` contain span information that is mapped
 /// from the example code block such that errors that occur during compilation
 /// of the example are attributed to the real source.
-fn create_source(raw: & Packed<RawElem>, world: Tracked<dyn World + '_>,)->SourceResult<Source>
+fn create_source(raw: & Packed<RawElem>, world: Tracked<dyn World + '_>,) -> SourceResult<Source>
 {
     let file_id = raw
-    .span()
-    .id()
-    .ok_or("cannot hygienically compile example without span")
-    .at(raw.span())?;
+   .span()
+   .id()
+   .ok_or("cannot hygienically compile example without span")
+   .at(raw.span())?;
 
     let lines = match & raw.text
     {
@@ -128,7 +128,7 @@ fn trim_page(page: & mut Page, Zoom { x, y, w, h }: & Zoom, styles: StyleChain)
 }
 
 /// Turns a compiled `Page` into a Typst `image` element by rendering it.
-fn page_to_image(page: Page)->Content
+fn page_to_image(page: Page) -> Content
 {
     // NOTE: This discards format options set by the document.
     let opts = RenderOptions::<Complete> { render_bleed: false, format: PngFormatOptions { ppi: SpannedValue::detached(Scalar::new (144.0)) }, };
@@ -138,12 +138,12 @@ fn page_to_image(page: Page)->Content
     let source = DataSource::Bytes(data.clone());
     let derived = Loaded:: new (Spanned::new (LoadSource::Bytes, Span::detached()), data);
     ImageElem:: new (Derived { source, derived })
-    .with_format(Smart::Custom(format))
-    .pack()
+   .with_format(Smart::Custom(format))
+   .pack()
 }
 
 /// Turns a compiled `Page` into a `FrameElem` which natively embeds it.
-fn page_to_frame(mut page: Page)->Content
+fn page_to_frame(mut page: Page) -> Content
 {
     if let Some(paint) = page.fill_or_white() { page.frame.fill(paint); }
     drop_tags( & mut page.frame);
@@ -165,11 +165,11 @@ fn drop_tags(frame: & mut Frame)
 }
 
 #[elem(Construct)]
-pub struct FrameElem { # [required] # [internal] frame: Frame, }
+pub struct FrameElem {#[required]#[internal] frame: Frame, }
 
-impl Construct for FrameElem { fn construct(_: & mut Engine, args: & mut Args)->SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
+impl Construct for FrameElem { fn construct(_: & mut Engine, args: & mut Args) -> SourceResult<Content> { bail ! (args.span, "cannot be constructed manually") } }
 
-pub const FRAME_RULE: ShowFn < FrameElem > = | elem, _, _ |
+pub const FRAME_RULE: ShowFn<FrameElem> = | elem, _, _ |
 {
     Ok
     (
@@ -179,8 +179,8 @@ pub const FRAME_RULE: ShowFn < FrameElem > = | elem, _, _ |
             {
                 let mut frame = elem.frame.clone();
                 let scale = (region.size.x / frame.width())
-                .min(region.size.y / frame.height())
-                .min(1.0);
+               .min(region.size.y / frame.height())
+               .min(1.0);
                 if scale != 1.0
                 {
                     let s = Ratio:: new (scale);
@@ -191,7 +191,7 @@ pub const FRAME_RULE: ShowFn < FrameElem > = | elem, _, _ |
                 Ok(frame)
             }
         )
-        .pack()
+       .pack()
     )
 };
 
@@ -204,7 +204,8 @@ cast!
     self => array![self.x, self.y, self.w, self.h].into_value(),
     v: Array => match v.as_slice()
     {
-        [x, y, w, h] => Zoom { x: x.clone().cast()?, y: y.clone().cast()?, w: w.clone().cast()?, h: h.clone().cast()?, },
+        [x, y, w, h]
+        => Zoom { x: x.clone().cast()?, y: y.clone().cast()?, w: w.clone().cast()?, h: h.clone().cast()?, },
         _ => bail!("expected four components"),
     }
 }
@@ -214,15 +215,15 @@ struct ExampleWorld(Source);
 
 impl World for ExampleWorld
 {
-    fn library( & self)-> & LazyHash<Library> { & EXAMPLE_LIBRARY }
+    fn library( & self) -> & LazyHash<Library> { & EXAMPLE_LIBRARY }
 
-    fn book( & self)-> & LazyHash<FontBook> { & crate::world::FONTS .0 }
+    fn book( & self) -> & LazyHash<FontBook> { & crate::world::FONTS.0 }
 
-    fn main( & self)->FileId { self .0.id() }
+    fn main( & self) -> FileId { self.0 .id() }
 
-    fn source( & self, id: FileId)->FileResult<Source>
+    fn source( & self, id: FileId) -> FileResult<Source>
     {
-        if id == self .0.id() { Ok(self .0.clone()) }
+        if id == self.0 .id() { Ok(self.0 .clone()) }
         else
         {
             // Examples don't support imports.
@@ -230,9 +231,9 @@ impl World for ExampleWorld
         }
     }
 
-    fn file( & self, id: FileId)->FileResult<Bytes>
+    fn file( & self, id: FileId) -> FileResult<Bytes>
     {
-        if id == self .0.id() { return Ok(Bytes::from_string(self .0.clone())); }
+        if id == self.0 .id() { return Ok(Bytes::from_string(self.0 .clone())); }
 
         // Relative file loads of assets are allowed from anywhere without full
         // paths. E.g. `json("monday.json")` from `loading/json.rs`.
@@ -242,18 +243,18 @@ impl World for ExampleWorld
         Err(FileError::NotFound(id.vpath().get_without_slash().into()))
     }
 
-    fn font( & self, index: usize)->Option<Font> { crate::world::FONTS .1.get(index).cloned() }
+    fn font( & self, index: usize) -> Option<Font> { crate::world::FONTS.1 .get (index).cloned() }
 
-    fn today( & self, _: Option<Duration>)->Option<Datetime> { Some(Datetime::from_ymd(1970, 1, 1).unwrap()) }
+    fn today( & self, _: Option<Duration>) -> Option<Datetime> { Some(Datetime::from_ymd(1970, 1, 1).unwrap()) }
 }
 
-static EXAMPLE_LIBRARY: LazyLock < LazyHash<Library> > = LazyLock:: new
+static EXAMPLE_LIBRARY: LazyLock<LazyHash<Library>> = LazyLock:: new
 (
     ||
     {
         let mut lib = Library::builder([typst_html::FORMAT, typst_pdf::FORMAT, typst_svg::FORMAT, typst_render::FORMAT, typst_bundle::FORMAT,])
-        .with_features(Features::all())
-        .build();
+       .with_features(Features::all())
+       .build();
 
         // Adjust the default look a bit.
         lib.styles. set(PageElem::width, Smart::Custom(Abs::pt(240.0).into()));

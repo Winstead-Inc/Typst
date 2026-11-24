@@ -49,13 +49,13 @@ pub struct IndexItem
     /// The title-case name of the item. Shown as the match.
     pub title: EcoString,
     /// The canonical path for this item, if any. Shown below the match.
-    # [serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<EcoString>,
     /// The full route to the matching page. May include a fragment.
     pub route: EcoString,
     /// Keywords with which the page can be found. The keywords are stored in
     /// the item to aid with ranking.
-    # [serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<EcoString>,
 }
 
@@ -75,7 +75,7 @@ cast!
 /// Walks through the bundle and indexes all text and items in it. Items
 /// are `metadata` elements labelled `<metadata-index-item>`. Text in between
 /// items is considered belonging to the preceding item.
-pub fn build_search_index(bundle: & Bundle)->SourceResult<SearchIndex>
+pub fn build_search_index(bundle: & Bundle) -> SourceResult<SearchIndex>
 {
     let mut indexer = Indexer:: new ();
     for file in bundle.files.values()
@@ -91,22 +91,22 @@ pub fn build_search_index(bundle: & Bundle)->SourceResult<SearchIndex>
 /// bit roundabout because we can't contextually access the
 /// `stdx.config.asset-base` configuration from the top level. So we do it in
 /// Typst code instead and leave the result in `metadata`.
-pub fn index_path(bundle: & Bundle)->HintedStrResult<VirtualPath>
+pub fn index_path(bundle: & Bundle) -> HintedStrResult<VirtualPath>
 {
     let path = bundle
-    .introspector
-    .query_unique( & Selector::Label(Label::new (PicoStr::intern("search-index-path")).unwrap(),))?
-    .to_packed::<MetadataElem>()
-    .ok_or("expected metadata element")?
-    .value
-    .clone()
-    .cast::<EcoString>()?;
+   .introspector
+   .query_unique( & Selector::Label(Label::new (PicoStr::intern("search-index-path")).unwrap(),))?
+   .to_packed::<MetadataElem>()
+   .ok_or("expected metadata element")?
+   .value
+   .clone()
+   .cast::<EcoString>()?;
 
     VirtualPath:: new ( & path).map_err( | _ | "invalid path".into())
 }
 
 /// Indexes the contents of a single HTML element, recursively.
-fn walk_html(indexer: & mut Indexer, elem: & HtmlElement, introspector: & dyn Introspector,)->SourceResult<()>
+fn walk_html(indexer: & mut Indexer, elem: & HtmlElement, introspector: & dyn Introspector,) -> SourceResult < () >
 {
     for node in & elem.children
     {
@@ -119,8 +119,8 @@ fn walk_html(indexer: & mut Indexer, elem: & HtmlElement, introspector: & dyn In
                 && let Some(metadata) = it.to_packed::<MetadataElem>()
                 {
                     let item = parse_item_metadata(metadata.value.clone(), introspector)
-                    .hint("search index metadata is not well-formed")
-                    .at(metadata.span())?;
+                   .hint("search index metadata is not well-formed")
+                   .at(metadata.span())?;
                     indexer.enter(item.clone());
                     indexer.index_str( & item.title);
                     for keyword in & item.keywords { indexer.index_str(keyword); }
@@ -136,7 +136,7 @@ fn walk_html(indexer: & mut Indexer, elem: & HtmlElement, introspector: & dyn In
 
 /// Takes a search index metadata element's dynamic value and turns it into
 /// strongly typed index item.
-fn parse_item_metadata(value: Value, introspector: & dyn Introspector,)->HintedStrResult<IndexItem>
+fn parse_item_metadata(value: Value, introspector: & dyn Introspector,) -> HintedStrResult<IndexItem>
 {
     let mut dict = value.cast::<Dict>()?;
     let kind = dict.take("kind")?.cast()?;
@@ -151,12 +151,12 @@ fn parse_item_metadata(value: Value, introspector: & dyn Introspector,)->HintedS
         {
             let path = introspector.path(loc).ok_or("found no path for index item")?;
             let path = path
-            .get_with_slash()
-            .strip_suffix("index.html")
-            .ok_or("expected consistent usage of index.html")?;
+           .get_with_slash()
+           .strip_suffix("index.html")
+           .ok_or("expected consistent usage of index.html")?;
             let anchor = introspector
-            .anchor(loc)
-            .ok_or("found no HTML anchor for index item")?;
+           .anchor(loc)
+           .ok_or("found no HTML anchor for index item")?;
             if anchor.is_empty() { path.into() } else { eco_format ! ("{path}#{anchor}") }
         }
     };
@@ -180,9 +180,9 @@ struct Indexer { words: BTreeMap<String, Vec<usize>>, items: Vec<IndexItem>, ite
 
 impl Indexer
 {
-    fn new ()->Self { Self { words: BTreeMap::new (), items: vec ! [], item_label: Label::new (PicoStr::intern("metadata-index-item")).unwrap(), } }
+    fn new () -> Self { Self { words: BTreeMap::new (), items: vec ! [], item_label: Label::new (PicoStr::intern("metadata-index-item")).unwrap(), } }
 
-    fn finish(self)->SearchIndex
+    fn finish(self) -> SearchIndex
     {
         let mut words = vec![];
         let mut hits = vec![];
@@ -197,10 +197,10 @@ impl Indexer
         if self.items.is_empty() { return ; }
         let n = self.items.len() - 1;
         for word in s
-        .to_lowercase()
-        .split( | c: char | c.is_ascii_whitespace() || c.is_ascii_punctuation())
-        .filter( | w | ! w.is_empty())
-        .filter( | w | STOP_WORDS.binary_search(w).is_err())
+       .to_lowercase()
+       .split( | c: char | c.is_ascii_whitespace() || c.is_ascii_punctuation())
+       .filter( | w | ! w.is_empty())
+       .filter( | w | STOP_WORDS.binary_search(w).is_err())
         {
             let vec = self.words.entry(word.into()).or_default();
             if ! vec.contains( & n) { vec.push(n); }

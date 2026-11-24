@@ -1,4 +1,3 @@
-
 # Formal Rule: Semantic Math Forward-Sync Highlighting (`Rust | Tauri | JS`)
 
 This specification defines the mandatory architecture, resolution rules, and rendering invariants for **Math Forward-Sync Highlighting** in Typst/LAFS-enabled editors using a **Rust + Tauri + JavaScript** stack. Every agent or engineer implementing or modifying forward-sync behavior MUST adhere to these rules without exception.

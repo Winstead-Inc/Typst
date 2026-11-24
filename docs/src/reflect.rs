@@ -30,7 +30,7 @@ cast! { ToScope, m: Module => Self::Module(m), t: Type => Self::Type(t), f: Func
 
 /// Provides details about a binding in a module.
 #[func]
-pub fn binding(scope: ToScope, name: EcoString)->Option<Dict>
+pub fn binding(scope: ToScope, name: EcoString) -> Option<Dict>
 {
     let scope = match & scope { ToScope::Module(module) => module.scope(), ToScope::Type(ty) => ty.scope(), ToScope::Func(func) => func.scope()?, };
     let binding = scope. get( & name)?;
@@ -40,7 +40,7 @@ pub fn binding(scope: ToScope, name: EcoString)->Option<Dict>
         {
             "category" => binding.category().map( | c | c.name()),
             "feature" => binding.feature().map( | f | f.to_string()),
-            "deprecation" => binding.deprecation().map( | d | dict ! { "message" => d.message(),"until" => d.until(), }),
+            "deprecation" => binding.deprecation().map( | d | dict ! { "message" => d.message(), "until" => d.until(), }),
             "name" => binding.name(),
             "title" => binding.title(),
             "docs" => binding.docs(),
@@ -53,7 +53,7 @@ pub fn binding(scope: ToScope, name: EcoString)->Option<Dict>
 
 /// Provides details about a value.
 #[func]
-pub fn describe(value: Value)->Option<Dict>
+pub fn describe(value: Value) -> Option<Dict>
 {
     match & value
     {
@@ -65,7 +65,7 @@ pub fn describe(value: Value)->Option<Dict>
 }
 
 /// Provides details about a native function.
-fn describe_func(func: & Func)->Dict
+fn describe_func(func: & Func) -> Dict
 {
     dict!
     {
@@ -78,9 +78,9 @@ fn describe_func(func: & Func)->Dict
         "locatable" => func.to_element().is_some_and( | elem | elem.is_locatable()),
         "contextual" => func.contextual(),
         "params" => func
-        .params()
-        .filter_map( | info | { info.to_native().map( | info | describe_param(info).into_value()) })
-        .collect::<Array>(),
+       .params()
+       .filter_map( | info | { info.to_native().map( | info | describe_param(info).into_value()) })
+       .collect::<Array>(),
         "returns" => func.returns().map(describe_cast_info),
         "keywords" => func.keywords(),
         "scope" => func.scope().map( | s | Module::anonymous(s.clone())),
@@ -88,7 +88,7 @@ fn describe_func(func: & Func)->Dict
 }
 
 /// Provides details about a parameter of a native function.
-fn describe_param(param: & NativeParamInfo)->Dict
+fn describe_param(param: & NativeParamInfo) -> Dict
 {
     let mut dict = dict!
     {
@@ -110,7 +110,7 @@ fn describe_param(param: & NativeParamInfo)->Dict
 }
 
 /// Provides details about a native type.
-fn describe_ty(ty: Type)->Dict
+fn describe_ty(ty: Type) -> Dict
 {
     dict!
     {
@@ -127,29 +127,29 @@ fn describe_ty(ty: Type)->Dict
 }
 
 /// Provides details about a built-in symbol.
-fn describe_symbol(symbol: & Symbol)->Dict
+fn describe_symbol(symbol: & Symbol) -> Dict
 {
     let variants = symbol
-    .variants()
-    .map( | (variant, value, deprecation) | { dict ! { "variant" => variant.as_str(),"value" => value, "deprecation" => deprecation, }.into_value() })
-    .collect::<Array>();
+   .variants()
+   .map( | (variant, value, deprecation) | { dict ! { "variant" => variant.as_str(), "value" => value, "deprecation" => deprecation, }.into_value() })
+   .collect::<Array>();
     dict! { "variants" => variants }
 }
 
 /// Provides details where a native definition is located in the sources.
-fn describe_def_site(site: DefSite)->Dict
+fn describe_def_site(site: DefSite) -> Dict
 {
     let path = RootedPath:: new (VirtualRoot::Package(REPO_ROOT), VirtualPath::virtualize(Path::new (""), Path::new (site.path)).unwrap(),);
     dict! { "path" => path, "key" => site.key, }
 }
 
 /// Provides details about acceptable values for a parameter or return value.
-fn describe_cast_info(info: & CastInfo)->Dict
+fn describe_cast_info(info: & CastInfo) -> Dict
 {
     match info
     {
         CastInfo::Any => dict! { "kind" => "any" },
-        CastInfo::Value(value, details) => dict! { "kind" => "value", "value" => value.clone(),"details" => * details, },
+        CastInfo::Value(value, details) => dict! { "kind" => "value", "value" => value.clone(), "details" => * details, },
         CastInfo::Type(ty) => dict! { "kind" => "type", "ty" => * ty, },
         CastInfo::Union(infos) => dict! { "kind" => "union", "infos" => infos.iter().map(describe_cast_info).map(Value::Dict).collect::<Array>(), },
     }
@@ -160,12 +160,12 @@ fn describe_cast_info(info: & CastInfo)->Dict
 /// Returns `None` if the provided string has more than one cluster or if it
 /// does not have a math class.
 #[func]
-pub fn math_class(c: Cluster)->Option<MathClass> { typst_utils::default_math_class(c.primary()) }
+pub fn math_class(c: Cluster) -> Option<MathClass> { typst_utils::default_math_class(c.primary()) }
 
 /// Returns whether the given string can be used as an accent with the
 /// `math.accent` function.
 #[func]
-pub fn is_accent(s: Str)-> bool { typst::math::Accent::combining( & s).is_some() }
+pub fn is_accent(s: Str) -> bool { typst::math::Accent::combining( & s).is_some() }
 
 /// Returns the name of a symbol in Unicode.
 ///
@@ -175,14 +175,14 @@ pub fn is_accent(s: Str)-> bool { typst::math::Accent::combining( & s).is_some()
 /// [emoji-zwj-sequences.txt](https://www.unicode.org/Public/17.0.0/emoji/emoji-zwj-sequences.txt),
 /// or the Unicode name of the first codepoint otherwise.
 #[func]
-pub fn unicode_name(c: Cluster)->Option<EcoString>
+pub fn unicode_name(c: Cluster) -> Option<EcoString>
 {
-    static MAP: LazyLock < FxHashMap<EcoString, EcoString> > = LazyLock:: new
+    static MAP: LazyLock<FxHashMap<EcoString, EcoString>> = LazyLock:: new
     (
         ||
         {
             let data = str::from_utf8(typst_dev_assets::get_by_name("emoji-zwj-sequences.txt").unwrap(),)
-            .unwrap();
+           .unwrap();
             let mut map = FxHashMap:: default();
             for line in data.lines()
             {
@@ -192,9 +192,9 @@ pub fn unicode_name(c: Cluster)->Option<EcoString>
                 let [code, _, name] = parts[..]
                 else { panic ! ("malformed data file") };
                 let value = code
-                .split_whitespace()
-                .map( | cp | char::from_u32(u32::from_str_radix(cp, 16).unwrap()).unwrap())
-                .collect();
+               .split_whitespace()
+               .map( | cp | char::from_u32(u32::from_str_radix(cp, 16).unwrap()).unwrap())
+               .collect();
                 map.insert(value, name.to_title_case().into());
             }
             map
@@ -205,7 +205,7 @@ pub fn unicode_name(c: Cluster)->Option<EcoString>
 
 /// Returns `{true}` if two emoji are in order.
 #[func]
-pub fn emoji_ordering(left: EcoString, right: EcoString)-> bool
+pub fn emoji_ordering(left: EcoString, right: EcoString) -> bool
 {
     let mut preferences = CollatorPreferences:: default();
     preferences.collation_type = Some(CollationType::Emoji);
@@ -217,9 +217,9 @@ pub fn emoji_ordering(left: EcoString, right: EcoString)-> bool
 
 /// Returns the name of a character in LaTeX.
 #[func]
-pub fn latex_name(c: Cluster)->Option<Str>
+pub fn latex_name(c: Cluster) -> Option<Str>
 {
-    static NAMES: LazyLock < FxHashMap<u32, & 'static str> > = LazyLock:: new
+    static NAMES: LazyLock<FxHashMap<u32, & 'static str>> = LazyLock:: new
     (
         ||
         {
@@ -248,7 +248,7 @@ pub struct Cluster { value: EcoString, }
 impl Cluster
 {
     /// Returns the primary character for this cluster.
-    fn primary( & self)-> char
+    fn primary( & self) -> char
     {
         // Not every kind of cluster has a well-defined "base", but for our
         // purposes (getting the math class etc. in presence of a variation
@@ -264,29 +264,29 @@ cast!
 }
 
 /// Returns the list of available built-in shorthands for markup and math.
-pub fn shorthands()->Dict
+pub fn shorthands() -> Dict
 {
-    dict! { "markup" => shorthand_dict(typst::syntax::ast::Shorthand::LIST),"math" => shorthand_dict(typst::syntax::ast::MathShorthand::LIST), }
+    dict! { "markup" => shorthand_dict(typst::syntax::ast::Shorthand::LIST), "math" => shorthand_dict(typst::syntax::ast::MathShorthand::LIST), }
 }
 
-fn shorthand_dict(list: & [( & 'static str, char)])->Dict { list.iter().map( |& (s, c) | (Str::from(c), s.into_value())).collect() }
+fn shorthand_dict(list: & [( & 'static str, char)]) -> Dict { list.iter().map( | & (s, c) | (Str::from(c), s.into_value())).collect() }
 
 /// Returns whether the given attribute names is one of the global ones in HTML
 /// (as opposed to being element-specific).
 #[func]
-pub fn is_global_html_attr(name: EcoString)-> bool
+pub fn is_global_html_attr(name: EcoString) -> bool
 {
     use typst_assets::html as data;
     data::ATTRS[..data::ATTRS_GLOBAL]
-    .iter()
-    .any( | global | global.name == name)
+   .iter()
+   .any( | global | global.name == name)
 }
 
 /// Returns the list of raw languages available.
-pub fn raw_langs()->Array
+pub fn raw_langs() -> Array
 {
     RawElem::languages()
-    .into_iter()
-    .map( | (name, tokens) | { dict ! { "name" => name, "tokens" => tokens, }.into_value() })
-    .collect()
+   .into_iter()
+   .map( | (name, tokens) | { dict ! { "name" => name, "tokens" => tokens, }.into_value() })
+   .collect()
 }

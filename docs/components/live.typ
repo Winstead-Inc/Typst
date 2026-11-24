@@ -2,23 +2,22 @@
 //
 // Cooperates with `docs/src/live.rs`.
 
-#import "base.typ": (
-  category-settings, folding-details, info, insertion, short-or-long,
-)
+#import "base.typ": (category-settings, folding-details, info, insertion, short-or-long,)
 #import "example.typ": example
 #import "figure.typ": docs-figure
 #import "table.typ": docs-table
 
 // The definitions that are available in Rust doc comments.
-#let scope = (
-  category-settings: category-settings,
-  docs-figure: docs-figure,
-  docs-table: docs-table,
-  example: example,
-  folding-details: folding-details,
-  info: info,
-  insertion: insertion,
-  short-or-long: short-or-long,
+#let scope =
+(
+    category-settings: category-settings,
+    docs-figure: docs-figure,
+    docs-table: docs-table,
+    example: example,
+    folding-details: folding-details,
+    info: info,
+    insertion: insertion,
+    short-or-long: short-or-long,
 )
 
 // Returns a dictionary with all live-loaded data in the Rust file at the given
@@ -34,42 +33,37 @@
 // sources.
 //
 // In both cases, evaluates the markup.
-#let live-docs(
-  // The static docs content baked into the executable.
-  markup,
-  // The key for the native definition. May be `none`.
-  //
-  // See `DefSite::key` for more information.
-  def-site,
-) = {
-  if def-site == none {
-    return eval(markup, scope: scope, mode: "markup")
-  }
-
-  let live = live-item-data-at-path(def-site.path)
-  if def-site.key not in live {
-    panic("def site was not found:", def-site)
-  }
-
-  let (_, markup, ranges) = live.at(def-site.key)
-  stdx.eval-mapped(
+#let live-docs
+(
+    // The static docs content baked into the executable.
     markup,
-    def-site.path,
-    ranges,
-    mode: "markup",
-    scope: scope,
-  )
+    // The key for the native definition. May be `none`.
+    //
+    // See `DefSite::key` for more information.
+    def-site,
+) =
+{
+    if def-site == none
+    { return eval(markup, scope: scope, mode: "markup") }
+
+    let live = live-item-data-at-path(def-site.path)
+    if def-site.key not in live
+    { panic("def site was not found:", def-site) }
+
+    let (_, markup, ranges) = live.at(def-site.key)
+    stdx.eval-mapped
+    (markup, def-site.path, ranges, mode: "markup", scope: scope,)
 }
 
 // Returns a GitHub permalink to the source of an item, including the commit and
 // line number.
-#let item-source-link(def-site) = {
-  let live = live-item-data-at-path(def-site.path)
-  if def-site.key not in live {
-    panic("def site was not found:", def-site)
-  }
+#let item-source-link(def-site) =
+{
+    let live = live-item-data-at-path(def-site.path)
+    if def-site.key not in live
+    { panic("def site was not found:", def-site) }
 
-  let (line, _, _) = live.at(def-site.key)
-  let file = stdx.str-from-path(def-site.path)
-  "https://github.com/typst/typst/blob/" + stdx.commit + file + "#L" + str(line)
+    let (line, _, _) = live.at(def-site.key)
+    let file = stdx.str-from-path(def-site.path)
+    "https://github.com/typst/typst/blob/" + stdx.commit + file + "#L" + str(line)
 }
