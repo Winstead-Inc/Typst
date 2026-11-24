@@ -437,54 +437,55 @@ fn FindTypstBinary() -> std::path::PathBuf
         "typst"
     };
 
+    let mut Candidates: Vec<std::path::PathBuf> = Vec::new();
+
     if let Ok(ExePath) = std::env::current_exe()
         && let Some(ExeDir) = ExePath.parent()
-        {
-            let CandidateBin = ExeDir.join("bin").join(BinName);
-            if CandidateBin.exists()
-            {
-                return CandidateBin;
-            }
-
-            let CandidateResBin = ExeDir.join("resources").join("bin").join(BinName);
-            if CandidateResBin.exists()
-            {
-                return CandidateResBin;
-            }
-
-            let CandidateRes = ExeDir.join("resources").join(BinName);
-            if CandidateRes.exists()
-            {
-                return CandidateRes;
-            }
-
-            let CandidateDirect = ExeDir.join(BinName);
-            if CandidateDirect.exists()
-            {
-                return CandidateDirect;
-            }
-
-            // macOS .app bundle: TypstStudio.app/Contents/MacOS/typst-studio -> Resources/bin/typst
-            let MacOsResBin = ExeDir.join("../Resources/bin").join(BinName);
-            if MacOsResBin.exists()
-            {
-                return MacOsResBin;
-            }
-
-            let DevCandidate = ExeDir.join("../../../bin").join(BinName);
-            if DevCandidate.exists()
-            {
-                return DevCandidate;
-            }
-        }
-
-    for Rel in &["bin", "../bin", "TypstStudio/bin"]
     {
-        let Cand = std::path::PathBuf::from(Rel).join(BinName);
-        if Cand.exists()
+        Candidates.push(ExeDir.join("bin").join(BinName));
+        Candidates.push(ExeDir.join("resources").join("bin").join(BinName));
+        Candidates.push(ExeDir.join("resources").join(BinName));
+        Candidates.push(ExeDir.join(BinName));
+        Candidates.push(ExeDir.join("../Resources/bin").join(BinName));
+        Candidates.push(ExeDir.join("../../../bin").join(BinName));
+        Candidates.push(ExeDir.join("../../../target/release").join(BinName));
+        Candidates.push(ExeDir.join("../../../target/debug").join(BinName));
+    }
+
+    for Rel in &[
+        "target/release",
+        "target/debug",
+        "../target/release",
+        "../target/debug",
+        "../../target/release",
+        "../../target/debug",
+        "TypstStudio/bin",
+        "bin",
+        "../bin",
+    ]
+    {
+        Candidates.push(std::path::PathBuf::from(Rel).join(BinName));
+    }
+
+    let mut ExistingWithMtime: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
+    for Cand in Candidates
+    {
+        if Cand.exists() && Cand.is_file()
         {
-            return Cand;
+            let Resolved = CanonicalizeOrResolve(&Cand);
+            let Mtime = std::fs::metadata(&Resolved)
+                .and_then(|M| M.modified())
+                .unwrap_or(std::time::UNIX_EPOCH);
+            if !ExistingWithMtime.iter().any(|(_, P)| P == &Resolved)
+            {
+                ExistingWithMtime.push((Mtime, Resolved));
+            }
         }
+    }
+
+    if let Some((_, Best)) = ExistingWithMtime.into_iter().max_by_key(|(M, _)| *M)
+    {
+        return Best;
     }
 
     std::path::PathBuf::from(BinName)
@@ -547,18 +548,124 @@ fn CreateCommand<P: AsRef<std::ffi::OsStr>>(Program: P) -> std::process::Command
 fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path::PathBuf
 {
     if let Some(Path) = FilePath
-        && let Ok(Validated) = ValidateWorkspacePath(Path, false, false)
+    {
+        let RawPath = std::path::Path::new(Path);
+        let CanonCandidate = CanonicalizeOrResolve(RawPath);
+        let StartDir = if CanonCandidate.is_dir()
         {
-            if Validated.exists() && Validated.is_file()
+            CanonCandidate.clone()
+        }
+        else
+        {
+            CanonCandidate.parent().map(|P| P.to_path_buf()).unwrap_or_else(|| CanonCandidate.clone())
+        };
+
+        // Upward walk for project markers: typst.toml, .typst-studio, .git
+        let mut Current = StartDir.clone();
+        loop
+        {
+            if Current.join("typst.toml").exists()
+                || Current.join(".typst-studio").exists()
+                || Current.join(".git").exists()
             {
-                return Validated.parent().map(|Dir| Dir.to_path_buf()).unwrap_or_else(|| JobDir.to_path_buf());
+                return Current;
             }
-            else if Validated.exists() && Validated.is_dir()
+            if let Some(Parent) = Current.parent()
             {
-                return Validated;
+                if Parent == Current
+                {
+                    break;
+                }
+                Current = Parent.to_path_buf();
+            }
+            else
+            {
+                break;
             }
         }
+
+        // Match against tracked workspace directories: choose the deepest containing directory
+        let TrackedDirs = GetTrackedDirectories();
+        let mut BestTracked: Option<std::path::PathBuf> = None;
+        for Dir in &TrackedDirs
+        {
+            let TrackedPath = std::path::Path::new(Dir);
+            if IsPathContainedIn(TrackedPath, &CanonCandidate)
+            {
+                if BestTracked.as_ref().map_or(true, |B| TrackedPath.as_os_str().len() > B.as_os_str().len())
+                {
+                    BestTracked = Some(TrackedPath.to_path_buf());
+                }
+            }
+        }
+
+        if let Some(ProjectRoot) = BestTracked
+        {
+            return ProjectRoot;
+        }
+
+        return StartDir;
+    }
     JobDir.to_path_buf()
+}
+
+pub struct TempFileGuard
+{
+    Path: Option<std::path::PathBuf>,
+}
+
+impl TempFileGuard
+{
+    pub fn new(Path: Option<std::path::PathBuf>) -> Self
+    {
+        Self
+        {
+            Path
+        }
+    }
+}
+
+impl Drop for TempFileGuard
+{
+    fn drop(&mut self)
+    {
+        if let Some(ref P) = self.Path
+        {
+            let _ = std::fs::remove_file(P);
+        }
+    }
+}
+
+fn PrepareCompilationInput(Source: &str, FilePath: Option<&str>, UniqueId: &str) -> (String, Option<std::path::PathBuf>)
+{
+    if let Some(Fp) = FilePath
+    {
+        let P = std::path::Path::new(Fp);
+        if P.exists() && P.is_file()
+        {
+            if let Ok(DiskContent) = std::fs::read_to_string(P)
+            {
+                if DiskContent == Source
+                {
+                    return (P.to_string_lossy().to_string(), None);
+                }
+            }
+        }
+
+        if let Some(Parent) = P.parent()
+        {
+            if Parent.exists()
+            {
+                let ShadowName = format!(".preview_{}.typ", UniqueId);
+                let ShadowPath = Parent.join(ShadowName);
+                if std::fs::write(&ShadowPath, Source.as_bytes()).is_ok()
+                {
+                    return (ShadowPath.to_string_lossy().to_string(), Some(ShadowPath));
+                }
+            }
+        }
+    }
+    ("-".to_string(), None)
 }
 
 fn ExecuteCommandWithTimeout
@@ -598,7 +705,7 @@ fn ExecuteCommandWithTimeout
     }
 }
 
-fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
+fn CompileTypstSync(Source: String, FilePath: Option<String>, IsBackground: Option<bool>) -> Result<Compile_Response, String>
 {
     let StartTime = std::time::Instant::now();
     let TypstBin = FindTypstBinary();
@@ -610,15 +717,17 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         std::process::id()
     );
-    let JobDir = TempBase.join("typst_studio").join(UniqueId);
+    let JobDir = TempBase.join("typst_studio").join(UniqueId.clone());
     let _ = std::fs::create_dir_all(&JobDir);
 
     let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
 
     let OutputPattern = JobDir.join("page-{p}.svg");
+    let (InputArg, TempInputFile) = PrepareCompilationInput(&Source, FilePath.as_deref(), &UniqueId);
+    let _TempInputGuard = TempFileGuard::new(TempInputFile);
 
     let mut Command = CreateCommand(&TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
+    Command.args(["compile", "--features", "html", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", &InputArg, OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
@@ -631,12 +740,21 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
     let mut Child = Command.spawn().map_err
     (|Error| format!("Failed to spawn typst binary at {:?}: {}", TypstBin, Error))?;
 
-    if let Some(mut Stdin) = Child.stdin.take()
+    if InputArg == "-"
     {
-        let _ = Stdin.write_all(Source.as_bytes());
+        if let Some(mut Stdin) = Child.stdin.take()
+        {
+            let _ = Stdin.write_all(Source.as_bytes());
+        }
+    }
+    else
+    {
+        drop(Child.stdin.take());
     }
 
-    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30));
+    drop(_TempInputGuard);
+    let Output = Output?;
     let DurationMs = StartTime.elapsed().as_millis();
 
     if ! Output.status.success()
@@ -673,7 +791,13 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
     if SynctexPath.exists()
         && let Ok(RawSync) = std::fs::read_to_string( & SynctexPath) && let Ok(Parsed) = serde_json::from_str::<Vec<serde_json::Value>>( & RawSync) { SyncMap = Parsed; }
 
-    if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock() && ! SyncMap.is_empty() { * Guard = SyncMap.clone(); }
+    if !IsBackground.unwrap_or(false)
+    {
+        if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock() && ! SyncMap.is_empty()
+        {
+            *Guard = SyncMap.clone();
+        }
+    }
 
     let _ = std::fs::remove_dir_all( & JobDir);
 
@@ -681,9 +805,17 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>) -> Result<Compile_
 }
 
 #[tauri::command]
-async fn CompileTypst(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
+async fn CompileTypst(Source: String, FilePath: Option<String>, IsBackground: Option<bool>) -> Result<Compile_Response, String>
 {
-    tauri::async_runtime::spawn_blocking(move || CompileTypstSync(Source, FilePath))
+    tauri::async_runtime::spawn_blocking(move || CompileTypstSync(Source, FilePath, IsBackground))
+        .await
+        .map_err( | Error | Error.to_string())?
+}
+
+#[tauri::command]
+async fn GenerateThumbnailSvg(Source: String, FilePath: Option<String>) -> Result<Compile_Response, String>
+{
+    tauri::async_runtime::spawn_blocking(move || CompileTypstSync(Source, FilePath, Some(true)))
         .await
         .map_err( | Error | Error.to_string())?
 }
@@ -698,7 +830,7 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         std::process::id()
     );
-    let JobDir = TempBase.join("typst_studio").join(UniqueId);
+    let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
 
     let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
@@ -713,10 +845,13 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
         SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
     }
 
+    let (InputArg, TempInputFile) = PrepareCompilationInput(&SourceToCompile, FilePath.as_deref(), &UniqueId);
+    let _TempInputGuard = TempFileGuard::new(TempInputFile);
+
     let OutputPdf = JobDir.join("output.pdf");
 
     let mut Command = CreateCommand(&TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", "-", OutputPdf.to_str().unwrap_or("output.pdf")]);
+    Command.args(["compile", "--features", "html", "--root", DocRoot.to_str().unwrap_or("."), "--format", "pdf", &InputArg, OutputPdf.to_str().unwrap_or("output.pdf")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
@@ -729,12 +864,21 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
     let mut Child = Command.spawn().map_err
     (|Error| format!("Failed to spawn typst: {}", Error))?;
 
-    if let Some(mut Stdin) = Child.stdin.take()
+    if InputArg == "-"
     {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        if let Some(mut Stdin) = Child.stdin.take()
+        {
+            let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        }
+    }
+    else
+    {
+        drop(Child.stdin.take());
     }
 
-    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30));
+    drop(_TempInputGuard);
+    let Output = Output?;
 
     if ! Output.status.success()
     {
@@ -769,7 +913,7 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         std::process::id()
     );
-    let JobDir = TempBase.join("typst_studio").join(UniqueId);
+    let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
 
     let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
@@ -784,19 +928,24 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
     }
 
+    let (InputArg, TempInputFile) = PrepareCompilationInput(&SourceToCompile, FilePath.as_deref(), &UniqueId);
+    let _TempInputGuard = TempFileGuard::new(TempInputFile);
+
     let OutputPattern = JobDir.join("page-{p}.png");
 
     let mut Command = CreateCommand(&TypstBin);
     Command.args
     ([
         "compile",
+        "--features",
+        "html",
         "--root",
         DocRoot.to_str().unwrap_or("."),
         "--format",
         "png",
         "--ppi",
         "300",
-        "-",
+        &InputArg,
         OutputPattern.to_str().unwrap_or("page-{p}.png"),
     ]);
     for FontDir in GetFontDirectories()
@@ -811,12 +960,21 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
     let mut Child = Command.spawn().map_err
     (|Error| format!("Failed to spawn typst: {}", Error))?;
 
-    if let Some(mut Stdin) = Child.stdin.take()
+    if InputArg == "-"
     {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        if let Some(mut Stdin) = Child.stdin.take()
+        {
+            let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        }
+    }
+    else
+    {
+        drop(Child.stdin.take());
     }
 
-    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30));
+    drop(_TempInputGuard);
+    let Output = Output?;
 
     if ! Output.status.success()
     {
@@ -886,7 +1044,7 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
         std::process::id()
     );
-    let JobDir = TempBase.join("typst_studio").join(UniqueId);
+    let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
 
     let DocRoot = ResolveDocRoot(FilePath.as_deref(), &JobDir);
@@ -901,10 +1059,13 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
         SourceToCompile = format!("#set page(fill: none)\n\n{}", SourceToCompile);
     }
 
+    let (InputArg, TempInputFile) = PrepareCompilationInput(&SourceToCompile, FilePath.as_deref(), &UniqueId);
+    let _TempInputGuard = TempFileGuard::new(TempInputFile);
+
     let OutputPattern = JobDir.join("page-{p}.svg");
 
     let mut Command = CreateCommand(&TypstBin);
-    Command.args(["compile", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", "-", OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
+    Command.args(["compile", "--features", "html", "--root", DocRoot.to_str().unwrap_or("."), "--format", "svg", &InputArg, OutputPattern.to_str().unwrap_or("page-{p}.svg")]);
     for FontDir in GetFontDirectories()
     {
         Command.arg("--font-path").arg(FontDir);
@@ -917,12 +1078,21 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
     let mut Child = Command.spawn().map_err
     (|Error| format!("Failed to spawn typst: {}", Error))?;
 
-    if let Some(mut Stdin) = Child.stdin.take()
+    if InputArg == "-"
     {
-        let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        if let Some(mut Stdin) = Child.stdin.take()
+        {
+            let _ = Stdin.write_all(SourceToCompile.as_bytes());
+        }
+    }
+    else
+    {
+        drop(Child.stdin.take());
     }
 
-    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30))?;
+    let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(30));
+    drop(_TempInputGuard);
+    let Output = Output?;
 
     if ! Output.status.success()
     {
@@ -1001,6 +1171,17 @@ fn PickFolder() -> Result<Option<String>, String>
     let Selected = rfd::FileDialog:: new ()
    .set_title("Select Typst Project Folder")
    .pick_folder();
+
+    Ok(Selected.map( | P | P.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn PickFile() -> Result<Option<String>, String>
+{
+    let Selected = rfd::FileDialog:: new ()
+   .set_title("Select Typst Document")
+   .add_filter("Typst Document", &[ "typ" ])
+   .pick_file();
 
     Ok(Selected.map( | P | P.to_string_lossy().to_string()))
 }
@@ -2873,7 +3054,13 @@ fn GetSystemStatus() -> Result<System_Status_Response, String>
     )
 }
 
-const PINNED_LAFS_SHA256: &str = "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc";
+const PINNED_LAFS_HASHES: &[&str] =
+&[
+    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
+    "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
+    "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
+    "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec",
+];
 
 fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
 {
@@ -2887,7 +3074,7 @@ fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
         let mut Hasher = Sha256::new();
         Hasher.update(&Bytes);
         let Digest = format!("{:x}", Hasher.finalize());
-        return Digest.eq_ignore_ascii_case(PINNED_LAFS_SHA256);
+        return PINNED_LAFS_HASHES.iter().any(|H| Digest.eq_ignore_ascii_case(H));
     }
     false
 }
@@ -2895,29 +3082,27 @@ fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
 fn ResolveLafsBinary() -> Option<std::path::PathBuf>
 {
     let BinName = if cfg!(windows) { "lafs.exe" } else { "lafs" };
+    let mut Candidates = Vec::new();
     if let Ok(CurrentExe) = std::env::current_exe()
         && let Some(Parent) = CurrentExe.parent()
-        {
-            let Candidate = Parent.join("bin").join(BinName);
-            if VerifyLafsBinaryIntegrity(&Candidate)
-            {
-                return Some(Candidate);
-            }
-            let CandidateDirect = Parent.join(BinName);
-            if VerifyLafsBinaryIntegrity(&CandidateDirect)
-            {
-                return Some(CandidateDirect);
-            }
-        }
-    let Fallback = std::path::PathBuf::from("bin").join(BinName);
-    if VerifyLafsBinaryIntegrity(&Fallback)
     {
-        return Some(Fallback);
+        Candidates.push(Parent.join("bin").join(BinName));
+        Candidates.push(Parent.join(BinName));
+        Candidates.push(Parent.join("../../../bin").join(BinName));
+        Candidates.push(Parent.join("../../../").join(BinName));
     }
-    let DirectFallback = std::path::PathBuf::from(BinName);
-    if VerifyLafsBinaryIntegrity(&DirectFallback)
+    Candidates.push(std::path::PathBuf::from("TypstStudio/bin").join(BinName));
+    Candidates.push(std::path::PathBuf::from("bin").join(BinName));
+    Candidates.push(std::path::PathBuf::from("../bin").join(BinName));
+    Candidates.push(std::path::PathBuf::from(BinName));
+    Candidates.push(std::path::PathBuf::from("../").join(BinName));
+
+    for Cand in Candidates
     {
-        return Some(DirectFallback);
+        if Cand.exists() && VerifyLafsBinaryIntegrity(&Cand)
+        {
+            return Some(CanonicalizeOrResolve(&Cand));
+        }
     }
     None
 }
@@ -2970,6 +3155,7 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
     {
         let mut Cmd = CreateCommand(&BinPath);
         Cmd.args(["-l", TargetLang, "-c", "160", "-"]);
+        Cmd.current_dir(std::env::temp_dir());
         Cmd.stdin(std::process::Stdio::piped());
         Cmd.stdout(std::process::Stdio::piped());
         Cmd.stderr(std::process::Stdio::piped());
@@ -3160,10 +3346,12 @@ pub fn run()
         tauri::generate_handler!
         [
             CompileTypst,
+            GenerateThumbnailSvg,
             ExportPdf,
             ExportPng,
             ExportSvg,
             PickFolder,
+            PickFile,
             ReadWorkspaceFile,
             SaveWorkspaceFile,
             ListWorkspaceFiles,
@@ -3213,11 +3401,14 @@ mod tests
 {
     use super:: * ;
 
+    static WORKSPACE_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
    #[test]
     fn TestCompileTypst()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
         let Source = "= Hello Typst\nTesting Tauri command.".to_string();
-        let Resp = CompileTypstSync(Source, None).expect("CompileTypst should succeed");
+        let Resp = CompileTypstSync(Source, None, None).expect("CompileTypst should succeed");
         assert!(Resp.success);
         assert_eq!(Resp.page_count, 1);
         assert!( ! Resp.pages.is_empty());
@@ -3262,10 +3453,18 @@ mod tests
    #[test]
     fn TestFormatTypstRawCodeBlock()
     {
-        let Source = "#rect[\n```rust\nfn test() {\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
-        let Formatted = FormatTypst(Source).expect("FormatTypst should succeed");
-        assert!(Formatted.Success);
-        assert!(!Formatted.Formatted.contains("fn test() {"));
+        // 1. Test Monolith collapsing for short block within complexity budget
+        let ShortSource = "#rect[\n```rust\nfn test() {\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
+        let FormattedShort = FormatTypst(ShortSource).expect("FormatTypst should succeed");
+        assert!(FormattedShort.Success);
+        assert!(FormattedShort.Formatted.contains("fn test() { let x = 1; return x; }"));
+
+        // 2. Test Expanded Symmetry when container contains a forced break
+        let LongSource = "#rect[\n```rust\nfn test() {\n// forced break\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
+        let FormattedLong = FormatTypst(LongSource).expect("FormatTypst should succeed");
+        assert!(FormattedLong.Success);
+        assert!(!FormattedLong.Formatted.contains("fn test() {"));
+        assert!(FormattedLong.Formatted.contains("fn test()\n{"));
     }
 
    #[test]
@@ -3297,6 +3496,7 @@ mod tests
    #[test]
     fn TestWorkspaceFileOperations()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
         let OriginalDirs = GetTrackedDirectories();
         let TempDir = std::env::temp_dir().join(format!("test_ws_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&TempDir);
@@ -3328,6 +3528,7 @@ mod tests
    #[test]
     fn TestGetWorkspaceInfo()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
         let Info = GetWorkspaceInfo().expect("GetWorkspaceInfo should succeed");
         assert!(Info.Success);
         assert!( ! Info.Directories.is_empty());
@@ -3356,6 +3557,7 @@ mod tests
    #[test]
     fn TestSavePastedFileAssetAndDeduplication()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
         let OriginalDirs = GetTrackedDirectories();
         let Nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}_{}", std::process::id(), Nanos));
@@ -3492,6 +3694,7 @@ mod tests
     #[test]
     fn TestSyncSelectionPrecision()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
         let MockSyncMap = vec![
             serde_json::json!({
                 "page": 1,
@@ -3555,5 +3758,43 @@ mod tests
         assert_eq!(Res2.len(), 2);
         assert!((Res2[0].Y - 200.0).abs() < 0.01);
         assert!((Res2[1].Y - 216.0).abs() < 0.01);
+    }
+
+   #[test]
+    fn TestProjectRootResolution()
+    {
+        let TempBase = std::env::temp_dir().join(format!("test_root_res_{}", std::process::id()));
+        let NestedDir = TempBase.join("subfolder").join("deep");
+        let _ = std::fs::create_dir_all(&NestedDir);
+        let ConfigMarker = TempBase.join("typst.toml");
+        let _ = std::fs::write(&ConfigMarker, "[package]\nname = \"test_pkg\"\nversion = \"0.1.0\"\n");
+        let DocPath = NestedDir.join("main.typ");
+        let _ = std::fs::write(&DocPath, "= Deep Document\n");
+
+        let Resolved = ResolveDocRoot(Some(&DocPath.to_string_lossy()), &TempBase);
+        let CanonExpected = CanonicalizeOrResolve(&TempBase);
+        assert_eq!(Resolved, CanonExpected);
+
+        let _ = std::fs::remove_dir_all(&TempBase);
+    }
+
+   #[test]
+    fn TestConcurrentJobIsolation()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let SourceEditor = "= Active Editor Document\nHello Editor.".to_string();
+        let SourceBg = "= Background Thumbnail Document\nHello Background.".to_string();
+
+        let RespEditor = CompileTypstSync(SourceEditor, None, Some(false)).expect("Editor compile succeeds");
+        assert!(RespEditor.success);
+        let ActiveSyncAfterEditor = LAST_ACTIVE_SYNC_MAP.lock().unwrap().clone();
+        assert!(!ActiveSyncAfterEditor.is_empty(), "Editor compile must populate LAST_ACTIVE_SYNC_MAP");
+
+        // Run background job: must NOT modify LAST_ACTIVE_SYNC_MAP
+        let RespBg = CompileTypstSync(SourceBg, None, Some(true)).expect("Background compile succeeds");
+        assert!(RespBg.success);
+        let ActiveSyncAfterBg = LAST_ACTIVE_SYNC_MAP.lock().unwrap().clone();
+
+        assert_eq!(ActiveSyncAfterEditor, ActiveSyncAfterBg);
     }
 }

@@ -3233,6 +3233,7 @@ dependencies = [
  "typst",
  "typst-bundle",
  "typst-dev-assets",
+ "typst-docs",
  "typst-eval",
  "typst-html",
  "typst-ide",

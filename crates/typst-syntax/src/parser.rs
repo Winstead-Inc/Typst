@@ -546,8 +546,10 @@ fn code_exprs(p: & mut Parser, stop_set: SyntaxSet)
     let Some(p) = p.check_depth_until(stop_set)
     else { return ; };
 
+    p.code_block_depth += 1;
     while ! p.at_set(stop_set)
     {
+        p.stmt_node_start = p.nodes.len();
         p.with_nl_mode
         (
             AtNewline::ContextualContinue, | p |
@@ -574,35 +576,50 @@ fn code_exprs(p: & mut Parser, stop_set: SyntaxSet)
             }
         );
     }
+    p.code_block_depth -= 1;
 }
 
 /// Parses an atomic code expression embedded in markup or math.
 fn embedded_code_expr(p: & mut Parser)
 {
+    let is_line_start = p.token.start == 0 || p.had_newline();
     p.enter_modes
     (
         SyntaxMode::Code, AtNewline::Stop, | p |
         {
+            let prev_start = p.hash_at_line_start;
+            let prev_stmt_node = p.stmt_node_start;
+            p.hash_at_line_start = is_line_start;
             p.assert(SyntaxKind::Hash);
-            if p.had_trivia() || p.end() { p.expected("expression"); return ; }
+            p.stmt_node_start = p.nodes.len();
+            if p.had_trivia() || p.end()
+            {
+                p.expected("expression");
+                p.hash_at_line_start = prev_start;
+                p.stmt_node_start = prev_stmt_node;
+                return ;
+            }
 
             let stmt = p.at_set(set::STMT);
-            code_expr_prec(p, true, 0);
+            code_expr_prec(p, true, 0, true);
 
             // Note: 2d math arguments rely on the `directly_at` check.
             let semi = (stmt || p.directly_at(SyntaxKind::Semicolon))
             && p.eat_if(SyntaxKind::Semicolon);
 
             if stmt && ! semi && ! p.end() && ! p.at(SyntaxKind::RightBracket) { p.expected("semicolon or line break"); }
+            p.hash_at_line_start = prev_start;
+            p.stmt_node_start = prev_stmt_node;
         }
     );
 }
 
 /// Parses a single code expression.
-fn code_expr(p: & mut Parser) { code_expr_prec(p, false, 0); }
+fn code_expr(p: & mut Parser) { code_expr_prec(p, false, 0, true); }
+fn code_expr_no_bracket(p: & mut Parser) { code_expr_prec(p, false, 0, false); }
 
 /// Parses a code expression with at least the given precedence.
-fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
+fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: bool)
 {
     let Some(p) = & mut p.increase_depth()
     else { return ; };
@@ -614,7 +631,7 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
         {
             let op = ast::UnOp::from_kind(p.current()).unwrap();
             p.eat();
-            code_expr_prec(p, atomic, op.precedence());
+            code_expr_prec(p, atomic, op.precedence(), allow_bracket);
             p.wrap(m, SyntaxKind::Unary);
         }
         else { p.unexpected(); p.hint("to use a unary operator here, wrap the entire expression in parentheses",); }
@@ -627,16 +644,59 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
     {
         if m.0 < p.nodes.len() && p[m].kind().is_stmt() { break; }
 
-        let is_content_block = m.0 < p.nodes.len() && p[m].kind() == SyntaxKind::ContentBlock;
-        let at_args = ! is_content_block && p.with_nl_mode
+        let is_non_callable = m.0 < p.nodes.len() && matches!(
+            p[m].kind(),
+            SyntaxKind::Int
+                | SyntaxKind::Float
+                | SyntaxKind::Bool
+                | SyntaxKind::Str
+                | SyntaxKind::None
+                | SyntaxKind::Auto
+                | SyntaxKind::Array
+                | SyntaxKind::Dict
+                | SyntaxKind::Binary
+                | SyntaxKind::Unary
+                | SyntaxKind::ContentBlock
+        );
+
+        let is_detached = p.token.newline.is_some();
+        let is_interior_expr = m.0 > p.stmt_node_start;
+
+        let at_args = ! is_non_callable && (!is_detached || !is_interior_expr) && p.with_nl_mode
         (
             AtNewline::StopParBreak,
-            | p | (!had_call || p.token.newline.is_none()) && (p.at(SyntaxKind::LeftParen) || p.at(SyntaxKind::LeftBracket))
+            | p |
+            {
+                let at_paren = p.at(SyntaxKind::LeftParen)
+                    && (!had_call || p.token.newline.is_none())
+                    && (!atomic || (p.hash_at_line_start && p.token.newline.is_some()) || !p.had_trivia());
+
+                let at_bracket = allow_bracket
+                    && p.at(SyntaxKind::LeftBracket)
+                    && (!had_content_block_arg || !atomic || p.token.newline.is_none())
+                    && (!atomic || p.hash_at_line_start || p.token.newline.is_none());
+
+                at_paren || at_bracket
+            }
         );
 
         if at_args
         {
-            let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p) });
+            let is_detached_paren = p.token.newline.is_some() && p.at(SyntaxKind::LeftParen);
+            let checkpoint = if is_detached_paren { Some(p.checkpoint()) } else { None };
+
+            let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, allow_bracket) });
+
+            if let Some(cp) = checkpoint
+            {
+                let has_errors = p.nodes[cp.node_len..].iter().any(|node| node.diagnosis().errors);
+                if has_errors
+                {
+                    p.restore(cp);
+                    break;
+                }
+            }
+
             if had_bracket { had_content_block_arg = true; }
             had_call = true;
             p.wrap(m, SyntaxKind::FuncCall);
@@ -673,7 +733,7 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
             match op.assoc() { ast::Assoc::Left => prec += 1, ast::Assoc::Right => {} }
 
             p.eat();
-            code_expr_prec(p, false, prec);
+            code_expr_prec(p, false, prec, allow_bracket);
             p.wrap(m, SyntaxKind::Binary);
             continue;
         }
@@ -822,10 +882,20 @@ fn let_binding(p: & mut Parser)
     if at_eq
     {
         p.with_nl_mode(AtNewline::Continue, | p | p.assert(SyntaxKind::Eq));
-        p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); });
+        let rhs_on_newline = p.token.newline.is_some();
+        if rhs_on_newline
+        {
+            p.stmt_node_start = p.nodes.len();
+            p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); });
+        }
+        else
+        {
+            p.with_nl_mode(AtNewline::ContextualContinue, | p | { code_expr(p); });
+        }
     }
     else if closure && p.with_nl_mode(AtNewline::Continue, | p | p.at(SyntaxKind::LeftBrace))
     {
+        p.stmt_node_start = p.nodes.len();
         p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr(p); });
     }
     else if closure || other
@@ -848,8 +918,8 @@ fn set_rule(p: & mut Parser)
     p.expect(SyntaxKind::Ident);
     while p.eat_if(SyntaxKind::Dot) { p.expect(SyntaxKind::Ident); p.wrap(m2, SyntaxKind::FieldAccess); }
 
-    p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p); });
-    if p.eat_if(SyntaxKind::If) { code_expr(p); }
+    p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, true); });
+    if p.eat_if(SyntaxKind::If) { code_expr_no_bracket(p); }
     p.wrap(m, SyntaxKind::SetRule);
 }
 
@@ -873,7 +943,7 @@ fn contextual(p: & mut Parser, atomic: bool)
 {
     let m = p.marker();
     p.assert(SyntaxKind::Context);
-    p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr_prec(p, atomic, 0); });
+    p.with_nl_mode(AtNewline::StopParBreak, | p | { code_expr_prec(p, atomic, 0, true); });
     p.wrap(m, SyntaxKind::Contextual);
 }
 
@@ -882,7 +952,7 @@ fn conditional(p: & mut Parser)
 {
     let m = p.marker();
     p.assert(SyntaxKind::If);
-    code_expr(p);
+    code_expr_no_bracket(p);
     p.with_nl_mode(AtNewline::StopParBreak, | p | { block(p); });
     let at_else = p.with_nl_mode(AtNewline::StopParBreak, | p | p.at(SyntaxKind::Else));
     if at_else
@@ -897,7 +967,7 @@ fn while_loop(p: & mut Parser)
 {
     let m = p.marker();
     p.assert(SyntaxKind::While);
-    code_expr(p);
+    code_expr_no_bracket(p);
     p.with_nl_mode(AtNewline::StopParBreak, | p | { block(p); });
     p.wrap(m, SyntaxKind::WhileLoop);
 }
@@ -920,7 +990,7 @@ fn for_loop(p: & mut Parser)
     }
 
     p.expect(SyntaxKind::In);
-    code_expr(p);
+    code_expr_no_bracket(p);
     p.with_nl_mode(AtNewline::StopParBreak, | p | { block(p); });
     p.wrap(m, SyntaxKind::ForLoop);
 }
@@ -1182,7 +1252,7 @@ fn array_or_dict_item(p: & mut Parser, state: & mut GroupState)
 }
 
 /// Parses a function call's argument list: `(12pt, y)`.
-fn args(p: & mut Parser) -> bool
+fn args(p: & mut Parser, allow_bracket: bool) -> bool
 {
     if ! p.at(SyntaxKind::LeftParen) && ! p.at(SyntaxKind::LeftBracket) { p.expected("argument list"); }
 
@@ -1217,7 +1287,8 @@ fn args(p: & mut Parser) -> bool
     (
         AtNewline::StopParBreak, | p |
         {
-            while p.at(SyntaxKind::LeftBracket)
+            while allow_bracket
+                && p.at(SyntaxKind::LeftBracket)
             {
                 had_bracket = true;
                 content_block(p);
@@ -1407,7 +1478,7 @@ fn pattern_leaf<'s>(p: & mut Parser<'s>, reassignment: bool , seen: & mut FxHash
     // We parse an atomic expression even though we only want an identifier for
     // better error recovery. We can mark the whole expression as unexpected
     // instead of going through its pieces one by one.
-    code_expr_prec(p, true, 0);
+    code_expr_prec(p, true, 0, false);
 
     if ! reassignment
     {
@@ -1478,6 +1549,12 @@ struct Parser<'s>
     memo: MemoArena,
     /// The current expression nesting depth.
     depth: u32,
+    /// Nesting depth of code blocks.
+    code_block_depth: usize,
+    /// Whether an embedded code expression started at the beginning of a line.
+    hash_at_line_start: bool,
+    /// Starting node index of the current statement.
+    stmt_node_start: usize,
 }
 
 /// A single token returned from the lexer with a cached [`SyntaxKind`] and a
@@ -1575,7 +1652,7 @@ impl <'s> Parser<'s>
         let nl_mode = AtNewline::Continue;
         let mut nodes = vec![];
         let token = Self::lex( & mut nodes, & mut lexer, nl_mode);
-        Self { text, lexer, nl_mode, token, balanced: true, nodes, memo: MemoArena::default (), depth: 0, }
+        Self { text, lexer, nl_mode, token, balanced: true, nodes, memo: MemoArena::default (), depth: 0, code_block_depth: 0, hash_at_line_start: false, stmt_node_start: 0, }
     }
 
     /// Consume the parser, yielding the full vector of parsed [`SyntaxNode`]s.
@@ -1756,15 +1833,26 @@ impl <'s> Parser<'s>
         let mut space_with_newline = false;
         let mut parbreak = false;
 
+        let mut total_newlines = 0;
         while kind.is_trivia()
         {
-            space_with_newline |= kind == SyntaxKind::SpaceWithNewline;
-            parbreak |= kind == SyntaxKind::Parbreak;
+            if kind == SyntaxKind::SpaceWithNewline
+            {
+                total_newlines += node.leaf_text().chars().filter( | & c | c == '\n').count();
+                space_with_newline = true;
+            }
+            else if kind == SyntaxKind::Parbreak
+            {
+                total_newlines += 2;
+                parbreak = true;
+            }
             n_trivia += 1;
             nodes.push(node);
             start = lexer.cursor();
             (kind, node) = lexer.next();
         }
+
+        if total_newlines >= 2 { parbreak = true; }
 
         let newline = if space_with_newline || parbreak
         {
@@ -1806,7 +1894,7 @@ struct MemoArena
 type MemoKey = usize;
 
 /// A checkpoint of the parser which can fully restore it to a previous state.
-struct Checkpoint { node_len: usize, state: PartialState, }
+struct Checkpoint { node_len: usize, state: PartialState, balanced: bool, hash_at_line_start: bool, stmt_node_start: usize, }
 
 /// State needed to restore the parser's current token and the lexer (but not
 /// the nodes vector).
@@ -1820,7 +1908,7 @@ impl Parser<'_>
     /// extending the arena and storing the extended range and a checkpoint.
     fn memoize_parsed_nodes( & mut self, key: MemoKey, prev_len: usize)
     {
-        let Checkpoint { state, node_len }
+        let Checkpoint { state, node_len, .. }
         = self.checkpoint();
         let memo_start = self.memo.arena.len();
         self.memo.arena.extend_from_slice( & self.nodes[prev_len..node_len]);
@@ -1850,7 +1938,14 @@ impl Parser<'_>
     }
 
     /// Restore the parser to the state at a checkpoint.
-    fn restore( & mut self, checkpoint: Checkpoint) { self.nodes.truncate(checkpoint.node_len); self.restore_partial(checkpoint.state); }
+    fn restore( & mut self, checkpoint: Checkpoint)
+    {
+        self.balanced = checkpoint.balanced;
+        self.hash_at_line_start = checkpoint.hash_at_line_start;
+        self.stmt_node_start = checkpoint.stmt_node_start;
+        self.nodes.truncate(checkpoint.node_len);
+        self.restore_partial(checkpoint.state);
+    }
 
     /// Restore parts of the checkpoint excluding the nodes vector.
     fn restore_partial( & mut self, state: PartialState)
@@ -1865,7 +1960,7 @@ impl Parser<'_>
     {
         let node_len = self.nodes.len();
         let state = PartialState { cursor: self.lexer.cursor(), lex_mode: self.lexer.mode(), token: self.token.clone(), };
-        Checkpoint { node_len, state }
+        Checkpoint { node_len, state, balanced: self.balanced, hash_at_line_start: self.hash_at_line_start, stmt_node_start: self.stmt_node_start, }
     }
 }
 

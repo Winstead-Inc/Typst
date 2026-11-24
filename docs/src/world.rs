@@ -25,7 +25,7 @@ use typst_kit::diagnostics::DiagnosticWorld;
 use typst_kit::files:: { FileLoader, FileStore, FsRoot };
 use typst_utils:: { LazyHash, PicoStr, display_commit };
 
-use crate::Config;
+use crate::args::Config;
 use crate::example::FRAME_RULE;
 use crate::live::RangePair;
 
@@ -182,7 +182,7 @@ fn library(is_dev_version: bool , sys_inputs: & [(String, String)]) -> Library
 }
 
 /// A module with various utilities for the docs.
-fn stdx_module(is_dev_version: bool) -> Module
+pub fn stdx_module(is_dev_version: bool) -> Module
 {
     let mut scope = Scope:: new ();
     scope.define_elem::<ConfigElem>();

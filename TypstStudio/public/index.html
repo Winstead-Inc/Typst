@@ -570,26 +570,51 @@
                             <polyline Points = "6 9 12 15 18 9" />
                         </svg>
                     </button>
+
+                    <button Type = "button" Class = "HeroActionCard" Id = "HeroStandaloneProjectBtn" Title = "Work on a standalone .typ file (single file project)">
+                        <div Class = "HeroActionIconBox" style = "background: rgba(168, 85, 247, 0.15); color: #C084FC;">
+                            <svg Width = "18" Height = "18" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline Points = "14 2 14 8 20 8" />
+                                <line X1 = "12" Y1 = "18" X2 = "12" Y2 = "12" />
+                                <line X1 = "9" Y1 = "15" X2 = "15" Y2 = "15" />
+                            </svg>
+                        </div>
+                        <div Class = "HeroActionTextBox">
+                            <div Class = "HeroActionTitle">Standalone file</div>
+                            <div Class = "HeroActionSub">Work on 1 file as project</div>
+                        </div>
+                    </button>
                 </div>
 
                 <!-- Secondary Action Row: New Folder & Toolbar -->
                 <div Class = "HomepageSecondaryRow">
-                    <button Type = "button" Class = "HomepageFolderBtn" Id = "HomepageNewFolderBtn" Title = "Open or track a new workspace directory">
-                        <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                            <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
-                            <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
-                        </svg>
-                        <span>New folder</span>
-                    </button>
+                    <div style = "display: flex; align-items: center; gap: 8px;">
+                        <button Type = "button" Class = "HomepageFolderBtn" Id = "HomepageNewFolderBtn" Title = "Add project directory to workspace">
+                            <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
+                                <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
+                            </svg>
+                            <span>Add project</span>
+                        </button>
+                        <button Type = "button" Class = "HomepageFolderBtn" Id = "HomepageOpenStandaloneBtn" Title = "Open standalone .typ file (1 single file project)">
+                            <svg Width = "13" Height = "13" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                                <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline Points = "14 2 14 8 20 8" />
+                            </svg>
+                            <span>Open standalone file</span>
+                        </button>
+                    </div>
 
                     <div Class = "HomepageToolbarRight">
                         <span Class = "HomepageSortLabel">sort by</span>
                         <div Class = "HomepageSortDropdownWrapper">
                             <select Id = "HomepageSortSelect" Class = "HomepageSortSelect" Title = "Sort documents">
-                                <option Value = "modified" Selected>last modified</option>
-                                <option Value = "name">name (A-Z)</option>
-                                <option Value = "created">created</option>
-                                <option Value = "size">file size</option>
+                                <option Value = "modified" Selected>Last modified</option>
+                                <option Value = "name">Alphabetical</option>
+                                <option Value = "created">Created</option>
+                                <option Value = "newest">Newest first</option>
+                                <option Value = "oldest">Oldest first</option>
                             </select>
                         </div>
                         <div Class = "HomepageViewToggle">
@@ -823,7 +848,7 @@
                 <div Class = "SettingsTabs">
                     <button Type = "button" Id = "SettingsTabAppearance" Class = "SettingsTabBtn Active">Appearance &amp; Typography</button>
                     <button Type = "button" Id = "SettingsTabPaper" Class = "SettingsTabBtn">Paper &amp; Rendering</button>
-                    <button Type = "button" Id = "SettingsTabDirectories" Class = "SettingsTabBtn">Tracked Directories</button>
+                    <button Type = "button" Id = "SettingsTabDirectories" Class = "SettingsTabBtn">Added Projects</button>
                     <button Type = "button" Id = "SettingsTabLafs" Class = "SettingsTabBtn">LAFS &amp; Formatting</button>
                 </div>
                 <button Type = "button" Id = "CloseSettingsModalBtn" Class = "MiniCloseBtn">×</button>
@@ -1037,34 +1062,34 @@
                     </div>
                 </div>
 
-                <!-- Tab 3: Tracked Directories -->
+                <!-- Tab 3: Added Projects -->
                 <div Class = "SettingsTabView" Id = "SettingsViewDirectories">
                     <div Class = "AddDirectoryBar">
                         <input Type        = "text"
                                Id          = "NewDirectoryInput"
                                Class       = "DashboardTextInput"
-                               Title       = "New Directory Path"
-                               Aria-Label  = "New Directory Path"
+                               Title       = "New Project Directory Path"
+                               Aria-Label  = "New Project Directory Path"
                                Placeholder = "e.g. e:\Typst\projects or C:\Users\..." />
                         <div Class = "AddDirectoryButtonsRow">
                             <button Type  = "button"
                                     Id    = "PickFolderBtn"
                                     Class = "Button Secondary"
-                                    Title = "Browse and pick folder from disk">
+                                    Title = "Browse and pick project folder from disk">
                                 <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                                     <path D = "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                                 </svg>
-                                <span>Pick Folder</span>
+                                <span>Browse Folder</span>
                             </button>
                             <button Type  = "button"
                                     Id    = "AddDirectorySubmitBtn"
                                     Class = "Button Secondary"
-                                    Title = "Add directory to workspace">
+                                    Title = "Add project directory to workspace">
                                 <svg Width = "14" Height = "14" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                                     <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
                                     <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
                                 </svg>
-                                <span>Add Directory</span>
+                                <span>Add Project</span>
                             </button>
                         </div>
                     </div>
@@ -1416,17 +1441,24 @@
                         <line X1 = "12" Y1 = "18" X2 = "12" Y2 = "12" />
                         <line X1 = "9" Y1 = "15" X2 = "15" Y2 = "15" />
                     </svg>
-                    <h3>New Typst Document</h3>
+                    <h3>New Typst Project</h3>
                 </div>
                 <button Type = "button" Id = "CloseNewDocModalBtn" Class = "MiniCloseBtn" Title = "Cancel (Escape)">×</button>
             </div>
             <div Class = "ModalBody" Style = "padding: 20px 24px;">
-                <label Style = "display: block; font-size: 12px; color: #A1A1AA; margin-bottom: 8px;">Document File Name (.typ):</label>
-                <input Type = "text" Id = "NewDocModalInput" Class = "DocInput" Style = "width: 100%; box-sizing: border-box; padding: 10px 14px; background: #18181B; border: 1px solid #3F3F46; border-radius: 8px; color: #FFFFFF; font-size: 13.5px; outline: none;" Placeholder = "e.g. Chapter1.typ" />
+                <label Style = "display: block; font-size: 12px; color: #A1A1AA; margin-bottom: 6px;">Target Project Directory:</label>
+                <div Style = "display: flex; gap: 8px; margin-bottom: 12px;">
+                    <select Id = "NewDocModalProjectDirSelect" Class = "DocInput" Style = "flex: 1; box-sizing: border-box; padding: 10px 14px; background: #18181B; border: 1px solid #3F3F46; border-radius: 8px; color: #FFFFFF; font-size: 13px; outline: none;"></select>
+                    <button Type = "button" Id = "NewDocModalBrowseDirBtn" Class = "Button Secondary Small" Title = "Browse folder from disk" Style = "white-space: nowrap; padding: 0 12px;">Browse Folder</button>
+                </div>
+                <label Style = "display: block; font-size: 12px; color: #A1A1AA; margin-bottom: 6px;">New Project Subfolder (Optional):</label>
+                <input Type = "text" Id = "NewDocModalSubfolderInput" Class = "DocInput" Style = "width: 100%; box-sizing: border-box; padding: 10px 14px; background: #18181B; border: 1px solid #3F3F46; border-radius: 8px; color: #FFFFFF; font-size: 13.5px; outline: none; margin-bottom: 12px;" Placeholder = "e.g. MyNewProject (optional)" />
+                <label Style = "display: block; font-size: 12px; color: #A1A1AA; margin-bottom: 6px;">Entry Document Name (.typ):</label>
+                <input Type = "text" Id = "NewDocModalInput" Class = "DocInput" Style = "width: 100%; box-sizing: border-box; padding: 10px 14px; background: #18181B; border: 1px solid #3F3F46; border-radius: 8px; color: #FFFFFF; font-size: 13.5px; outline: none;" Placeholder = "e.g. main.typ or Document.typ" />
                 <div Id = "NewDocModalError" Style = "color: #EF4444; font-size: 11.5px; margin-top: 6px; display: none;"></div>
                 <div Style = "display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px;">
                     <button Type = "button" Id = "NewDocModalCancelBtn" Class = "Button Secondary Small">Cancel</button>
-                    <button Type = "button" Id = "NewDocModalCreateBtn" Class = "Button Primary Small">Create Document</button>
+                    <button Type = "button" Id = "NewDocModalCreateBtn" Class = "Button Primary Small">Create Project</button>
                 </div>
             </div>
         </div>

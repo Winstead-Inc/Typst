@@ -19,6 +19,7 @@ docs/dist
 
 # Rust
 /target
+**/target_test
 **/*.rs.bk
 
 # Node

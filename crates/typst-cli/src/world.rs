@@ -44,7 +44,7 @@ impl SystemWorld
         // Set up the thread pool.
         if let Some(jobs) = process_args.jobs { rayon::ThreadPoolBuilder::new ().num_threads(jobs).use_current_thread().build_global().ok(); }
 
-        let library =
+        let mut library =
         {
             // Convert the input pairs to a dictionary.
             let inputs: Dict = world_args
@@ -61,6 +61,8 @@ impl SystemWorld
             .with_features(features)
             .build()
         };
+
+        library.global.scope_mut().define("stdx", typst_docs::world::stdx_module(false));
 
         let now = match world_args.creation_timestamp { Some(time) => Time::fixed_timestamp(time).map_err( | _ | WorldCreationError::InvalidTimestamp)?, None => Time::system(), };
 

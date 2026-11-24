@@ -6,6 +6,14 @@ authors = { workspace = true }
 edition = { workspace = true }
 publish = false
 
+[lib]
+name = "typst_docs"
+path = "src/lib.rs"
+
+[[bin]]
+name = "typst-docs"
+path = "src/main.rs"
+
 [dependencies]
 typst = { workspace = true }
 typst-assets = { workspace = true, features = ["fonts"] }

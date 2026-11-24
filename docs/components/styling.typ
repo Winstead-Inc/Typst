@@ -189,7 +189,11 @@
     show: rest => if base-target != none
     {
         show heading: it =>
-        { register-def(label(str(def-label(base-target)) + ":" + str(it.label)), it.location(), title: it.body) it }
+        {
+            if it.at("label", default: none) != none
+            { register-def(label(str(def-label(base-target)) + ":" + str(it.label)), it.location(), title: it.body) }
+            it
+        }
         rest
     }
     else

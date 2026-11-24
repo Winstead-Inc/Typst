@@ -11765,6 +11765,24 @@ function SetupEventListeners()
         CreateNewDocBtn.addEventListener("click", ConfirmCreateNewDocument);
     }
 
+    const BrowseDirBtn = document.getElementById("NewDocModalBrowseDirBtn");
+    if (BrowseDirBtn)
+    {
+        BrowseDirBtn.addEventListener
+        (
+            "click", async () =>
+            {
+                await PickFolderFromDisk();
+                const DirSelect = document.getElementById("NewDocModalProjectDirSelect");
+                if (DirSelect && WorkspaceDirectories && WorkspaceDirectories.length > 0)
+                {
+                    DirSelect.innerHTML = WorkspaceDirectories.map((D) => `<option value="${EscapeHtml(D)}">${EscapeHtml(D)}</option>`).join("");
+                    DirSelect.value = WorkspaceDirectories[WorkspaceDirectories.length - 1];
+                }
+            }
+        );
+    }
+
     const NewDocInput = document.getElementById("NewDocModalInput");
     if (NewDocInput)
     {
@@ -11870,6 +11888,30 @@ function SetupEventListeners()
             "click", () =>
             {
                 PickFolderFromDisk();
+            }
+        );
+    }
+
+    const HeroStandaloneBtn = document.getElementById("HeroStandaloneProjectBtn");
+    if (HeroStandaloneBtn)
+    {
+        HeroStandaloneBtn.addEventListener
+        (
+            "click", () =>
+            {
+                PickStandaloneFileFromDisk();
+            }
+        );
+    }
+
+    const HomepageOpenStandaloneBtn = document.getElementById("HomepageOpenStandaloneBtn");
+    if (HomepageOpenStandaloneBtn)
+    {
+        HomepageOpenStandaloneBtn.addEventListener
+        (
+            "click", () =>
+            {
+                PickStandaloneFileFromDisk();
             }
         );
     }
@@ -11992,6 +12034,142 @@ function SetupEventListeners()
         (
             "click", (Event) =>
             {
+                // 1. Toggle Project Box Collapse
+                const ToggleHeader = Event.target.closest("[data-action='toggle-project-box']");
+                if (ToggleHeader && !Event.target.closest("button") && !Event.target.closest(".ProjectBoxActionBtn"))
+                {
+                    const ProjPath = ToggleHeader.dataset.projectPath;
+                    const Box = ToggleHeader.closest(".DashboardProjectBox");
+                    if (Box && ProjPath)
+                    {
+                        const NowCollapsed = !Box.classList.contains("Collapsed");
+                        Box.classList.toggle("Collapsed", NowCollapsed);
+                        if (NowCollapsed)
+                        {
+                            CollapsedProjectBoxes.add(ProjPath);
+                        }
+                        else
+                        {
+                            CollapsedProjectBoxes.delete(ProjPath);
+                        }
+                        try
+                        {
+                            localStorage.setItem("TypstStudio_CollapsedProjects", JSON.stringify(Array.from(CollapsedProjectBoxes)));
+                        }
+                        catch (Ignored)
+                        {
+                        }
+                        return ;
+                    }
+                }
+
+                // 1b. Toggle Project Subfolder Collapse
+                const SubfolderToggle = Event.target.closest("[data-action='toggle-project-subfolder']");
+                if (SubfolderToggle && !Event.target.closest("button") && !Event.target.closest(".ProjectSubfolderActionBtn"))
+                {
+                    const FolderKey = SubfolderToggle.dataset.folderKey;
+                    const SubGroup = SubfolderToggle.closest(".ProjectSubfolderGroup");
+                    if (SubGroup && FolderKey)
+                    {
+                        const NowCollapsed = !SubGroup.classList.contains("Collapsed");
+                        SubGroup.classList.toggle("Collapsed", NowCollapsed);
+                        if (NowCollapsed)
+                        {
+                            CollapsedSubfolders.add(FolderKey);
+                        }
+                        else
+                        {
+                            CollapsedSubfolders.delete(FolderKey);
+                        }
+                        try
+                        {
+                            localStorage.setItem("TypstStudio_CollapsedSubfolders", JSON.stringify(Array.from(CollapsedSubfolders)));
+                        }
+                        catch (Ignored)
+                        {
+                        }
+                        return ;
+                    }
+                }
+
+                // 1c. Open Project Folder in Explorer / Editor
+                const OpenFolderBtn = Event.target.closest("[data-action='open-project-folder']");
+                if (OpenFolderBtn && OpenFolderBtn.dataset.folderPath)
+                {
+                    const TargetFolderPath = OpenFolderBtn.dataset.folderPath;
+                    const TargetProjPath = OpenFolderBtn.dataset.projectPath || TargetFolderPath;
+                    OpenProjectFolderInExplorer(TargetProjPath, TargetFolderPath);
+                    return ;
+                }
+
+                // 1d. New File in Project Subfolder
+                const NewSubfolderDocBtn = Event.target.closest("[data-action='new-subfolder-doc']");
+                if (NewSubfolderDocBtn && NewSubfolderDocBtn.dataset.folderPath)
+                {
+                    ShowNewDocumentModal(NewSubfolderDocBtn.dataset.folderPath);
+                    return ;
+                }
+
+                // 2. Open Project in Explorer / Editor
+                const OpenProjBtn = Event.target.closest("[data-action='open-project']");
+                if (OpenProjBtn && OpenProjBtn.dataset.projectPath)
+                {
+                    OpenProjectInExplorer(OpenProjBtn.dataset.projectPath);
+                    return ;
+                }
+
+                // 3. New File in Project
+                const NewProjDocBtn = Event.target.closest("[data-action='new-project-doc']");
+                if (NewProjDocBtn && NewProjDocBtn.dataset.projectPath)
+                {
+                    ShowNewDocumentModal(NewProjDocBtn.dataset.projectPath);
+                    return ;
+                }
+
+                // 4. Remove Project Directory
+                const RemoveProjDirBtn = Event.target.closest("[data-action='remove-project-dir']");
+                if (RemoveProjDirBtn && RemoveProjDirBtn.dataset.projectPath)
+                {
+                    RemoveWorkspaceDirectory(RemoveProjDirBtn.dataset.projectPath);
+                    return ;
+                }
+
+                // 5. Open Project File (sets Explorer root to this project directory)
+                const ProjFileCard = Event.target.closest("[data-action='open-project-file']");
+                if (ProjFileCard && ProjFileCard.dataset.filePath)
+                {
+                    const TargetFilePath = ProjFileCard.dataset.filePath;
+                    const TargetProjPath = ProjFileCard.dataset.projectPath;
+                    OpenProjectInExplorer(TargetProjPath, TargetFilePath);
+                    return ;
+                }
+
+                // 6. Open Standalone Document (isolates treeview to single file)
+                const StandaloneCard = Event.target.closest("[data-action='open-standalone-doc']");
+                if (StandaloneCard && StandaloneCard.dataset.filePath)
+                {
+                    const TargetFilePath = StandaloneCard.dataset.filePath;
+                    const TargetFileName = StandaloneCard.dataset.fileName;
+                    OpenStandaloneDocument(TargetFilePath, TargetFileName);
+                    return ;
+                }
+
+                // 7. Pick Standalone File
+                const PickStandaloneBtn = Event.target.closest("[data-action='pick-standalone-file']");
+                if (PickStandaloneBtn)
+                {
+                    PickStandaloneFileFromDisk();
+                    return ;
+                }
+
+                // 8. Add Project Directory
+                const AddProjDirBtn = Event.target.closest("[data-action='add-project-dir']");
+                if (AddProjDirBtn)
+                {
+                    PickFolderFromDisk();
+                    return ;
+                }
+
                 // Action Buttons inside List View or Cards
                 const ActionBtn = Event.target.closest("[data-action]");
                 if (ActionBtn)
@@ -12978,7 +13156,7 @@ async function AddWorkspaceDirectory()
 
 async function RemoveWorkspaceDirectory(DirPath)
 {
-    if (!confirm(`Remove directory from tracked workspace?\n\n${DirPath}`))
+    if (!confirm(`Remove directory from added workspace projects?\n\n${DirPath}`))
     {
         return ;
     }
@@ -13179,8 +13357,40 @@ async function RenameWorkspaceDocument(FilePath, CurrentName)
 let OpenTabs = [];
 let ActiveTabPath = "";
 let ExplorerCurrentRoot = "";
+let ExplorerIsStandalone = false;
 const ExplorerExpandedFolders = new Set();
 let ExplorerTreeCache = new Map();
+const CollapsedProjectBoxes = new Set();
+try
+{
+    const SavedCollapsed = JSON.parse(localStorage.getItem("TypstStudio_CollapsedProjects") || "[]");
+    if (Array.isArray(SavedCollapsed))
+    {
+        for (const P of SavedCollapsed)
+        {
+            CollapsedProjectBoxes.add(P);
+        }
+    }
+}
+catch (Ignored)
+{
+}
+
+const CollapsedSubfolders = new Set();
+try
+{
+    const SavedSubCollapsed = JSON.parse(localStorage.getItem("TypstStudio_CollapsedSubfolders") || "[]");
+    if (Array.isArray(SavedSubCollapsed))
+    {
+        for (const S of SavedSubCollapsed)
+        {
+            CollapsedSubfolders.add(S);
+        }
+    }
+}
+catch (Ignored)
+{
+}
 
 function GetFileIconSvg(FileName)
 {
@@ -13784,6 +13994,28 @@ async function RenderExplorerTree()
         return ;
     }
 
+    if (ExplorerIsStandalone || (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().endsWith(".typ")))
+    {
+        const FileName = ExplorerCurrentRoot.split(/[\\/]/).filter(Boolean).pop() || ExplorerCurrentRoot;
+        if (NameEl)
+        {
+            NameEl.textContent = `[Standalone] ${FileName}`;
+            NameEl.title = ExplorerCurrentRoot;
+        }
+
+        RootEl.innerHTML = "";
+        const StandaloneFiles = [
+            {
+                name: FileName,
+                path: ExplorerCurrentRoot,
+                is_dir: false
+            }
+        ];
+        await RenderTreeLevel(StandaloneFiles, RootEl, 0);
+        HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath || ExplorerCurrentRoot);
+        return ;
+    }
+
     if (!ExplorerCurrentRoot)
     {
         ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0]) ? WorkspaceDirectories[0]: "e:\\Typst";
@@ -13958,68 +14190,294 @@ function GroupWorkspaceIntoProjects()
 {
     const ProjectMap = new Map();
 
-    for (const File of WorkspaceFiles)
+    for (const Dir of (WorkspaceDirectories || []))
     {
-        const Dir = File.Directory || "Workspace";
-        if (!ProjectMap.has(Dir))
-        {
-            const DirName = Dir.split(/[\\/]/).filter(Boolean).pop() || Dir;
-            ProjectMap.set(Dir, {
+        const CleanDir = Dir.replace(/[\\/]+$/, "");
+        const DirName = CleanDir.split(/[\\/]/).filter(Boolean).pop() || CleanDir;
+        ProjectMap.set
+        (
+            CleanDir,
+            {
                 Name: DirName,
                 Path: Dir,
                 Files: [],
                 TotalSize: 0,
                 LatestModified: 0
-            });
-        }
-        const Proj = ProjectMap.get(Dir);
-        Proj.Files.push(File);
-        Proj.TotalSize += File.Size || 0;
-        if ((File.Modified || 0) > Proj.LatestModified)
+            }
+        );
+    }
+
+    for (const File of WorkspaceFiles)
+    {
+        const FilePath = (File.Path || "").replace(/\\/g, "/");
+        const FilePathLower = FilePath.toLowerCase();
+
+        let BestMatchKey = null;
+        let BestMatchLen = -1;
+
+        for (const [Key, Proj] of ProjectMap.entries())
         {
-            Proj.LatestModified = File.Modified;
+            const NormProjPath = (Proj.Path || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+            if (FilePathLower.startsWith(NormProjPath + "/"))
+            {
+                if (NormProjPath.length > BestMatchLen)
+                {
+                    BestMatchLen = NormProjPath.length;
+                    BestMatchKey = Key;
+                }
+            }
+        }
+
+        let TargetProj = null;
+        if (BestMatchKey)
+        {
+            TargetProj = ProjectMap.get(BestMatchKey);
+        }
+        else
+        {
+            const FallbackDir = (File.Directory || "Workspace").replace(/[\\/]+$/, "");
+            if (!ProjectMap.has(FallbackDir))
+            {
+                const DirName = FallbackDir.split(/[\\/]/).filter(Boolean).pop() || FallbackDir;
+                ProjectMap.set
+                (
+                    FallbackDir,
+                    {
+                        Name: DirName,
+                        Path: File.Directory || FallbackDir,
+                        Files: [],
+                        TotalSize: 0,
+                        LatestModified: 0
+                    }
+                );
+            }
+            TargetProj = ProjectMap.get(FallbackDir);
+        }
+
+        if (TargetProj)
+        {
+            TargetProj.Files.push(File);
+            TargetProj.TotalSize += (File.Size || 0);
+            if ((File.Modified || 0) > TargetProj.LatestModified)
+            {
+                TargetProj.LatestModified = File.Modified;
+            }
         }
     }
 
-    for (const Dir of WorkspaceDirectories)
+    for (const Proj of ProjectMap.values())
     {
-        if (!ProjectMap.has(Dir))
-        {
-            const DirName = Dir.split(/[\\/]/).filter(Boolean).pop() || Dir;
-            ProjectMap.set
-            (
-                Dir,
-                {
-                    Name: DirName,
-                    Path: Dir,
-                    Files: [],
-                    TotalSize: 0,
-                    LatestModified: 0
-                }
-            );
-        }
+        Proj.Files.sort((A, B) => (B.Modified || 0) - (A.Modified || 0));
     }
 
     return Array.from(ProjectMap.values());
 }
 
-function OpenProjectInExplorer(ProjectPath)
+function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
 {
-    ExplorerCurrentRoot = ProjectPath;
-    ExplorerExpandedFolders.clear();
-    ExplorerExpandedFolders.add(ProjectPath);
-    ExplorerTreeCache.clear();
+    const NormalizedNew = (ProjectPath || "").replace(/\\/g, "/").toLowerCase();
+    const NormalizedCur = (ExplorerCurrentRoot || "").replace(/\\/g, "/").toLowerCase();
+    const NeedsRootSwitch = ExplorerIsStandalone || (NormalizedNew !== NormalizedCur);
 
-    const Projects = GroupWorkspaceIntoProjects();
-    const TargetProj = Projects.find( (P) => P.Path.toLowerCase() === ProjectPath.toLowerCase());
-    if (TargetProj && TargetProj.Files.length > 0)
+    ExplorerIsStandalone = false;
+    ExplorerCurrentRoot = ProjectPath;
+
+    if (NeedsRootSwitch)
     {
-        OpenDocumentInTab(TargetProj.Files[0].Path, TargetProj.Files[0].Name);
+        ExplorerExpandedFolders.clear();
+        ExplorerExpandedFolders.add(ProjectPath);
+        ExplorerTreeCache.clear();
+    }
+
+    if (FileToOpen)
+    {
+        const NormProj = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+        const NormFile = (FileToOpen || "").replace(/\\/g, "/");
+        if (NormFile.toLowerCase().startsWith(NormProj.toLowerCase() + "/"))
+        {
+            const Rel = NormFile.substring(NormProj.length + 1);
+            const Parts = Rel.split("/").filter(Boolean);
+            let Acc = NormProj;
+            for (let i = 0; i < Parts.length - 1; i++)
+            {
+                Acc += "/" + Parts[i];
+                ExplorerExpandedFolders.add(Acc);
+            }
+        }
+        const FileName = FileToOpen.split(/[\\/]/).filter(Boolean).pop() || FileToOpen;
+        OpenDocumentInTab(FileToOpen, FileName);
+    }
+    else
+    {
+        const Projects = GroupWorkspaceIntoProjects();
+        const NormTarget = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+        const TargetProj = Projects.find((P) => (P.Path || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === NormTarget);
+        if (TargetProj && TargetProj.Files.length > 0)
+        {
+            OpenDocumentInTab(TargetProj.Files[0].Path, TargetProj.Files[0].Name);
+        }
     }
 
     SwitchView("editor");
     ToggleExplorerSidebar(true);
+    if (NeedsRootSwitch)
+    {
+        RenderExplorerTree();
+    }
+    else
+    {
+        HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath);
+    }
+}
+
+function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
+{
+    const NormalizedNew = (ProjectPath || "").replace(/\\/g, "/").toLowerCase();
+    const NormalizedCur = (ExplorerCurrentRoot || "").replace(/\\/g, "/").toLowerCase();
+    const NeedsRootSwitch = ExplorerIsStandalone || (NormalizedNew !== NormalizedCur);
+
+    ExplorerIsStandalone = false;
+    ExplorerCurrentRoot = ProjectPath;
+
+    if (NeedsRootSwitch)
+    {
+        ExplorerExpandedFolders.clear();
+        ExplorerExpandedFolders.add(ProjectPath);
+        ExplorerTreeCache.clear();
+    }
+
+    if (FolderPath)
+    {
+        const NormProj = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+        const NormFolder = (FolderPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+        if (NormFolder.toLowerCase().startsWith(NormProj.toLowerCase() + "/"))
+        {
+            const Rel = NormFolder.substring(NormProj.length + 1);
+            const Parts = Rel.split("/").filter(Boolean);
+            let Acc = NormProj;
+            for (const Part of Parts)
+            {
+                Acc += "/" + Part;
+                ExplorerExpandedFolders.add(Acc);
+            }
+        }
+        else
+        {
+            ExplorerExpandedFolders.add(FolderPath);
+        }
+
+        const NormalizedTarget = FolderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+        const MatchingDoc = WorkspaceFiles.find
+        (
+            (F) =>
+            {
+                const FDir = (F.Directory || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+                return FDir === NormalizedTarget;
+            }
+        );
+        if (MatchingDoc)
+        {
+            OpenDocumentInTab(MatchingDoc.Path, MatchingDoc.Name);
+        }
+    }
+
+    SwitchView("editor");
+    ToggleExplorerSidebar(true);
+    if (NeedsRootSwitch)
+    {
+        RenderExplorerTree();
+    }
+    else
+    {
+        HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath);
+    }
+}
+
+function OpenStandaloneDocument(FilePath, FileName = null)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+    ExplorerIsStandalone = true;
+    ExplorerCurrentRoot = FilePath;
+    ExplorerExpandedFolders.clear();
+    ExplorerTreeCache.clear();
+
+    const Name = FileName || FilePath.split(/[\\/]/).filter(Boolean).pop() || FilePath;
+    TrackStandaloneDocument(FilePath);
+    OpenDocumentInTab(FilePath, Name);
+
+    SwitchView("editor");
+    ToggleExplorerSidebar(true);
     RenderExplorerTree();
+}
+
+function TrackStandaloneDocument(FilePath)
+{
+    try
+    {
+        const Raw = localStorage.getItem("TypstStudio_StandaloneProjects");
+        let List = Raw ? JSON.parse(Raw) : [];
+        if (!Array.isArray(List))
+        {
+            List = [];
+        }
+        const Norm = FilePath.replace(/\\/g, "/").toLowerCase();
+        List = List.filter((Item) => (typeof Item === "string" ? Item : Item.Path).replace(/\\/g, "/").toLowerCase() !== Norm);
+        List.unshift
+        (
+            {
+                Path: FilePath,
+                Name: FilePath.split(/[\\/]/).filter(Boolean).pop() || FilePath,
+                LastOpened: Date.now()
+            }
+        );
+        if (List.length > 50)
+        {
+            List = List.slice(0, 50);
+        }
+        localStorage.setItem("TypstStudio_StandaloneProjects", JSON.stringify(List));
+    }
+    catch (Err)
+    {
+        console.warn("Failed to save standalone document:", Err);
+    }
+}
+
+async function PickStandaloneFileFromDisk()
+{
+    try
+    {
+        if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+        {
+            const Selected = await window.__TAURI__.core.invoke
+            (
+                "PickFile",
+                {
+                    extensions: ["typ"],
+                    Extensions: ["typ"]
+                }
+            );
+            if (Selected)
+            {
+                OpenStandaloneDocument(Selected);
+            }
+        }
+        else
+        {
+            const Prompted = prompt("Enter full path to standalone .typ file:", "E:\\Typst\\document.typ");
+            if (Prompted && Prompted.trim())
+            {
+                OpenStandaloneDocument(Prompted.trim());
+            }
+        }
+    }
+    catch (Err)
+    {
+        console.error("Failed to pick standalone file:", Err);
+        ShowToast("Failed to open standalone file: " + Err, "error");
+    }
 }
 
 let TargetNewDocProjectPath = null;
@@ -14029,10 +14487,31 @@ function ShowNewDocumentModal(ProjectPath = null)
     TargetNewDocProjectPath = ProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
     const Modal = document.getElementById("NewDocumentModal");
     const Input = document.getElementById("NewDocModalInput");
+    const SubfolderInput = document.getElementById("NewDocModalSubfolderInput");
+    const DirSelect = document.getElementById("NewDocModalProjectDirSelect");
     const ErrorEl = document.getElementById("NewDocModalError");
     if (!Modal || !Input)
     {
         return ;
+    }
+
+    if (DirSelect)
+    {
+        const Dirs = (WorkspaceDirectories && WorkspaceDirectories.length > 0) ? WorkspaceDirectories : [TargetNewDocProjectPath];
+        DirSelect.innerHTML = Dirs.map((D) => `<option value="${EscapeHtml(D)}">${EscapeHtml(D)}</option>`).join("");
+        if (TargetNewDocProjectPath && Dirs.includes(TargetNewDocProjectPath))
+        {
+            DirSelect.value = TargetNewDocProjectPath;
+        }
+        else if (Dirs.length > 0)
+        {
+            DirSelect.value = Dirs[0];
+        }
+    }
+
+    if (SubfolderInput)
+    {
+        SubfolderInput.value = "";
     }
 
     Input.value = "Document.typ";
@@ -14084,6 +14563,8 @@ async function SaveWorkspaceFile(FilePath, Content)
 function ConfirmCreateNewDocument()
 {
     const Input = document.getElementById("NewDocModalInput");
+    const SubfolderInput = document.getElementById("NewDocModalSubfolderInput");
+    const DirSelect = document.getElementById("NewDocModalProjectDirSelect");
     const ErrorEl = document.getElementById("NewDocModalError");
     if (!Input)
     {
@@ -14101,7 +14582,13 @@ function ConfirmCreateNewDocument()
         return ;
     }
     const CleanName = RawName.endsWith(".typ") ? RawName : `${RawName}.typ`;
-    const TargetDir = TargetNewDocProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
+    const BaseDir = (DirSelect && DirSelect.value) ? DirSelect.value : (TargetNewDocProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst");
+    const Subfolder = (SubfolderInput && SubfolderInput.value.trim()) ? SubfolderInput.value.trim() : "";
+    let TargetDir = BaseDir;
+    if (Subfolder)
+    {
+        TargetDir = `${BaseDir}\\${Subfolder}`;
+    }
     const FullPath = `${TargetDir}\\${CleanName}`;
 
     CloseNewDocumentModal();
@@ -14114,8 +14601,7 @@ function ConfirmCreateNewDocument()
             (
                 () =>
                 {
-                    OpenDocumentInTab(FullPath, CleanName);
-                    SwitchView("editor");
+                    OpenProjectInExplorer(TargetDir, FullPath);
                     ShowToast(`Created ${CleanName}`, "success");
                 }
             );
@@ -14401,13 +14887,35 @@ function TrackRecentDocument(FilePath, Name)
 function RenderHomepage(FilterQuery = "")
 {
     const GridContainer = document.getElementById("DashboardProjectsGrid");
-    if (!GridContainer) { return ; }
+    if (!GridContainer)
+    {
+        return ;
+    }
 
-    // Aggregate all user documents: Open tabs, WorkspaceFiles, and Recent documents
-    const AllDocs = [];
-    const SeenPaths = new Set();
+    const Query = (FilterQuery || "").toLowerCase().trim();
 
-    // 0. Recent documents from localStorage (opened, created, or edited by the user)
+    // 1. Group 1: Added Project Directories
+    const Projects = GroupWorkspaceIntoProjects();
+
+    // 2. Group 2: Standalone Projects
+    let StandaloneList = [];
+    try
+    {
+        const Raw = localStorage.getItem("TypstStudio_StandaloneProjects");
+        if (Raw)
+        {
+            const Parsed = JSON.parse(Raw);
+            if (Array.isArray(Parsed))
+            {
+                StandaloneList = Parsed;
+            }
+        }
+    }
+    catch (Ignored)
+    {
+    }
+
+    // Also include any standalone files from RecentDocuments that do not belong to any added project directory
     try
     {
         const Recent = JSON.parse(localStorage.getItem("TypstStudio_RecentDocuments") || "[]");
@@ -14415,140 +14923,140 @@ function RenderHomepage(FilterQuery = "")
         {
             for (const R of Recent)
             {
-                if (R && R.Path && !SeenPaths.has(R.Path.toLowerCase()))
+                if (R && R.Path && R.Path.toLowerCase().endsWith(".typ"))
                 {
-                    SeenPaths.add(R.Path.toLowerCase());
-                    AllDocs.push
-                    ({
-                        Path: R.Path,
-                        Name: R.Name || R.Path.split(/[\\/]/).pop(),
-                        Directory: R.Path.substring(0, Math.max(R.Path.lastIndexOf('/'), R.Path.lastIndexOf('\\'))),
-                        Created: R.Created || R.Modified || Date.now(),
-                        Modified: R.Modified || Date.now(),
-                        Size: 8404
-                    });
+                    const NormR = R.Path.replace(/\\/g, "/").toLowerCase();
+                    const InProject = (WorkspaceDirectories || []).some
+                    (
+                        (Dir) =>
+                        {
+                            const NormDir = Dir.replace(/\\/g, "/").toLowerCase();
+                            return NormR.startsWith(NormDir.endsWith("/") ? NormDir : NormDir + "/");
+                        }
+                    );
+                    if (!InProject)
+                    {
+                        const Exists = StandaloneList.some
+                        (
+                            (S) => (typeof S === "string" ? S : S.Path).replace(/\\/g, "/").toLowerCase() === NormR
+                        );
+                        if (!Exists)
+                        {
+                            StandaloneList.push
+                            (
+                                {
+                                    Path: R.Path,
+                                    Name: R.Name || R.Path.split(/[\\/]/).pop(),
+                                    Modified: R.Modified || Date.now()
+                                }
+                            );
+                        }
+                    }
                 }
             }
         }
     }
-    catch (Ignored) {}
-
-    // 1. Open tabs
-    if (Array.isArray(OpenTabs))
+    catch (Ignored)
     {
-        for (const Tab of OpenTabs)
-        {
-            if (Tab && Tab.Path && !SeenPaths.has(Tab.Path.toLowerCase()))
-            {
-                SeenPaths.add(Tab.Path.toLowerCase());
-                AllDocs.push
-                ({
-                    Path: Tab.Path,
-                    Name: Tab.Name || Tab.Path.split(/[\\/]/).pop(),
-                    Directory: Tab.Path.substring(0, Math.max(Tab.Path.lastIndexOf('/'), Tab.Path.lastIndexOf('\\'))),
-                    Created: Date.now(),
-                    Modified: Date.now(),
-                    Size: 8404
-                });
-            }
-        }
     }
 
-    // 2. Workspace Files
-    if (Array.isArray(WorkspaceFiles))
-    {
-        for (const F of WorkspaceFiles)
-        {
-            if (F && F.Path && !SeenPaths.has(F.Path.toLowerCase()))
-            {
-                SeenPaths.add(F.Path.toLowerCase());
-                AllDocs.push
-                ({
-                    Path: F.Path,
-                    Name: F.Name || F.Path.split(/[\\/]/).pop(),
-                    Directory: F.Directory || F.Path.substring(0, Math.max(F.Path.lastIndexOf('/'), F.Path.lastIndexOf('\\'))),
-                    Created: F.Created || F.Modified || Date.now(),
-                    Modified: F.Modified || Date.now(),
-                    Size: F.Size || 8404
-                });
-            }
-        }
-    }
+    const PaperModeClass = (CurrentPaperColorMode === "pure_black")
+        ? "PaperMode_PureBlack"
+        : (CurrentPaperColorMode === "optimized")
+            ? "PaperMode_Optimized"
+            : "PaperMode_Light";
 
-    // 3. Fallback: current file if not yet included
-    if (CurrentFilePath && !SeenPaths.has(CurrentFilePath.toLowerCase()))
-    {
-        SeenPaths.add(CurrentFilePath.toLowerCase());
-        AllDocs.push
-        ({
-            Path: CurrentFilePath,
-            Name: CurrentFilePath.split(/[\\/]/).pop(),
-            Directory: CurrentFilePath.substring(0, Math.max(CurrentFilePath.lastIndexOf('/'), CurrentFilePath.lastIndexOf('\\'))),
-            Created: Date.now(),
-            Modified: Date.now(),
-            Size: 8404
-        });
-    }
+    const FetchQueue = [];
+    let TotalProjectFiles = 0;
 
-    // 4. Filter Query
-    let DisplayDocs = AllDocs;
-    const Query = (FilterQuery || "").toLowerCase().trim();
+    // Filter projects if query provided
+    let FilteredProjects = Projects;
     if (Query)
     {
-        DisplayDocs = DisplayDocs.filter
+        FilteredProjects = Projects.filter
         (
-            (D) => (D.Name && D.Name.toLowerCase().includes(Query)) || (D.Path && D.Path.toLowerCase().includes(Query))
+            (P) =>
+            {
+                const NameMatch = (P.Name || "").toLowerCase().includes(Query);
+                const PathMatch = (P.Path || "").toLowerCase().includes(Query);
+                const FileMatch = (P.Files || []).some((F) => (F.Name || "").toLowerCase().includes(Query));
+                return NameMatch || PathMatch || FileMatch;
+            }
         );
     }
 
-    // 5. Sorting
-    if (CurrentHomepageSort === "name")
+    let FilteredStandalone = StandaloneList;
+    if (Query)
     {
-        DisplayDocs.sort((A, B) => (A.Name || "").localeCompare(B.Name || ""));
-    }
-    else if (CurrentHomepageSort === "size")
-    {
-        DisplayDocs.sort((A, B) => (B.Size || 0) - (A.Size || 0));
-    }
-    else if (CurrentHomepageSort === "created")
-    {
-        DisplayDocs.sort((A, B) => (B.Created || B.Modified || 0) - (A.Created || A.Modified || 0));
-    }
-    else
-    {
-        // Default: last modified (most recent first)
-        DisplayDocs.sort((A, B) => (B.Modified || 0) - (A.Modified || 0));
+        FilteredStandalone = StandaloneList.filter
+        (
+            (S) =>
+            {
+                const SPath = typeof S === "string" ? S : S.Path;
+                const SName = typeof S === "string" ? S.split(/[\\/]/).pop() : (S.Name || S.Path.split(/[\\/]/).pop());
+                return (SName || "").toLowerCase().includes(Query) || (SPath || "").toLowerCase().includes(Query);
+            }
+        );
     }
 
-    if (DisplayDocs.length === 0)
-    {
-        GridContainer.innerHTML = `
-            <div style = "grid-column: 1 / -1; padding: 48px 0; text-align: center; color: #71717A;">
-                <svg Width = "36" Height = "36" ViewBox = "0 0 24 24" Fill = "none" Stroke = "#3F3F46" Stroke-Width = "1.5" style = "margin-bottom: 12px;">
-                    <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                    <polyline Points = "14 2 14 8 20 8" />
-                </svg>
-                <div style = "font-size: 14.5px; font-weight: 500; color: #E4E4E7; margin-bottom: 4px;">No documents found</div>
-                <div style = "font-size: 12px; color: #71717A;">Click "Empty project" above to create your first Typst Studio document.</div>
-            </div>
-        `;
-        return ;
-    }
-
+    // If list view mode is selected, render list view
     if (CurrentHomepageViewMode === "list")
     {
         let TableRowsHtml = "";
-        for (let Idx = 0; Idx < DisplayDocs.length; Idx++)
+        const AllFlatDocs = [];
+        for (const P of FilteredProjects)
         {
-            const Doc = DisplayDocs[Idx];
+            for (const F of (P.Files || []))
+            {
+                AllFlatDocs.push
+                (
+                    {
+                        ...F,
+                        ProjectName: P.Name,
+                        IsStandalone: false
+                    }
+                );
+            }
+        }
+        for (const S of FilteredStandalone)
+        {
+            const SPath = typeof S === "string" ? S : S.Path;
+            const SName = typeof S === "string" ? S.split(/[\\/]/).pop() : (S.Name || S.Path.split(/[\\/]/).pop());
+            AllFlatDocs.push
+            (
+                {
+                    Path: SPath,
+                    Name: SName,
+                    ProjectName: "[Standalone]",
+                    Modified: typeof S === "object" ? S.Modified : Date.now(),
+                    IsStandalone: true
+                }
+            );
+        }
+
+        if (CurrentHomepageSort === "name")
+        {
+            AllFlatDocs.sort((A, B) => (A.Name || "").localeCompare(B.Name || ""));
+        }
+        else if (CurrentHomepageSort === "created")
+        {
+            AllFlatDocs.sort((A, B) => (B.Created || B.Modified || 0) - (A.Created || A.Modified || 0));
+        }
+        else
+        {
+            AllFlatDocs.sort((A, B) => (B.Modified || 0) - (A.Modified || 0));
+        }
+
+        for (const Doc of AllFlatDocs)
+        {
             const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
-            const CreatedDate = FormatTableDate(Doc.Created || Doc.Modified);
             const ModifiedDate = FormatTableDate(Doc.Modified);
+            const CreatedDate = FormatTableDate(Doc.Created || Doc.Modified);
 
             TableRowsHtml += `
-                <tr Class = "HomepageListRow" data-file-path = "${EscapeHtml(Doc.Path)}" data-file-name = "${EscapeHtml(Doc.Name)}">
+                <tr Class = "HomepageListRow" data-file-path = "${EscapeHtml(Doc.Path)}" data-file-name = "${EscapeHtml(Doc.Name)}" data-is-standalone = "${Doc.IsStandalone ? "true" : "false"}">
                     <td>
-                        <div Class = "ListColProject" data-action = "open-doc" Title = "Open ${EscapeHtml(Doc.Name)} in Editor">
+                        <div Class = "ListColProject" data-action = "${Doc.IsStandalone ? "open-standalone-doc" : "open-doc"}" Title = "Open ${EscapeHtml(Doc.Name)} in Editor">
                             <span Class = "ListDocIcon">
                                 <svg Width = "15" Height = "15" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "1.8">
                                     <path D = "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -14556,14 +15064,15 @@ function RenderHomepage(FilterQuery = "")
                                 </svg>
                             </span>
                             <span>${EscapeHtml(DisplayTitle)}</span>
+                            <span style = "font-size: 11px; color: #71717A; margin-left: 8px;">(${EscapeHtml(Doc.ProjectName)})</span>
                         </div>
                     </td>
                     <td Class = "ListColCreated">${CreatedDate}</td>
                     <td Class = "ListColModified">${ModifiedDate}</td>
                     <td Class = "ListColActions">
                         <div Class = "ListActionsWrapper">
-                            <button Type = "button" Class = "ListActionBtn" Title = "Open in Editor" data-action = "open-doc">
-                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "currentColor">
+                            <button Type = "button" Class = "ListActionBtn" Title = "Open in Editor" data-action = "${Doc.IsStandalone ? "open-standalone-doc" : "open-doc"}">
+                                <svg Width = "12" Height = "12" ViewBox = "0 24 24" Fill = "currentColor">
                                     <polygon Points = "5 3 19 12 5 21 5 3" />
                                 </svg>
                             </button>
@@ -14574,13 +15083,7 @@ function RenderHomepage(FilterQuery = "")
                                     <line X1 = "12" Y1 = "15" X2 = "12" Y2 = "3" />
                                 </svg>
                             </button>
-                            <button Type = "button" Class = "ListActionBtn" Title = "Rename / Document Options" data-action = "rename-doc">
-                                <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
-                                    <circle Cx = "12" Cy = "12" R = "3" />
-                                    <path D = "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                                </svg>
-                            </button>
-                            <button Type = "button" Class = "ListActionBtn DeleteBtn" Title = "Delete Document" data-action = "delete-doc">
+                            <button Type = "button" Class = "ListActionBtn DeleteBtn" Title = "Delete / Remove" data-action = "delete-doc">
                                 <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
                                     <polyline Points = "3 6 5 6 21 6" />
                                     <path D = "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
@@ -14599,66 +15102,335 @@ function RenderHomepage(FilterQuery = "")
                 <table Class = "HomepageListTable">
                     <thead>
                         <tr>
-                            <th Class = "SortableHeader" data-sort-key = "name">Project</th>
+                            <th Class = "SortableHeader" data-sort-key = "name">Project / Document</th>
                             <th Class = "SortableHeader" data-sort-key = "created">Created</th>
                             <th Class = "SortableHeader" data-sort-key = "modified">Last modified${ModifiedSortIndicator}</th>
                             <th Style = "text-align: right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${TableRowsHtml}
+                        ${TableRowsHtml || `<tr><td colspan="4" style="text-align:center; padding: 32px; color: #71717A;">No documents found.</td></tr>`}
                     </tbody>
                 </table>
             </div>
         `;
+        return ;
     }
-    else
+
+    GridContainer.classList.remove("ListView");
+
+    // Grid View: Two Individual Groups
+    let Html = "";
+
+    // --- GROUP 1: STANDALONE PROJECTS (1 FILE) ---
+    let StandaloneCardsHtml = "";
+    for (let SIdx = 0; SIdx < FilteredStandalone.length; SIdx++)
     {
-        GridContainer.classList.remove("ListView");
-        const PaperModeClass = (CurrentPaperColorMode === "pure_black")
-            ? "PaperMode_PureBlack"
-            : (CurrentPaperColorMode === "optimized")
-                ? "PaperMode_Optimized"
-                : "PaperMode_Light";
+        const SItem = FilteredStandalone[SIdx];
+        const SPath = typeof SItem === "string" ? SItem : SItem.Path;
+        const SName = typeof SItem === "string" ? SItem.split(/[\\/]/).pop() : (SItem.Name || SPath.split(/[\\/]/).pop());
+        const SModified = (typeof SItem === "object" && SItem.Modified) ? SItem.Modified : Date.now();
+        const SafeId = `StandaloneCard_${SIdx}_${Math.abs(HashCode(SPath || `std_${SIdx}`))}`;
+        const DisplayTitle = (SName || "Untitled").replace(/\.typ$/i, "");
+        const TimeAgo = FormatDocTimeAgo(SModified);
+        const InnerHtml = GetCachedPreviewOrMockup(SPath, DisplayTitle);
+        const IsActiveStandalone = ExplorerIsStandalone && (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase() === SPath.toLowerCase());
 
-        let CardsHtml = "";
-        const FetchQueue = [];
-
-        for (let Idx = 0; Idx < DisplayDocs.length; Idx++)
-        {
-            const Doc = DisplayDocs[Idx];
-            const SafeId = `PaperCard_${Idx}_${Math.abs(HashCode(Doc.Path || `doc_${Idx}`))}`;
-            const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
-            const TimeAgo = FormatDocTimeAgo(Doc.Modified);
-            const InnerHtml = GetCachedPreviewOrMockup(Doc.Path, DisplayTitle);
-
-            CardsHtml += `
-                <div Class = "HomepagePaperCard" data-action = "open-homepage-doc" data-file-path = "${EscapeHtml(Doc.Path)}" Title = "Open ${EscapeHtml(Doc.Name)} in Editor">
-                    <div Class = "PaperSheetOuter ${PaperModeClass}">
-                        <div Class = "PaperSheetInner ${PaperModeClass}" Id = "${SafeId}">
-                            ${InnerHtml}
-                        </div>
-                    </div>
-                    <div Class = "PaperDocMeta">
-                        <div Class = "PaperDocTitle" Title = "${EscapeHtml(Doc.Name)}">${EscapeHtml(DisplayTitle)}</div>
-                        <div Class = "PaperDocSub">${TimeAgo}</div>
+        StandaloneCardsHtml += `
+            <div Class = "HomepagePaperCard ${IsActiveStandalone ? "ActiveProject" : ""}" data-action = "open-standalone-doc" data-file-path = "${EscapeHtml(SPath)}" data-file-name = "${EscapeHtml(SName)}" Title = "Open standalone file: ${EscapeHtml(SPath)}">
+                <div Class = "PaperSheetOuter ${PaperModeClass}">
+                    <div Class = "PaperSheetInner ${PaperModeClass}" Id = "${SafeId}">
+                        ${InnerHtml}
                     </div>
                 </div>
-            `;
+                <div Class = "PaperDocMeta">
+                    <div Class = "PaperDocTitle" Title = "${EscapeHtml(SName)}">${EscapeHtml(DisplayTitle)}</div>
+                    <div Class = "PaperDocSub">${TimeAgo} ${IsActiveStandalone ? "• Active" : ""}</div>
+                </div>
+            </div>
+        `;
 
-            const NormKey = (Doc.Path || "").toLowerCase();
-            if (!window.DocPreviewSvgCache[NormKey])
+        const NormKey = (SPath || "").toLowerCase();
+        if (!window.DocPreviewSvgCache[NormKey])
+        {
+            FetchQueue.push({ Path: SPath, ElementId: SafeId });
+        }
+    }
+
+    if (FilteredStandalone.length === 0)
+    {
+        StandaloneCardsHtml = `
+            <div Class = "ProjectBoxEmpty" Style = "grid-column: 1 / -1; padding: 28px 16px;">
+                <div Class = "ProjectBoxEmptyTitle">No standalone files opened yet</div>
+                <div Style = "font-size: 12px; color: #71717A; margin-top: 4px; margin-bottom: 12px;">Work on 1 single .typ file directly without an enclosing project directory.</div>
+                <button Type = "button" Class = "DashboardGroupBtn" data-action = "pick-standalone-file">
+                    <span>+ Open Standalone File</span>
+                </button>
+            </div>
+        `;
+    }
+
+    Html += `
+        <div Class = "DashboardGroupSection">
+            <div Class = "DashboardGroupHeader">
+                <div Class = "DashboardGroupTitleWrapper">
+                    <span Class = "DashboardGroupTitleIcon">📄</span>
+                    <span Class = "DashboardGroupTitle">Standalone Projects (1 File)</span>
+                    <span Class = "DashboardGroupBadge">${FilteredStandalone.length}</span>
+                </div>
+                <div Class = "DashboardGroupActions">
+                    <button Type = "button" Class = "DashboardGroupBtn" data-action = "pick-standalone-file" Title = "Open a standalone .typ file">
+                        <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
+                            <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
+                        </svg>
+                        <span>Open standalone file</span>
+                    </button>
+                </div>
+            </div>
+            <div Class = "ProjectBoxFilesGrid">
+                ${StandaloneCardsHtml}
+            </div>
+        </div>
+    `;
+
+    // --- GROUP 2: PROJECTS ---
+    let ProjectBoxesHtml = "";
+    for (let PIdx = 0; PIdx < FilteredProjects.length; PIdx++)
+    {
+        const Proj = FilteredProjects[PIdx];
+        const ProjPath = Proj.Path || "";
+        const ProjFiles = Proj.Files || [];
+        TotalProjectFiles += ProjFiles.length;
+        const IsCollapsed = CollapsedProjectBoxes.has(ProjPath);
+        const NormalizedProj = ProjPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+        const NormalizedActive = (ExplorerCurrentRoot || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+        const IsActiveProject = !ExplorerIsStandalone && (NormalizedProj === NormalizedActive);
+
+        // Group files by relative subdirectory
+        const DirGroupsMap = new Map();
+        for (let FIdx = 0; FIdx < ProjFiles.length; FIdx++)
+        {
+            const Doc = ProjFiles[FIdx];
+            const DocDirNorm = (Doc.Directory || "").replace(/\\/g, "/").replace(/\/+$/, "");
+            let RelDir = "";
+            if (DocDirNorm.toLowerCase().startsWith(NormalizedProj + "/"))
             {
-                FetchQueue.push({ Path: Doc.Path, ElementId: SafeId });
+                RelDir = DocDirNorm.substring(NormalizedProj.length + 1);
+            }
+            else if (DocDirNorm.toLowerCase() === NormalizedProj)
+            {
+                RelDir = "";
+            }
+            else
+            {
+                const DocPathNorm = (Doc.Path || "").replace(/\\/g, "/");
+                if (DocPathNorm.toLowerCase().startsWith(NormalizedProj + "/"))
+                {
+                    const DocRel = DocPathNorm.substring(NormalizedProj.length + 1);
+                    const LastSlash = DocRel.lastIndexOf("/");
+                    RelDir = LastSlash > 0 ? DocRel.substring(0, LastSlash) : "";
+                }
+            }
+
+            if (!DirGroupsMap.has(RelDir))
+            {
+                const FullFolder = RelDir ? `${ProjPath.replace(/[\\/]+$/, "")}/${RelDir}` : ProjPath;
+                DirGroupsMap.set
+                (
+                    RelDir,
+                    {
+                        RelDir: RelDir,
+                        FullFolder: FullFolder,
+                        DisplayName: RelDir ? RelDir : "Root Directory",
+                        Files: []
+                    }
+                );
+            }
+            DirGroupsMap.get(RelDir).Files.push({ Doc: Doc, FIdx: FIdx });
+        }
+
+        const SortedGroups = Array.from(DirGroupsMap.values()).sort
+        (
+            (A, B) =>
+            {
+                if (A.RelDir === "" && B.RelDir !== "")
+                {
+                    return -1;
+                }
+                if (A.RelDir !== "" && B.RelDir === "")
+                {
+                    return 1;
+                }
+                return A.RelDir.localeCompare(B.RelDir);
+            }
+        );
+
+        function GenerateFileCardsHtml(FileItems)
+        {
+            let CardsHtml = "";
+            for (let ItemIdx = 0; ItemIdx < FileItems.length; ItemIdx++)
+            {
+                const Item = FileItems[ItemIdx];
+                const Doc = Item.Doc;
+                const FIdx = Item.FIdx;
+                const SafeId = `ProjCard_${PIdx}_${FIdx}_${Math.abs(HashCode(Doc.Path || `pfile_${FIdx}`))}`;
+                const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
+                const TimeAgo = FormatDocTimeAgo(Doc.Modified);
+                const InnerHtml = GetCachedPreviewOrMockup(Doc.Path, DisplayTitle);
+
+                CardsHtml += `
+                    <div Class = "HomepagePaperCard" data-action = "open-project-file" data-file-path = "${EscapeHtml(Doc.Path)}" data-project-path = "${EscapeHtml(ProjPath)}" Title = "Open ${EscapeHtml(Doc.Name)} in ${EscapeHtml(Proj.Name)}">
+                        <div Class = "PaperSheetOuter ${PaperModeClass}">
+                            <div Class = "PaperSheetInner ${PaperModeClass}" Id = "${SafeId}">
+                                ${InnerHtml}
+                            </div>
+                        </div>
+                        <div Class = "PaperDocMeta">
+                            <div Class = "PaperDocTitle" Title = "${EscapeHtml(Doc.Name)}">${EscapeHtml(DisplayTitle)}</div>
+                            <div Class = "PaperDocSub">${TimeAgo}</div>
+                        </div>
+                    </div>
+                `;
+
+                const NormKey = (Doc.Path || "").toLowerCase();
+                if (!window.DocPreviewSvgCache[NormKey])
+                {
+                    FetchQueue.push({ Path: Doc.Path, ElementId: SafeId });
+                }
+            }
+            return CardsHtml;
+        }
+
+        let ProjectBodyHtml = "";
+        if (ProjFiles.length === 0)
+        {
+            ProjectBodyHtml = `
+                <div Class = "ProjectBoxEmpty" Style = "grid-column: 1 / -1;">
+                    <div Class = "ProjectBoxEmptyTitle">No .typ documents in this project yet</div>
+                    <button Type = "button" Class = "DashboardGroupBtn" data-action = "new-project-doc" data-project-path = "${EscapeHtml(ProjPath)}" Style = "margin-top: 10px;">
+                        <span>+ Create File in Project</span>
+                    </button>
+                </div>
+            `;
+        }
+        else if (SortedGroups.length === 1 && SortedGroups[0].RelDir === "")
+        {
+            ProjectBodyHtml = `
+                <div Class = "ProjectBoxFilesGrid">
+                    ${GenerateFileCardsHtml(SortedGroups[0].Files)}
+                </div>
+            `;
+        }
+        else
+        {
+            for (let GIdx = 0; GIdx < SortedGroups.length; GIdx++)
+            {
+                const Group = SortedGroups[GIdx];
+                const SubfolderKey = `${ProjPath}::${Group.RelDir}`;
+                const IsSubCollapsed = CollapsedSubfolders.has(SubfolderKey);
+                const IsRootDir = (Group.RelDir === "");
+                const CardsHtml = GenerateFileCardsHtml(Group.Files);
+
+                ProjectBodyHtml += `
+                    <div Class = "ProjectSubfolderGroup ${IsSubCollapsed ? "Collapsed" : ""}" data-folder-key = "${EscapeHtml(SubfolderKey)}">
+                        <div Class = "ProjectSubfolderHeader" data-action = "toggle-project-subfolder" data-folder-key = "${EscapeHtml(SubfolderKey)}">
+                            <div Class = "ProjectSubfolderHeaderLeft">
+                                <span Class = "ProjectSubfolderChevron">▾</span>
+                                <span Class = "ProjectSubfolderIcon">${IsRootDir ? "📦" : "📁"}</span>
+                                <span Class = "ProjectSubfolderTitle" Title = "${EscapeHtml(Group.FullFolder)}">${EscapeHtml(Group.DisplayName)}</span>
+                                <span Class = "ProjectSubfolderBadge">${Group.Files.length} file${Group.Files.length === 1 ? "" : "s"}</span>
+                            </div>
+                            <div Class = "ProjectSubfolderHeaderRight">
+                                <button Type = "button" Class = "ProjectSubfolderActionBtn" data-action = "open-project-folder" data-project-path = "${EscapeHtml(ProjPath)}" data-folder-path = "${EscapeHtml(Group.FullFolder)}" Title = "Open ${EscapeHtml(Group.DisplayName)} folder in Explorer">
+                                    <span>Open Folder</span>
+                                </button>
+                                <button Type = "button" Class = "ProjectSubfolderActionBtn" data-action = "new-subfolder-doc" data-project-path = "${EscapeHtml(ProjPath)}" data-folder-path = "${EscapeHtml(Group.FullFolder)}" Title = "Add new file in ${EscapeHtml(Group.DisplayName)}">
+                                    <span>+ File</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div Class = "ProjectSubfolderBody">
+                            <div Class = "ProjectBoxFilesGrid">
+                                ${CardsHtml}
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
         }
 
-        GridContainer.innerHTML = CardsHtml;
+        const FolderCountInfo = SortedGroups.length > 1 ? ` • ${SortedGroups.length} folders` : "";
 
-        for (const Item of FetchQueue)
-        {
-            QueueDocumentSvgPreview(Item.Path, Item.ElementId);
-        }
+        ProjectBoxesHtml += `
+            <div Class = "DashboardProjectBox ${IsCollapsed ? "Collapsed" : ""} ${IsActiveProject ? "ActiveProject" : ""}" data-project-path = "${EscapeHtml(ProjPath)}">
+                <div Class = "ProjectBoxHeader" data-action = "toggle-project-box" data-project-path = "${EscapeHtml(ProjPath)}">
+                    <div Class = "ProjectBoxHeaderLeft">
+                        <span Class = "ProjectBoxChevron">▾</span>
+                        <span Class = "ProjectBoxFolderIcon">📁</span>
+                        <span Class = "ProjectBoxTitle">${EscapeHtml(Proj.Name)}</span>
+                        <span Class = "ProjectBoxPath" Title = "${EscapeHtml(ProjPath)}">${EscapeHtml(ProjPath)}</span>
+                        <span Class = "ProjectBoxPill ${IsActiveProject ? "ActivePill" : ""}">${IsActiveProject ? "Active • " : ""}${ProjFiles.length} file${ProjFiles.length === 1 ? "" : "s"}${FolderCountInfo}</span>
+                    </div>
+                    <div Class = "ProjectBoxHeaderRight">
+                        <button Type = "button" Class = "ProjectBoxActionBtn Primary" data-action = "open-project" data-project-path = "${EscapeHtml(ProjPath)}" Title = "Switch Editor & Explorer to this project">
+                            <span>Open Project</span>
+                        </button>
+                        <button Type = "button" Class = "ProjectBoxActionBtn" data-action = "new-project-doc" data-project-path = "${EscapeHtml(ProjPath)}" Title = "Add new file to this project">
+                            <span>+ File</span>
+                        </button>
+                        <button Type = "button" Class = "ProjectBoxActionBtn Delete" data-action = "remove-project-dir" data-project-path = "${EscapeHtml(ProjPath)}" Title = "Remove project from workspace">
+                            <span>×</span>
+                        </button>
+                    </div>
+                </div>
+                <div Class = "ProjectBoxBody">
+                    ${ProjectBodyHtml}
+                </div>
+            </div>
+        `;
+    }
+
+    if (FilteredProjects.length === 0)
+    {
+        ProjectBoxesHtml = `
+            <div Class = "ProjectBoxEmpty" Style = "padding: 36px 16px;">
+                <div Class = "ProjectBoxEmptyTitle" Style = "font-size: 14px; margin-bottom: 6px;">No added projects found</div>
+                <div Style = "font-size: 12px; color: #71717A; margin-bottom: 12px;">Add an existing folder or click "Add project" to manage projects.</div>
+                <button Type = "button" Class = "DashboardGroupBtn" data-action = "add-project-dir">
+                    <span>+ Add Project</span>
+                </button>
+            </div>
+        `;
+    }
+
+    Html += `
+        <div Class = "DashboardGroupSection" Style = "margin-top: 24px;">
+            <div Class = "DashboardGroupHeader">
+                <div Class = "DashboardGroupTitleWrapper">
+                    <span Class = "DashboardGroupTitleIcon">📁</span>
+                    <span Class = "DashboardGroupTitle">Projects</span>
+                    <span Class = "DashboardGroupBadge">${FilteredProjects.length}</span>
+                </div>
+                <div Class = "DashboardGroupActions">
+                    <button Type = "button" Class = "DashboardGroupBtn" data-action = "add-project-dir" Title = "Add project to workspace">
+                        <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2">
+                            <line X1 = "12" Y1 = "5" X2 = "12" Y2 = "19" />
+                            <line X1 = "5" Y1 = "12" X2 = "19" Y2 = "12" />
+                        </svg>
+                        <span>Add project</span>
+                    </button>
+                </div>
+            </div>
+            ${ProjectBoxesHtml}
+        </div>
+    `;
+
+    GridContainer.innerHTML = Html;
+
+    for (const Item of FetchQueue)
+    {
+        QueueDocumentSvgPreview(Item.Path, Item.ElementId);
     }
 }
 
@@ -16812,6 +17584,12 @@ window.OpenDocumentInTab = OpenDocumentInTab;
 window.SwitchToTab = SwitchToTab;
 window.CloseTab = CloseTab;
 window.OpenProjectInExplorer = OpenProjectInExplorer;
+window.OpenStandaloneDocument = OpenStandaloneDocument;
+window.PickStandaloneFileFromDisk = PickStandaloneFileFromDisk;
+window.TrackStandaloneDocument = TrackStandaloneDocument;
+window.SwitchView = SwitchView;
+window.RenderDashboard = RenderDashboard;
+window.RenderHomepage = RenderHomepage;
 window.CreateFileInProject = CreateFileInProject;
 window.ShowNewDocumentModal = ShowNewDocumentModal;
 window.CloseNewDocumentModal = CloseNewDocumentModal;
@@ -16872,7 +17650,7 @@ window.addEventListener
         await InitializeMonaco();
         InitializeSyncTex();
 
-        // 2. Load tracked directories and workspace files
+        // 2. Load added project directories and workspace files
         await LoadWorkspaceInfo();
 
         // 3. Initialize Explorer sidebar, resizing, and project view

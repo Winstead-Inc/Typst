@@ -1,7 +1,8 @@
-use std::path::PathBuf;
+use std::path:: { Path, PathBuf };
 
 use clap::builder::ValueParser;
 use clap:: { ArgAction, Parser, Subcommand, ValueEnum };
+use typst_kit::server::HttpServer;
 use typst_utils:: { display_possible_values, parse_sys_input_pair };
 
 /// Generator for Typst's documentation.
@@ -112,3 +113,70 @@ pub struct CompileArgs
 pub enum OutputFormat {#[default] Website, Pdf, }
 
 display_possible_values!(OutputFormat);
+
+/// The default entrypoint into the docs.
+pub const ENTRYPOINT: &str = "docs/main.typ";
+
+// Paths.
+pub const PDF_PATH: &str = "docs/dist/docs.pdf";
+pub const SITE_PATH: &str = "docs/dist/site";
+
+/// Preprocessing configuration for compilation.
+pub struct Config
+{
+    /// Path to the input Typst file.
+    pub input: PathBuf,
+    /// The workspace from which to load files for documentation, i.e.
+    /// `@typst/repo` and `@typst/docs` packages.
+    pub workspace: PathBuf,
+    /// The output path to which the compilation output is written.
+    /// If `None`, nothing should be written (e.g., HTML watching).
+    pub output: Option<PathBuf>,
+    /// The kind of output to produce.
+    pub output_format: OutputFormat,
+    /// String key-value pairs visible through `sys.inputs`.
+    pub sys_inputs: Vec<(String, String)>,
+    /// Whether to include a "development version" warning in the documentation.
+    pub is_dev_version: bool,
+    /// A live reload server for the `watch` subcommand.
+    pub server: Option<HttpServer>,
+    /// Whether to open the output after compilation.
+    pub open: bool,
+}
+
+impl Config
+{
+    /// Preprocess `CompileArgs`, producing a compilation config.
+    pub fn new(args: &CompileArgs, serve: bool) -> Self
+    {
+        let workspace = args.workspace.clone().unwrap_or_else
+        (
+            ||
+            {
+                // Default to the workspace in which this program was compiled.
+                Path::new(env!("CARGO_MANIFEST_DIR")).join(std::path::Component::ParentDir)
+            }
+        );
+
+        Self
+        {
+            input: args.input.clone().unwrap_or(workspace.join(ENTRYPOINT)),
+            output: args.output.clone().or_else
+            (
+                || match args.format
+                {
+                    OutputFormat::Pdf => Some(workspace.join(PDF_PATH)),
+                    OutputFormat::Website if serve => None,
+                    OutputFormat::Website => Some(workspace.join(SITE_PATH)),
+                }
+            ),
+            workspace,
+            output_format: args.format,
+            sys_inputs: args.inputs.clone(),
+            is_dev_version: !args.release,
+            server: (serve && args.format == OutputFormat::Website)
+                .then(|| HttpServer::new("docs", None, true).unwrap()),
+            open: args.open,
+        }
+    }
+}

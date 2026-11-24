@@ -277,7 +277,7 @@
 
 // Displays a signature overview followed by docs for the individual parameters.
 #let params-section
-(func, params, returns, base-label, path: auto , indent: false , muted: false ,) =
+(func, params, returns, base-label, path: auto, indent: false, muted: false,) =
 {
     if path == auto
     { path = std-path-of(func).split(".") }
@@ -323,15 +323,15 @@
         { html.small(class: "definition-info", { html.div(use-icon(size, name, alt)); html.span(body) }) }
     }
 
-    if info.since != none
+    if info != none and info.since != none
     { gap small[Since: #info.since] }
-    else
+    else if info != none
     { panic("missing `since` for " + repr(info)) }
 
-    if info.feature != none
+    if info != none and info.feature != none
     { gap item(16, "toggle", "Feature toggle", [Requires the #raw(info.feature) feature]) }
 
-    if info.deprecation != none
+    if info != none and info.deprecation != none
     {
         gap
         item
@@ -340,7 +340,7 @@
             {
                 text-with-code(info.deprecation.message)
                 if info.deprecation.until != none
-                { [; it will be removed in Typst#info.deprecation.until] }
+                { [; it will be removed in Typst #info.deprecation.until] }
             }
         )
     }
@@ -391,9 +391,9 @@
 // Renders documentation for a constant as part of a large documentation
 // section.
 #let const-member
-(value, parent: none , base-label: none , binding-info: none ,) =
+(value, parent: none, base-label: none, binding-info: none,) =
 {
-    assert.ne(binding-info, none , message: "binding-info is required")
+    assert.ne(binding-info, none, message: "binding-info is required")
 
     let base-label = label(str(base-label) + "-" + binding-info.name)
 
@@ -410,7 +410,7 @@
             else
             {
                 html-heading-n
-                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none ,), it.body,)
+                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none,), it.body,)
             }
         }
         let title = short-or-long
@@ -418,7 +418,7 @@
         labelled(heading(depth: 2, title), base-label)
     }
 
-    show raw.where(lang: "example"): example.with(folding: true , open: true)
+    show raw.where(lang: "example"): example.with(folding: true, open: true)
     prose-styling
     (live-docs(binding-info.docs, binding-info.def-site), base-target: value,)
 }
@@ -426,9 +426,9 @@
 // Renders documentation for a function as part of a large documentation
 // section.
 #let func-member
-(func, base-label: none , binding-info: none , definitions-section: none ,) =
+(func, base-label: none, binding-info: none, definitions-section: none,) =
 {
-    assert.ne(binding-info, none , message: "binding-info is required")
+    assert.ne(binding-info, none, message: "binding-info is required")
 
     let info = stdx.describe(to-func(func))
     let base-label = label(str(base-label) + "-" + info.name)
@@ -448,7 +448,7 @@
             else
             {
                 html-heading-n
-                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none ,), it.body,)
+                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none,), it.body,)
             }
         }
         let title = short-or-long
@@ -457,7 +457,7 @@
     }
 
     {
-        show raw.where(lang: "example"): example.with(folding: true , open: true)
+        show raw.where(lang: "example"): example.with(folding: true, open: true)
         prose-styling(live-docs(info.docs, info.def-site), base-target: func)
     }
 
@@ -471,7 +471,7 @@
     { params = params.filter(p => not stdx.is-global-html-attr(p.name)) }
 
     heading-offset
-    (1, params-section(func, params, info.returns, base-label, path: path, indent: true , muted: muted,))
+    (1, params-section(func, params, info.returns, base-label, path: path, indent: true, muted: muted,))
 
     heading-offset
     (2, definitions-section(info.name, scope-from(info.scope, binding-info), base-label: base-label,))
@@ -494,19 +494,19 @@
     { show heading: it => { register-def(func, it.location()) it } labelled(heading(title), base-label) }
 
     {
-        show raw.where(lang: "example"): example.with(folding: true , open: true)
+        show raw.where(lang: "example"): example.with(folding: true, open: true)
         prose-styling(live-docs(info.docs, info.def-site), base-target: func)
     }
 
     params-section
-    (func, info.params, info.returns, base-label, path: path, indent: true ,)
+    (func, info.params, info.returns, base-label, path: path, indent: true,)
 }
 
 // Renders documentation for a type as part of a large documentation section.
 #let ty-member
-(ty, base-label: none , binding-info: none , definitions-section: none ,) =
+(ty, base-label: none, binding-info: none, definitions-section: none,) =
 {
-    assert.ne(binding-info, none , message: "binding-info is required")
+    assert.ne(binding-info, none, message: "binding-info is required")
 
     let info = stdx.describe(ty)
     let base-label = label(str(base-label) + "-" + info.short-name)
@@ -522,7 +522,7 @@
             else
             {
                 html-heading-n
-                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none ,), it.body)
+                (it.level + 1, class: classnames("scoped-definition", deprecated: binding-info.deprecation != none,), it.body)
             }
         }
         let title = short-or-long
@@ -531,7 +531,7 @@
     }
 
     {
-        show raw.where(lang: "example"): example.with(folding: true , open: true)
+        show raw.where(lang: "example"): example.with(folding: true, open: true)
         prose-styling(live-docs(info.docs, info.def-site), base-target: ty)
     }
 
@@ -564,12 +564,12 @@
     {
         let body = short-or-long
         (
-            heading-kinds + if nested { [ on #parent] },
-            with-tooltip[#heading-kinds #if nested { [ on #raw(parent)] }]
+            heading-kinds + if nested { [on #parent] },
+            with-tooltip[#heading-kinds #if nested { [on #raw(parent)] }]
             [
-                Functions and types can have associated #sentence-kinds. These are
+                Functions and types can have associated [#sentence-kinds.] These are
                 accessed by specifying the function or type, followed by a period,
-                and then the #sentence-kind ' s name.
+                and then the [#sentence-kind's] name.
             ],
         )
         labelled(heading(body), label)
@@ -816,10 +816,10 @@
 // Builds a sorted list of definitions from the scope, filtering out grouped
 // definitions and sub-categories, and including provided scope additions.
 #let build-category-definitions
-(category: none , scope: none , scope-additions: (:), groups: (), sub-categories: (:),) =
+(category: none, scope: none, scope-additions: (:), groups: (), sub-categories: (:),) =
 {
-    assert.ne(category, none , message: "category is required")
-    assert.ne(scope, none , message: "scope is required")
+    assert.ne(category, none, message: "category is required")
+    assert.ne(scope, none, message: "scope is required")
 
     let definitions =
     {
@@ -856,7 +856,7 @@
         scope-additions.pairs().map(((k, v)) => ("addition", k, v, stdx.describe(v)))
 
         // Grouped definitions.
-        groups.map(g => ("group", g.name, none , g))
+        groups.map(g => ("group", g.name, none, g))
 
         // Sub-categories.
         sub-categories.pairs().map(((k, v)) => ("category", k, v, stdx.describe(v)))
@@ -867,7 +867,7 @@
 
 // Show a list of category definitions built by `build-category-definitions()`.
 #let category-definitions
-(route, scope, def-target, definitions, func-category: none ,) =
+(route, scope, def-target, definitions, func-category: none,) =
 {
     // The individual sections for all definitions.
     show: paged-heading-offset.with(1)
@@ -975,7 +975,7 @@ context
     body,
 ) =
 {
-    assert.ne(category, none , message: "category is required")
+    assert.ne(category, none, message: "category is required")
 
     let route = "/reference/" + category
     let def-target = if scope == none

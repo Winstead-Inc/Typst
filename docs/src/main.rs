@@ -1,12 +1,5 @@
-mod args;
-mod example;
-mod live;
-mod reflect;
-mod search;
-mod world;
-
 use std::io::Write;
-use std::path:: { Path, PathBuf };
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync:: { Arc, LazyLock };
 
@@ -16,25 +9,17 @@ use typst::diag:: { At, SourceResult, Warned };
 use typst::foundations::Bytes;
 use typst::syntax::Span;
 use typst_bundle:: { Bundle, BundleFile, BundleOptions, VirtualFs };
+use typst_docs::args:: { CliArguments, Command, CompileCommand, Config, OutputFormat, WatchCommand, };
+use typst_docs::search;
+use typst_docs::world::DocWorld;
 use typst_kit::diagnostics:: { self, termcolor };
-use typst_kit::server::HttpServer;
 use typst_kit::timer::Timer;
 use typst_kit::watcher::Watcher;
 use typst_layout::PagedDocument;
 use typst_pdf::PdfOptions;
 
-use crate::args:: { CliArguments, Command, CompileArgs, CompileCommand, OutputFormat, WatchCommand, };
-use crate::world::DocWorld;
-
 /// The parsed command line arguments.
 static ARGS: LazyLock<CliArguments> = LazyLock:: new (CliArguments::parse);
-
-/// The default entrypoint into the docs.
-const ENTRYPOINT: & str = "docs/main.typ";
-
-// Paths.
-const PDF_PATH: & str = "docs/dist/docs.pdf";
-const SITE_PATH: & str = "docs/dist/site";
 
 /// Entry point.
 fn main() -> ExitCode
@@ -96,66 +81,6 @@ fn print_watch_header(config: & Config)
     { writeln ! (out, "writing to {}", path.display()).unwrap(); writeln ! (out).unwrap(); }
 }
 
-/// Preprocessing configuration for compilation.
-struct Config
-{
-    /// Path to the input Typst file.
-    input: PathBuf,
-    /// The workspace from which to load files for documentation, i.e.
-    /// `@typst/repo` and `@typst/docs` packages.
-    workspace: PathBuf,
-    /// The output path to which the compilation output is written.
-    /// If `None`, nothing should be written (e.g., HTML watching).
-    output: Option<PathBuf>,
-    /// The kind of output to produce.
-    output_format: OutputFormat,
-    /// String key-value pairs visible through `sys.inputs`.
-    sys_inputs: Vec < (String, String) > ,
-    /// Whether to include a "development version" warning in the documentation.
-    is_dev_version: bool,
-    /// A live reload server for the `watch` subcommand.
-    server: Option<HttpServer>,
-    /// Whether to open the output after compilation.
-    open: bool,
-}
-
-impl Config
-{
-    /// Preprocess `CompileArgs`, producing a compilation config.
-    fn new (args: & CompileArgs, serve: bool) -> Self
-    {
-        let workspace = args.workspace.clone().unwrap_or_else
-        (
-            ||
-            {
-                // Default to the workspace in which this program was compiled.
-                Path:: new (env ! ("CARGO_MANIFEST_DIR")).join(std::path::Component::ParentDir)
-            }
-        );
-
-        Self
-        {
-            input: args.input.clone().unwrap_or(workspace.join(ENTRYPOINT)),
-            output: args.output.clone().or_else
-            (
-                || match args.format
-                {
-                    OutputFormat::Pdf => Some(workspace.join(PDF_PATH)),
-                    OutputFormat::Website if serve => None,
-                    OutputFormat::Website => Some(workspace.join(SITE_PATH)),
-                }
-            ),
-            workspace,
-            output_format: args.format,
-            sys_inputs: args.inputs.clone(),
-            is_dev_version: ! args.release,
-            server: (serve && args.format == OutputFormat::Website)
-           .then( || HttpServer::new ("docs", None, true).unwrap()),
-            open: args.open,
-        }
-    }
-}
-
 /// Compiles the documentation, potentially writing it to disk and/or updating
 /// the live reload server, and returns compilation diagnostics ready for
 /// printing.
@@ -194,8 +119,8 @@ fn export_website(mut bundle: Bundle, config: & Config) -> Warned < SourceResult
     (
         | () |
         {
-            let index = crate::search::build_search_index( & bundle)?;
-            let search_path = crate::search::index_path( & bundle).at(Span::detached())?;
+            let index = search::build_search_index( & bundle)?;
+            let search_path = search::index_path( & bundle).at(Span::detached())?;
             Arc::make_mut( & mut bundle.files).insert(search_path, BundleFile::Asset(Bytes::new (serde_json::to_vec( & index).unwrap())),);
 
             Ok(BundleOptions::default ())

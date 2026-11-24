@@ -73,7 +73,10 @@ const ALLOWED_SPAWN_BINARIES = new Set
 // Compile-time pinned cryptographic digests of immutable official LAFS releases
 const PINNED_LAFS_HASHES = new Set
 ([
-    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc"
+    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
+    "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
+    "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
+    "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec"
 ]);
 
 function VerifyLafsBinaryIntegrity(BinaryPath)
@@ -191,7 +194,8 @@ function FormatCodeBlockWithLAFS(Code, Language)
                         encoding: "utf-8",
                         timeout: 5000,
                         windowsHide: true,
-                        shell: false
+                        shell: false,
+                        cwd: TEMP_DIR
                     }
                 );
                 if (Proc.status === 0 && Proc.stdout)
@@ -219,18 +223,42 @@ function ResolveTypstBinary()
     const SearchLocations =
     [
         process.env.TYPST_BINARY,
+        Path.resolve(__dirname, "..", "target", "release", BinaryName),
+        Path.resolve(__dirname, "..", "target", "debug", BinaryName),
         Path.join(__dirname, "bin", BinaryName),
         Path.join(__dirname, BinaryName),
-        Path.resolve(__dirname, "..", "target", "release", BinaryName),
-        Path.resolve(__dirname, "..", "target", "debug", BinaryName)
+        Path.resolve(__dirname, "..", BinaryName)
     ];
+
+    let BestCandidate = null;
+    let BestMtime = -1;
 
     for (const Candidate of SearchLocations)
     {
         if (Candidate && FS.existsSync(Candidate))
         {
-            return Candidate;
+            try
+            {
+                const Stat = FS.statSync(Candidate);
+                if (Stat.isFile() && Stat.mtimeMs > BestMtime)
+                {
+                    BestMtime = Stat.mtimeMs;
+                    BestCandidate = Candidate;
+                }
+            }
+            catch (Ignored)
+            {
+                if (!BestCandidate)
+                {
+                    BestCandidate = Candidate;
+                }
+            }
         }
+    }
+
+    if (BestCandidate)
+    {
+        return BestCandidate;
     }
 
     return Path.resolve(__dirname, "..", "target", "release", BinaryName);
@@ -241,10 +269,76 @@ const TEMP_DIR = Path.resolve(__dirname, ".temp");
 const PUBLIC_DIR = Path.resolve(__dirname, "public");
 const WORKSPACE_CONFIG_FILE = Path.resolve(__dirname, ".workspace_config.json");
 
+const ActiveCompileProcesses = new Map();
 let ActiveCompileProcess = null;
 let ActiveJobDir = null;
+const ActiveSyncMapsByFile = new Map();
+const ActiveSpanMapsByFile = new Map();
 let LastActiveSpanMap = {};
 let LastActiveSyncMap = [];
+
+function ResolveDocRoot(FilePath, JobDir)
+{
+    if (FilePath)
+    {
+        const Validated = ValidateWorkspacePath(FilePath, false, false);
+        if (Validated.Valid)
+        {
+            let StartDir = Validated.Path;
+            try
+            {
+                if (!FS.statSync(Validated.Path).isDirectory())
+                {
+                    StartDir = Path.dirname(Validated.Path);
+                }
+            }
+            catch (Ignored)
+            {
+                StartDir = Path.dirname(Validated.Path);
+            }
+
+            let Current = StartDir;
+            while (Current)
+            {
+                if
+                (
+                    FS.existsSync(Path.join(Current, "typst.toml")) ||
+                    FS.existsSync(Path.join(Current, ".typst-studio")) ||
+                    FS.existsSync(Path.join(Current, ".git"))
+                )
+                {
+                    return Current;
+                }
+                const Parent = Path.dirname(Current);
+                if (Parent === Current)
+                {
+                    break;
+                }
+                Current = Parent;
+            }
+
+            const TrackedDirs = GetTrackedDirectories();
+            let BestTracked = null;
+            for (const Dir of TrackedDirs)
+            {
+                if (IsPathContainedIn(Dir, StartDir))
+                {
+                    if (!BestTracked || Dir.length > BestTracked.length)
+                    {
+                        BestTracked = Dir;
+                    }
+                }
+            }
+            if (BestTracked)
+            {
+                return BestTracked;
+            }
+
+            return StartDir;
+        }
+    }
+    return JobDir;
+}
 
 if (!FS.existsSync(TEMP_DIR))
 {
@@ -1344,6 +1438,10 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
             (
                 "error", (Error) =>
                 {
+                    if (Options.FileKey && ActiveCompileProcesses.get(Options.FileKey)?.Process === Child)
+                    {
+                        ActiveCompileProcesses.delete(Options.FileKey);
+                    }
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
                     Resolve
                     ({
@@ -1360,6 +1458,10 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
             (
                 "close", (Code) =>
                 {
+                    if (Options.FileKey && ActiveCompileProcesses.get(Options.FileKey)?.Process === Child)
+                    {
+                        ActiveCompileProcesses.delete(Options.FileKey);
+                    }
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
                     Resolve
                     ({
@@ -1372,7 +1474,14 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
                 }
             );
 
-            ActiveCompileProcess = Child;
+            if (!Options.IsBackground)
+            {
+                ActiveCompileProcess = Child;
+                if (Options.FileKey)
+                {
+                    ActiveCompileProcesses.set(Options.FileKey, { Process: Child, JobDir: Options.cwd });
+                }
+            }
         }
     );
 }
@@ -2001,29 +2110,31 @@ async function HandleCompile(Request, Response)
 {
     const StartTime = Date.now();
 
-    if (ActiveCompileProcess)
-    {
-        try
-        {
-            ActiveCompileProcess.kill();
-        }
-        catch (Ignored)
-        {
-        }
-        ActiveCompileProcess = null;
-        if (ActiveJobDir)
-        {
-            FSPromises.rm(ActiveJobDir, { recursive: true, force: true }).catch ( () => {});
-            ActiveJobDir = null;
-        }
-    }
-
     try
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Source = Payload.Source || "";
         const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
+        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : "__default__";
+        const IsBackground = Boolean(Payload.IsBackground || Payload.IsThumbnail);
+
+        if (!IsBackground && ActiveCompileProcesses.has(FileKey))
+        {
+            const Previous = ActiveCompileProcesses.get(FileKey);
+            try
+            {
+                Previous.Process.kill();
+            }
+            catch (Ignored)
+            {
+            }
+            if (Previous.JobDir)
+            {
+                FSPromises.rm(Previous.JobDir, { recursive: true, force: true }).catch ( () => {});
+            }
+            ActiveCompileProcesses.delete(FileKey);
+        }
 
         const KnrCheck = DetectKnrSlop(Source, ActiveFileName);
         if (KnrCheck.HasError)
@@ -2046,25 +2157,18 @@ async function HandleCompile(Request, Response)
 
         const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
         const JobDir = Path.join(TEMP_DIR, JobID);
-        ActiveJobDir = JobDir;
         await FSPromises.mkdir(JobDir, { recursive: true });
 
-        let DocRoot = JobDir;
-        if (Payload.FilePath)
-        {
-            const Validated = ValidateWorkspacePath(Payload.FilePath, false, false);
-            if (Validated.Valid)
-            {
-                DocRoot = Path.dirname(Validated.Path);
-            }
-        }
+        const DocRoot = ResolveDocRoot(Payload.FilePath, JobDir);
 
         const OutputPattern = Path.join(JobDir, "page-{p}.svg");
         const SourceToCompile = NormalizeMathFunctionCalls(Source);
 
         const CompileResult = await ExecuteCompile
         (
-            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern], { cwd: JobDir, timeout: 20000 },
+            TYPST_BINARY,
+            ["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern],
+            { cwd: JobDir, timeout: 20000, FileKey: FileKey, IsBackground: IsBackground },
             SourceToCompile
         );
 
@@ -2128,7 +2232,6 @@ async function HandleCompile(Request, Response)
                 SyncMap = EnrichMathSyncMap(SyncMap, Source, Pages);
                 SyncMap = EnrichFunctionCalls(SyncMap, Source);
                 SyncMap = EnrichReferences(SyncMap, Source);
-                LastActiveSyncMap = SyncMap;
             }
             catch (Ignored)
             {
@@ -2143,10 +2246,16 @@ async function HandleCompile(Request, Response)
                 SpanMap[Elem.span] = Elem;
             }
         }
-        LastActiveSpanMap = SpanMap;
+
+        if (!IsBackground)
+        {
+            LastActiveSyncMap = SyncMap;
+            LastActiveSpanMap = SpanMap;
+            ActiveSyncMapsByFile.set(FileKey, SyncMap);
+            ActiveSpanMapsByFile.set(FileKey, SpanMap);
+        }
 
         await FSPromises.rm(JobDir, { recursive: true, force: true }).catch ( () => {});
-        ActiveJobDir = null;
 
         Response.writeHead(200, { "Content-Type": "application/json" });
         Response.end
@@ -2187,6 +2296,8 @@ async function HandleResolveClick(Request, Response)
         const Page = parseInt(Payload.Page, 10) || 1;
         const X = parseFloat(Payload.X);
         const Y = parseFloat(Payload.Y);
+        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const SyncMap = (FileKey && ActiveSyncMapsByFile.get(FileKey)) || LastActiveSyncMap;
 
         if (isNaN(X) || isNaN(Y))
         {
@@ -2201,7 +2312,7 @@ async function HandleResolveClick(Request, Response)
         let BestElem = null;
         let MinDist = Infinity;
 
-        for (const Elem of LastActiveSyncMap)
+        for (const Elem of SyncMap)
         {
             if (Elem.page !== Page)
             {
@@ -2275,6 +2386,8 @@ async function HandleResolveCursor(Request, Response)
         const Payload = JSON.parse(RawBody);
         const Line = parseInt(Payload.Line, 10);
         const Col = parseInt(Payload.Column || Payload.Col, 10);
+        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const SyncMap = (FileKey && ActiveSyncMapsByFile.get(FileKey)) || LastActiveSyncMap;
 
         if (!Line || !Col)
         {
@@ -2289,7 +2402,7 @@ async function HandleResolveCursor(Request, Response)
         let BestElem = null;
         let SmallestRange = Infinity;
 
-        for (const Elem of LastActiveSyncMap)
+        for (const Elem of SyncMap)
         {
             const StartsBefore = Elem.line < Line || (Elem.line === Line && Elem.col <= Col);
             const EndsAfter = Elem.end_line > Line || (Elem.end_line === Line && Elem.end_col >= Col);
@@ -2366,8 +2479,10 @@ async function HandleResolveSpan(Request, Response)
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Span = Payload.Span;
+        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const SpanMap = (FileKey && ActiveSpanMapsByFile.get(FileKey)) || LastActiveSpanMap;
 
-        if (!Span || !LastActiveSpanMap[Span])
+        if (!Span || !SpanMap[Span])
         {
             Response.writeHead(404, { "Content-Type": "application/json" });
             Response.end
@@ -2377,7 +2492,7 @@ async function HandleResolveSpan(Request, Response)
             return ;
         }
 
-        const Loc = LastActiveSpanMap[Span];
+        const Loc = SpanMap[Span];
         Response.writeHead(200, { "Content-Type": "application/json" });
         Response.end
         (
@@ -2412,6 +2527,8 @@ async function HandleCursorSpan(Request, Response)
         const Payload = JSON.parse(RawBody);
         const Line = parseInt(Payload.Line, 10);
         const Col = parseInt(Payload.Column || Payload.Col, 10);
+        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const SpanMap = (FileKey && ActiveSpanMapsByFile.get(FileKey)) || LastActiveSpanMap;
 
         if (!Line || !Col)
         {
@@ -2426,7 +2543,7 @@ async function HandleCursorSpan(Request, Response)
         let BestSpan = null;
         let SmallestRange = Infinity;
 
-        for (const[SpanId, Loc] of Object.entries(LastActiveSpanMap))
+        for (const[SpanId, Loc] of Object.entries(SpanMap))
         {
             const StartsBefore = Loc.line < Line || (Loc.line === Line && Loc.col <= Col);
             const EndsAfter = Loc.end_line > Line || (Loc.end_line === Line && Loc.end_col >= Col);
@@ -2459,7 +2576,7 @@ async function HandleCursorSpan(Request, Response)
             ({
                 Success: true,
                 Span: BestSpan,
-                ...LastActiveSpanMap[BestSpan]
+                ...SpanMap[BestSpan]
             })
         );
     }
@@ -2637,15 +2754,7 @@ async function HandleExportPdf(Request, Response)
         const JobDir = Path.join(TEMP_DIR, JobID);
         await FSPromises.mkdir(JobDir, { recursive: true });
 
-        let DocRoot = JobDir;
-        if (Payload.FilePath)
-        {
-            const Validated = ValidateWorkspacePath(Payload.FilePath, false, false);
-            if (Validated.Valid)
-            {
-                DocRoot = Path.dirname(Validated.Path);
-            }
-        }
+        const DocRoot = ResolveDocRoot(Payload.FilePath, JobDir);
 
         let SourceToCompile = Source;
         if (Payload.BlackMode)
@@ -2730,15 +2839,7 @@ async function HandleExportPng(Request, Response)
         const JobDir = Path.join(TEMP_DIR, JobID);
         await FSPromises.mkdir(JobDir, { recursive: true });
 
-        let DocRoot = JobDir;
-        if (Payload.FilePath)
-        {
-            const Validated = ValidateWorkspacePath(Payload.FilePath, false, false);
-            if (Validated.Valid)
-            {
-                DocRoot = Path.dirname(Validated.Path);
-            }
-        }
+        const DocRoot = ResolveDocRoot(Payload.FilePath, JobDir);
 
         let SourceToCompile = Source;
         if (Payload.BlackMode)
@@ -2863,15 +2964,7 @@ async function HandleExportSvg(Request, Response)
         const JobDir = Path.join(TEMP_DIR, JobID);
         await FSPromises.mkdir(JobDir, { recursive: true });
 
-        let DocRoot = JobDir;
-        if (Payload.FilePath)
-        {
-            const Validated = ValidateWorkspacePath(Payload.FilePath, false, false);
-            if (Validated.Valid)
-            {
-                DocRoot = Path.dirname(Validated.Path);
-            }
-        }
+        const DocRoot = ResolveDocRoot(Payload.FilePath, JobDir);
 
         let SourceToCompile = Source;
         if (Payload.BlackMode)
