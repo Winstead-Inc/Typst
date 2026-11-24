@@ -33,10 +33,10 @@ html.ul
         while i < len
         {
             let item = items.at(i)
-            i + = 1
+            i += 1
             let k = i
             while i < len and item.depth < items.at(i).depth
-            { i + = 1 }
+            { i += 1 }
 
             if "route" in item
             {
@@ -109,10 +109,10 @@ html.ul
     while i < len
     {
         let item = items.at(i)
-        i + = 1
+        i += 1
         let k = i
         while i < len and item.level < items.at(i).level
-        { i + = 1 }
+        { i += 1 }
         html.li
         ({ link(item.dest, item.body) if k < i { let children = items.slice(k, i) nav-on-this-page-items(children) } })
     }
@@ -127,7 +127,7 @@ html.ul
     if titles.len() > 0
     { let dest = titles.first().location() items.push((dest: dest, level: 1, body: [Summary])) }
 
-    items + = query(heading.where(outlined: true).within(scope)).map(m => (dest: m.location(), level: m.level, body: m.body))
+    items += query(heading.where(outlined: true).within(scope)).map(m => (dest: m.location(), level: m.level, body: m.body))
 
     if items.len() == 0 { return }
 

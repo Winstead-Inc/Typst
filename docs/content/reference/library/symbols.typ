@@ -164,7 +164,7 @@
         if type(s) == module
         {
             let nested-prefix = if prefix == none { name } else { prefix + "." + name }
-            entries + = symbol-list-entries(s, nested-prefix)
+            entries += symbol-list-entries(s, nested-prefix)
             continue
         }
 

@@ -39,7 +39,7 @@
     // If requested, add an invisible introduction heading and increase the
     // heading nesting depth by one extra.
     if introduction
-    { show heading: none heading(depth: 2, numbering: none)[Introduction] offset + = 1 }
+    { show heading: none heading(depth: 2, numbering: none)[Introduction] offset += 1 }
 
     heading-offset(offset, body)
 }
@@ -68,7 +68,7 @@ context
 
     let route = stdx.config.content-base + route.trim("/")
     if not route.ends-with("/")
-    { route + = "/" }
+    { route += "/" }
 
     if def-target != none
     { register-def(def-target, route, title: def-title) }

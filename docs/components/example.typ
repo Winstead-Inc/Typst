@@ -41,8 +41,8 @@
         if line.starts-with("<<< ")
         { line = line.slice(4) }
 
-        display + = line
-        display + = "\n"
+        display += line
+        display += "\n"
     }
 
     // Applies the `<_stop>` label so that the reconstructed raw block is not

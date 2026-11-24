@@ -329,7 +329,7 @@
     { panic("missing `since` for " + repr(info)) }
 
     if info.feature != none
-    { gap item(16, "toggle", "Feature toggle", { [Requires the]; raw(info.feature)[feature] }) }
+    { gap item(16, "toggle", "Feature toggle", [Requires the #raw(info.feature) feature]) }
 
     if info.deprecation != none
     {
@@ -564,12 +564,12 @@
     {
         let body = short-or-long
         (
-            heading-kinds + if nested { [on#parent] },
-            with-tooltip[#heading-kinds#if nested { [on#raw(parent)] }]
+            heading-kinds + if nested { [ on #parent] },
+            with-tooltip[#heading-kinds #if nested { [ on #raw(parent)] }]
             [
-                Functions and types can have associated#sentence-kinds.These are
+                Functions and types can have associated #sentence-kinds. These are
                 accessed by specifying the function or type, followed by a period,
-                and then the#sentence-kind ' s name.
+                and then the #sentence-kind ' s name.
             ],
         )
         labelled(heading(body), label)
