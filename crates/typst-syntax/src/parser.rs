@@ -622,13 +622,23 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
     else { code_primary(p, atomic); }
 
     let mut had_content_block_arg = false;
+    let mut had_call = false;
     loop
     {
-        let at_args = p.with_nl_mode(AtNewline::StopParBreak, | p | { p.at(SyntaxKind::LeftParen) || p.at(SyntaxKind::LeftBracket) });
+        if m.0 < p.nodes.len() && p[m].kind().is_stmt() { break; }
+
+        let is_content_block = m.0 < p.nodes.len() && p[m].kind() == SyntaxKind::ContentBlock;
+        let at_args = ! is_content_block && p.with_nl_mode
+        (
+            AtNewline::StopParBreak,
+            | p | (!had_call || p.token.newline.is_none()) && (p.at(SyntaxKind::LeftParen) || p.at(SyntaxKind::LeftBracket))
+        );
+
         if at_args
         {
             let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p) });
             if had_bracket { had_content_block_arg = true; }
+            had_call = true;
             p.wrap(m, SyntaxKind::FuncCall);
             continue ;
         }
@@ -639,9 +649,19 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8)
 
         if atomic && ! at_field_or_method { break ; }
 
-        if p.eat_if(SyntaxKind::Dot) { p.expect(SyntaxKind::Ident); p.wrap(m, SyntaxKind::FieldAccess); continue ; }
+        if p.eat_if(SyntaxKind::Dot)
+        {
+            p.expect(SyntaxKind::Ident);
+            had_call = false;
+            p.wrap(m, SyntaxKind::FieldAccess);
+            continue ;
+        }
 
-        let binop = if p.at_set(set::BINARY_OP) { ast::BinOp::from_kind(p.current()) }
+        let binop = if p.at_set(set::BINARY_OP)
+        {
+            let op = ast::BinOp::from_kind(p.current());
+            if p.token.newline.is_some() && op == Some(ast::BinOp::Assign) { None } else { op }
+        }
         else if min_prec <= ast::BinOp::NotIn.precedence() && p.eat_if(SyntaxKind::Not) { if p.at(SyntaxKind::In) { Some(ast::BinOp::NotIn) } else { p.expected("keyword `in`"); break ; } }
         else { None };
 
@@ -1167,7 +1187,8 @@ fn args(p: & mut Parser) -> bool
     if ! p.at(SyntaxKind::LeftParen) && ! p.at(SyntaxKind::LeftBracket) { p.expected("argument list"); }
 
     let m = p.marker();
-    if p.at(SyntaxKind::LeftParen)
+    let had_paren = p.at(SyntaxKind::LeftParen);
+    if had_paren
     {
         let m2 = p.marker();
         p.with_nl_mode

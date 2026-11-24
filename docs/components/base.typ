@@ -134,7 +134,7 @@ html.small(body)
     "svg",
     attrs:
     {
-        let s = str(size)
+        let s = str(size);
         (width: s, height: s, viewBox: "0 0 " + s + " " + s, preserveAspectRatio: "xMidYMid meet", role: "img",)
     },
     {

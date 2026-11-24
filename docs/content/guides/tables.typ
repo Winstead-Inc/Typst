@@ -933,7 +933,7 @@ Now that we have nice code for our table, we should try to also make the table i
 #let moore-log = moore.slice(1).map(m => {
   let (.., year, count) = m
   let log = calc.log(float(count))
-  let rounded = str(calc.round(log, digits: 2))
+  let rounded = str(calc.round(log, digits: 2));
   (year, rounded)
 })
 
