@@ -3292,13 +3292,17 @@ fn InProcessLafsFormatSnippet(Code: &str) -> String
     Output.join("\n")
 }
 
-fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
+fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> Option<String>
 {
+    if Code.trim().is_empty()
+    {
+        return Some(Code.to_string());
+    }
     let CleanLang = Lang.trim().to_lowercase();
-    let Supported = ["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs"];
+    let Supported = ["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs", "typ", "typst"];
     if !Supported.contains(&CleanLang.as_str())
     {
-        return InProcessLafsFormatSnippet(Code);
+        return Some(InProcessLafsFormatSnippet(Code));
     }
     let TargetLang = match CleanLang.as_str()
     {
@@ -3306,13 +3310,14 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
         "bash" => "sh",
         "kotlin" => "kt",
         "rs" => "rust",
+        "typst" => "typ",
         Other => Other,
     };
 
     if let Some(BinPath) = ResolveLafsBinary()
     {
         let mut Cmd = CreateCommand(&BinPath);
-        Cmd.args(["-l", TargetLang, "-c", "160", "-"]);
+        Cmd.args(["-l", TargetLang, "--no-log", "-c", "160", "-"]);
         Cmd.current_dir(std::env::temp_dir());
         Cmd.stdin(std::process::Stdio::piped());
         Cmd.stdout(std::process::Stdio::piped());
@@ -3341,7 +3346,7 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
                                 let mut OutStr = String::new();
                                 if Stdout.read_to_string(&mut OutStr).is_ok() && !OutStr.is_empty()
                                 {
-                                    return OutStr.trim_end().to_string();
+                                    return Some(OutStr.trim_end().to_string());
                                 }
                             }
                         break;
@@ -3361,13 +3366,36 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> String
         }
     }
 
-    InProcessLafsFormatSnippet(Code)
+    if TargetLang == "typ"
+    {
+        None
+    }
+    else
+    {
+        Some(InProcessLafsFormatSnippet(Code))
+    }
 }
 
 #[tauri::command]
 fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
 {
-    let Lines: Vec<&str> = Source.lines().collect();
+    let NativeFormatted = match FormatSnippetWithVerifiedLafs(&Source, "typ")
+    {
+        Some(F) => F,
+        None =>
+        {
+            // Fail-safe invariant: keep user buffer 100% untouched on native formatter unavailability or error
+            return Ok(Format_Typst_Response
+            {
+                Success: false,
+                Formatted: Source,
+                HasError: true,
+                Error: Some("Native LAFS formatter unavailable or failed; buffer kept untouched.".to_string()),
+            });
+        }
+    };
+
+    let Lines: Vec<&str> = NativeFormatted.lines().collect();
     let mut ResultLines = Vec::new();
     let mut InRaw = false;
     let mut CurrentRawLang = String::new();
@@ -3391,7 +3419,8 @@ fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
                 let RawCode = CurrentRawLines.join("\n");
                 if !RawCode.trim().is_empty()
                 {
-                    let Formatted = FormatSnippetWithVerifiedLafs(&RawCode, &CurrentRawLang);
+                    let Formatted = FormatSnippetWithVerifiedLafs(&RawCode, &CurrentRawLang)
+                        .unwrap_or_else(|| RawCode.clone());
                     ResultLines.push(Formatted);
                 }
                 else
@@ -3412,7 +3441,7 @@ fn FormatTypst(Source: String) -> Result<Format_Typst_Response, String>
         ResultLines.push(Line.to_string());
     }
 
-    Ok(Format_Typst_Response { Success: true, Formatted: ResultLines.join("\n"), HasError: false, Error: None, })
+    Ok(Format_Typst_Response { Success: true, Formatted: ResultLines.join("\n"), HasError: false, Error: None })
 }
 
 #[tauri::command]
@@ -4128,5 +4157,19 @@ mod tests
             TransSvg.contains("fill=\"#00ff00\""),
             "StripCanvasBackground must preserve user shape fills"
         );
+    }
+
+    #[test]
+    fn TestFormatTypstNoDestructiveMutations()
+    {
+        let Doc = "= My Heading\n\nSee example (\nhello\n) and also [\nworld\n].\n\n#while x < 10 {\n  x += 1\n}\n\n#if y > 0 {\n  [Positive]\n}\n".to_string();
+        let Res = FormatTypst(Doc.clone()).expect("FormatTypst call succeeds");
+        assert!(Res.Success);
+        // Never turn while/if conditions into ' = {'
+        assert!(!Res.Formatted.contains(") ="), "Must never mutate conditions into ') ='");
+        assert!(!Res.Formatted.contains("10 ="), "Must never insert '=' after while condition");
+        assert!(!Res.Formatted.contains("0 ="), "Must never insert '=' after if condition");
+        // Headings must be intact
+        assert!(Res.Formatted.contains("= My Heading"));
     }
 }

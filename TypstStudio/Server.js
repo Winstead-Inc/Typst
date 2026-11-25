@@ -165,17 +165,18 @@ function InProcessFormatSnippetLAFS(Code)
 function FormatCodeBlockWithLAFS(Code, Language)
 {
     const CleanLang = (Language || "").trim().toLowerCase();
-    const SupportedLangs = new Set(["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs"]);
+    const SupportedLangs = new Set(["c", "cpp", "csharp", "cs", "js", "ts", "jsx", "tsx", "sh", "bash", "kt", "kotlin", "dart", "rust", "rs", "typ", "typst"]);
     const LangMap = {
         "cs": "csharp",
         "bash": "sh",
         "kotlin": "kt",
-        "rs": "rust"
+        "rs": "rust",
+        "typst": "typ"
     };
     const TargetLang = LangMap[CleanLang] || CleanLang;
     if (!SupportedLangs.has(TargetLang))
     {
-        return InProcessFormatSnippetLAFS(Code);
+        return (TargetLang === "typ") ? Code : InProcessFormatSnippetLAFS(Code);
     }
 
     if (LAFS_BINARY)
@@ -188,7 +189,7 @@ function FormatCodeBlockWithLAFS(Code, Language)
                 const Proc = ChildProcess.spawnSync
                 (
                     LAFS_BINARY,
-                    ["-l", TargetLang, "-c", "160", "-"],
+                    ["-l", TargetLang, "--no-log", "-c", "160", "-"],
                     {
                         input: Code,
                         encoding: "utf-8",
@@ -205,7 +206,7 @@ function FormatCodeBlockWithLAFS(Code, Language)
             }
             catch (Err)
             {
-                // Fallback to internal engine on any execution glitch
+                // Fallback on execution glitch
             }
         }
         else
@@ -214,7 +215,7 @@ function FormatCodeBlockWithLAFS(Code, Language)
         }
     }
 
-    return InProcessFormatSnippetLAFS(Code);
+    return (TargetLang === "typ") ? Code : InProcessFormatSnippetLAFS(Code);
 }
 
 function ResolveTypstBinary()
@@ -1064,16 +1065,61 @@ Hint: Click the button "Format LAFS" to fix it.`;
     };
 }
 
-function FormatTypstLAFS(Source)
+function TryFormatTypstNative(Source)
 {
-    const Lines = (Source || "").split(/\r?\n/);
+    if (!Source || typeof Source !== "string")
+    {
+        return { Success: true, Formatted: Source || "", Error: null };
+    }
+
+    if (!LAFS_BINARY)
+    {
+        return { Success: false, Formatted: Source, Error: "Native LAFS binary is unavailable; source kept untouched." };
+    }
+
+    const Integrity = VerifyLafsBinaryIntegrity(LAFS_BINARY);
+    if (!Integrity.Valid)
+    {
+        return { Success: false, Formatted: Source, Error: `Native LAFS integrity failed (${Integrity.Reason}); source kept untouched.` };
+    }
+
+    let Formatted = null;
+    try
+    {
+        const Proc = ChildProcess.spawnSync
+        (
+            LAFS_BINARY,
+            ["-l", "typ", "--no-log", "-c", "160", "-"],
+            {
+                input: Source,
+                encoding: "utf-8",
+                timeout: 5000,
+                windowsHide: true,
+                shell: false,
+                cwd: TEMP_DIR
+            }
+        );
+        if (Proc.status === 0 && Proc.stdout)
+        {
+            Formatted = Proc.stdout.trimEnd();
+        }
+        else
+        {
+            return { Success: false, Formatted: Source, Error: Proc.stderr || "Native LAFS formatter returned non-zero exit status." };
+        }
+    }
+    catch (Err)
+    {
+        return { Success: false, Formatted: Source, Error: Err.message || "Native LAFS formatting failed." };
+    }
+
+    const Lines = Formatted.split(/\r?\n/);
     const ResultLines = [];
     let InRawBlock = false;
     let CurrentRawLang = "";
     let CurrentRawLines = [];
-    let InBlockComment = false;
 
-    for (let I = 0; I < Lines.length; I ++)
+    for (let I = 0; I < Lines.length; I++)
     {
         const Line = Lines[I];
         const Trimmed = Line.trim();
@@ -1091,7 +1137,7 @@ function FormatTypstLAFS(Source)
             {
                 InRawBlock = false;
                 const RawCode = CurrentRawLines.join("\n");
-                if (RawCode.trim().length > 0)
+                if (RawCode.trim().length > 0 && CurrentRawLang)
                 {
                     const FormattedBlock = FormatCodeBlockWithLAFS(RawCode, CurrentRawLang);
                     ResultLines.push(FormattedBlock);
@@ -1111,91 +1157,15 @@ function FormatTypstLAFS(Source)
             continue;
         }
 
-        if (Trimmed.startsWith("/*") && !Trimmed.includes("*/"))
-        {
-            InBlockComment = true;
-            ResultLines.push(Line);
-            continue;
-        }
-
-        if (InBlockComment)
-        {
-            if (Trimmed.includes("*/")) { InBlockComment = false; }
-            ResultLines.push(Line);
-            continue;
-        }
-
-        if (Trimmed === "" || Trimmed.startsWith("//"))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-        // Handle '} else if (...) {' or '} else {'
-        const ElseIfMatch = Trimmed.match(/^(\})\s*(else\s+if\s+.*?)(\s*\{)?$/);
-        if (ElseIfMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}}`);
-            ResultLines.push(`${Indent}${ElseIfMatch[2]}`);
-            if (ElseIfMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
-            continue;
-        }
-
-        const ElseMatch = Trimmed.match(/^(\})\s*(else)(\s*\{)?$/);
-        if (ElseMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}}`);
-            ResultLines.push(`${Indent}else`);
-            if (ElseMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
-            continue;
-        }
-        // Handle control flow statements like 'if ... {' or 'while ... {' or 'for ... {'
-        const ControlMatch = Trimmed.match(/^(if\s+.*?|while\s+.*?|for\s+.*?|context)\s*\{$/);
-        if (ControlMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}${ControlMatch[1]}`);
-            ResultLines.push(`${Indent}{`);
-            continue;
-        }
-        // Handle trailing delimiters '{', '(', '[' on multiline constructs
-        const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[])\s*$/);
-        if (EndsWithDelimiter)
-        {
-            const Prefix = EndsWithDelimiter[1].trim();
-            const Delim = EndsWithDelimiter[3];
-            const Indent = Line.match(/^\s*/)[0];
-
-            if (Prefix !== "" && !Prefix.includes("//"))
-            {
-                ResultLines.push(`${Indent}${Prefix}`);
-                ResultLines.push(`${Indent}${Delim}`);
-                continue;
-            }
-        }
-        // Handle lines with attached delimiters and inner content, e.g. '#set text(font: "Inter",'
-        const AttachedWithContent = Trimmed.match(/^([#a-zA-Z0-9_\-\.]+.*?)(\s*)([\(\{\[])(\s*[^\)\}\]]+)$/);
-        if (AttachedWithContent && !Trimmed.endsWith(")") && !Trimmed.endsWith("}") && !Trimmed.endsWith("]"))
-        {
-            const Prefix = AttachedWithContent[1].trim();
-            const Delim = AttachedWithContent[3];
-            const Remainder = AttachedWithContent[4].trim();
-            const Indent = Line.match(/^\s*/)[0];
-
-            if (Prefix !== "" && !Prefix.includes("//"))
-            {
-                ResultLines.push(`${Indent}${Prefix}`);
-                ResultLines.push(`${Indent}${Delim}`);
-                ResultLines.push(`${Indent}    ${Remainder}`);
-                continue;
-            }
-        }
-
         ResultLines.push(Line);
     }
 
-    return ResultLines.join("\n");
+    return { Success: true, Formatted: ResultLines.join("\n"), Error: null };
+}
+
+function FormatTypstLAFS(Source)
+{
+    return TryFormatTypstNative(Source).Formatted;
 }
 
 function GetTrackedDirectories()
@@ -3184,7 +3154,7 @@ async function HandleFormat(Request, Response)
         Response.writeHead(200, { "Content-Type": "application/json" });
         Response.end
         (
-            JSON.stringify( { Success: true, Formatted: Formatted })
+            JSON.stringify({ Success: true, Formatted: Formatted, Error: null })
         );
     }
     catch (Exception)
@@ -3192,7 +3162,7 @@ async function HandleFormat(Request, Response)
         Response.writeHead(500, { "Content-Type": "application/json" });
         Response.end
         (
-            JSON.stringify( { Success: false, Error: Exception.message })
+            JSON.stringify({ Success: false, Error: Exception.message })
         );
     }
 }

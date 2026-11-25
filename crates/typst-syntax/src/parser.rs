@@ -662,7 +662,7 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
         let is_detached = p.token.newline.is_some();
         let is_interior_expr = m.0 > p.stmt_node_start && p.nl_mode != AtNewline::Continue;
 
-        let at_args = ! is_non_callable && (!is_detached || !is_interior_expr) && p.with_nl_mode
+        let at_args = ! is_non_callable && p.with_nl_mode
         (
             AtNewline::StopParBreak,
             | p |
@@ -672,6 +672,7 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
                     && (!atomic || (p.hash_at_line_start && p.token.newline.is_some()) || !p.had_trivia());
 
                 let at_bracket = allow_bracket
+                    && (!is_detached || !is_interior_expr)
                     && p.at(SyntaxKind::LeftBracket)
                     && (!had_content_block_arg || !atomic || p.token.newline.is_none())
                     && (!atomic || p.hash_at_line_start || p.token.newline.is_none());
@@ -682,7 +683,8 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
 
         if at_args
         {
-            let is_detached_paren = p.token.newline.is_some() && p.at(SyntaxKind::LeftParen);
+            let is_detached_paren = p.token.newline.is_some() && p.token.node.kind() == SyntaxKind::LeftParen;
+            let is_interior_detached_paren = is_detached_paren && is_interior_expr;
             let checkpoint = if is_detached_paren { Some(p.checkpoint()) } else { None };
 
             let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, allow_bracket) });
@@ -690,7 +692,37 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
             if let Some(cp) = checkpoint
             {
                 let has_errors = p.nodes[cp.node_len..].iter().any(|node| node.diagnosis().errors);
-                if has_errors
+                let mut is_valid_lafs_call = !has_errors;
+                if is_valid_lafs_call && is_interior_detached_paren
+                {
+                    is_valid_lafs_call = p.nodes.last().is_some_and(|args_node|
+                    {
+                        let mut non_delim_count = 0usize;
+                        let mut has_call_signal = false;
+                        for child in args_node.children()
+                        {
+                            match child.kind()
+                            {
+                                SyntaxKind::Comma
+                                | SyntaxKind::Named
+                                | SyntaxKind::Spread
+                                | SyntaxKind::ContentBlock
+                                | SyntaxKind::SpaceWithNewline
+                                | SyntaxKind::Parbreak =>
+                                {
+                                    has_call_signal = true;
+                                }
+                                SyntaxKind::LeftParen | SyntaxKind::RightParen | SyntaxKind::SpaceNoNewline => {}
+                                _ =>
+                                {
+                                    non_delim_count += 1;
+                                }
+                            }
+                        }
+                        has_call_signal || non_delim_count == 0
+                    });
+                }
+                if !is_valid_lafs_call
                 {
                     p.restore(cp);
                     break;

@@ -3172,13 +3172,18 @@ function InProcessFormatSnippetLAFS(Code)
 
 function FormatTypstLAFS(Source)
 {
+    // Fail-safe invariant: never destroy or mutate Typst syntax with brittle line-by-line regexes.
+    // If raw code blocks exist, format their inner language safely. Otherwise return Source untouched.
+    if (!Source || typeof Source !== "string")
+    {
+        return Source || "";
+    }
     const Lines = Source.split(/\r?\n/);
     const ResultLines = [];
     let InRawBlock = false;
     let CurrentRawLines = [];
-    let InBlockComment = false;
 
-    for (let I = 0; I < Lines.length; I ++)
+    for (let I = 0; I < Lines.length; I++)
     {
         const Line = Lines[I];
         const Trimmed = Line.trim();
@@ -3214,169 +3219,6 @@ function FormatTypstLAFS(Source)
             continue;
         }
 
-        if (Trimmed.startsWith("/*") && !Trimmed.includes("*/"))
-        {
-            InBlockComment = true;
-            ResultLines.push(Line);
-            continue;
-        }
-
-        if (InBlockComment)
-        {
-            if (Trimmed.includes("*/")) { InBlockComment = false; }
-            ResultLines.push(Line);
-            continue;
-        }
-
-        if (Trimmed === "" || Trimmed.startsWith("//"))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-
-        // Standalone equals sign on its own line: '='
-        // Attach '=' to the end of the previous parameter run or closure signature
-        if (Trimmed === "=")
-        {
-            let Attached = false;
-            for (let PrevIdx = ResultLines.length - 1; PrevIdx >= 0; PrevIdx--)
-            {
-                const PrevTrim = ResultLines[PrevIdx].trim();
-                if (PrevTrim === "" || PrevTrim.startsWith("//") || PrevTrim.startsWith("/*"))
-                {
-                    continue;
-                }
-                if (PrevTrim.endsWith(")") || PrevTrim.endsWith("]"))
-                {
-                    ResultLines[PrevIdx] = ResultLines[PrevIdx] + " =";
-                    Attached = true;
-                }
-                break;
-            }
-            if (Attached)
-            {
-                continue;
-            }
-        }
-
-        // If this line is an opening '{' (or starts with '{')
-        // Ensure let bindings have '=' attached before '{'
-        if (Trimmed === "{" || Trimmed.startsWith("{\n") || Trimmed.startsWith("{ "))
-        {
-            for (let PrevIdx = ResultLines.length - 1; PrevIdx >= 0; PrevIdx--)
-            {
-                const PrevTrim = ResultLines[PrevIdx].trim();
-                if (PrevTrim === "" || PrevTrim.startsWith("//") || PrevTrim.startsWith("/*"))
-                {
-                    continue;
-                }
-                if (PrevTrim.endsWith(")") && !PrevTrim.endsWith("=") && !PrevTrim.endsWith("=>"))
-                {
-                    let IsLet = false;
-                    for (let ScanIdx = PrevIdx; ScanIdx >= 0 && ScanIdx >= PrevIdx - 20; ScanIdx--)
-                    {
-                        const ScanTrim = ResultLines[ScanIdx].trim();
-                        if (ScanTrim.startsWith("#let ") || ScanTrim.startsWith("let "))
-                        {
-                            IsLet = true;
-                            break;
-                        }
-                        if (ScanTrim.endsWith("}") || ScanTrim.endsWith(";"))
-                        {
-                            break;
-                        }
-                    }
-                    if (IsLet)
-                    {
-                        ResultLines[PrevIdx] = ResultLines[PrevIdx] + " =";
-                    }
-                }
-                break;
-            }
-        }
-
-        // Already pure opening delimiter or compound delimiter run on its own line: '({', '([', '{', '(', '['
-        if (/^[\(\[\{]+$/.test(Trimmed))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-
-        // Already pure closing delimiter or compound delimiter run: '})', '])', '}', ')', ']', optionally with trailing punctuation
-        if (/^[\)\]\}]+[;,]?$/.test(Trimmed))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-
-        // Typst content literals on their own line: '[(]', '[)]', '[,]', '[.]', '[..]'
-        if (/^\s*\[\s*[\(\)\,\.\;\:\-\+\*\/\`]+\s*\][;,]?$/.test(Line))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-
-        // Check if inside string literal or single-line raw block
-        if ((Trimmed.startsWith("`") && Trimmed.endsWith("`") && Trimmed.length >= 2) ||
-            (Trimmed.startsWith('"') && Trimmed.endsWith('"') && Trimmed.length >= 2))
-        {
-            ResultLines.push(Line);
-            continue;
-        }
-
-        // Handle '} else if (...) {' or '} else {'
-        const ElseIfMatch = Trimmed.match(/^(\})\s*(else\s+if\s+.*?)(\s*\{)?$/);
-        if (ElseIfMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}}`);
-            ResultLines.push(`${Indent}${ElseIfMatch[2]}`);
-            if (ElseIfMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
-            continue;
-        }
-
-        const ElseMatch = Trimmed.match(/^(\})\s*(else)(\s*\{)?$/);
-        if (ElseMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}}`);
-            ResultLines.push(`${Indent}else`);
-            if (ElseMatch[3] || Trimmed.endsWith("{")) { ResultLines.push(`${Indent}{`); }
-            continue;
-        }
-
-        // Handle trailing single or compound opening delimiters '{', '(', '({', '([', '[{' on multiline constructs
-        const EndsWithDelimiter = Trimmed.match(/^(.*?)(\s*)([\{\(\[]+)\s*$/);
-        if (EndsWithDelimiter)
-        {
-            const Prefix = EndsWithDelimiter[1].trim();
-            const Delims = EndsWithDelimiter[3];
-            const Indent = Line.match(/^\s*/)[0];
-
-            if (Prefix !== "" && !Prefix.includes("//"))
-            {
-                // Ensure prefix does not end with backtick or unclosed quote
-                const Backticks = (Prefix.match(/`/g) || []).length;
-                const Quotes = (Prefix.match(/"/g) || []).length;
-                if (Backticks % 2 === 0 && Quotes % 2 === 0)
-                {
-                    ResultLines.push(`${Indent}${Prefix}`);
-                    ResultLines.push(`${Indent}${Delims}`);
-                    continue;
-                }
-            }
-        }
-
-        // Handle control flow statements like 'if ... {' or 'while ... {' or 'for ... {'
-        const ControlMatch = Trimmed.match(/^(if\s+.*?|while\s+.*?|for\s+.*?|context)\s*\{$/);
-        if (ControlMatch)
-        {
-            const Indent = Line.match(/^\s*/)[0];
-            ResultLines.push(`${Indent}${ControlMatch[1]}`);
-            ResultLines.push(`${Indent}{`);
-            continue;
-        }
-
         ResultLines.push(Line);
     }
 
@@ -3385,7 +3227,10 @@ function FormatTypstLAFS(Source)
 
 async function ApplyFormattingToEditor()
 {
-    if (!MonacoInstance) { return; }
+    if (!MonacoInstance)
+    {
+        return;
+    }
     CaptureTimelineSnapshot("Before LAFS Format");
     const CurrentValue = MonacoInstance.getValue();
     let FormattedValue = null;
@@ -3421,7 +3266,7 @@ async function ApplyFormattingToEditor()
                         "Content-Type": "application/json",
                         "X-Typst-Auth-Token": SessionAuthToken || ""
                     },
-                    body: JSON.stringify( { Source: CurrentValue })
+                    body: JSON.stringify({ Source: CurrentValue })
                 }
             );
             if (Resp.ok)
@@ -3435,13 +3280,16 @@ async function ApplyFormattingToEditor()
         }
         catch (Err)
         {
-            // Fallback to client-side
+            // Fallback
         }
     }
 
+    // Fail-safe invariant: if native formatter failed or was unavailable,
+    // NEVER destroy or mutate the buffer with fragile regexes.
     if (!FormattedValue)
     {
-        FormattedValue = FormatTypstLAFS(CurrentValue);
+        ShowToast("LAFS formatter unavailable; buffer kept untouched.", "warning", 3000);
+        return;
     }
 
     if (CurrentValue !== FormattedValue)
@@ -3449,11 +3297,18 @@ async function ApplyFormattingToEditor()
         const FullRange = MonacoInstance.getModel().getFullModelRange();
         MonacoInstance.executeEdits
         (
-            "format-lafs",[ { range: FullRange, text: FormattedValue }]
+            "format-lafs",
+            [
+                { range: FullRange, text: FormattedValue }
+            ]
         );
         MonacoInstance.pushUndoStop();
         TriggerCompileNow();
         ShowToast("Formatted to LAFS standard", "info");
+    }
+    else
+    {
+        ShowToast("Document already follows LAFS", "info");
     }
 }
 
@@ -3557,10 +3412,13 @@ function InitializeMonaco()
             (
                 "typst",
                 {
+                    defaultToken: "",
+                    tokenPostfix: ".typst",
+
                     keywords:
                     [
                         "let", "set", "show", "context", "if", "else", "while",
-                        "for", "in", "return", "import", "include", "as"
+                        "for", "in", "return", "import", "include", "as", "break", "continue"
                     ],
                     constants:
                     [
@@ -3576,51 +3434,103 @@ function InitializeMonaco()
                         "figure", "caption", "footnote", "quote", "raw", "state", "query", "locate",
                         "measure", "layout", "datetime", "regex", "bytes", "duration", "version",
                         "type", "repr", "str", "int", "float", "array", "dictionary", "arguments",
-                        "rgb", "cmyk", "luma", "color", "gradient", "pattern", "stroke", "vec", "mat"
+                        "rgb", "cmyk", "luma", "color", "gradient", "pattern", "stroke", "vec", "mat",
+                        "std", "panic", "assert"
                     ],
                     tokenizer:
                     {
                         root:
                         [
-                            [/\/\/.*$/, "comment"],[/\/\*/, "comment", "@comment"],[/```/, "markup.raw.block", "@rawblock"],[/`[^`\n]*`/, "markup.raw.inline"],
-                            [
-                                /"([^"\\]|\\.)*"/, "string"
-                            ],
-                            [/\$[^$\n]*\$/, "string.math"],[/^(\s*=+)(.*)$/,["keyword.heading", "markup.heading.text"]],
-                            [
-                                /<[a-zA-Z0-9_\-:]+>/, "entity.name.label"
-                            ],
-                            [/@[a-zA-Z0-9_\-:]+/, "entity.name.reference"],[/\*([^*]+)\*/, "markup.bold"],[/_([^_]+)_/, "markup.italic"],
-                            [
-                                /\\([#$*_\-\\@[\]{}])/, "constant.character.escape"
-                            ],
-                            [/\\$/, "constant.character.escape"],[/^\s*[-+]\s+/, "punctuation.list"],[/([a-zA-Z_]\w*)\s*(?=:)/, "variable.parameter"],
-                            [
-                                /#([a-zA-Z_]\w*)/, "keyword"
-                            ],
-                            [
-                                /[a-zA-Z_]\w*/,
-                                {
-                                    cases:
-                                    {
-                                        "@keywords": "keyword",
-                                        "@constants": "constant.language",
-                                        "@builtins": "type.identifier",
-                                        "@default": "identifier"
-                                    }
-                                }
-                            ],
-                            // Typst content literals like [(], [)], [{], [}], [,], [.], [..]
+                            [/\/\/.*$/, "comment"],
+                            [/\/\*/, "comment", "@comment"],
+                            [/```/, "markup.raw.block", "@rawblock"],
+                            [/`[^`\n]*`/, "markup.raw.inline"],
+                            [/^(\s*=+)(.*)$/, ["keyword.heading", "markup.heading.text"]],
+                            [/<[a-zA-Z0-9_\-:]+>/, "entity.name.label"],
+                            [/@[a-zA-Z0-9_\-:]+/, "entity.name.reference"],
+                            [/\*([^*]+)\*/, "markup.bold"],
+                            [/_([^_]+)_/, "markup.italic"],
+                            [/\\([#$*_\-\\@[\]{}])/, "constant.character.escape"],
+                            [/\\$/, "constant.character.escape"],
+                            [/^\s*[-+]\s+/, "punctuation.list"],
+                            [/^\s*\d+\.\s+/, "punctuation.list"],
                             [/\[\s*[\(\)\{\}\[\]\.,:;\\` ]+\s*\]/, "markup.content.literal"],
-                            [/[{}()\[\]]/, "@brackets"],[/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],[/[=+\-*/<>!&|~]/, "operator"]
+                            [/\$/, "string.math", "@mathmode"],
+                            [/#([a-zA-Z_][a-zA-Z0-9_-]*)/,
+                            {
+                                cases:
+                                {
+                                    "@keywords": "keyword",
+                                    "@constants": "constant.language",
+                                    "@builtins": "type.identifier",
+                                    "@default": "type.identifier"
+                                }
+                            }],
+                            [/#/, "keyword", "@codemode"],
+                            [/"([^"\\]|\\.)*"/, "string"],
+                            [/[{}()\[\]]/, "@brackets"],
+                            [/[a-zA-Z_][a-zA-Z0-9_-]*/, ""],
+                            [/./, ""]
+                        ],
+                        codemode:
+                        [
+                            [/\/\/.*$/, "comment"],
+                            [/\/\*/, "comment", "@comment"],
+                            [/\{/, "@brackets", "@push"],
+                            [/\}/, "@brackets", "@pop"],
+                            [/\[/, "@brackets", "@markupmode"],
+                            [/"([^"\\]|\\.)*"/, "string"],
+                            [/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],
+                            [/([a-zA-Z_][a-zA-Z0-9_-]*)\s*(?=:)/, "variable.parameter"],
+                            [/[a-zA-Z_][a-zA-Z0-9_-]*/,
+                            {
+                                cases:
+                                {
+                                    "@keywords": "keyword",
+                                    "@constants": "constant.language",
+                                    "@builtins": "type.identifier",
+                                    "@default": "identifier"
+                                }
+                            }],
+                            [/=>|==|!=|<=|>=|\.\.|\+=|-=|\*=|\/=|&&|\|\||[+\-*/=<>!&|~]/, "operator"],
+                            [/[()]/, "@brackets"],
+                            [/[,;:]/, "delimiter"],
+                            [/\s+/, ""]
+                        ],
+                        markupmode:
+                        [
+                            [/\[/, "@brackets", "@push"],
+                            [/\]/, "@brackets", "@pop"],
+                            { include: "root" }
+                        ],
+                        mathmode:
+                        [
+                            [/\/\/.*$/, "comment"],
+                            [/\/\*/, "comment", "@comment"],
+                            [/\$/, "string.math", "@pop"],
+                            [/#([a-zA-Z_][a-zA-Z0-9_-]*)/, { cases: { "@keywords": "keyword", "@builtins": "type.identifier", "@default": "type.identifier" } }],
+                            [/"([^"\\]|\\.)*"/, "string"],
+                            [/([a-zA-Z_][a-zA-Z0-9_-]*)\s*(?=\()/, "type.identifier"],
+                            [/[a-zA-Z_][a-zA-Z0-9_-]*/, "string.math"],
+                            [/\d+(\.\d+)?/, "number"],
+                            [/[+\-*/=<>!&|~^_]/, "operator"],
+                            [/[()\[\]{}]/, "@brackets"],
+                            [/[,;]/, "delimiter"],
+                            [/\\./, "constant.character.escape"],
+                            [/\s+/, "string.math"]
                         ],
                         comment:
                         [
-                            [/[^\/*]+/, "comment"],[/\*\//, "comment", "@pop"],[/[\/*]/, "comment"]
+                            [/[^\/*]+/, "comment"],
+                            [/\/\*/, "comment", "@push"],
+                            [/\*\//, "comment", "@pop"],
+                            [/[\/*]/, "comment"]
                         ],
                         rawblock:
                         [
-                            [/[^`]+/, "markup.raw.block"],[/```/, "markup.raw.block", "@pop"],[/`/, "markup.raw.block"]
+                            [/[^`]+/, "markup.raw.block"],
+                            [/```/, "markup.raw.block", "@pop"],
+                            [/`/, "markup.raw.block"]
                         ]
                     }
                 }
@@ -4940,7 +4850,7 @@ async function TriggerCompileNow()
                 window.DocPreviewSvgCache[NormKey] = Result.Pages[0];
                 try
                 {
-                    localStorage.setItem("typst_preview_cache_" + btoa(NormKey), Result.Pages[0]);
+                    localStorage.setItem(PREVIEW_CACHE_PREFIX + btoa(NormKey), Result.Pages[0]);
                 }
                 catch (Ignored) {}
             }
@@ -10510,47 +10420,168 @@ function UpdateDocumentOutline()
     const ListContainer = document.getElementById("OutlineList");
     const Badge = document.getElementById("OutlineCountBadge");
     const StatusBadge = document.getElementById("StatusOutlineCount");
-    if (!MonacoInstance || !ListContainer) { return; }
+    if (!MonacoInstance || !ListContainer)
+    {
+        return;
+    }
 
     const Model = MonacoInstance.getModel();
-    if (!Model) { return; }
+    if (!Model)
+    {
+        return;
+    }
 
     const TotalLines = Model.getLineCount();
     OutlineHeadingsList = [];
 
-    let InCodeBlock = false;
-    for (let LineNum = 1; LineNum <= TotalLines; LineNum ++)
+    let InRawBlock = false;
+    let BlockCommentDepth = 0;
+    let CodeBraceDepth = 0;
+
+    for (let LineNum = 1; LineNum <= TotalLines; LineNum++)
     {
         const LineText = Model.getLineContent(LineNum);
         const Trimmed = LineText.trim();
 
         if (Trimmed.startsWith("```"))
         {
-            InCodeBlock = ! InCodeBlock;
+            InRawBlock = !InRawBlock;
             continue;
         }
-        if (InCodeBlock) { continue; }
-
-        if (Trimmed.startsWith("="))
+        if (InRawBlock)
         {
-            const HeadingMatch = LineText.match(/^(=+)\s+(.+)$/);
-            if (HeadingMatch)
+            continue;
+        }
+
+        let Masked = "";
+        let InStr = false;
+        let InLineComment = false;
+
+        for (let I = 0; I < LineText.length; I++)
+        {
+            const C = LineText[I];
+            const NextC = I + 1 < LineText.length ? LineText[I + 1] : "";
+            const PrevC = I > 0 ? LineText[I - 1] : "";
+
+            if (InLineComment)
             {
-                const Level = HeadingMatch[1].length;
-                const CleanTitle = HeadingMatch[2].replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
+                break;
+            }
+
+            if (C === '"' && PrevC !== "\\")
+            {
+                InStr = !InStr;
+                Masked += " ";
+                continue;
+            }
+            if (InStr)
+            {
+                Masked += " ";
+                continue;
+            }
+
+            if (C === "/" && NextC === "*")
+            {
+                BlockCommentDepth++;
+                I++;
+                Masked += "  ";
+                continue;
+            }
+            if (BlockCommentDepth > 0 && C === "*" && NextC === "/")
+            {
+                BlockCommentDepth--;
+                I++;
+                Masked += "  ";
+                continue;
+            }
+            if (BlockCommentDepth > 0)
+            {
+                Masked += " ";
+                continue;
+            }
+
+            if (C === "/" && NextC === "/")
+            {
+                InLineComment = true;
+                break;
+            }
+
+            if (C === "{")
+            {
+                CodeBraceDepth++;
+            }
+            else if (C === "}" && CodeBraceDepth > 0)
+            {
+                CodeBraceDepth--;
+            }
+
+            Masked += C;
+        }
+
+        if (BlockCommentDepth > 0)
+        {
+            continue;
+        }
+
+        const CleanTrimmed = Masked.trim();
+        if (!CleanTrimmed)
+        {
+            continue;
+        }
+
+        // Markup headings (only outside code blocks)
+        if (CodeBraceDepth === 0 && CleanTrimmed.startsWith("="))
+        {
+            const MarkupMatch = CleanTrimmed.match(/^(=+)\s+(.+)$/);
+            if (MarkupMatch)
+            {
+                const Level = MarkupMatch[1].length;
+                let Title = MarkupMatch[2].replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
+                const SolMatch = Title.match(/#short-or-long\s*\[([^\]]+)\]\s*\[([^\]]+)\]/);
+                if (SolMatch)
+                {
+                    Title = SolMatch[2] || SolMatch[1];
+                }
                 OutlineHeadingsList.push
                 ({
                     Level: Math.min(Level, 4),
-                    Title: CleanTitle,
+                    Title: Title,
                     Line: LineNum
                 });
+                continue;
             }
+        }
+
+        // Programmatic #heading calls
+        const ProgMatch = CleanTrimmed.match(/#heading\b(?:\s*\(([^)]*)\))?\s*(?:\[([^\]]+)\]|"([^"]+)")/);
+        if (ProgMatch)
+        {
+            let Level = 1;
+            const Args = ProgMatch[1] || "";
+            const LevelMatch = Args.match(/\b(?:level|depth)\s*:\s*(\d+)/);
+            if (LevelMatch)
+            {
+                Level = parseInt(LevelMatch[1], 10);
+            }
+            const Title = (ProgMatch[2] || ProgMatch[3] || "Untitled").replace(/<[a-zA-Z0-9_\-:]+>\s*$/, "").trim();
+            OutlineHeadingsList.push
+            ({
+                Level: Math.min(Level, 4),
+                Title: Title,
+                Line: LineNum
+            });
         }
     }
 
     const Count = OutlineHeadingsList.length;
-    if (Badge) { Badge.textContent = Count; }
-    if (StatusBadge) { StatusBadge.textContent = Count; }
+    if (Badge)
+    {
+        Badge.textContent = Count;
+    }
+    if (StatusBadge)
+    {
+        StatusBadge.textContent = Count;
+    }
 
     RenderOutlineItems(OutlineHeadingsList);
 }
@@ -14867,6 +14898,34 @@ function SwitchView(ViewName)
 }
 
 // Global SVG Thumbnail & Preview Cache
+const PREVIEW_CACHE_VERSION = "v2";
+const PREVIEW_CACHE_PREFIX = `typst_preview_cache_${PREVIEW_CACHE_VERSION}_`;
+
+function PurgeLegacyPreviewCache()
+{
+    try
+    {
+        if (typeof localStorage === "undefined")
+        {
+            return;
+        }
+        const KeysToRemove = [];
+        for (let I = 0; I < localStorage.length; I++)
+        {
+            const Key = localStorage.key(I);
+            if (Key && Key.startsWith("typst_preview_cache_") && !Key.startsWith(PREVIEW_CACHE_PREFIX))
+            {
+                KeysToRemove.push(Key);
+            }
+        }
+        for (const Key of KeysToRemove)
+        {
+            localStorage.removeItem(Key);
+        }
+    }
+    catch (Ignored) {}
+}
+
 window.DocPreviewSvgCache = window.DocPreviewSvgCache || {};
 let CurrentHomepageSort = "modified";
 let CurrentHomepageViewMode = "grid";
@@ -14924,7 +14983,7 @@ function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
     {
         try
         {
-            const Saved = localStorage.getItem("typst_preview_cache_" + btoa(NormKey));
+            const Saved = localStorage.getItem(PREVIEW_CACHE_PREFIX + btoa(NormKey));
             if (Saved && Saved.includes("<svg"))
             {
                 window.DocPreviewSvgCache[NormKey] = Saved;
@@ -15061,7 +15120,7 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
             window.DocPreviewSvgCache[NormKey] = RawSvg;
             try
             {
-                localStorage.setItem("typst_preview_cache_" + btoa(NormKey), RawSvg);
+                localStorage.setItem(PREVIEW_CACHE_PREFIX + btoa(NormKey), RawSvg);
             }
             catch (Ignored) {}
 
@@ -17845,6 +17904,7 @@ window.addEventListener
     "DOMContentLoaded",
     async () =>
     {
+        PurgeLegacyPreviewCache();
         await EnsureSessionAuthToken();
         LoadUISettings();
         ApplyUISettings();
