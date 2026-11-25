@@ -276,68 +276,148 @@ const ActiveSyncMapsByFile = new Map();
 const ActiveSpanMapsByFile = new Map();
 let LastActiveSpanMap = {};
 let LastActiveSyncMap = [];
+let JobCounter = 1;
+
+function IsPathContainedIn(ParentDir, ChildPath)
+{
+    let CanonParent = Path.resolve(ParentDir);
+    let CanonChild = Path.resolve(ChildPath);
+    if (process.platform === "win32")
+    {
+        CanonParent = CanonParent.toLowerCase();
+        CanonChild = CanonChild.toLowerCase();
+    }
+    const Rel = Path.relative(CanonParent, CanonChild);
+    return !Rel.startsWith("..") && !Path.isAbsolute(Rel);
+}
 
 function ResolveDocRoot(FilePath, JobDir)
 {
     if (FilePath)
     {
-        const Validated = ValidateWorkspacePath(FilePath, false, false);
-        if (Validated.Valid)
+        let StartDir = Path.resolve(FilePath);
+        try
         {
-            let StartDir = Validated.Path;
+            if (FS.existsSync(StartDir))
+            {
+                if (!FS.statSync(StartDir).isDirectory())
+                {
+                    StartDir = Path.dirname(StartDir);
+                }
+            }
+            else if (Path.extname(StartDir))
+            {
+                StartDir = Path.dirname(StartDir);
+            }
+        }
+        catch (Ignored)
+        {
+            StartDir = Path.dirname(StartDir);
+        }
+
+        // 1. Upward walk for official Typst package manifest: typst.toml
+        let Current = StartDir;
+        while (Current)
+        {
+            if (FS.existsSync(Path.join(Current, "typst.toml")))
+            {
+                return Current;
+            }
+            const Parent = Path.dirname(Current);
+            if (!Parent || Parent === Current)
+            {
+                break;
+            }
+            Current = Parent;
+        }
+
+        // 2. Match against tracked workspace directories: choose deepest containing match
+        // Tracked workspace folders (e.g. docs/) take precedence over parent repos and local subfolders
+        const TrackedDirs = GetTrackedDirectories();
+        let BestTracked = null;
+        for (const Dir of TrackedDirs)
+        {
+            if (IsPathContainedIn(Dir, StartDir))
+            {
+                if (!BestTracked || Dir.length > BestTracked.length)
+                {
+                    BestTracked = Path.resolve(Dir);
+                }
+            }
+        }
+        if (BestTracked)
+        {
+            return BestTracked;
+        }
+
+        // 3. Upward walk for version control or studio boundary: .git or .typst-studio
+        Current = StartDir;
+        while (Current)
+        {
+            if
+            (
+                FS.existsSync(Path.join(Current, ".typst-studio")) ||
+                FS.existsSync(Path.join(Current, ".git"))
+            )
+            {
+                return Current;
+            }
+            const Parent = Path.dirname(Current);
+            if (!Parent || Parent === Current)
+            {
+                break;
+            }
+            Current = Parent;
+        }
+
+        return StartDir;
+    }
+    return JobDir;
+}
+
+async function PrepareCompilationInput(Source, FilePath, JobID)
+{
+    if (FilePath)
+    {
+        const Resolved = Path.resolve(FilePath);
+        if (FS.existsSync(Resolved))
+        {
             try
             {
-                if (!FS.statSync(Validated.Path).isDirectory())
+                if (FS.statSync(Resolved).isFile())
                 {
-                    StartDir = Path.dirname(Validated.Path);
+                    const DiskContent = await FSPromises.readFile(Resolved, "utf-8");
+                    if (DiskContent === Source)
+                    {
+                        return { InputArg: Resolved, ShadowFile: null };
+                    }
                 }
             }
             catch (Ignored)
             {
-                StartDir = Path.dirname(Validated.Path);
+                // Fallback to shadow file
             }
+        }
 
-            let Current = StartDir;
-            while (Current)
+        const Parent = Path.dirname(Resolved);
+        if (FS.existsSync(Parent))
+        {
+            try
             {
-                if
-                (
-                    FS.existsSync(Path.join(Current, "typst.toml")) ||
-                    FS.existsSync(Path.join(Current, ".typst-studio")) ||
-                    FS.existsSync(Path.join(Current, ".git"))
-                )
+                if (FS.statSync(Parent).isDirectory())
                 {
-                    return Current;
-                }
-                const Parent = Path.dirname(Current);
-                if (Parent === Current)
-                {
-                    break;
-                }
-                Current = Parent;
-            }
-
-            const TrackedDirs = GetTrackedDirectories();
-            let BestTracked = null;
-            for (const Dir of TrackedDirs)
-            {
-                if (IsPathContainedIn(Dir, StartDir))
-                {
-                    if (!BestTracked || Dir.length > BestTracked.length)
-                    {
-                        BestTracked = Dir;
-                    }
+                    const ShadowFile = Path.join(Parent, `.preview_${JobID}.typ`);
+                    await FSPromises.writeFile(ShadowFile, Source, "utf-8");
+                    return { InputArg: ShadowFile, ShadowFile: ShadowFile };
                 }
             }
-            if (BestTracked)
+            catch (Ignored)
             {
-                return BestTracked;
+                // Fallback to stdin
             }
-
-            return StartDir;
         }
     }
-    return JobDir;
+    return { InputArg: "-", ShadowFile: null };
 }
 
 if (!FS.existsSync(TEMP_DIR))
@@ -2155,22 +2235,34 @@ async function HandleCompile(Request, Response)
             return ;
         }
 
-        const JobID = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const JobID = `job_${Date.now()}_${JobCounter++}_${Math.random().toString(36).substring(2, 8)}`;
         const JobDir = Path.join(TEMP_DIR, JobID);
         await FSPromises.mkdir(JobDir, { recursive: true });
 
         const DocRoot = ResolveDocRoot(Payload.FilePath, JobDir);
-
         const OutputPattern = Path.join(JobDir, "page-{p}.svg");
         const SourceToCompile = NormalizeMathFunctionCalls(Source);
 
-        const CompileResult = await ExecuteCompile
-        (
-            TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern],
-            { cwd: JobDir, timeout: 20000, FileKey: FileKey, IsBackground: IsBackground },
-            SourceToCompile
-        );
+        const { InputArg, ShadowFile } = await PrepareCompilationInput(SourceToCompile, Payload.FilePath, JobID);
+
+        let CompileResult;
+        try
+        {
+            CompileResult = await ExecuteCompile
+            (
+                TYPST_BINARY,
+                ["compile", "--features", "html", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), InputArg, OutputPattern],
+                { cwd: JobDir, timeout: 20000, FileKey: FileKey, IsBackground: IsBackground },
+                InputArg === "-" ? SourceToCompile : null
+            );
+        }
+        finally
+        {
+            if (ShadowFile)
+            {
+                await FSPromises.unlink(ShadowFile).catch(() => {});
+            }
+        }
 
         if (CompileResult.Killed)
         {

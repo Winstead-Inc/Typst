@@ -25,9 +25,15 @@
             { register-def(def-target, loc, title: def-title) }
 
             // Update what's shown in the page header.
-            let title = (if it.numbering != none { counter(heading).display(it.numbering, at: loc) })
-            + [] + title-fmt
-            title-state.update(title)
+            title-state.update
+            ({
+                if it.numbering != none
+                {
+                    counter(heading).display(it.numbering, at: loc)
+                    [ ]
+                }
+                title-fmt
+            })
 
             it
         }

@@ -660,7 +660,7 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
         );
 
         let is_detached = p.token.newline.is_some();
-        let is_interior_expr = m.0 > p.stmt_node_start;
+        let is_interior_expr = m.0 > p.stmt_node_start && p.nl_mode != AtNewline::Continue;
 
         let at_args = ! is_non_callable && (!is_detached || !is_interior_expr) && p.with_nl_mode
         (

@@ -587,6 +587,16 @@ let ActiveDocumentCanonicalPath = "";
 let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
+let LastCompiledDocumentPath = "";
+
+function CanonicalizeDocKey(PathStr)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    return PathStr.trim().replace(/\\/g, "/").toLowerCase();
+}
 let CurrentPaperColorMode = ( () =>
 {
     const Saved = localStorage.getItem("typst_paper_color_mode");
@@ -1729,8 +1739,20 @@ function UpdateDirtyStateUI()
     }
 }
 
-function JumpToEditorLocation(Line, Col)
+async function JumpToEditorLocation(Line, Col, TargetFile)
 {
+    if (TargetFile)
+    {
+        const CleanTarget = TargetFile.replace(/\\/g, "/");
+        const CurrentClean = (ActiveDocumentCanonicalPath || CurrentFilePath || "").replace(/\\/g, "/");
+        if (CurrentClean && !CurrentClean.toLowerCase().endsWith(CleanTarget.toLowerCase()) && !CleanTarget.toLowerCase().endsWith(CurrentClean.toLowerCase()))
+        {
+            if (typeof OpenFileFromWorkspace === "function")
+            {
+                await OpenFileFromWorkspace(TargetFile);
+            }
+        }
+    }
     if (!MonacoInstance) { return; }
     MonacoInstance.revealPositionInCenter( { lineNumber: Line, column: Col });
     MonacoInstance.setPosition( { lineNumber: Line, column: Col });
@@ -4848,7 +4870,14 @@ async function TriggerCompileNow()
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify( { Source: Source }),
+                    body: JSON.stringify
+                    ({
+                        Source: Source,
+                        source: Source,
+                        FilePath: CurrentFilePath || null,
+                        filePath: CurrentFilePath || null,
+                        IsBackground: false
+                    }),
                     signal: Controller.signal
                 }
             );
@@ -4869,18 +4898,44 @@ async function TriggerCompileNow()
 
         if (Result.Success)
         {
-            if (StatusDot) { StatusDot.className = "StatusDot"; }
-            if (StatusText) { StatusText.textContent = "Ready"; }
-            if (DurationText) { DurationText.textContent = `${Result.DurationMs}ms`; }
-            SetStatusPill("", "Ready", Result.DurationMs);
+            const IsModuleFile = (!Result.Pages || Result.Pages.length === 0) ||
+                (Result.Pages.length === 1 && IsSvgPageBlank(Result.Pages[0]));
+
+            if (IsModuleFile)
+            {
+                if (StatusDot) { StatusDot.className = "StatusDot Module"; }
+                if (StatusText) { StatusText.textContent = "Module"; }
+                if (DurationText) { DurationText.textContent = `${Result.DurationMs}ms`; }
+                SetStatusPill("Module", "Module (No content)", Result.DurationMs);
+                CurrentPageCount = 0;
+            }
+            else
+            {
+                if (StatusDot) { StatusDot.className = "StatusDot"; }
+                if (StatusText) { StatusText.textContent = "Ready"; }
+                if (DurationText) { DurationText.textContent = `${Result.DurationMs}ms`; }
+                SetStatusPill("", "Ready", Result.DurationMs);
+                CurrentPageCount = Result.PageCount || (Result.Pages ? Result.Pages.length : 0);
+            }
             ErrorDrawer.classList.remove("Visible");
             const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
             if (ErrorIndicator) { ErrorIndicator.style.display = "none"; }
 
-            LastCompiledPages = Result.Pages;
-            if (Result.Pages && Result.Pages[0] && CurrentFilePath)
+            if (MonacoInstance && window.monaco && window.monaco.editor)
             {
-                const NormKey = CurrentFilePath.toLowerCase();
+                const Model = MonacoInstance.getModel();
+                if (Model)
+                {
+                    window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
+                }
+            }
+
+            LastCompiledPages = Result.Pages || [];
+            LastCompiledDocumentPath = CanonicalizeDocKey(RequestDocPath);
+
+            if (!IsModuleFile && Result.Pages && Result.Pages[0] && CurrentFilePath)
+            {
+                const NormKey = CanonicalizeDocKey(CurrentFilePath);
                 if (!window.DocPreviewSvgCache) { window.DocPreviewSvgCache = {}; }
                 window.DocPreviewSvgCache[NormKey] = Result.Pages[0];
                 try
@@ -4889,7 +4944,6 @@ async function TriggerCompileNow()
                 }
                 catch (Ignored) {}
             }
-            CurrentPageCount = Result.PageCount;
             ActiveSpanMap = Result.SpanMap || {};
             let RawSyncMap = Result.SyncMap || [];
             RawSyncMap = EnrichMathSyncMap(RawSyncMap, Source, Result.Pages || []);
@@ -4897,7 +4951,7 @@ async function TriggerCompileNow()
             RawSyncMap = EnrichReferences(RawSyncMap, Source);
             ActiveSyncMap = RawSyncMap;
             RebuildSyncMapIndex(ActiveSyncMap);
-            RenderPages(Result.Pages);
+            RenderPages(Result.Pages || []);
             RebuildMonotonicSyncAnchors();
             UpdatePagination();
             SchedulePalladinoDiagnostics(600);
@@ -4926,18 +4980,16 @@ async function TriggerCompileNow()
             DurationText.textContent = `${Result.DurationMs}ms`;
             SetStatusPill("Error", "Error", Result.DurationMs);
 
-            if (Result.KnrSlop)
+            const PagesContainer = document.getElementById("PagesContainer");
+            if (PagesContainer)
             {
-                const PagesContainer = document.getElementById("PagesContainer");
-                if (PagesContainer)
-                {
-                    PagesContainer.innerHTML = "";
-                }
-                ClearSyncHighlights();
-                LastCompiledPages = [];
-                CurrentPageCount = 0;
-                UpdatePagination();
+                PagesContainer.innerHTML = "";
             }
+            ClearSyncHighlights();
+            LastCompiledPages = [];
+            LastCompiledDocumentPath = "";
+            CurrentPageCount = 0;
+            UpdatePagination();
 
             ShowCompilationError(Result.Error);
         }
@@ -5285,11 +5337,14 @@ function ConvertSvgToTransparent(Svg)
 
     let Result = Svg.replace
     (
-        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vh][^"']*Z\s*["'][^>]*)>/i,
+        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vhVH\s][^"']*(?:Z|z)?\s*["'][^>]*)>/i,
         (Match) => Match.replace(/\bfill=["'][^"']*["']/i, 'fill="none"')
     );
-    Result = Result.replace('fill="#ffffff" fill-rule="nonzero" d="M 0 0v', 'fill="none" fill-rule="nonzero" d="M 0 0v');
-    Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="none" fill-rule="nonzero" d="M 0 0v');
+    Result = Result.replace
+    (
+        /<rect\b([^>]*\b(?:x=["']0["']\s+y=["']0["']|y=["']0["']\s+x=["']0["']|width=["']100%["'])[^>]*)>/i,
+        (Match) => Match.replace(/\bfill=["'][^"']*["']/i, 'fill="none"')
+    );
     return Result;
 }
 
@@ -5314,7 +5369,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
     let CanvasFound = false;
     Result = Result.replace
     (
-        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vh][^"']*Z\s*["'][^>]*)>/i,
+        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vhVH\s][^"']*(?:Z|z)?\s*["'][^>]*)>/i,
         (Match) =>
         {
             CanvasFound = true;
@@ -5326,11 +5381,11 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
     {
         Result = Result.replace
         (
-            /(<svg\b[^>]*>\s*<path\b[^>]*\bfill=)(["'][^"']*["'])/i,
-            (Match, Prefix) =>
+            /<rect\b([^>]*\b(?:x=["']0["']\s+y=["']0["']|y=["']0["']\s+x=["']0["']|width=["']100%["'])[^>]*)>/i,
+            (Match) =>
             {
                 CanvasFound = true;
-                return `${Prefix}"__CANVAS_BLACK_SENTINEL__"`;
+                return Match.replace(/\bfill=["'][^"']*["']/i, 'fill="__CANVAS_BLACK_SENTINEL__"');
             }
         );
     }
@@ -5424,6 +5479,26 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
     return Result;
 }
 
+function IsSvgPageBlank(SvgStr)
+{
+    if (!SvgStr || typeof SvgStr !== "string")
+    {
+        return true;
+    }
+    if (/<(?:use|text|tspan|image)\b/i.test(SvgStr))
+    {
+        return false;
+    }
+    const Stripped = SvgStr
+        .replace(/<path\b[^>]*\bd=["']\s*M\s*0\s*0[vhVH\s][^"']*(?:Z|z)?\s*["'][^>]*>/gi, "")
+        .replace(/<rect\b[^>]*(?:width=["']100%["']|x=["']0["']\s+y=["']0["'])[^>]*>/gi, "");
+    if (/<(?:path|rect|polygon|polyline|circle|ellipse|line)\b/i.test(Stripped))
+    {
+        return false;
+    }
+    return true;
+}
+
 function RenderPages(Pages)
 {
     const Splash = document.getElementById("LoadingSplash");
@@ -5437,9 +5512,21 @@ function RenderPages(Pages)
     const PrevScrollLeft = Viewport ? Viewport.scrollLeft: 0;
     const PagesContainer = document.getElementById("PagesContainer");
 
-    if (!Pages || Pages.length === 0)
+    if (!Pages || Pages.length === 0 || (Pages.length === 1 && IsSvgPageBlank(Pages[0])))
     {
-        PagesContainer.innerHTML = "<p style='color: #666666; padding: 40px;'>No content rendered.</p>";
+        PagesContainer.innerHTML = `
+            <div class = "ModulePlaceholderCard">
+                <div class = "ModulePlaceholderIcon">
+                    <svg width = "40" height = "40" viewBox = "0 0 24 24" fill = "none" stroke = "currentColor" stroke-width = "1.8" stroke-linecap = "round" stroke-linejoin = "round">
+                        <path d = "M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                        <polyline points = "3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                        <line x1 = "12" y1 = "22.08" x2 = "12" y2 = "12"></line>
+                    </svg>
+                </div>
+                <div class = "ModulePlaceholderTitle">Module / Library File</div>
+                <div class = "ModulePlaceholderSubtitle">Compiled successfully with 0 display pages. This file defines functions, variables, or rules without generating visual content.</div>
+            </div>
+        `;
         return ;
     }
 
@@ -5652,6 +5739,81 @@ function RenderPages(Pages)
     RebuildMonotonicSyncAnchors();
 }
 
+function ParseCompilerDiagnostics(RawErrorText)
+{
+    if (!RawErrorText)
+    {
+        return [];
+    }
+
+    const Markers = [];
+    const Lines = RawErrorText.split(/\r?\n/);
+    let CurrentMsg = "Compilation error";
+    let CurrentSeverity = 8; // MarkerSeverity.Error
+
+    if (window.monaco && window.monaco.MarkerSeverity)
+    {
+        CurrentSeverity = window.monaco.MarkerSeverity.Error;
+    }
+
+    for (let I = 0; I < Lines.length; I ++)
+    {
+        const Line = Lines[I];
+        const ErrorHead = Line.match(/^(?:error|warning|hint):\s*(.+)$/i);
+        if (ErrorHead)
+        {
+            CurrentMsg = ErrorHead[1].trim();
+            if (Line.toLowerCase().startsWith("warning"))
+            {
+                CurrentSeverity = (window.monaco && window.monaco.MarkerSeverity) ? window.monaco.MarkerSeverity.Warning : 4;
+            }
+            else
+            {
+                CurrentSeverity = (window.monaco && window.monaco.MarkerSeverity) ? window.monaco.MarkerSeverity.Error : 8;
+            }
+        }
+
+        const LocMatch = Line.match(/(?:┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/i);
+        if (LocMatch)
+        {
+            const File = LocMatch[1].replace(/\\/g, "/");
+            const LineNum = parseInt(LocMatch[2], 10);
+            const ColNum = parseInt(LocMatch[3], 10);
+
+            const ActivePath = (ActiveDocumentCanonicalPath || CurrentFilePath || "").replace(/\\/g, "/");
+            const IsCurrentDoc = !ActivePath ||
+                File.toLowerCase() === ActivePath.toLowerCase() ||
+                File.toLowerCase().endsWith("/" + ActivePath.split("/").pop().toLowerCase()) ||
+                ActivePath.toLowerCase().endsWith("/" + File.split("/").pop().toLowerCase());
+
+            if (IsCurrentDoc && LineNum > 0)
+            {
+                let EndCol = ColNum + 1;
+                if (MonacoInstance)
+                {
+                    const Model = MonacoInstance.getModel();
+                    if (Model && LineNum <= Model.getLineCount())
+                    {
+                        EndCol = Math.max(EndCol, Model.getLineMaxColumn(LineNum));
+                    }
+                }
+                Markers.push
+                ({
+                    severity: CurrentSeverity,
+                    message: CurrentMsg,
+                    startLineNumber: LineNum,
+                    startColumn: ColNum,
+                    endLineNumber: LineNum,
+                    endColumn: EndCol,
+                    source: "typst-compiler"
+                });
+            }
+        }
+    }
+
+    return Markers;
+}
+
 function ShowCompilationError(ErrorMessage)
 {
     const ErrorDrawer = document.getElementById("ErrorDrawer");
@@ -5662,15 +5824,27 @@ function ShowCompilationError(ErrorMessage)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+
+    // Populate Monaco editor markers with structured compiler diagnostics
+    if (MonacoInstance && window.monaco && window.monaco.editor)
+    {
+        const Model = MonacoInstance.getModel();
+        if (Model)
+        {
+            const Markers = ParseCompilerDiagnostics(Cleaned);
+            window.monaco.editor.setModelMarkers(Model, "typst-compiler", Markers);
+        }
+    }
+
     // Detect primary error line and column for direct jump
     PrimaryErrorLocation = null;
-    const LocMatch = Cleaned.match(/(?:┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/);
+    const LocMatch = Cleaned.match(/(?:┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/i);
     const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
     if (LocMatch)
     {
         PrimaryErrorLocation =
         {
-            File: LocMatch[1],
+            File: LocMatch[1].replace(/\\/g, "/"),
             Line: parseInt(LocMatch[2], 10),
             Col: parseInt(LocMatch[3], 10)
         };
@@ -5692,7 +5866,13 @@ function ShowCompilationError(ErrorMessage)
     // Convert file location references into clickable links
     Highlighted = Highlighted.replace
     (
-        /(┌─\s*|-->\s*|\b)([a-zA-Z0-9_\-.]+\.typ):(\d+):(\d+)/g, (Full, Prefix, File, Line, Col) => `${Prefix}<span Class = "ErrorLocationLink" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to Line ${Line}, Col ${Col}">${File}:${Line}:${Col} ↗</span>`
+        /(┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/gi,
+        (Full, Prefix, File, Line, Col) =>
+        {
+            const CleanFile = File.replace(/\\/g, "/");
+            const ShortName = CleanFile.split("/").pop();
+            return `${Prefix}<span Class = "ErrorLocationLink" Data-File = "${CleanFile}" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to ${CleanFile}:${Line}:${Col}">${ShortName}:${Line}:${Col} ↗</span>`;
+        }
     );
 
     ErrorContent.innerHTML = Highlighted;
@@ -5705,7 +5885,7 @@ function ErrorErrorMessageClean(RawMessage)
     {
         return "Unknown error occurred during compilation.";
     }
-    return RawMessage.replace(/\\\\\?\\.*[/\\]document\.typ/g, "document.typ");
+    return RawMessage.replace(/\\\\\?\\/g, "").replace(/.*[/\\]document\.typ/g, "document.typ");
 }
 
 function UpdatePagination()
@@ -11393,7 +11573,7 @@ function SetupEventListeners()
             {
                 if (PrimaryErrorLocation)
                 {
-                    JumpToEditorLocation(PrimaryErrorLocation.Line, PrimaryErrorLocation.Col);
+                    JumpToEditorLocation(PrimaryErrorLocation.Line, PrimaryErrorLocation.Col, PrimaryErrorLocation.File);
                 }
             }
         );
@@ -11409,11 +11589,12 @@ function SetupEventListeners()
                 const Link = Event.target.closest(".ErrorLocationLink");
                 if (Link)
                 {
+                    const File = Link.getAttribute("Data-File");
                     const Line = parseInt(Link.getAttribute("Data-Line"), 10);
                     const Col = parseInt(Link.getAttribute("Data-Col"), 10) || 1;
                     if (!isNaN(Line))
                     {
-                        JumpToEditorLocation(Line, Col);
+                        JumpToEditorLocation(Line, Col, File);
                     }
                 }
             }
@@ -12901,6 +13082,22 @@ async function OpenFileFromWorkspace(FilePath)
         {
             CurrentFilePath = FilePath;
             ActiveDocumentCanonicalPath = FilePath;
+            LastCompiledPages = [];
+            LastCompiledDocumentPath = "";
+            const PagesContainer = document.getElementById("PagesContainer");
+            if (PagesContainer)
+            {
+                PagesContainer.innerHTML = "";
+            }
+            ClearSyncHighlights();
+            if (MonacoInstance && window.monaco && window.monaco.editor)
+            {
+                const Model = MonacoInstance.getModel();
+                if (Model)
+                {
+                    window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
+                }
+            }
             const FileName = FilePath.split(/[\\/]/).pop();
             const TitleInput = document.getElementById("DocumentTitleInput");
             if (TitleInput)
@@ -13658,11 +13855,20 @@ function SwitchToTab(FilePath)
         PagesContainer.innerHTML = "";
     }
     LastCompiledPages = [];
+    LastCompiledDocumentPath = "";
     ActiveSyncMap = [];
     ActiveSpanMap = {};
     ActiveSyncMapByLine = new Map();
     MonotonicSyncAnchors = [];
     ClearSyncHighlights();
+    if (MonacoInstance && window.monaco && window.monaco.editor)
+    {
+        const Model = MonacoInstance.getModel();
+        if (Model)
+        {
+            window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
+        }
+    }
 
     SwitchView("editor");
     OpenFileFromWorkspace(Normalized);
@@ -14708,7 +14914,7 @@ function FormatTableDate(Timestamp)
 
 function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
 {
-    const NormKey = (FilePath || "").toLowerCase();
+    const NormKey = CanonicalizeDocKey(FilePath);
     let Svg = null;
     if (window.DocPreviewSvgCache[NormKey])
     {
@@ -14728,7 +14934,7 @@ function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
         catch (Ignored) {}
     }
 
-    if (!Svg && CurrentFilePath && CurrentFilePath.toLowerCase() === NormKey && LastCompiledPages && LastCompiledPages[0])
+    if (!Svg && LastCompiledDocumentPath && LastCompiledDocumentPath === NormKey && LastCompiledPages && LastCompiledPages[0])
     {
         Svg = LastCompiledPages[0];
         window.DocPreviewSvgCache[NormKey] = Svg;
@@ -14766,7 +14972,7 @@ function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
 async function QueueDocumentSvgPreview(FilePath, ElementId)
 {
     if (!FilePath) { return ; }
-    const NormKey = FilePath.toLowerCase();
+    const NormKey = CanonicalizeDocKey(FilePath);
     if (window.DocPreviewSvgCache[NormKey])
     {
         const Elem = document.getElementById(ElementId);
@@ -14790,10 +14996,23 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
             const Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
             if (Content)
             {
-                const Res = await window.__TAURI__.core.invoke("CompileTypst", { source: Content, filePath: FilePath, Source: Content, FilePath: FilePath });
-                if (Res && Res.pages && Res.pages[0])
+                const Res = await window.__TAURI__.core.invoke
+                (
+                    "GenerateThumbnailSvg",
+                    {
+                        source: Content,
+                        Source: Content,
+                        filePath: FilePath,
+                        FilePath: FilePath
+                    }
+                );
+                if (Res && (Res.Pages || Res.pages))
                 {
-                    RawSvg = Res.pages[0];
+                    const PagesArr = Res.Pages || Res.pages;
+                    if (PagesArr && PagesArr[0])
+                    {
+                        RawSvg = PagesArr[0];
+                    }
                 }
             }
         }
@@ -14811,15 +15030,26 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
                         {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ source: FileData.Content, filePath: FilePath })
+                            body: JSON.stringify
+                            ({
+                                Source: FileData.Content,
+                                source: FileData.Content,
+                                FilePath: FilePath,
+                                filePath: FilePath,
+                                IsBackground: true
+                            })
                         }
                     );
                     if (CompileResp.ok)
                     {
                         const Res = await CompileResp.json();
-                        if (Res && Res.pages && Res.pages[0])
+                        if (Res && (Res.Pages || Res.pages))
                         {
-                            RawSvg = Res.pages[0];
+                            const PagesArr = Res.Pages || Res.pages;
+                            if (PagesArr && PagesArr[0])
+                            {
+                                RawSvg = PagesArr[0];
+                            }
                         }
                     }
                 }

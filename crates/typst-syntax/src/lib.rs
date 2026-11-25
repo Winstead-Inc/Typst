@@ -417,5 +417,26 @@ else
         let (errors12, _) = node12.errors_and_warnings();
         assert!(errors12.is_empty(), "Parse errors in text12: {:#?}", errors12);
         assert!(node12.children().any(|n| n.kind() == SyntaxKind::Heading));
+
+        // 13. Valid LAFS: RHS detached call with named argument
+        let text13 = "let copy-button = html.div\n(class: \"copy\", btn)";
+        let node13 = parse_code(text13);
+        let (errors13, _) = node13.errors_and_warnings();
+        assert!(errors13.is_empty(), "Parse errors in text13: {:#?}", errors13);
+        assert!(has_kind(&node13, SyntaxKind::FuncCall), "RHS with named argument must parse as FuncCall");
+
+        // 14. Valid LAFS: RHS detached call with multiple arguments
+        let text14 = "let depth = calc.max\n(route.len(), 1,)";
+        let node14 = parse_code(text14);
+        let (errors14, _) = node14.errors_and_warnings();
+        assert!(errors14.is_empty(), "Parse errors in text14: {:#?}", errors14);
+        assert!(has_kind(&node14, SyntaxKind::FuncCall), "RHS with multiple arguments must parse as FuncCall");
+
+        // 15. Valid LAFS: RHS detached call spanning multiple lines
+        let text15 = "let x = func\n(\n  arg\n)";
+        let node15 = parse_code(text15);
+        let (errors15, _) = node15.errors_and_warnings();
+        assert!(errors15.is_empty(), "Parse errors in text15: {:#?}", errors15);
+        assert!(has_kind(&node15, SyntaxKind::FuncCall), "RHS spanning newlines must parse as FuncCall");
     }
 }

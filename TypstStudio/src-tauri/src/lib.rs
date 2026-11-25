@@ -191,6 +191,7 @@ pub struct Format_Typst_Response
 
 static LAST_ACTIVE_SYNC_MAP: std::sync::Mutex<Vec<serde_json::Value>> = std::sync::Mutex:: new (Vec::new ());
 static APP_START_TIME: std::sync::LazyLock<std::time::Instant> = std::sync::LazyLock:: new (std::time::Instant::now);
+static JOB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 fn InvertShapeColorHex(Hex: & str) -> String
 {
@@ -327,61 +328,190 @@ fn ConvertTypstSourceToDarkMode(Source: & str, Transparent: bool) -> String
     format!("#set page(fill: {})\n#set text(fill: rgb(\"#FFFFFF\"))\n\n{}", PageFill, Output)
 }
 
+fn StripCanvasBackground(Svg: & str) -> String
+{
+    let mut Output = String::with_capacity(Svg.len());
+    let mut TempRest = Svg;
+    let mut Replaced = false;
+
+    while let Some(TagStart) = TempRest.find('<')
+    {
+        Output.push_str(&TempRest[..TagStart]);
+        let AfterStart = &TempRest[TagStart..];
+        if let Some(TagEnd) = AfterStart.find('>')
+        {
+            let FullTag = &AfterStart[..TagEnd + 1];
+            let TagBody = &AfterStart[1..TagEnd];
+            let TagName = TagBody.split_whitespace().next().unwrap_or("").trim_start_matches('/');
+
+            if !Replaced && TagName.eq_ignore_ascii_case("path")
+            {
+                let LowerBody = TagBody.to_ascii_lowercase();
+                if LowerBody.contains("d=\"m 0 0") || LowerBody.contains("d='m 0 0")
+                {
+                    if let Some(FillPos) = LowerBody.find("fill=\"")
+                    {
+                        let ValStart = FillPos + 6;
+                        if let Some(QuoteEnd) = TagBody[ValStart..].find('"')
+                        {
+                            let ModifiedTag = format!
+                            (
+                                "<{}none{}>",
+                                &TagBody[..ValStart],
+                                &TagBody[ValStart + QuoteEnd..]
+                            );
+                            Output.push_str(&ModifiedTag);
+                            Replaced = true;
+                            TempRest = &AfterStart[TagEnd + 1..];
+                            continue;
+                        }
+                    }
+                    else if let Some(FillPos) = LowerBody.find("fill='")
+                    {
+                        let ValStart = FillPos + 6;
+                        if let Some(QuoteEnd) = TagBody[ValStart..].find('\'')
+                        {
+                            let ModifiedTag = format!
+                            (
+                                "<{}none{}>",
+                                &TagBody[..ValStart],
+                                &TagBody[ValStart + QuoteEnd..]
+                            );
+                            Output.push_str(&ModifiedTag);
+                            Replaced = true;
+                            TempRest = &AfterStart[TagEnd + 1..];
+                            continue;
+                        }
+                    }
+                }
+            }
+            Output.push_str(FullTag);
+            TempRest = &AfterStart[TagEnd + 1..];
+        }
+        else
+        {
+            Output.push_str(AfterStart);
+            break;
+        }
+    }
+    Output
+}
+
 fn ConvertSvgToDarkMode(Svg: & str) -> String
 {
-    let mut Result = Svg.to_string();
+    let mut PreparedSvg = String::with_capacity(Svg.len() + 64);
+    let mut TempRest = Svg;
+    let mut CanvasFound = false;
 
-    if let Some(Pos) = Result.find("d=\"M 0 0v")
-        && let Some(FillPos) = Result[..Pos].rfind("fill=\"")
+    // Pass 1: Mark only the true page canvas background path (starts at M 0 0) with sentinel
+    while let Some(TagStart) = TempRest.find('<')
+    {
+        PreparedSvg.push_str(&TempRest[..TagStart]);
+        let AfterStart = &TempRest[TagStart..];
+        if let Some(TagEnd) = AfterStart.find('>')
         {
-            let FillEnd = FillPos + 6 + Result[FillPos + 6..].find('"').unwrap_or(0);
-            Result = format!("{}{}__CANVAS_BLACK_SENTINEL__{}", & Result[..FillPos + 6], "", & Result[FillEnd..]);
-        }
+            let FullTag = &AfterStart[..TagEnd + 1];
+            let TagBody = &AfterStart[1..TagEnd];
+            let TagName = TagBody.split_whitespace().next().unwrap_or("").trim_start_matches('/');
 
-    let mut FinalSvg = String::with_capacity(Result.len());
-    let mut Rest = Result.as_str();
+            if !CanvasFound && TagName.eq_ignore_ascii_case("path")
+            {
+                let LowerBody = TagBody.to_ascii_lowercase();
+                let HasM00 = LowerBody.contains("d=\"m 0 0") || LowerBody.contains("d='m 0 0");
+
+                if HasM00
+                {
+                    if let Some(FillPos) = LowerBody.find("fill=\"")
+                    {
+                        let ValStart = FillPos + 6;
+                        if let Some(QuoteEnd) = TagBody[ValStart..].find('"')
+                        {
+                            let ModifiedTag = format!
+                            (
+                                "<{}__CANVAS_BLACK_SENTINEL__{}>",
+                                &TagBody[..ValStart],
+                                &TagBody[ValStart + QuoteEnd..]
+                            );
+                            PreparedSvg.push_str(&ModifiedTag);
+                            CanvasFound = true;
+                            TempRest = &AfterStart[TagEnd + 1..];
+                            continue;
+                        }
+                    }
+                    else if let Some(FillPos) = LowerBody.find("fill='")
+                    {
+                        let ValStart = FillPos + 6;
+                        if let Some(QuoteEnd) = TagBody[ValStart..].find('\'')
+                        {
+                            let ModifiedTag = format!
+                            (
+                                "<{}__CANVAS_BLACK_SENTINEL__{}>",
+                                &TagBody[..ValStart],
+                                &TagBody[ValStart + QuoteEnd..]
+                            );
+                            PreparedSvg.push_str(&ModifiedTag);
+                            CanvasFound = true;
+                            TempRest = &AfterStart[TagEnd + 1..];
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            PreparedSvg.push_str(FullTag);
+            TempRest = &AfterStart[TagEnd + 1..];
+        }
+        else
+        {
+            PreparedSvg.push_str(AfterStart);
+            break;
+        }
+    }
+
+    let mut FinalSvg = String::with_capacity(PreparedSvg.len());
+    let mut Rest = PreparedSvg.as_str();
 
     while let Some(TagStart) = Rest.find('<')
     {
-        FinalSvg.push_str( & Rest[..TagStart]);
-        let AfterStart = & Rest[TagStart + 1..];
+        FinalSvg.push_str(&Rest[..TagStart]);
+        let AfterStart = &Rest[TagStart + 1..];
 
         if let Some(TagEnd) = AfterStart.find('>')
         {
-            let TagBody = & AfterStart[..TagEnd];
-            let FullTag = & Rest[TagStart..TagStart + 1 + TagEnd + 1];
+            let TagBody = &AfterStart[..TagEnd];
+            let FullTag = &Rest[TagStart..TagStart + 1 + TagEnd + 1];
 
             let TagName = TagBody.split_whitespace().next().unwrap_or("").trim_start_matches('/');
             let IsGlyph = TagName.eq_ignore_ascii_case("use")
-            || TagName.eq_ignore_ascii_case("text")
-            || TagName.eq_ignore_ascii_case("tspan");
+                || TagName.eq_ignore_ascii_case("text")
+                || TagName.eq_ignore_ascii_case("tspan");
             let IsShape = TagName.eq_ignore_ascii_case("path")
-            || TagName.eq_ignore_ascii_case("rect")
-            || TagName.eq_ignore_ascii_case("polygon")
-            || TagName.eq_ignore_ascii_case("circle")
-            || TagName.eq_ignore_ascii_case("ellipse")
-            || TagName.eq_ignore_ascii_case("line")
-            || TagName.eq_ignore_ascii_case("g");
+                || TagName.eq_ignore_ascii_case("rect")
+                || TagName.eq_ignore_ascii_case("polygon")
+                || TagName.eq_ignore_ascii_case("circle")
+                || TagName.eq_ignore_ascii_case("ellipse")
+                || TagName.eq_ignore_ascii_case("line")
+                || TagName.eq_ignore_ascii_case("g");
 
             if IsGlyph || IsShape
             {
                 let mut ProcessedTag = String::with_capacity(FullTag.len());
                 let mut TagRest = FullTag;
 
-                while let Some(AttrPos) = TagRest.find("fill=\"").or_else( || TagRest.find("stroke=\""))
+                while let Some(AttrPos) = TagRest.find("fill=\"").or_else(|| TagRest.find("stroke=\""))
                 {
                     let IsFill = TagRest[AttrPos..].starts_with("fill=\"");
                     let AttrName = if IsFill { "fill" } else { "stroke" };
                     let ValueStart = AttrPos + AttrName.len() + 2;
-                    ProcessedTag.push_str( & TagRest[..AttrPos]);
+                    ProcessedTag.push_str(&TagRest[..AttrPos]);
 
-                    let SubRest = & TagRest[ValueStart..];
+                    let SubRest = &TagRest[ValueStart..];
                     if let Some(QuoteEnd) = SubRest.find('"')
                     {
-                        let ColorVal = & SubRest[..QuoteEnd];
+                        let ColorVal = &SubRest[..QuoteEnd];
                         if ColorVal == "__CANVAS_BLACK_SENTINEL__"
                         {
-                            ProcessedTag.push_str( & format ! ("{}=\"#000000\"", AttrName));
+                            ProcessedTag.push_str(&format!("{}=\"#000000\"", AttrName));
                         }
                         else if ColorVal.starts_with('#')
                         {
@@ -393,33 +523,33 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
                             {
                                 InvertShapeColorHex(ColorVal)
                             };
-                            ProcessedTag.push_str( & format ! ("{}=\"#{}\"", AttrName, Converted));
+                            ProcessedTag.push_str(&format!("{}=\"#{}\"", AttrName, Converted));
                         }
                         else
                         {
-                            ProcessedTag.push_str( & format ! ("{}=\"{}\"", AttrName, ColorVal));
+                            ProcessedTag.push_str(&format!("{}=\"{}\"", AttrName, ColorVal));
                         }
-                        TagRest = & SubRest[QuoteEnd + 1..];
+                        TagRest = &SubRest[QuoteEnd + 1..];
                     }
                     else
                     {
-                        ProcessedTag.push_str( & TagRest[AttrPos..ValueStart]);
+                        ProcessedTag.push_str(&TagRest[AttrPos..ValueStart]);
                         TagRest = SubRest;
                     }
                 }
                 ProcessedTag.push_str(TagRest);
-                FinalSvg.push_str( & ProcessedTag);
+                FinalSvg.push_str(&ProcessedTag);
             }
             else
             {
                 FinalSvg.push_str(FullTag);
             }
 
-            Rest = & AfterStart[TagEnd + 1..];
+            Rest = &AfterStart[TagEnd + 1..];
         }
         else
         {
-            FinalSvg.push_str( & Rest[TagStart..]);
+            FinalSvg.push_str(&Rest[TagStart..]);
             break;
         }
     }
@@ -560,13 +690,12 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
             CanonCandidate.parent().map(|P| P.to_path_buf()).unwrap_or_else(|| CanonCandidate.clone())
         };
 
-        // Upward walk for project markers: typst.toml, .typst-studio, .git
+        // 1. Upward walk for explicit project markers: typst.toml, .typst-studio
         let mut Current = StartDir.clone();
         loop
         {
             if Current.join("typst.toml").exists()
                 || Current.join(".typst-studio").exists()
-                || Current.join(".git").exists()
             {
                 return Current;
             }
@@ -584,7 +713,8 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
             }
         }
 
-        // Match against tracked workspace directories: choose the deepest containing directory
+        // 2. Match against tracked workspace directories: choose the deepest containing directory
+        // This ensures tracked sub-projects (e.g. docs/ or submodules) take precedence over parent repos
         let TrackedDirs = GetTrackedDirectories();
         let mut BestTracked: Option<std::path::PathBuf> = None;
         for Dir in &TrackedDirs
@@ -602,6 +732,28 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
         if let Some(ProjectRoot) = BestTracked
         {
             return ProjectRoot;
+        }
+
+        // 3. Upward walk for version control boundary: .git
+        let mut Current = StartDir.clone();
+        loop
+        {
+            if Current.join(".git").exists()
+            {
+                return Current;
+            }
+            if let Some(Parent) = Current.parent()
+            {
+                if Parent == Current
+                {
+                    break;
+                }
+                Current = Parent.to_path_buf();
+            }
+            else
+            {
+                break;
+            }
         }
 
         return StartDir;
@@ -711,11 +863,13 @@ fn CompileTypstSync(Source: String, FilePath: Option<String>, IsBackground: Opti
     let TypstBin = FindTypstBinary();
 
     let TempBase = std::env::temp_dir();
+    let Counter = JOB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let UniqueId = format!
     (
-        "job_{}_{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
-        std::process::id()
+        "job_{}_{}_{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos(),
+        std::process::id(),
+        Counter
     );
     let JobDir = TempBase.join("typst_studio").join(UniqueId.clone());
     let _ = std::fs::create_dir_all(&JobDir);
@@ -824,11 +978,13 @@ fn ExportPdfSync(Source: String, FilePath: Option<String>, BlackMode: Option<boo
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
+    let Counter = JOB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let UniqueId = format!
     (
-        "pdf_{}_{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
-        std::process::id()
+        "pdf_{}_{}_{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos(),
+        std::process::id(),
+        Counter
     );
     let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
@@ -907,11 +1063,13 @@ fn ExportPngSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
+    let Counter = JOB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let UniqueId = format!
     (
-        "png_{}_{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
-        std::process::id()
+        "png_{}_{}_{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos(),
+        std::process::id(),
+        Counter
     );
     let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
@@ -1038,11 +1196,13 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
 {
     let TypstBin = FindTypstBinary();
     let TempBase = std::env::temp_dir();
+    let Counter = JOB_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let UniqueId = format!
     (
-        "svg_{}_{}",
-        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_millis(),
-        std::process::id()
+        "svg_{}_{}_{}",
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos(),
+        std::process::id(),
+        Counter
     );
     let JobDir = TempBase.join("typst_studio").join(&UniqueId);
     let _ = std::fs::create_dir_all(&JobDir);
@@ -1143,9 +1303,7 @@ fn ExportSvgSync(Source: String, FilePath: Option<String>, BaseDocName: String, 
 
             if Transparent
             {
-                SvgContent = SvgContent.replace("fill=\"#000000\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
-                SvgContent = SvgContent.replace("fill=\"#ffffff\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
-                SvgContent = SvgContent.replace("fill=\"#FFFFFF\" fill-rule=\"nonzero\" d=\"M 0 0v", "fill=\"none\" fill-rule=\"nonzero\" d=\"M 0 0v");
+                SvgContent = StripCanvasBackground(&SvgContent);
             }
 
             Zip.write_all(SvgContent.as_bytes()).map_err( | Error | format ! ("Zip write error: {}", Error))?;
@@ -3406,7 +3564,7 @@ mod tests
    #[test]
     fn TestCompileTypst()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let Source = "= Hello Typst\nTesting Tauri command.".to_string();
         let Resp = CompileTypstSync(Source, None, None).expect("CompileTypst should succeed");
         assert!(Resp.success);
@@ -3496,7 +3654,7 @@ mod tests
    #[test]
     fn TestWorkspaceFileOperations()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let OriginalDirs = GetTrackedDirectories();
         let TempDir = std::env::temp_dir().join(format!("test_ws_{}", std::process::id()));
         let _ = std::fs::create_dir_all(&TempDir);
@@ -3528,7 +3686,7 @@ mod tests
    #[test]
     fn TestGetWorkspaceInfo()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let Info = GetWorkspaceInfo().expect("GetWorkspaceInfo should succeed");
         assert!(Info.Success);
         assert!( ! Info.Directories.is_empty());
@@ -3557,7 +3715,7 @@ mod tests
    #[test]
     fn TestSavePastedFileAssetAndDeduplication()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let OriginalDirs = GetTrackedDirectories();
         let Nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let TempDir = std::env::temp_dir().join(format!("typst_paste_test_{}_{}", std::process::id(), Nanos));
@@ -3694,7 +3852,7 @@ mod tests
     #[test]
     fn TestSyncSelectionPrecision()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let MockSyncMap = vec![
             serde_json::json!({
                 "page": 1,
@@ -3779,9 +3937,140 @@ mod tests
     }
 
    #[test]
+    fn TestNestedWorkspaceVsParentGitRoot()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let TempBase = std::env::temp_dir().join(format!("test_nest_git_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&TempBase);
+
+        // 1. Simulate parent .git repository
+        let GitDir = TempBase.join(".git");
+        let _ = std::fs::create_dir_all(&GitDir);
+
+        // 2. Simulate tracked workspace subfolder (e.g. docs/)
+        let DocsDir = TempBase.join("docs");
+        let NestedGuides = DocsDir.join("content").join("guides");
+        let _ = std::fs::create_dir_all(&NestedGuides);
+        let TablesTyp = NestedGuides.join("tables.typ");
+        let _ = std::fs::write(&TablesTyp, "= Tables\n");
+
+        let OrigDirs = GetTrackedDirectories();
+        let CanonDocsDir = CanonicalizeOrResolve(&DocsDir);
+        let mut TempDirs = OrigDirs.clone();
+        TempDirs.push(CanonDocsDir.to_string_lossy().to_string());
+        let _ = SaveTrackedDirectories(&TempDirs);
+
+        // Assert that DocsDir takes precedence over parent .git
+        let Resolved = ResolveDocRoot(Some(&TablesTyp.to_string_lossy()), &TempBase);
+        assert_eq!(CanonicalizeOrResolve(&Resolved), CanonDocsDir, "Tracked workspace folder must take precedence over parent .git");
+
+        // Restore original tracked directories
+        let _ = SaveTrackedDirectories(&OrigDirs);
+
+        // Now without DocsDir tracked and without typst.toml, it falls back to parent .git
+        let ResolvedGit = ResolveDocRoot(Some(&TablesTyp.to_string_lossy()), &TempBase);
+        let CanonGitExpected = CanonicalizeOrResolve(&TempBase);
+        assert_eq!(CanonicalizeOrResolve(&ResolvedGit), CanonGitExpected, "Untracked subfolder should fall back to parent .git");
+
+        // 3. Now add typst.toml inside DocsDir: it must take precedence over everything
+        let TypstToml = DocsDir.join("typst.toml");
+        let _ = std::fs::write(&TypstToml, "[package]\nname = \"docs_pkg\"\nversion = \"0.1.0\"\n");
+        let ResolvedToml = ResolveDocRoot(Some(&TablesTyp.to_string_lossy()), &TempBase);
+        assert_eq!(CanonicalizeOrResolve(&ResolvedToml), CanonDocsDir, "typst.toml must take highest precedence");
+
+        let _ = std::fs::remove_dir_all(&TempBase);
+    }
+
+   #[test]
+    fn TestFiveWayConcurrentThumbnailAndSvgIsolation()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+
+        // 1. First compile the foreground editor document so it populates LAST_ACTIVE_SYNC_MAP
+        let SourceFg = "= Foreground Editor\n#link(\"https://marker.local/UNIQUE_MARKER_EDITOR_FOREGROUND_999\")[Foreground]\nThis is foreground content.".to_string();
+        let RespFg = CompileTypstSync(SourceFg.clone(), None, Some(false)).expect("Foreground compile succeeds");
+        assert!(RespFg.success);
+        let FgSvg = RespFg.pages.join("\n");
+        assert!(FgSvg.contains("UNIQUE_MARKER_EDITOR_FOREGROUND_999"));
+        let FgSyncMap = LAST_ACTIVE_SYNC_MAP.lock().unwrap_or_else(|E| E.into_inner()).clone();
+        assert!(!FgSyncMap.is_empty(), "Foreground compile must populate LAST_ACTIVE_SYNC_MAP");
+
+        // 2. Prepare 5 distinct background thumbnail jobs
+        let Markers = vec![
+            "UNIQUE_THUMBNAIL_ALPHA_111",
+            "UNIQUE_THUMBNAIL_BETA_222",
+            "UNIQUE_THUMBNAIL_GAMMA_333",
+            "UNIQUE_THUMBNAIL_DELTA_444",
+            "UNIQUE_THUMBNAIL_EPSILON_555",
+        ];
+
+        let Barrier = std::sync::Arc::new(std::sync::Barrier::new(6));
+        let mut Handles = Vec::new();
+
+        // Spawn 5 background threads
+        for (Idx, Marker) in Markers.iter().enumerate()
+        {
+            let BarrierClone = Barrier.clone();
+            let MarkerStr = Marker.to_string();
+            let SourceBg = format!("= Thumbnail {}\n#link(\"https://marker.local/{}\")[Card {}]\nContent for thumbnail.", Idx + 1, MarkerStr, Idx + 1);
+            let Handle = std::thread::spawn(move || {
+                BarrierClone.wait();
+                let Resp = CompileTypstSync(SourceBg, None, Some(true)).expect("Background compile succeeds");
+                (MarkerStr, Resp)
+            });
+            Handles.push(Handle);
+        }
+
+        // Spawn 6th thread: simultaneous foreground compile
+        let FgBarrier = Barrier.clone();
+        let FgSourceSimul = SourceFg.clone();
+        let FgHandle = std::thread::spawn(move || {
+            FgBarrier.wait();
+            CompileTypstSync(FgSourceSimul, None, Some(false)).expect("Simultaneous foreground compile succeeds")
+        });
+
+        let FgResult = FgHandle.join().expect("Foreground thread joined cleanly");
+        assert!(FgResult.success, "Foreground compile must succeed during concurrent load");
+        let FgSvgSimul = FgResult.pages.join("\n");
+        assert!(FgSvgSimul.contains("UNIQUE_MARKER_EDITOR_FOREGROUND_999"));
+
+        // Collect all 5 background results
+        for Handle in Handles
+        {
+            let (Marker, Resp) = Handle.join().expect("Background thread joined cleanly");
+            assert!(Resp.success, "Background thumbnail job must succeed without abort");
+            let SvgContent = Resp.pages.join("\n");
+            // (a) SVG contains ONLY its own marker
+            assert!(SvgContent.contains(&Marker), "Job SVG must contain its own marker {}", Marker);
+            for OtherMarker in &Markers
+            {
+                if *OtherMarker != Marker.as_str()
+                {
+                    assert!(
+                        !SvgContent.contains(*OtherMarker),
+                        "Job SVG for {} must NOT leak {} from another job",
+                        Marker, OtherMarker
+                    );
+                }
+            }
+            assert!(
+                !SvgContent.contains("UNIQUE_MARKER_EDITOR_FOREGROUND_999"),
+                "Background SVG must NOT leak foreground marker"
+            );
+        }
+
+        // (c) Verify foreground document's SyncTeX map is completely untouched by the 5 background jobs
+        let ActiveSyncNow = LAST_ACTIVE_SYNC_MAP.lock().unwrap_or_else(|E| E.into_inner()).clone();
+        assert_eq!(
+            ActiveSyncNow, FgSyncMap,
+            "Foreground document's SyncTeX map must be untouched by background thumbnail runs"
+        );
+    }
+
+   #[test]
     fn TestConcurrentJobIsolation()
     {
-        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap();
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let SourceEditor = "= Active Editor Document\nHello Editor.".to_string();
         let SourceBg = "= Background Thumbnail Document\nHello Background.".to_string();
 
@@ -3796,5 +4085,48 @@ mod tests
         let ActiveSyncAfterBg = LAST_ACTIVE_SYNC_MAP.lock().unwrap().clone();
 
         assert_eq!(ActiveSyncAfterEditor, ActiveSyncAfterBg);
+    }
+
+    #[test]
+    fn TestConvertSvgToDarkModeIntegrity()
+    {
+        // 1. Fill preceding d attribute
+        let SvgFillFirst = "<svg viewBox=\"0 0 100 100\"><path fill=\"#ffffff\" d=\"M 0 0v100h100v-100Z\"/><path fill=\"#ff0000\" d=\"M 10 10h20v20h-20Z\"/></svg>";
+        let DarkSvg1 = ConvertSvgToDarkMode(SvgFillFirst);
+        assert!(
+            DarkSvg1.contains("fill=\"#000000\""),
+            "Canvas background fill must be converted to #000000 regardless of attribute order"
+        );
+        assert!(
+            DarkSvg1.contains("M 10 10"),
+            "User shape must not be lost"
+        );
+        assert!(
+            !DarkSvg1.contains("<path fill=\"#000000\" d=\"M 10 10"),
+            "User shape must never be stolen as canvas background"
+        );
+
+        // 2. d attribute preceding fill
+        let SvgDFirst = "<svg viewBox=\"0 0 100 100\"><path d=\"M 0 0v100h100v-100Z\" fill=\"#ffffff\"/><path d=\"M 10 10h20v20h-20Z\" fill=\"#00ff00\"/></svg>";
+        let DarkSvg2 = ConvertSvgToDarkMode(SvgDFirst);
+        assert!(
+            DarkSvg2.contains("fill=\"#000000\""),
+            "Canvas background fill must be converted when d precedes fill"
+        );
+        assert!(
+            !DarkSvg2.contains("fill=\"#000000\" d=\"M 10 10") && !DarkSvg2.contains("d=\"M 10 10h20v20h-20Z\" fill=\"#000000\""),
+            "User shape with d preceding fill must never be stolen as canvas background"
+        );
+
+        // 3. Transparent stripping test
+        let TransSvg = StripCanvasBackground(SvgDFirst);
+        assert!(
+            TransSvg.contains("fill=\"none\""),
+            "StripCanvasBackground must make canvas fill none"
+        );
+        assert!(
+            TransSvg.contains("fill=\"#00ff00\""),
+            "StripCanvasBackground must preserve user shape fills"
+        );
     }
 }
