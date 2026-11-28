@@ -591,6 +591,7 @@ let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
 let LastCompiledDocumentPath = "";
+let LastCompiledDocumentModified = null;
 
 function StripWindowsVerbatimStrFrontend(PathStr)
 {
@@ -5213,17 +5214,11 @@ async function TriggerCompileNow()
 
             LastCompiledPages = Result.Pages || [];
             LastCompiledDocumentPath = RequestDocKey;
+            LastCompiledDocumentModified = ResolveDocumentModifiedSignature(RawDocPath);
 
             if (!IsModuleFile && Result.Pages && Result.Pages[0] && RequestDocKey)
             {
-                const NormKey = RequestDocKey;
-                if (!window.DocPreviewSvgCache) { window.DocPreviewSvgCache = {}; }
-                window.DocPreviewSvgCache[NormKey] = Result.Pages[0];
-                try
-                {
-                    localStorage.setItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey), Result.Pages[0]);
-                }
-                catch (Ignored) {}
+                SetCachedPreview(RawDocPath, Result.Pages[0], LastCompiledDocumentModified);
             }
             ActiveSpanMap = Result.SpanMap || {};
             let RawSyncMap = Result.SyncMap || [];
@@ -5273,6 +5268,7 @@ async function TriggerCompileNow()
             ClearSyncHighlights();
             LastCompiledPages = [];
             LastCompiledDocumentPath = "";
+            LastCompiledDocumentModified = null;
             CurrentPageCount = 0;
             UpdatePagination();
 
@@ -5379,14 +5375,126 @@ const InvertShapeColorCache = new Map();
 const InvertGlyphColorCache = new Map();
 const SvgDarkModeCache = new Map();
 
-function InvertShapeColor(ColorStr)
+function RgbToHsl(Red, Green, Blue)
 {
-    if (!ColorStr)
+    const R = Red / 255;
+    const G = Green / 255;
+    const B = Blue / 255;
+    const Max = Math.max(R, G, B);
+    const Min = Math.min(R, G, B);
+    const Light = (Max + Min) / 2;
+    let Hue = 0;
+    let Sat = 0;
+
+    if (Max !== Min)
+    {
+        const Delta = Max - Min;
+        Sat = Light > 0.5 ? Delta / (2 - Max - Min) : Delta / (Max + Min);
+        if (Max === R)
+        {
+            Hue = ((G - B) / Delta) + (G < B ? 6 : 0);
+        }
+        else if (Max === G)
+        {
+            Hue = ((B - R) / Delta) + 2;
+        }
+        else
+        {
+            Hue = ((R - G) / Delta) + 4;
+        }
+        Hue *= 60;
+    }
+
+    return { H: Hue, S: Sat, L: Light };
+}
+
+function HslToRgb(Hue, Sat, Light)
+{
+    const HNorm = (((Hue % 360) + 360) % 360) / 360;
+    const SClamp = Math.min(1, Math.max(0, Sat));
+    const LClamp = Math.min(1, Math.max(0, Light));
+
+    if (SClamp === 0)
+    {
+        const Val = Math.round(LClamp * 255);
+        return { R: Val, G: Val, B: Val };
+    }
+
+    const HueToChannel = (P, Q, T) =>
+    {
+        let TNorm = T;
+        if (TNorm < 0) { TNorm += 1; }
+        if (TNorm > 1) { TNorm -= 1; }
+        if (TNorm < 1 / 6) { return P + (Q - P) * 6 * TNorm; }
+        if (TNorm < 1 / 2) { return Q; }
+        if (TNorm < 2 / 3) { return P + (Q - P) * (2 / 3 - TNorm) * 6; }
+        return P;
+    };
+
+    const Q = LClamp < 0.5 ? LClamp * (1 + SClamp) : LClamp + SClamp - LClamp * SClamp;
+    const P = 2 * LClamp - Q;
+
+    return {
+        R: Math.max(0, Math.min(255, Math.round(HueToChannel(P, Q, HNorm + 1 / 3) * 255))),
+        G: Math.max(0, Math.min(255, Math.round(HueToChannel(P, Q, HNorm) * 255))),
+        B: Math.max(0, Math.min(255, Math.round(HueToChannel(P, Q, HNorm - 1 / 3) * 255)))
+    };
+}
+
+function GetRelativeLuminance(Red, Green, Blue)
+{
+    const ToLinear = (Channel) =>
+    {
+        const C = Channel / 255;
+        return C <= 0.03928 ? C / 12.92 : Math.pow((C + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * ToLinear(Red) + 0.7152 * ToLinear(Green) + 0.0722 * ToLinear(Blue);
+}
+
+function SanitizeDarkSurfaceHue(Hue, Sat, MaxSat = 0.44)
+{
+    let SafeHue = ((Hue % 360) + 360) % 360;
+    let SafeSat = Math.min(MaxSat, Math.max(0, Sat));
+
+    // Avoid muddy or banned yellow hues by shifting toward warm amber
+    if (SafeHue >= 42 && SafeHue <= 76 && SafeSat > 0.05)
+    {
+        SafeHue = 32;
+        SafeSat = Math.min(SafeSat, 0.34);
+    }
+    // Avoid banned cyan (#00E5FF) band by shifting gently toward deep slate-blue
+    else if (SafeHue >= 178 && SafeHue <= 198 && SafeSat > 0.05)
+    {
+        SafeHue = 206;
+    }
+
+    return { Hue: SafeHue, Sat: SafeSat };
+}
+
+function FormatConvertedShapeColor(OutR, OutG, OutB, AlphaHex, TrimmedOriginal)
+{
+    if (TrimmedOriginal.toLowerCase().startsWith("rgb"))
+    {
+        return AlphaHex !== ""
+            ? `rgba(${OutR}, ${OutG}, ${OutB}, ${(parseInt(AlphaHex, 16) / 255).toFixed(3).replace(/\.?0+$/, "")})`
+            : `rgb(${OutR}, ${OutG}, ${OutB})`;
+    }
+
+    const HexR = OutR.toString(16).padStart(2, "0").toUpperCase();
+    const HexG = OutG.toString(16).padStart(2, "0").toUpperCase();
+    const HexB = OutB.toString(16).padStart(2, "0").toUpperCase();
+    return `#${HexR}${HexG}${HexB}${AlphaHex.toUpperCase()}`;
+}
+
+function InvertShapeColor(ColorStr, Mode = CurrentPaperColorMode)
+{
+    if (!ColorStr || Mode === "light")
     {
         return ColorStr;
     }
 
-    const Cached = InvertShapeColorCache.get(ColorStr);
+    const CacheKey = ColorStr + "_" + Mode;
+    const Cached = InvertShapeColorCache.get(CacheKey);
     if (Cached !== undefined)
     {
         return Cached;
@@ -5398,7 +5506,7 @@ function InvertShapeColor(ColorStr)
         Trimmed.startsWith("url(") || ["none", "transparent", "currentcolor", "inherit"].includes(Trimmed.toLowerCase())
     )
     {
-        InvertShapeColorCache.set(ColorStr, ColorStr);
+        InvertShapeColorCache.set(CacheKey, ColorStr);
         return ColorStr;
     }
 
@@ -5457,7 +5565,7 @@ function InvertShapeColor(ColorStr)
         }
         else
         {
-            InvertShapeColorCache.set(ColorStr, ColorStr);
+            InvertShapeColorCache.set(CacheKey, ColorStr);
             return ColorStr;
         }
     }
@@ -5477,28 +5585,44 @@ function InvertShapeColor(ColorStr)
         }
         else
         {
-            InvertShapeColorCache.set(ColorStr, ColorStr);
+            InvertShapeColorCache.set(CacheKey, ColorStr);
             return ColorStr;
         }
     }
 
     if (isNaN(Red) || isNaN(Green) || isNaN(Blue))
     {
-        InvertShapeColorCache.set(ColorStr, ColorStr);
+        InvertShapeColorCache.set(CacheKey, ColorStr);
         return ColorStr;
     }
 
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 22)
     {
-        InvertShapeColorCache.set(ColorStr, ColorStr);
+        const { H, S, L } = RgbToHsl(Red, Green, Blue);
+        const PercLum = (0.299 * Red + 0.587 * Green + 0.114 * Blue) / 255;
+
+        if (L > 0.72 || (PercLum > 0.76 && L > 0.58))
+        {
+            const Metric = Math.max(L, PercLum);
+            const T = Math.min(1.0, Math.max(0.0, (Metric - 0.72) / 0.28));
+            const TargetL = (Mode === "pure_black") ? (0.12 - T * 0.04) : (0.18 - T * 0.05);
+            const BaseSat = Math.min(0.42, Math.max(S * 0.42, Math.min(S, 0.18)));
+            const { Hue: SafeH, Sat: SafeS } = SanitizeDarkSurfaceHue(H, BaseSat, 0.44);
+            const { R: OutR, G: OutG, B: OutB } = HslToRgb(SafeH, SafeS, TargetL);
+            const FinalPastel = FormatConvertedShapeColor(OutR, OutG, OutB, Alpha, Trimmed);
+            InvertShapeColorCache.set(CacheKey, FinalPastel);
+            return FinalPastel;
+        }
+
+        InvertShapeColorCache.set(CacheKey, ColorStr);
         return ColorStr;
     }
 
-    if (Lower === "rgb(12, 12, 12)" || Lower === "#0c0c0c" || Lower === "#0C0C0C")
+    if (Lower === "rgb(12, 12, 12)" || Lower === "#0c0c0c")
     {
         const DarkPageColor = Trimmed.startsWith("#") ? "#000000": "rgb(0, 0, 0)";
-        InvertShapeColorCache.set(ColorStr, DarkPageColor);
+        InvertShapeColorCache.set(CacheKey, DarkPageColor);
         return DarkPageColor;
     }
 
@@ -5520,27 +5644,14 @@ function InvertShapeColor(ColorStr)
     const InvertedG = Math.max(0, Math.min(255, Math.round(BaseDark + (Green - Avg))));
     const InvertedB = Math.max(0, Math.min(255, Math.round(BaseDark + (Blue - Avg))));
 
-    if (Trimmed.toLowerCase().startsWith("rgb"))
-    {
-        const FinalColor = Alpha !== ""
-            ? `rgba(${InvertedR}, ${InvertedG}, ${InvertedB}, ${(parseInt(Alpha, 16) / 255).toFixed(3).replace(/\.?0+$/, "")})`
-            : `rgb(${InvertedR}, ${InvertedG}, ${InvertedB})`;
-        InvertShapeColorCache.set(ColorStr, FinalColor);
-        return FinalColor;
-    }
-
-    const HexR = InvertedR.toString(16).padStart(2, "0").toUpperCase();
-    const HexG = InvertedG.toString(16).padStart(2, "0").toUpperCase();
-    const HexB = InvertedB.toString(16).padStart(2, "0").toUpperCase();
-
-    const FinalColor = `#${HexR}${HexG}${HexB}${Alpha.toUpperCase()}`;
-    InvertShapeColorCache.set(ColorStr, FinalColor);
+    const FinalColor = FormatConvertedShapeColor(InvertedR, InvertedG, InvertedB, Alpha, Trimmed);
+    InvertShapeColorCache.set(CacheKey, FinalColor);
     return FinalColor;
 }
 
 function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
 {
-    if (!ColorStr)
+    if (!ColorStr || Mode === "light")
     {
         return ColorStr;
     }
@@ -5564,6 +5675,7 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
     let Red = 0;
     let Green = 0;
     let Blue = 0;
+    let Alpha = "";
     const Lower = Trimmed.toLowerCase();
 
     if (Lower === "white" || Lower === "#ffffff" || Lower === "#fff")
@@ -5581,21 +5693,45 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
             Green = parseInt(Hex[1] + Hex[1], 16);
             Blue = parseInt(Hex[2] + Hex[2], 16);
         }
-        else if (Hex.length >= 6)
+        else if (Hex.length === 4)
+        {
+            Red = parseInt(Hex[0] + Hex[0], 16);
+            Green = parseInt(Hex[1] + Hex[1], 16);
+            Blue = parseInt(Hex[2] + Hex[2], 16);
+            Alpha = Hex[3] + Hex[3];
+        }
+        else if (Hex.length === 6)
         {
             Red = parseInt(Hex.slice(0, 2), 16);
             Green = parseInt(Hex.slice(2, 4), 16);
             Blue = parseInt(Hex.slice(4, 6), 16);
         }
+        else if (Hex.length === 8)
+        {
+            Red = parseInt(Hex.slice(0, 2), 16);
+            Green = parseInt(Hex.slice(2, 4), 16);
+            Blue = parseInt(Hex.slice(4, 6), 16);
+            Alpha = Hex.slice(6, 8);
+        }
+        else
+        {
+            InvertGlyphColorCache.set(CacheKey, ColorStr);
+            return ColorStr;
+        }
     }
     else
     {
-        const RgbMatch = Trimmed.match(/^rgba?\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)/i);
+        const RgbMatch = Trimmed.match(/^rgba?\s*\(\s*([0-9.]+)\s*,\s*([0-9.]+)\s*,\s*([0-9.]+)(?:\s*,\s*([0-9.]+))?\s*\)$/i);
         if (RgbMatch)
         {
             Red = Math.round(parseFloat(RgbMatch[1]));
             Green = Math.round(parseFloat(RgbMatch[2]));
             Blue = Math.round(parseFloat(RgbMatch[3]));
+            if (RgbMatch[4] !== undefined)
+            {
+                const AlphaVal = parseFloat(RgbMatch[4]);
+                Alpha = Math.round(AlphaVal * 255).toString(16).padStart(2, "0");
+            }
         }
         else
         {
@@ -5607,8 +5743,39 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
     const MaxDelta = Math.max(Math.abs(Red - Green), Math.abs(Green - Blue), Math.abs(Blue - Red));
     if (MaxDelta > 22)
     {
-        InvertGlyphColorCache.set(CacheKey, ColorStr);
-        return ColorStr;
+        const RelLum = GetRelativeLuminance(Red, Green, Blue);
+        if (RelLum >= 0.25)
+        {
+            InvertGlyphColorCache.set(CacheKey, ColorStr);
+            return ColorStr;
+        }
+
+        // Lift dark chromatic text (e.g. #001666 INFO badge) for >= 4.5:1 WCAG AA contrast on dark surfaces
+        const { H, S, L } = RgbToHsl(Red, Green, Blue);
+        const { Hue: SafeH, Sat: SafeS } = SanitizeDarkSurfaceHue(H, Math.min(0.85, Math.max(0.40, S)), 0.85);
+        const MinRelLum = (Mode === "pure_black") ? 0.38 : 0.36;
+        let Low = Math.max(L, 0.50);
+        let High = 0.90;
+        for (let Iter = 0; Iter < 12; Iter ++)
+        {
+            const Mid = (Low + High) / 2;
+            const Cand = HslToRgb(SafeH, SafeS, Mid);
+            if (GetRelativeLuminance(Cand.R, Cand.G, Cand.B) >= MinRelLum)
+            {
+                High = Mid;
+            }
+            else
+            {
+                Low = Mid;
+            }
+        }
+        const Lifted = HslToRgb(SafeH, SafeS, High);
+        const HexR = Lifted.R.toString(16).padStart(2, "0").toUpperCase();
+        const HexG = Lifted.G.toString(16).padStart(2, "0").toUpperCase();
+        const HexB = Lifted.B.toString(16).padStart(2, "0").toUpperCase();
+        const FinalLifted = `#${HexR}${HexG}${HexB}${Alpha.toUpperCase()}`;
+        InvertGlyphColorCache.set(CacheKey, FinalLifted);
+        return FinalLifted;
     }
 
     const Avg = (Red + Green + Blue) / 3;
@@ -5620,7 +5787,7 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
 
     if (Mode === "pure_black")
     {
-        const Inv = Math.min(255, Math.max(0, Math.round(255 - Avg)));
+        const Inv = Math.min(255, Math.max(155, Math.round(255 - Avg)));
         const H = Inv.toString(16).padStart(2, "0").toUpperCase();
         const FinalColor = `#${H}${H}${H}`;
         InvertGlyphColorCache.set(CacheKey, FinalColor);
@@ -5628,7 +5795,7 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
     }
     else
     {
-        const Inv = Math.min(220, Math.max(40, Math.round((255 - Avg) * 0.88)));
+        const Inv = Math.min(220, Math.max(145, Math.round((255 - Avg) * 0.88)));
         const H = Inv.toString(16).padStart(2, "0").toUpperCase();
         const FinalColor = `#${H}${H}${H}`;
         InvertGlyphColorCache.set(CacheKey, FinalColor);
@@ -5636,9 +5803,9 @@ function InvertGlyphColor(ColorStr, Mode = CurrentPaperColorMode)
     }
 }
 
-function InvertMonochromeColor(ColorStr)
+function InvertMonochromeColor(ColorStr, Mode = CurrentPaperColorMode)
 {
-    return InvertShapeColor(ColorStr);
+    return InvertShapeColor(ColorStr, Mode);
 }
 
 function ConvertSvgToTransparent(Svg)
@@ -5774,6 +5941,11 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         return Svg;
     }
 
+    if (Mode === "light")
+    {
+        return Transparent ? ConvertSvgToTransparent(Svg) : Svg;
+    }
+
     const DocPrefix = ActiveDocumentCanonicalPath || CurrentFilePath || "doc";
     const SvgKey = `${DocPrefix}::${FastHash(Svg)}_${Mode}${Transparent ? "_trans": "_solid"}`;
     const Cached = SvgDarkModeCache.get(SvgKey);
@@ -5878,11 +6050,12 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         }
     );
 
-    // 3. Invert shapes (<path>, <rect>, <polygon>, <polyline>, <circle>, <ellipse>, <line>) fills and strokes
+    // 3. Invert shapes (<path>, <rect>, <polygon>, <polyline>, <circle>, <ellipse>, <line>, <g>) fills and strokes
     Result = Result.replace
     (
-        /<(path|rect|polygon|polyline|circle|ellipse|line)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
+        /<(path|rect|polygon|polyline|circle|ellipse|line|g)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
         {
+            const IsTextGroup = Tag.toLowerCase() === "g" && /\btypst-text\b/i.test(Attrs);
             let Updated = Attrs.replace
             (
                 /\bfill\s*=\s*(["'])([^"']+)\1/gi, (FillMatch, Quote, Color) =>
@@ -5891,7 +6064,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
                     {
                         return FillMatch;
                     }
-                    const Inverted = InvertShapeColor(Color, Mode);
+                    const Inverted = IsTextGroup ? InvertGlyphColor(Color, Mode) : InvertShapeColor(Color, Mode);
                     return `fill=${Quote}${Inverted}${Quote}`;
                 }
             );
@@ -5907,31 +6080,43 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         }
     );
 
-    // 4. Handle custom inline styles before resolving canvas sentinel
+    // 4. Handle custom inline styles with tag awareness before resolving canvas sentinel
     if (Result.includes('style="') || Result.includes("style='"))
     {
         Result = Result.replace
         (
-            /\bstyle\s*=\s*(["'][^"']*["'])/gi,
-            (Match, QuotedVal) =>
+            /<([a-zA-Z0-9:-]+)\b([^>]*\bstyle\s*=\s*["'][^"']*["'][^>]*)>/gi,
+            (FullTagMatch, Tag, Attrs) =>
             {
-                const Quote = QuotedVal[0];
-                const StyleContent = QuotedVal.slice(1, - 1);
-                const Transformed = StyleContent.replace
+                const IsGlyphTag = /^(?:use|text|tspan)$/i.test(Tag) || (Tag.toLowerCase() === "g" && /\btypst-text\b/i.test(Attrs));
+                const UpdatedAttrs = Attrs.replace
                 (
-                    /\b(fill|stroke|color)\s*:\s*([^;'"]+)/gi,
-                    (PropMatch, Prop, Color) =>
+                    /\bstyle\s*=\s*(["'][^"']*["'])/gi,
+                    (Match, QuotedVal) =>
                     {
-                        const Trimmed = Color.trim();
-                        if (Trimmed === "__CANVAS_BLACK_SENTINEL__")
-                        {
-                            return PropMatch;
-                        }
-                        const Inverted = InvertShapeColor(Trimmed, Mode);
-                        return `${Prop}: ${Inverted}`;
+                        const Quote = QuotedVal[0];
+                        const StyleContent = QuotedVal.slice(1, - 1);
+                        const Transformed = StyleContent.replace
+                        (
+                            /\b(fill|stroke|color)\s*:\s*([^;'"]+)/gi,
+                            (PropMatch, Prop, Color) =>
+                            {
+                                const Trimmed = Color.trim();
+                                if (Trimmed === "__CANVAS_BLACK_SENTINEL__")
+                                {
+                                    return PropMatch;
+                                }
+                                const LowerProp = Prop.toLowerCase();
+                                const Inverted = (LowerProp === "color" || (LowerProp === "fill" && IsGlyphTag))
+                                    ? InvertGlyphColor(Trimmed, Mode)
+                                    : InvertShapeColor(Trimmed, Mode);
+                                return `${Prop}: ${Inverted}`;
+                            }
+                        );
+                        return `style=${Quote}${Transformed}${Quote}`;
                     }
                 );
-                return `style=${Quote}${Transformed}${Quote}`;
+                return `<${Tag}${UpdatedAttrs}>`;
             }
         );
     }
@@ -13835,8 +14020,52 @@ async function LoadAvailableFonts()
     }
 }
 
+let WorkspaceInfoRequestSeq = 0;
+
+function DeduplicateWorkspaceDirectories(Dirs)
+{
+    const UniqueDirs = [];
+    const SeenKeys = new Set();
+    for (const Dir of (Dirs || []))
+    {
+        if (!Dir || typeof Dir !== "string")
+        {
+            continue;
+        }
+        const Key = CanonicalizeDocKey(Dir) || Dir.trim();
+        if (Key && !SeenKeys.has(Key))
+        {
+            SeenKeys.add(Key);
+            UniqueDirs.push(Dir);
+        }
+    }
+    return UniqueDirs;
+}
+
+function DeduplicateWorkspaceFiles(Files)
+{
+    const UniqueFiles = [];
+    const SeenKeys = new Set();
+    for (const File of (Files || []))
+    {
+        if (!File)
+        {
+            continue;
+        }
+        const FilePath = File.Path || File.path || "";
+        const Key = CanonicalizeDocKey(FilePath) || FilePath.trim();
+        if (Key && !SeenKeys.has(Key))
+        {
+            SeenKeys.add(Key);
+            UniqueFiles.push(File);
+        }
+    }
+    return UniqueFiles;
+}
+
 async function LoadWorkspaceInfo()
 {
+    const ThisRequestSeq = ++ WorkspaceInfoRequestSeq;
     try
     {
         let Data;
@@ -13850,10 +14079,15 @@ async function LoadWorkspaceInfo()
             Data = await Response.json();
         }
 
+        if (ThisRequestSeq !== WorkspaceInfoRequestSeq)
+        {
+            return ;
+        }
+
         if (Data && Data.Success)
         {
-            WorkspaceDirectories = Data.Directories || [];
-            WorkspaceFiles = Data.Files || [];
+            WorkspaceDirectories = DeduplicateWorkspaceDirectories(Data.Directories || []);
+            WorkspaceFiles = DeduplicateWorkspaceFiles(Data.Files || []);
             if (!CurrentFilePath && WorkspaceFiles.length > 0)
             {
                 CurrentFilePath = WorkspaceFiles[0].Path;
@@ -14037,6 +14271,7 @@ async function OpenFileFromWorkspace(FilePath)
             ClearCompilationError();
             LastCompiledPages = [];
             LastCompiledDocumentPath = "";
+            LastCompiledDocumentModified = null;
             const PagesContainer = document.getElementById("PagesContainer");
             if (PagesContainer)
             {
@@ -14174,6 +14409,7 @@ async function SaveCurrentFile()
         {
             await window.__TAURI__.core.invoke("SaveWorkspaceFile", { pathStr: TargetPath, PathStr: TargetPath, content: Content, Content: Content });
             MarkDocumentClean(Content);
+            EvictCachedPreview(TargetPath);
             TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             ShowToast("Saved to disk", "success");
             if (SaveBtn && Label)
@@ -14206,6 +14442,7 @@ async function SaveCurrentFile()
         const Data = await Response.json();
         if (Data.Success)
         {
+            EvictCachedPreview(TargetPath);
             TrackRecentDocument(TargetPath, TargetPath.split(/[\/\\]/).pop());
             if (SaveBtn && Label)
             {
@@ -14385,6 +14622,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
             }
         }
 
+        EvictCachedPreview(FilePath);
         RemoveRecentDocument(FilePath);
 
         // Close tab if open
@@ -14480,6 +14718,7 @@ async function RenameWorkspaceDocument(FilePath, CurrentName)
                 ActiveDocumentCanonicalPath = NewPath;
             }
 
+            EvictCachedPreview(FilePath);
             RemoveRecentDocument(FilePath);
             TrackRecentDocument(NewPath, ValidatedNewName);
             await LoadWorkspaceInfo();
@@ -14503,8 +14742,77 @@ let OpenTabs = [];
 let ActiveTabPath = "";
 let ExplorerCurrentRoot = "";
 let ExplorerIsStandalone = false;
+let ExplorerRenderSeq = 0;
 const ExplorerExpandedFolders = new Set();
 let ExplorerTreeCache = new Map();
+
+function GetExplorerPathKey(PathStr)
+{
+    return CanonicalizeDocKey(PathStr) || String(PathStr || "").trim();
+}
+
+function IsExplorerFolderExpanded(FolderPath)
+{
+    const Key = GetExplorerPathKey(FolderPath);
+    return Key ? ExplorerExpandedFolders.has(Key) : false;
+}
+
+function SetExplorerFolderExpanded(FolderPath, Expanded)
+{
+    const Key = GetExplorerPathKey(FolderPath);
+    if (!Key)
+    {
+        return ;
+    }
+    if (Expanded)
+    {
+        ExplorerExpandedFolders.add(Key);
+    }
+    else
+    {
+        ExplorerExpandedFolders.delete(Key);
+    }
+}
+
+function GetExplorerTreeCache(FolderPath)
+{
+    const Key = GetExplorerPathKey(FolderPath);
+    return Key ? ExplorerTreeCache.get(Key) : undefined;
+}
+
+function SetExplorerTreeCache(FolderPath, Entries)
+{
+    const Key = GetExplorerPathKey(FolderPath);
+    if (Key)
+    {
+        ExplorerTreeCache.set(Key, DeduplicateTreeEntries(Entries));
+    }
+}
+
+function DeduplicateTreeEntries(Entries)
+{
+    const Unique = [];
+    const SeenKeys = new Set();
+
+    for (const Entry of (Entries || []))
+    {
+        if (!Entry)
+        {
+            continue;
+        }
+        const EntryPath = Entry.path || Entry.Path || "";
+        const EntryName = Entry.name || Entry.Name || "";
+        const IsDir = Boolean(Entry.is_dir);
+        const Key = GetExplorerPathKey(EntryPath) || `${IsDir ? "d" : "f"}:${String(EntryName).toLowerCase()}`;
+        if (!SeenKeys.has(Key))
+        {
+            SeenKeys.add(Key);
+            Unique.push(Entry);
+        }
+    }
+
+    return Unique;
+}
 const CollapsedProjectBoxes = new Set();
 try
 {
@@ -14592,7 +14900,7 @@ async function ListFilesForTree(DirPath)
         try
         {
             const Results = await window.__TAURI__.core.invoke("ListWorkspaceFiles", { dirPath: DirPath, DirPath: DirPath });
-            return Results || [];
+            return DeduplicateTreeEntries(Results || []);
         }
         catch (Err)
         {
@@ -14607,7 +14915,7 @@ async function ListFilesForTree(DirPath)
             const Token = await EnsureSessionAuthToken();
             const Res = await AuthenticatedFetch(`/api/workspace/list?dir=${encodeURIComponent(DirPath || "")}`);
             const Data = await Res.json();
-            return Data.Files || [];
+            return DeduplicateTreeEntries(Data.Files || []);
         }
         catch (Err)
         {
@@ -14868,6 +15176,7 @@ function SwitchToTab(FilePath)
     }
     LastCompiledPages = [];
     LastCompiledDocumentPath = "";
+    LastCompiledDocumentModified = null;
     CurrentPageCount = 0;
     CurrentActivePage = 1;
     UpdatePagination();
@@ -14987,7 +15296,7 @@ function AnimateMonacoLayout(DurationMs = 260)
     requestAnimationFrame(Step);
 }
 
-function ToggleExplorerSidebar(ForceState = null)
+function ToggleExplorerSidebar(ForceState = null, SkipRender = false)
 {
     const Sidebar = document.getElementById("ExplorerSidebar");
     const Btn = document.getElementById("ToggleExplorerBtn");
@@ -15023,7 +15332,10 @@ function ToggleExplorerSidebar(ForceState = null)
             TabsBtn.classList.add("Active");
         }
         localStorage.setItem("TypstStudio_ExplorerVisible", "true");
-        RenderExplorerTree();
+        if (!SkipRender)
+        {
+            RenderExplorerTree();
+        }
     }
 
     AnimateMonacoLayout(260);
@@ -15061,7 +15373,7 @@ async function InitExplorer()
                 ExplorerExpandedFolders.clear();
                 if (ExplorerCurrentRoot)
                 {
-                    ExplorerExpandedFolders.add(ExplorerCurrentRoot);
+                    SetExplorerFolderExpanded(ExplorerCurrentRoot, true);
                 }
                 RenderExplorerTree();
             }
@@ -15199,85 +15511,62 @@ function SwitchExplorerRootPrompt()
     RenderExplorerTree();
 }
 
-async function RenderExplorerTree()
+async function CollectExpandedSubtrees(Entries, ShouldContinue, VisitedKeys = new Set(), SubtreeMap = new Map())
 {
-    const RootEl = document.getElementById("ExplorerTreeRoot");
-    const NameEl = document.getElementById("ExplorerProjectName");
-    if (!RootEl)
+    for (const File of (Entries || []))
     {
-        return ;
-    }
-
-    if (ExplorerIsStandalone || (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().endsWith(".typ")))
-    {
-        const FileName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
-        if (NameEl)
+        if (!File || !File.is_dir || !IsExplorerFolderExpanded(File.path))
         {
-            NameEl.textContent = `[Standalone] ${FileName}`;
-            NameEl.title = ExplorerCurrentRoot;
+            continue;
         }
 
-        RootEl.innerHTML = "";
-        const StandaloneFiles = [
+        const FolderKey = GetExplorerPathKey(File.path);
+        if (!FolderKey || VisitedKeys.has(FolderKey))
+        {
+            continue;
+        }
+        VisitedKeys.add(FolderKey);
+
+        let SubFiles = GetExplorerTreeCache(File.path);
+        if (!SubFiles)
+        {
+            SubFiles = await ListFilesForTree(File.path);
+            if (!ShouldContinue())
             {
-                name: FileName,
-                path: ExplorerCurrentRoot,
-                is_dir: false
+                return null;
             }
-        ];
-        await RenderTreeLevel(StandaloneFiles, RootEl, 0);
-        HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath || ExplorerCurrentRoot);
-        return ;
-    }
-
-    if (!ExplorerCurrentRoot)
-    {
-        ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0])
-            ? WorkspaceDirectories[0]
-            : ((WorkspaceFiles && WorkspaceFiles[0] && WorkspaceFiles[0].Path) ? PathDirNameFrontend(WorkspaceFiles[0].Path) : "");
-    }
-
-    if (!ExplorerCurrentRoot)
-    {
-        if (NameEl)
-        {
-            NameEl.textContent = "Workspace";
-            NameEl.title = "";
+            SetExplorerTreeCache(File.path, SubFiles);
         }
-        RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">No workspace folder opened.</div>`;
-        return ;
+
+        const DedupedSub = DeduplicateTreeEntries(SubFiles);
+        SubtreeMap.set(FolderKey, DedupedSub);
+
+        const NestedOk = await CollectExpandedSubtrees(DedupedSub, ShouldContinue, VisitedKeys, SubtreeMap);
+        if (!NestedOk)
+        {
+            return null;
+        }
     }
 
-    const RootName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
-    if (NameEl)
-    {
-        NameEl.textContent = RootName;
-        NameEl.title = ExplorerCurrentRoot;
-    }
-
-    ExplorerExpandedFolders.add(ExplorerCurrentRoot);
-
-    RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">Loading tree...</div>`;
-    const Files = await ListFilesForTree(ExplorerCurrentRoot);
-    RootEl.innerHTML = "";
-    await RenderTreeLevel(Files, RootEl, 0);
-    HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath);
+    return SubtreeMap;
 }
 
-async function RenderTreeLevel(Files, ContainerEl, Depth = 0)
+function BuildTreeLevelNodes(Files, Depth, SubtreeMap, ExpectedRenderSeq, VisitedBuildKeys = new Set())
 {
-    if (!Files || Files.length === 0)
+    const DedupedFiles = DeduplicateTreeEntries(Files);
+    if (!DedupedFiles || DedupedFiles.length === 0)
     {
         const EmptyEl = document.createElement("div");
         EmptyEl.style.padding = `4px 12px 4px ${16 + Depth * 14}px`;
         EmptyEl.style.color = "#71717A";
         EmptyEl.style.fontSize = "11.5px";
         EmptyEl.textContent = "(Empty folder)";
-        ContainerEl.appendChild(EmptyEl);
-        return ;
+        return [EmptyEl];
     }
 
-    for (const File of Files)
+    const Nodes = [];
+
+    for (const File of DedupedFiles)
     {
         const NodeEl = document.createElement("div");
         NodeEl.className = "TreeNode";
@@ -15289,7 +15578,8 @@ async function RenderTreeLevel(Files, ContainerEl, Depth = 0)
 
         if (File.is_dir)
         {
-            const IsExpanded = ExplorerExpandedFolders.has(File.path);
+            const FolderKey = GetExplorerPathKey(File.path);
+            const IsExpanded = IsExplorerFolderExpanded(File.path);
             const ChevronEl = document.createElement("span");
             ChevronEl.className = `TreeNodeChevron ${IsExpanded ? "Expanded" : ""}`;
             ChevronEl.textContent = "›";
@@ -15312,41 +15602,67 @@ async function RenderTreeLevel(Files, ContainerEl, Depth = 0)
             ChildrenContainer.className = `TreeNodeChildren ${IsExpanded ? "" : "Collapsed"}`;
             NodeEl.appendChild(ChildrenContainer);
 
-            if (IsExpanded)
+            if (IsExpanded && FolderKey && SubtreeMap && SubtreeMap.has(FolderKey) && !VisitedBuildKeys.has(FolderKey))
             {
-                let SubFiles = ExplorerTreeCache.get(File.path);
-                if (!SubFiles)
+                const NextVisited = new Set(VisitedBuildKeys);
+                NextVisited.add(FolderKey);
+                const ChildNodes = BuildTreeLevelNodes
+                (
+                    SubtreeMap.get(FolderKey),
+                    Depth + 1,
+                    SubtreeMap,
+                    ExpectedRenderSeq,
+                    NextVisited
+                );
+                ChildrenContainer.innerHTML = "";
+                for (const ChildNode of ChildNodes)
                 {
-                    SubFiles = await ListFilesForTree(File.path);
-                    ExplorerTreeCache.set(File.path, SubFiles);
+                    ChildrenContainer.appendChild(ChildNode);
                 }
-                await RenderTreeLevel(SubFiles, ChildrenContainer, Depth + 1);
             }
 
             RowEl.onclick = async (E) =>
             {
-                E.stopPropagation();
-                const NowExpanded = ! ExplorerExpandedFolders.has(File.path);
+                if (E && typeof E.stopPropagation === "function")
+                {
+                    E.stopPropagation();
+                }
+                const NowExpanded = ! IsExplorerFolderExpanded(File.path);
+                SetExplorerFolderExpanded(File.path, NowExpanded);
+
                 if (NowExpanded)
                 {
-                    ExplorerExpandedFolders.add(File.path);
+                    const ClickSeq = (ChildrenContainer.__FolderExpandSeq || 0) + 1;
+                    ChildrenContainer.__FolderExpandSeq = ClickSeq;
+                    const RenderSeqAtClick = (ExpectedRenderSeq !== null) ? ExpectedRenderSeq : ExplorerRenderSeq;
+
                     ChevronEl.classList.add("Expanded");
                     IconEl.innerHTML = `📂`;
                     ChildrenContainer.classList.remove("Collapsed");
+
                     if (ChildrenContainer.children.length === 0)
                     {
-                        let Sub = ExplorerTreeCache.get(File.path);
+                        let Sub = GetExplorerTreeCache(File.path);
                         if (!Sub)
                         {
                             Sub = await ListFilesForTree(File.path);
-                            ExplorerTreeCache.set(File.path, Sub);
+                            if
+                            (
+                                ChildrenContainer.__FolderExpandSeq !== ClickSeq
+                                || RenderSeqAtClick !== ExplorerRenderSeq
+                                || !IsExplorerFolderExpanded(File.path)
+                            )
+                            {
+                                return ;
+                            }
+                            SetExplorerTreeCache(File.path, Sub);
                         }
-                        await RenderTreeLevel(Sub, ChildrenContainer, Depth + 1);
+                        await RenderTreeLevel(Sub, ChildrenContainer, Depth + 1, RenderSeqAtClick);
                     }
                 }
                 else
                 {
-                    ExplorerExpandedFolders.delete(File.path);
+                    ChildrenContainer.__FolderExpandSeq = (ChildrenContainer.__FolderExpandSeq || 0) + 1;
                     ChevronEl.classList.remove("Expanded");
                     IconEl.innerHTML = `📁`;
                     ChildrenContainer.classList.add("Collapsed");
@@ -15386,8 +15702,118 @@ async function RenderTreeLevel(Files, ContainerEl, Depth = 0)
             };
         }
 
+        Nodes.push(NodeEl);
+    }
+
+    return Nodes;
+}
+
+async function RenderTreeLevel(Files, ContainerEl, Depth = 0, ExpectedRenderSeq = null)
+{
+    if (!ContainerEl)
+    {
+        return ;
+    }
+
+    const LocalContainerSeq = (ContainerEl.__TreeContainerSeq || 0) + 1;
+    ContainerEl.__TreeContainerSeq = LocalContainerSeq;
+    const IsStillCurrent = () =>
+        ContainerEl.__TreeContainerSeq === LocalContainerSeq
+        && (ExpectedRenderSeq === null || ExpectedRenderSeq === ExplorerRenderSeq);
+
+    const DedupedFiles = DeduplicateTreeEntries(Files);
+    const SubtreeMap = await CollectExpandedSubtrees(DedupedFiles, IsStillCurrent);
+    if (!SubtreeMap || !IsStillCurrent())
+    {
+        return ;
+    }
+
+    const Nodes = BuildTreeLevelNodes(DedupedFiles, Depth, SubtreeMap, ExpectedRenderSeq);
+    ContainerEl.innerHTML = "";
+    for (const NodeEl of Nodes)
+    {
         ContainerEl.appendChild(NodeEl);
     }
+}
+
+async function RenderExplorerTree()
+{
+    const RootEl = document.getElementById("ExplorerTreeRoot");
+    const NameEl = document.getElementById("ExplorerProjectName");
+    if (!RootEl)
+    {
+        return ;
+    }
+
+    const ThisRenderSeq = ++ ExplorerRenderSeq;
+
+    if (ExplorerIsStandalone || (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().endsWith(".typ")))
+    {
+        const FileName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
+        if (NameEl)
+        {
+            NameEl.textContent = `[Standalone] ${FileName}`;
+            NameEl.title = ExplorerCurrentRoot;
+        }
+
+        const StandaloneFiles = DeduplicateTreeEntries
+        ([
+            {
+                name: FileName,
+                path: ExplorerCurrentRoot,
+                is_dir: false
+            }
+        ]);
+        await RenderTreeLevel(StandaloneFiles, RootEl, 0, ThisRenderSeq);
+        if (ThisRenderSeq !== ExplorerRenderSeq)
+        {
+            return ;
+        }
+        HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath || ExplorerCurrentRoot);
+        return ;
+    }
+
+    if (!ExplorerCurrentRoot)
+    {
+        ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0])
+            ? WorkspaceDirectories[0]
+            : ((WorkspaceFiles && WorkspaceFiles[0] && WorkspaceFiles[0].Path) ? PathDirNameFrontend(WorkspaceFiles[0].Path) : "");
+    }
+
+    if (!ExplorerCurrentRoot)
+    {
+        if (NameEl)
+        {
+            NameEl.textContent = "Workspace";
+            NameEl.title = "";
+        }
+        RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">No workspace folder opened.</div>`;
+        return ;
+    }
+
+    const RootName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
+    if (NameEl)
+    {
+        NameEl.textContent = RootName;
+        NameEl.title = ExplorerCurrentRoot;
+    }
+
+    SetExplorerFolderExpanded(ExplorerCurrentRoot, true);
+
+    RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">Loading tree...</div>`;
+    const Files = DeduplicateTreeEntries(await ListFilesForTree(ExplorerCurrentRoot));
+    if (ThisRenderSeq !== ExplorerRenderSeq)
+    {
+        return ;
+    }
+
+    await RenderTreeLevel(Files, RootEl, 0, ThisRenderSeq);
+    if (ThisRenderSeq !== ExplorerRenderSeq)
+    {
+        return ;
+    }
+
+    HighlightActiveTreeFile(ActiveTabPath || CurrentFilePath);
 }
 
 function HighlightActiveTreeFile(FilePath)
@@ -15509,7 +15935,7 @@ function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
     if (NeedsRootSwitch)
     {
         ExplorerExpandedFolders.clear();
-        ExplorerExpandedFolders.add(ProjectPath);
+        SetExplorerFolderExpanded(ProjectPath, true);
         ExplorerTreeCache.clear();
     }
 
@@ -15525,7 +15951,7 @@ function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
             for (let i = 0; i < Parts.length - 1; i++)
             {
                 Acc = PathJoinFrontend(Acc, Parts[i]);
-                ExplorerExpandedFolders.add(Acc);
+                SetExplorerFolderExpanded(Acc, true);
             }
         }
         const FileName = PathBaseNameFrontend(FileToOpen) || FileToOpen;
@@ -15542,7 +15968,7 @@ function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
     }
 
     SwitchView("editor");
-    ToggleExplorerSidebar(true);
+    ToggleExplorerSidebar(true, NeedsRootSwitch);
     if (NeedsRootSwitch)
     {
         RenderExplorerTree();
@@ -15563,7 +15989,7 @@ function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
     if (NeedsRootSwitch)
     {
         ExplorerExpandedFolders.clear();
-        ExplorerExpandedFolders.add(ProjectPath);
+        SetExplorerFolderExpanded(ProjectPath, true);
         ExplorerTreeCache.clear();
     }
 
@@ -15579,12 +16005,12 @@ function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
             for (const Part of Parts)
             {
                 Acc = PathJoinFrontend(Acc, Part);
-                ExplorerExpandedFolders.add(Acc);
+                SetExplorerFolderExpanded(Acc, true);
             }
         }
         else
         {
-            ExplorerExpandedFolders.add(FolderPath);
+            SetExplorerFolderExpanded(FolderPath, true);
         }
 
         const MatchingDoc = WorkspaceFiles.find
@@ -15598,7 +16024,7 @@ function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
     }
 
     SwitchView("editor");
-    ToggleExplorerSidebar(true);
+    ToggleExplorerSidebar(true, NeedsRootSwitch);
     if (NeedsRootSwitch)
     {
         RenderExplorerTree();
@@ -15625,7 +16051,7 @@ function OpenStandaloneDocument(FilePath, FileName = null)
     OpenDocumentInTab(FilePath, Name);
 
     SwitchView("editor");
-    ToggleExplorerSidebar(true);
+    ToggleExplorerSidebar(true, true);
     RenderExplorerTree();
 }
 
@@ -15645,6 +16071,7 @@ function TrackStandaloneDocument(FilePath)
             {
                 Path: FilePath,
                 Name: PathBaseNameFrontend(FilePath) || FilePath,
+                Modified: Date.now(),
                 LastOpened: Date.now()
             }
         );
@@ -15879,7 +16306,7 @@ function SwitchView(ViewName)
 }
 
 // Global SVG Thumbnail & Preview Cache
-const PREVIEW_CACHE_VERSION = "v2";
+const PREVIEW_CACHE_VERSION = "v3";
 const PREVIEW_CACHE_PREFIX = `typst_preview_cache_${PREVIEW_CACHE_VERSION}_`;
 
 function PurgeLegacyPreviewCache()
@@ -15910,6 +16337,217 @@ function PurgeLegacyPreviewCache()
 window.DocPreviewSvgCache = window.DocPreviewSvgCache || {};
 let CurrentHomepageSort = "modified";
 let CurrentHomepageViewMode = "grid";
+
+function NormalizePreviewModifiedSignature(Modified)
+{
+    if (Modified === undefined || Modified === null || Modified === "")
+    {
+        return null;
+    }
+    const Num = Number(Modified);
+    if (Number.isFinite(Num) && Num > 0)
+    {
+        return String(Num);
+    }
+    const Str = String(Modified).trim();
+    return Str.length > 0 ? Str : null;
+}
+
+function ResolveDocumentModifiedSignature(FilePath, ExplicitModified = null)
+{
+    const Direct = NormalizePreviewModifiedSignature(ExplicitModified);
+    if (Direct !== null)
+    {
+        return Direct;
+    }
+    if (typeof WorkspaceFiles !== "undefined" && Array.isArray(WorkspaceFiles) && FilePath)
+    {
+        const Matched = WorkspaceFiles.find
+        (
+            (F) => F && (F.Path || F.path) && PathsEqualFrontend(F.Path || F.path, FilePath)
+        );
+        if (Matched)
+        {
+            const WsMod = NormalizePreviewModifiedSignature(Matched.Modified ?? Matched.modified);
+            if (WsMod !== null)
+            {
+                return WsMod;
+            }
+        }
+    }
+    return null;
+}
+
+function ParseCachedPreviewEntry(RawValue)
+{
+    if (!RawValue)
+    {
+        return null;
+    }
+    if (typeof RawValue === "object")
+    {
+        if (typeof RawValue.Svg === "string" && RawValue.Svg.includes("<svg"))
+        {
+            return {
+                Svg: RawValue.Svg,
+                Modified: NormalizePreviewModifiedSignature(RawValue.Modified)
+            };
+        }
+        return null;
+    }
+    if (typeof RawValue === "string")
+    {
+        const Trimmed = RawValue.trim();
+        if (Trimmed.startsWith("{"))
+        {
+            try
+            {
+                const Parsed = JSON.parse(Trimmed);
+                if (Parsed && typeof Parsed.Svg === "string" && Parsed.Svg.includes("<svg"))
+                {
+                    return {
+                        Svg: Parsed.Svg,
+                        Modified: NormalizePreviewModifiedSignature(Parsed.Modified)
+                    };
+                }
+            }
+            catch (Ignored)
+            {
+                return null;
+            }
+        }
+    }
+    return null;
+}
+
+function EvictCachedPreview(FilePath)
+{
+    if (!FilePath)
+    {
+        return ;
+    }
+    const NormKey = CanonicalizeDocKey(FilePath);
+    if (window.DocPreviewSvgCache && Object.prototype.hasOwnProperty.call(window.DocPreviewSvgCache, NormKey))
+    {
+        delete window.DocPreviewSvgCache[NormKey];
+    }
+    try
+    {
+        if (typeof localStorage !== "undefined")
+        {
+            localStorage.removeItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey));
+        }
+    }
+    catch (Ignored) {}
+}
+
+function SetCachedPreview(FilePath, SvgContent, ExplicitModified = null)
+{
+    if (!FilePath || typeof SvgContent !== "string" || !SvgContent.includes("<svg"))
+    {
+        return null;
+    }
+    const NormKey = CanonicalizeDocKey(FilePath);
+    const ModifiedSig = ResolveDocumentModifiedSignature(FilePath, ExplicitModified);
+    const Entry = { Svg: SvgContent, Modified: ModifiedSig };
+
+    if (!window.DocPreviewSvgCache)
+    {
+        window.DocPreviewSvgCache = {};
+    }
+    window.DocPreviewSvgCache[NormKey] = Entry;
+
+    try
+    {
+        if (typeof localStorage !== "undefined")
+        {
+            localStorage.setItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey), JSON.stringify(Entry));
+        }
+    }
+    catch (Ignored) {}
+    return Entry;
+}
+
+function GetValidCachedPreviewEntry(FilePath, ExplicitModified = null)
+{
+    if (!FilePath)
+    {
+        return null;
+    }
+    const NormKey = CanonicalizeDocKey(FilePath);
+    const ExpectedMod = ResolveDocumentModifiedSignature(FilePath, ExplicitModified);
+    const StorageKey = PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey);
+
+    let Entry = null;
+    if (window.DocPreviewSvgCache && window.DocPreviewSvgCache[NormKey])
+    {
+        Entry = ParseCachedPreviewEntry(window.DocPreviewSvgCache[NormKey]);
+        if (!Entry)
+        {
+            delete window.DocPreviewSvgCache[NormKey];
+        }
+    }
+
+    if (!Entry)
+    {
+        try
+        {
+            if (typeof localStorage !== "undefined")
+            {
+                const Saved = localStorage.getItem(StorageKey);
+                if (Saved)
+                {
+                    Entry = ParseCachedPreviewEntry(Saved);
+                    if (!Entry)
+                    {
+                        localStorage.removeItem(StorageKey);
+                    }
+                }
+            }
+        }
+        catch (Ignored) {}
+    }
+
+    if (!Entry)
+    {
+        return null;
+    }
+
+    if (ExpectedMod !== null && Entry.Modified !== ExpectedMod)
+    {
+        EvictCachedPreview(FilePath);
+        return null;
+    }
+
+    if (!window.DocPreviewSvgCache)
+    {
+        window.DocPreviewSvgCache = {};
+    }
+    window.DocPreviewSvgCache[NormKey] = Entry;
+    return Entry;
+}
+
+function BuildPreviewMockupHtml(DisplayTitle)
+{
+    const MockupClass = (CurrentPaperColorMode === "pure_black")
+        ? "PaperMockup PaperMode_PureBlack"
+        : (CurrentPaperColorMode === "optimized")
+            ? "PaperMockup PaperMode_Optimized"
+            : "PaperMockup PaperMode_Light";
+
+    return `
+        <div Class = "${MockupClass}">
+            <div Class = "PaperMockupTitle">${EscapeHtml(DisplayTitle || "Untitled")}</div>
+            <div Class = "PaperMockupSubtitle">Typst Studio Document</div>
+            <div Class = "PaperMockupDivider"></div>
+            <div Class = "PaperMockupLine"></div>
+            <div Class = "PaperMockupLine Medium"></div>
+            <div Class = "PaperMockupLine Short"></div>
+            <div Class = "PaperMockupLine"></div>
+            <div Class = "PaperMockupLine Medium"></div>
+        </div>
+    `;
+}
 
 function HashCode(Str)
 {
@@ -15952,32 +16590,21 @@ function FormatTableDate(Timestamp)
     return `${D.getMonth() + 1}/${D.getDate()}/${D.getFullYear()}`;
 }
 
-function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
+function GetCachedPreviewOrMockup(FilePath, DisplayTitle, Modified = null)
 {
     const NormKey = CanonicalizeDocKey(FilePath);
-    let Svg = null;
-    if (window.DocPreviewSvgCache[NormKey])
-    {
-        Svg = window.DocPreviewSvgCache[NormKey];
-    }
-    else
-    {
-        try
-        {
-            const Saved = localStorage.getItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey));
-            if (Saved && Saved.includes("<svg"))
-            {
-                window.DocPreviewSvgCache[NormKey] = Saved;
-                Svg = Saved;
-            }
-        }
-        catch (Ignored) {}
-    }
+    const ExpectedMod = ResolveDocumentModifiedSignature(FilePath, Modified);
+    const CachedEntry = GetValidCachedPreviewEntry(FilePath, ExpectedMod);
+    let Svg = CachedEntry ? CachedEntry.Svg : null;
 
     if (!Svg && LastCompiledDocumentPath && LastCompiledDocumentPath === NormKey && LastCompiledPages && LastCompiledPages[0])
     {
-        Svg = LastCompiledPages[0];
-        window.DocPreviewSvgCache[NormKey] = Svg;
+        const LastMod = NormalizePreviewModifiedSignature(typeof LastCompiledDocumentModified !== "undefined" ? LastCompiledDocumentModified : null);
+        if (ExpectedMod === null || LastMod === ExpectedMod)
+        {
+            Svg = LastCompiledPages[0];
+            SetCachedPreview(FilePath, Svg, ExpectedMod ?? LastMod);
+        }
     }
 
     if (Svg)
@@ -15989,36 +16616,20 @@ function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
         return Svg;
     }
 
-    const MockupClass = (CurrentPaperColorMode === "pure_black")
-        ? "PaperMockup PaperMode_PureBlack"
-        : (CurrentPaperColorMode === "optimized")
-            ? "PaperMockup PaperMode_Optimized"
-            : "PaperMockup PaperMode_Light";
-
-    return `
-        <div Class = "${MockupClass}">
-            <div Class = "PaperMockupTitle">${EscapeHtml(DisplayTitle)}</div>
-            <div Class = "PaperMockupSubtitle">Typst Studio Document</div>
-            <div Class = "PaperMockupDivider"></div>
-            <div Class = "PaperMockupLine"></div>
-            <div Class = "PaperMockupLine Medium"></div>
-            <div Class = "PaperMockupLine Short"></div>
-            <div Class = "PaperMockupLine"></div>
-            <div Class = "PaperMockupLine Medium"></div>
-        </div>
-    `;
+    return BuildPreviewMockupHtml(DisplayTitle);
 }
 
-async function QueueDocumentSvgPreview(FilePath, ElementId)
+async function QueueDocumentSvgPreview(FilePath, ElementId, Modified = null, DisplayTitle = null)
 {
     if (!FilePath) { return ; }
-    const NormKey = CanonicalizeDocKey(FilePath);
-    if (window.DocPreviewSvgCache[NormKey])
+    const ResolvedTitle = DisplayTitle || PathBaseNameFrontend(FilePath).replace(/\.typ$/i, "") || "Untitled";
+    const CachedEntry = GetValidCachedPreviewEntry(FilePath, Modified);
+    if (CachedEntry)
     {
         const Elem = document.getElementById(ElementId);
         if (Elem)
         {
-            let DisplaySvg = window.DocPreviewSvgCache[NormKey];
+            let DisplaySvg = CachedEntry.Svg;
             if (CurrentPaperColorMode !== "light")
             {
                 DisplaySvg = ConvertSvgToDarkMode(DisplaySvg, false, CurrentPaperColorMode);
@@ -16028,9 +16639,9 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
         return ;
     }
 
+    let RawSvg = null;
     try
     {
-        let RawSvg = null;
         if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
         {
             const Content = await window.__TAURI__.core.invoke("ReadWorkspaceFile", { pathStr: FilePath, PathStr: FilePath });
@@ -16046,10 +16657,11 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
                         FilePath: FilePath
                     }
                 );
-                if (Res && (Res.Pages || Res.pages))
+                const IsSuccess = Boolean(Res) && Res.Success !== false && Res.success !== false;
+                if (IsSuccess && (Res.Pages || Res.pages))
                 {
                     const PagesArr = Res.Pages || Res.pages;
-                    if (PagesArr && PagesArr[0])
+                    if (PagesArr && typeof PagesArr[0] === "string" && PagesArr[0].includes("<svg"))
                     {
                         RawSvg = PagesArr[0];
                     }
@@ -16083,10 +16695,11 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
                     if (CompileResp.ok)
                     {
                         const Res = await CompileResp.json();
-                        if (Res && (Res.Pages || Res.pages))
+                        const IsSuccess = Boolean(Res) && Res.Success !== false && Res.success !== false && !Res.Aborted;
+                        if (IsSuccess && (Res.Pages || Res.pages))
                         {
                             const PagesArr = Res.Pages || Res.pages;
-                            if (PagesArr && PagesArr[0])
+                            if (PagesArr && typeof PagesArr[0] === "string" && PagesArr[0].includes("<svg"))
                             {
                                 RawSvg = PagesArr[0];
                             }
@@ -16095,31 +16708,33 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
                 }
             }
         }
-
-        if (RawSvg)
-        {
-            window.DocPreviewSvgCache[NormKey] = RawSvg;
-            try
-            {
-                localStorage.setItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey), RawSvg);
-            }
-            catch (Ignored) {}
-
-            const TargetElem = document.getElementById(ElementId);
-            if (TargetElem)
-            {
-                let OutputSvg = RawSvg;
-                if (CurrentPaperColorMode !== "light")
-                {
-                    OutputSvg = ConvertSvgToDarkMode(OutputSvg, false, CurrentPaperColorMode);
-                }
-                TargetElem.innerHTML = OutputSvg;
-            }
-        }
     }
     catch (Err)
     {
         console.warn("QueueDocumentSvgPreview non-fatal background compile:", Err);
+    }
+
+    const TargetElem = document.getElementById(ElementId);
+    if (RawSvg)
+    {
+        SetCachedPreview(FilePath, RawSvg, Modified);
+        if (TargetElem)
+        {
+            let OutputSvg = RawSvg;
+            if (CurrentPaperColorMode !== "light")
+            {
+                OutputSvg = ConvertSvgToDarkMode(OutputSvg, false, CurrentPaperColorMode);
+            }
+            TargetElem.innerHTML = OutputSvg;
+        }
+    }
+    else
+    {
+        EvictCachedPreview(FilePath);
+        if (TargetElem)
+        {
+            TargetElem.innerHTML = BuildPreviewMockupHtml(ResolvedTitle);
+        }
     }
 }
 
@@ -16393,11 +17008,12 @@ function RenderHomepage(FilterQuery = "")
         const SItem = FilteredStandalone[SIdx];
         const SPath = typeof SItem === "string" ? SItem : SItem.Path;
         const SName = typeof SItem === "string" ? SItem.split(/[\\/]/).pop() : (SItem.Name || SPath.split(/[\\/]/).pop());
-        const SModified = (typeof SItem === "object" && SItem.Modified) ? SItem.Modified : Date.now();
+        const SModifiedSig = (typeof SItem === "object") ? (SItem.Modified || SItem.LastOpened || null) : null;
+        const SModified = SModifiedSig || Date.now();
         const SafeId = `StandaloneCard_${SIdx}_${Math.abs(HashCode(SPath || `std_${SIdx}`))}`;
         const DisplayTitle = (SName || "Untitled").replace(/\.typ$/i, "");
         const TimeAgo = FormatDocTimeAgo(SModified);
-        const InnerHtml = GetCachedPreviewOrMockup(SPath, DisplayTitle);
+        const InnerHtml = GetCachedPreviewOrMockup(SPath, DisplayTitle, SModifiedSig);
         const IsActiveStandalone = ExplorerIsStandalone && Boolean(ExplorerCurrentRoot && PathsEqualFrontend(ExplorerCurrentRoot, SPath));
 
         StandaloneCardsHtml += `
@@ -16414,10 +17030,9 @@ function RenderHomepage(FilterQuery = "")
             </div>
         `;
 
-        const NormKey = CanonicalizeDocKey(SPath);
-        if (!window.DocPreviewSvgCache[NormKey])
+        if (!GetValidCachedPreviewEntry(SPath, SModifiedSig))
         {
-            FetchQueue.push({ Path: SPath, ElementId: SafeId });
+            FetchQueue.push({ Path: SPath, ElementId: SafeId, Modified: SModifiedSig, DisplayTitle: DisplayTitle });
         }
     }
 
@@ -16541,7 +17156,7 @@ function RenderHomepage(FilterQuery = "")
                 const SafeId = `ProjCard_${PIdx}_${FIdx}_${Math.abs(HashCode(Doc.Path || `pfile_${FIdx}`))}`;
                 const DisplayTitle = (Doc.Name || "Untitled").replace(/\.typ$/i, "");
                 const TimeAgo = FormatDocTimeAgo(Doc.Modified);
-                const InnerHtml = GetCachedPreviewOrMockup(Doc.Path, DisplayTitle);
+                const InnerHtml = GetCachedPreviewOrMockup(Doc.Path, DisplayTitle, Doc.Modified);
 
                 CardsHtml += `
                     <div Class = "HomepagePaperCard" data-action = "open-project-file" data-file-path = "${EscapeHtml(Doc.Path)}" data-project-path = "${EscapeHtml(ProjPath)}" Title = "Open ${EscapeHtml(Doc.Name)} in ${EscapeHtml(Proj.Name)}">
@@ -16557,10 +17172,9 @@ function RenderHomepage(FilterQuery = "")
                     </div>
                 `;
 
-                const NormKey = CanonicalizeDocKey(Doc.Path);
-                if (!window.DocPreviewSvgCache[NormKey])
+                if (!GetValidCachedPreviewEntry(Doc.Path, Doc.Modified))
                 {
-                    FetchQueue.push({ Path: Doc.Path, ElementId: SafeId });
+                    FetchQueue.push({ Path: Doc.Path, ElementId: SafeId, Modified: Doc.Modified, DisplayTitle: DisplayTitle });
                 }
             }
             return CardsHtml;
@@ -16694,7 +17308,7 @@ function RenderHomepage(FilterQuery = "")
 
     for (const Item of FetchQueue)
     {
-        QueueDocumentSvgPreview(Item.Path, Item.ElementId);
+        QueueDocumentSvgPreview(Item.Path, Item.ElementId, Item.Modified, Item.DisplayTitle);
     }
 }
 

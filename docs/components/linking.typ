@@ -64,13 +64,19 @@
 // Retrieves the metadata for a definition.
 //
 // Returns a pair of a destination and a title. Requires context.
+// When full-site styling is inactive (standalone chapter preview), an
+// unregistered definition falls back to `(none, raw(str(def-label)))`.
 #let def-metadata(def-target) =
 {
     let def-label = def-label(def-target)
     let targets = query(selector.and(metadata, def-label))
     let len = targets.len()
     if len == 1 { targets.first().value }
-    else if len == 0 { panic("found no definition for: " + repr(def-label)) }
+    else if len == 0
+    {
+        if not state("docs-full-site-styling", false).get() { (none, raw(str(def-label))) }
+        else { panic("found no definition for: " + repr(def-label)) }
+    }
     else
     {
         panic

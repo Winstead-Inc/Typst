@@ -79,7 +79,8 @@
             {
                 let path = path
                 path.last() = html.span(class: "typ-func", path.last())
-                path.join(html.span(class: "typ-punct", [.]))[(]
+                path.join(html.span(class: "typ-punct", [.]));
+                [(]
                 container
                 (
                     class: "arguments",
@@ -100,7 +101,8 @@
                             )
                         }
                     },
-                )[)]
+                );
+                [)]
 
                 let returns = flat-types(returns)
                 if returns.len() > 0 { " " + sym.arrow.r + " "; returns.map(ty-pill).join() }
@@ -299,7 +301,7 @@
 
     if info.since != none { gap; small[Since: #info.since] } else { panic("missing `since` for " + repr(info)) }
 
-    if info.feature != none { gap; item(16, "toggle", "Feature toggle", { [Requires the ]; raw(info.feature)[ feature] }) }
+    if info.feature != none { gap; item(16, "toggle", "Feature toggle", [Requires the #raw(info.feature) feature]) }
 
     if info.deprecation != none
     {
@@ -656,47 +658,58 @@
         let body = if kind == "group" and not "def-target" in info { name } else { raw(name) }
 
         let oneliner = oneliner(info.docs)
+        let dest = def-dest(def-target)
 
-        if target() == "paged" { dests.push(def-dest(def-target)); oneliners.push(oneliner) }
-        else { lis.push(html.li({ link(def-dest(def-target), body); html.span(oneliner) })) }
+        if target() == "paged"
+        {
+            if dest != none { dests.push(dest); oneliners.push(oneliner) }
+        }
+        else
+        {
+            let entry = if dest != none { link(dest, body) } else { body }
+            lis.push(html.li({ entry; html.span(oneliner) }))
+        }
     }
 
     if target() == "paged"
     {
-        // We want to show a small description of the definition in question.
-        // Other than that, this just recreates the default outline look.
-        show outline.entry: it =>
+        if dests.len() > 0
         {
-            let loc = it.element.location()
-            // This incurs quadratic runtime, but the lists are all relatively
-            // small. Unfortunately, Typst exposes no way to have a location ->
-            // value hash map.
-            let i = dests.position(d => d == loc)
-            let oneliner = oneliners.at(i)
-            link
-            (
-                loc,
-                it.indented
+            // We want to show a small description of the definition in question.
+            // Other than that, this just recreates the default outline look.
+            show outline.entry: it =>
+            {
+                let loc = it.element.location()
+                // This incurs quadratic runtime, but the lists are all relatively
+                // small. Unfortunately, Typst exposes no way to have a location ->
+                // value hash map.
+                let i = dests.position(d => d == loc)
+                let oneliner = oneliners.at(i)
+                link
                 (
-                    it.prefix(),
-                    {
-                        it.body()
-                        h(0.5em, weak: true)
+                    loc,
+                    it.indented
+                    (
+                        it.prefix(),
                         {
-                            // The trailing sentence period is a problem here because the
-                            // filler dots follow right after, so we trim it.
-                            show regex("\\.$"): ""
-                            small(oneliner)
-                        }
-                        box(it.fill, width: 1fr)[ ]
-                        sym.wj
-                        it.page()
-                    },
-                ),
-            )
-        }
+                            it.body()
+                            h(0.5em, weak: true)
+                            {
+                                // The trailing sentence period is a problem here because the
+                                // filler dots follow right after, so we trim it.
+                                show regex("\\.$"): ""
+                                small(oneliner)
+                            }
+                            box(it.fill, width: 1fr); []
+                            sym.wj
+                            it.page()
+                        },
+                    ),
+                )
+            }
 
-        outline(title: [Definitions], indent: 0pt, target: selector.or(..dests))
+            outline(title: [Definitions], indent: 0pt, target: selector.or(..dests))
+        }
     }
     else { [= Definitions <definitions>]; html.ul(class: "subgridded catgrid", lis.join()) }
 }

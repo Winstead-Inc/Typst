@@ -43,11 +43,12 @@
     let c = ty-category-map.at(r, default: "obj")
     let name = ty-name-map.at(r, default: r)
     let linked = linked and ty != "any"
+    let dest = if linked { def-dest(ty) } else { none }
 
     if target() == "paged"
     {
         let inner = raw(name)
-        let body = if linked { link(def-dest(ty), inner) } else { inner }
+        let body = if dest != none { link(dest, inner) } else { inner }
         box
         (
             fill: pill-fill.at(c),
@@ -62,11 +63,11 @@
     else
     {
         let class = classnames("pill", "pill-" + c)
-        if linked
+        if dest != none
         {
             // This is the only way to attach a class to the native link.
             set html.elem(attrs: (class: class))
-            link(def-dest(ty), name)
+            link(dest, name)
         }
         else { html.span(class: class, name) }
     }

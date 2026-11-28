@@ -341,7 +341,198 @@ function RunTest(Name, Fn)
     console.log(`  [PASS] ${Name}`);
 }
 
-function Main()
+async function RunTestAsync(Name, Fn)
+{
+    await Fn();
+    PassedCount ++;
+    console.log(`  [PASS] ${Name}`);
+}
+
+function LoadFrontendExplorerHelpers(InvokeImpl)
+{
+    const AppSource = FS.readFileSync(Path.resolve(__dirname, "..", "TypstStudio", "public", "App.js"), "utf8");
+
+    const PathStart = AppSource.indexOf("function StripWindowsVerbatimStrFrontend(PathStr)");
+    const PathEnd = AppSource.indexOf("let CurrentPaperColorMode =");
+    Assert.ok(PathStart !== -1 && PathEnd > PathStart, "Path helper slice must exist in App.js");
+
+    const WsStart = AppSource.indexOf("let WorkspaceInfoRequestSeq = 0;");
+    const WsEnd = AppSource.indexOf("function ToggleDocDropdown()");
+    Assert.ok(WsStart !== -1 && WsEnd > WsStart, "LoadWorkspaceInfo slice must exist in App.js");
+
+    const ExplorerStateStart = AppSource.indexOf("// --- EXPLORER SIDEBAR & EDITOR TABS ARCHITECTURE ---");
+    const ExplorerStateEnd = AppSource.indexOf("async function InitEditorTabs()");
+    Assert.ok(ExplorerStateStart !== -1 && ExplorerStateEnd > ExplorerStateStart, "Explorer state slice must exist in App.js");
+
+    const ExplorerTreeStart = AppSource.indexOf("function ToggleExplorerSidebar(");
+    const ExplorerTreeEnd = AppSource.indexOf("function TrackStandaloneDocument(");
+    Assert.ok(ExplorerTreeStart !== -1 && ExplorerTreeEnd > ExplorerTreeStart, "Explorer tree slice must exist in App.js");
+
+    const ElementsById = new Map();
+
+    class ExplorerClassList
+    {
+        constructor(Owner)
+        {
+            this.Owner = Owner;
+        }
+        add(...Names)
+        {
+            const Tokens = new Set(String(this.Owner._className || "").split(/\s+/).filter(Boolean));
+            for (const N of Names) { if (N) { Tokens.add(N); } }
+            this.Owner._className = Array.from(Tokens).join(" ");
+        }
+        remove(...Names)
+        {
+            const Rm = new Set(Names);
+            this.Owner._className = String(this.Owner._className || "").split(/\s+/).filter((T) => T && !Rm.has(T)).join(" ");
+        }
+        contains(Name)
+        {
+            return String(this.Owner._className || "").split(/\s+/).filter(Boolean).includes(Name);
+        }
+    }
+
+    class ExplorerElement
+    {
+        constructor(TagName, Id = "")
+        {
+            this.tagName = TagName.toLowerCase();
+            this._id = Id;
+            this._className = "";
+            this.classList = new ExplorerClassList(this);
+            this.dataset = {};
+            this.style = {};
+            this.children = [];
+            this._innerHTML = "";
+            this.textContent = "";
+            this.title = "";
+            this.value = "";
+            this.onclick = null;
+            if (Id) { ElementsById.set(Id, this); }
+        }
+        get className() { return this._className; }
+        set className(Val) { this._className = String(Val || ""); }
+        get innerHTML() { return this._innerHTML; }
+        set innerHTML(Val)
+        {
+            this._innerHTML = String(Val || "");
+            this.children = [];
+        }
+        appendChild(Child)
+        {
+            this.children.push(Child);
+            return Child;
+        }
+        addEventListener() {}
+    }
+
+    const ExplorerSidebar = new ExplorerElement("aside", "ExplorerSidebar");
+    const ExplorerTreeRoot = new ExplorerElement("div", "ExplorerTreeRoot");
+    const ExplorerProjectName = new ExplorerElement("span", "ExplorerProjectName");
+    new ExplorerElement("button", "ToggleExplorerBtn");
+    new ExplorerElement("button", "TabsToggleExplorerBtn");
+    new ExplorerElement("input", "DocumentTitleInput");
+
+    const StorageMap = new Map();
+    const Preamble =
+    `
+        let WorkspaceDirectories = [];
+        let WorkspaceFiles = [];
+        let CurrentFilePath = "";
+        let MonacoInstance = null;
+    `;
+    const Postamble =
+    `
+        function __SetExplorerState(Root, Standalone)
+        {
+
+            ExplorerCurrentRoot = Root;
+            ExplorerIsStandalone = Boolean(Standalone);
+        }
+        function __ClearExplorerTreeCache()
+        {
+            ExplorerTreeCache.clear();
+        }
+        function __GetWorkspaceState()
+        {
+            return { Directories: WorkspaceDirectories, Files: WorkspaceFiles };
+        }
+    `;
+
+    const CombinedSource =
+    [
+        Preamble,
+        AppSource.slice(PathStart, PathEnd),
+        AppSource.slice(WsStart, WsEnd),
+        AppSource.slice(ExplorerStateStart, ExplorerStateEnd),
+        AppSource.slice(ExplorerTreeStart, ExplorerTreeEnd),
+        Postamble
+    ].join("\n\n");
+
+    const Sandbox =
+    {
+        TextEncoder,
+        btoa: (Str) => Buffer.from(Str, "binary").toString("base64"),
+        navigator: { platform: "Win32" },
+        localStorage:
+        {
+            getItem: (K) => StorageMap.has(K) ? StorageMap.get(K) : null,
+            setItem: (K, V) => StorageMap.set(K, String(V))
+        },
+        document:
+        {
+            getElementById: (Id) => ElementsById.get(Id) || null,
+            createElement: (Tag) => new ExplorerElement(Tag),
+            querySelectorAll: (Selector) =>
+            {
+                const Results = [];
+                const Walk = (Node) =>
+                {
+                    if (Selector === ".TreeNodeRow" && Node.classList && Node.classList.contains("TreeNodeRow"))
+                    {
+                        Results.push(Node);
+                    }
+                    else if (Selector === ".TreeNodeRow.Active" && Node.classList && Node.classList.contains("TreeNodeRow") && Node.classList.contains("Active"))
+                    {
+                        Results.push(Node);
+                    }
+                    for (const Child of (Node.children || [])) { Walk(Child); }
+                };
+                Walk(ExplorerTreeRoot);
+                return Results;
+            }
+        },
+        window:
+        {
+            __TAURI__:
+            {
+                core:
+                {
+                    invoke: (Cmd, Args) => InvokeImpl(Cmd, Args)
+                }
+            },
+            addEventListener: () => {}
+        },
+        RenderDocDropdownList: () => {},
+        RenderDashboard: () => {},
+        AnimateMonacoLayout: () => {},
+        OpenDocumentInTab: () => {},
+        SwitchView: () => {},
+        FormatFileSize: (S) => `${S || 0} B`,
+        ShowToast: () => {},
+        EnsureSessionAuthToken: async () => "",
+        AuthenticatedFetch: async () => ({ json: async () => ({ Success: false }) }),
+        console
+    };
+
+    VM.createContext(Sandbox);
+    VM.runInContext(CombinedSource, Sandbox);
+
+    return { Sandbox, ExplorerSidebar, ExplorerTreeRoot, ExplorerProjectName };
+}
+
+async function Main()
 {
     console.log("Running TypstStudio Cross-Platform Portability Test Suite...\n");
     const Frontend = LoadFrontendCrossPlatformHelpers();
@@ -790,7 +981,428 @@ function Main()
         }
     );
 
+    RunTest
+    (
+        "InvertShapeColor, InvertGlyphColor, and ConvertSvgToDarkMode darken #info pastel callout with WCAG-AA contrast while leaving light mode untouched",
+        () =>
+        {
+            const ParseHexRgb = (HexStr) =>
+            {
+                const Clean = HexStr.trim().replace(/^#/, "");
+                return {
+                    R: parseInt(Clean.slice(0, 2), 16),
+                    G: parseInt(Clean.slice(2, 4), 16),
+                    B: parseInt(Clean.slice(4, 6), 16)
+                };
+            };
+            const CalcContrast = (HexA, HexB) =>
+            {
+                const A = ParseHexRgb(HexA);
+                const B = ParseHexRgb(HexB);
+                const L1 = Preview.Sandbox.GetRelativeLuminance(A.R, A.G, A.B);
+                const L2 = Preview.Sandbox.GetRelativeLuminance(B.R, B.G, B.B);
+                return (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
+            };
+
+            const InfoSvg = [
+                '<svg viewBox="0 0 595 842">',
+                '<path fill="#ffffff" d="M 0 0v842h595v-842Z"/>',
+                '<path fill="#e8f9ff" stroke="#007aff" d="M 40 40h200v60h-200Z"/>',
+                '<g class="typst-text">',
+                '<use xlink:href="#g_info" fill="#001666"/>',
+                '<use xlink:href="#g_body" fill="#000000"/>',
+                '</g>',
+                '</svg>'
+            ].join("");
+
+            // Light mode must keep #info untouched
+            Assert.equal(Preview.Sandbox.InvertShapeColor("#e8f9ff", "light"), "#e8f9ff");
+            Assert.equal(Preview.Sandbox.InvertGlyphColor("#001666", "light"), "#001666");
+            Assert.equal(Preview.Sandbox.InvertGlyphColor("#000000", "light"), "#000000");
+            const LightInfoSvg = Preview.Sandbox.ConvertSvgToDarkMode(InfoSvg, false, "light");
+            Assert.ok(LightInfoSvg.includes('fill="#e8f9ff"') && LightInfoSvg.includes('fill="#001666"') && LightInfoSvg.includes('fill="#000000"'));
+
+            // Optimized Night and Pure Black modes must darken pastel fills into deep tinted surfaces
+            for (const Pastel of ["#e8f9ff", "#d1ffe2", "#f9dfff", "#ffedc1", "#ffcbc4", "#a6eaff", "#a6ebe6"])
+            {
+                const OptSurface = Preview.Sandbox.InvertShapeColor(Pastel, "optimized");
+                const BlackSurface = Preview.Sandbox.InvertShapeColor(Pastel, "pure_black");
+                Assert.notEqual(OptSurface.toUpperCase(), "#00E5FF");
+                Assert.notEqual(BlackSurface.toUpperCase(), "#00E5FF");
+
+                const OptRgb = ParseHexRgb(OptSurface);
+                const OptHsl = Preview.Sandbox.RgbToHsl(OptRgb.R, OptRgb.G, OptRgb.B);
+                Assert.ok(OptHsl.L >= 0.12 && OptHsl.L <= 0.18, `Optimized ${Pastel} -> ${OptSurface} lightness ${OptHsl.L.toFixed(3)} out of [0.12, 0.18]`);
+                Assert.ok(!(OptHsl.H >= 42 && OptHsl.H <= 76 && OptHsl.S > 0.10), `Optimized ${Pastel} emitted yellow hue ${OptHsl.H.toFixed(1)}`);
+
+                const BlackRgb = ParseHexRgb(BlackSurface);
+                const BlackHsl = Preview.Sandbox.RgbToHsl(BlackRgb.R, BlackRgb.G, BlackRgb.B);
+                Assert.ok(BlackHsl.L >= 0.07 && BlackHsl.L <= 0.12, `Pure black ${Pastel} -> ${BlackSurface} lightness ${BlackHsl.L.toFixed(3)} out of [0.07, 0.12]`);
+                Assert.ok(!(BlackHsl.H >= 42 && BlackHsl.H <= 76 && BlackHsl.S > 0.10), `Pure black ${Pastel} emitted yellow hue ${BlackHsl.H.toFixed(1)}`);
+            }
+
+            // Neutral light gray #eff0f3 (#kbd) also darkens
+            const OptGraySurf = ParseHexRgb(Preview.Sandbox.InvertShapeColor("#eff0f3", "optimized"));
+            Assert.ok(Preview.Sandbox.RgbToHsl(OptGraySurf.R, OptGraySurf.G, OptGraySurf.B).L <= 0.25);
+
+            // Both INFO heading (#001666) and body text (#000000) maintain >= 4.5:1 WCAG-AA contrast on darkened #info
+            for (const Mode of ["optimized", "pure_black"])
+            {
+                const DarkInfoBg = Preview.Sandbox.InvertShapeColor("#e8f9ff", Mode);
+                const DarkInfoHeading = Preview.Sandbox.InvertGlyphColor("#001666", Mode);
+                const DarkInfoBody = Preview.Sandbox.InvertGlyphColor("#000000", Mode);
+                Assert.ok(CalcContrast(DarkInfoHeading, DarkInfoBg) >= 4.5, `${Mode} INFO badge contrast < 4.5:1 (${DarkInfoHeading} on ${DarkInfoBg})`);
+                Assert.ok(CalcContrast(DarkInfoBody, DarkInfoBg) >= 4.5, `${Mode} body contrast < 4.5:1 (${DarkInfoBody} on ${DarkInfoBg})`);
+
+                const DarkSvg = Preview.Sandbox.ConvertSvgToDarkMode(InfoSvg, false, Mode);
+                Assert.ok(!DarkSvg.includes('fill="#e8f9ff"'), `${Mode} SVG must darken #e8f9ff fill`);
+                Assert.ok(!DarkSvg.includes('fill="#001666"'), `${Mode} SVG must lift #001666 INFO heading`);
+                Assert.ok(DarkSvg.includes(`fill="${DarkInfoBg}"`));
+                Assert.ok(DarkSvg.includes(`fill="${DarkInfoHeading}"`));
+                Assert.ok(DarkSvg.includes(`fill="${DarkInfoBody}"`));
+            }
+        }
+    );
+
+    await RunTestAsync
+    (
+        "Workspace info and Explorer sidebar tree deduplicate entries and remain race-safe across overlapping async renders",
+        async () =>
+        {
+            const DeferredQueue = [];
+            const CreateDeferred = () =>
+            {
+                let ResolveFn;
+                const PromiseObj = new Promise((Res) => { ResolveFn = Res; });
+                return { PromiseObj, ResolveFn };
+            };
+
+            const DocsRootWin = "E:\\Typst\\docs";
+            const DocsRootAlt = "e:/typst/docs/";
+            const DocsEntriesWithDuplicates =
+            [
+                { name: "components", path: "E:\\Typst\\docs\\components", is_dir: true, size: 0 },
+                { name: "components", path: "e:/typst/docs/components/", is_dir: true, size: 0 },
+                { name: "guides", path: "E:\\Typst\\docs\\guides", is_dir: true, size: 0 },
+                { name: "typst.toml", path: "E:\\Typst\\docs\\typst.toml", is_dir: false, size: 120 },
+                { name: "typst.toml", path: "e:/typst/docs/typst.toml", is_dir: false, size: 120 }
+            ];
+            const ComponentsEntries =
+            [
+                { name: "base.typ", path: "E:\\Typst\\docs\\components\\base.typ", is_dir: false, size: 420 },
+                { name: "system.typ", path: "E:\\Typst\\docs\\components\\system.typ", is_dir: false, size: 210 }
+            ];
+
+            let DeferMode = false;
+            const Explorer = LoadFrontendExplorerHelpers
+            (
+                async (Cmd, Args) =>
+                {
+                    if (Cmd === "GetWorkspaceInfo")
+                    {
+                        return {
+                            Success: true,
+                            Directories: [DocsRootWin, DocsRootAlt],
+                            Files:
+                            [
+                                { Name: "base.typ", Path: "E:\\Typst\\docs\\components\\base.typ", Directory: "E:\\Typst\\docs\\components", Size: 420, Modified: 100 },
+                                { Name: "base.typ", Path: "e:/typst/docs/components/base.typ", Directory: "e:/typst/docs/components", Size: 420, Modified: 100 }
+                            ]
+                        };
+                    }
+                    if (Cmd === "ListWorkspaceFiles")
+                    {
+                        const Dir = (Args && (Args.DirPath || Args.dirPath)) || "";
+                        const IsComponents = Dir.toLowerCase().includes("components");
+                        const Payload = IsComponents ? ComponentsEntries : DocsEntriesWithDuplicates;
+                        if (DeferMode)
+                        {
+                            const D = CreateDeferred();
+                            DeferredQueue.push({ Dir, IsComponents, Payload, Resolve: () => D.ResolveFn(Payload) });
+                            return D.PromiseObj;
+                        }
+                        return Payload;
+                    }
+                    return null;
+                }
+            );
+
+            // 1. LoadWorkspaceInfo must deduplicate directories & files using canonical keys
+            await Explorer.Sandbox.LoadWorkspaceInfo();
+            const WsState = Explorer.Sandbox.__GetWorkspaceState();
+            Assert.equal(WsState.Directories.length, 1, "Duplicate workspace directories must be collapsed");
+            Assert.equal(WsState.Files.length, 1, "Duplicate workspace files must be collapsed");
+
+            // 2. RenderExplorerTree deduplicates backend entries
+            Explorer.Sandbox.__SetExplorerState(DocsRootWin, false);
+            await Explorer.Sandbox.RenderExplorerTree();
+            Assert.equal(Explorer.ExplorerTreeRoot.children.length, 3, "DOCS root must render 3 unique entries (components, guides, typst.toml)");
+
+            // 3. Concurrent RenderExplorerTree + OpenProjectInExplorer with expanded subfolder & out-of-order resolution
+            DeferMode = true;
+            Explorer.Sandbox.SetExplorerFolderExpanded("E:\\Typst\\docs\\components", true);
+            Explorer.Sandbox.__ClearExplorerTreeCache();
+
+            const RenderPromise1 = Explorer.Sandbox.RenderExplorerTree();
+            const RenderPromise2 = Explorer.Sandbox.OpenProjectInExplorer(DocsRootWin, "E:\\Typst\\docs\\components\\base.typ");
+
+            // Both calls queued root ListWorkspaceFiles requests (OpenProjectInExplorer skips redundant ToggleExplorerSidebar render)
+            Assert.ok(DeferredQueue.length >= 2, "Expected overlapping root tree fetches");
+            const FirstRootReq = DeferredQueue[0];
+            const LatestRootReq = DeferredQueue[DeferredQueue.length - 1];
+
+            // Resolve latest root first, then its components subfolder, then flush stale first root last
+            LatestRootReq.Resolve();
+            await new Promise((Res) => setImmediate(Res));
+
+            const LatestSubReq = DeferredQueue.find((Q) => Q !== FirstRootReq && Q.IsComponents);
+            if (LatestSubReq)
+            {
+                LatestSubReq.Resolve();
+                await new Promise((Res) => setImmediate(Res));
+            }
+
+            // Now resolve the stale first request AFTER the latest render completed
+            FirstRootReq.Resolve();
+            await new Promise((Res) => setImmediate(Res));
+            for (const Remaining of DeferredQueue)
+            {
+                Remaining.Resolve();
+            }
+            await Promise.all([RenderPromise1, RenderPromise2]);
+            await new Promise((Res) => setImmediate(Res));
+            await new Promise((Res) => setImmediate(Res));
+
+            Assert.equal
+            (
+                Explorer.ExplorerTreeRoot.children.length,
+                3,
+                "Concurrent async renders must never append duplicate DOCS children"
+            );
+            const ComponentsNode = Explorer.ExplorerTreeRoot.children[0];
+            const ComponentsChildrenBox = ComponentsNode.children[1];
+            Assert.equal(ComponentsChildrenBox.children.length, 2, "Expanded subfolder must render its 2 files strictly once");
+
+            // 4. Direct RenderTreeLevel re-invocation clears ContainerEl synchronously before appending
+            DeferMode = false;
+            const CustomContainer = Explorer.Sandbox.document.createElement("div");
+            await Explorer.Sandbox.RenderTreeLevel(DocsEntriesWithDuplicates, CustomContainer, 0);
+            await Explorer.Sandbox.RenderTreeLevel(DocsEntriesWithDuplicates, CustomContainer, 0);
+            Assert.equal(CustomContainer.children.length, 3, "Repeated RenderTreeLevel must remain idempotent");
+
+            // 5. Rapid double-click on collapsed folder row must not duplicate folder children
+            DeferMode = true;
+            DeferredQueue.length = 0;
+            Explorer.Sandbox.SetExplorerFolderExpanded("E:\\Typst\\docs\\components", false);
+            Explorer.Sandbox.ExplorerTreeCache.clear();
+            const FolderBox = Explorer.Sandbox.document.createElement("div");
+            await Explorer.Sandbox.RenderTreeLevel([DocsEntriesWithDuplicates[0]], FolderBox, 0);
+            const FolderRow = FolderBox.children[0].children[0];
+            const FolderChildrenEl = FolderBox.children[0].children[1];
+
+            const Click1 = FolderRow.onclick({ stopPropagation: () => {} });
+            // Simulate user collapsing and immediately re-expanding while Click1 fetch is still in flight
+            await FolderRow.onclick({ stopPropagation: () => {} });
+            const Click3 = FolderRow.onclick({ stopPropagation: () => {} });
+
+            for (const Req of DeferredQueue) { Req.Resolve(); }
+            await Promise.all([Click1, Click3]);
+            Assert.equal(FolderChildrenEl.children.length, 2, "Rapid folder toggles must never double-append children");
+        }
+    );
+
+    await RunTestAsync
+    (
+        "Thumbnail preview cache uses v3 keys, validates Modified timestamps, and evicts stale previews on compile failure",
+        async () =>
+        {
+            const AppSource = FS.readFileSync(Path.resolve(__dirname, "..", "TypstStudio", "public", "App.js"), "utf8");
+            const PathStart = AppSource.indexOf("function StripWindowsVerbatimStrFrontend(PathStr)");
+            const PathEnd = AppSource.indexOf("let CurrentPaperColorMode =");
+            const EscapeStart = AppSource.indexOf("function EscapeHtml(Str)");
+            const EscapeEnd = AppSource.indexOf("let CachedAvailableFonts =");
+            const CacheStart = AppSource.indexOf("// Global SVG Thumbnail & Preview Cache");
+            const CacheEnd = AppSource.indexOf("function TrackRecentDocument(FilePath, Name)");
+            Assert.ok(PathStart !== -1 && PathEnd > PathStart, "Path helper slice must exist");
+            Assert.ok(EscapeStart !== -1 && EscapeEnd > EscapeStart, "EscapeHtml slice must exist");
+            Assert.ok(CacheStart !== -1 && CacheEnd > CacheStart, "Preview cache slice must exist");
+
+            function RunCacheHarness(Options = {})
+            {
+                const StorageMap = new Map(Object.entries(Options.InitialStorage || {}));
+                const ElementsById = new Map();
+                for (const Id of (Options.ElementIds || []))
+                {
+                    ElementsById.set(Id, { id: Id, innerHTML: "" });
+                }
+
+                const LocalStorageMock =
+                {
+                    get length() { return StorageMap.size; },
+                    key: (Idx) => Array.from(StorageMap.keys())[Idx] ?? null,
+                    getItem: (K) => StorageMap.has(K) ? StorageMap.get(K) : null,
+                    setItem: (K, V) => StorageMap.set(K, String(V)),
+                    removeItem: (K) => StorageMap.delete(K)
+                };
+
+                const Sandbox =
+                {
+                    window: {},
+                    document: { getElementById: (Id) => ElementsById.get(Id) || null },
+                    navigator: { platform: "Win32" },
+                    TextEncoder,
+                    btoa: (Str) => Buffer.from(Str, "binary").toString("base64"),
+                    localStorage: LocalStorageMock,
+                    console: { warn: () => {}, error: () => {} },
+                    AuthenticatedFetch: Options.FetchImpl || (async () => ({ ok: false }))
+                };
+
+                if (Options.InvokeImpl)
+                {
+                    Sandbox.window.__TAURI__ = { core: { invoke: Options.InvokeImpl } };
+                }
+
+                const Preamble = `
+                    let CurrentPaperColorMode = "light";
+                    let LastCompiledDocumentPath = "";
+                    let LastCompiledDocumentModified = null;
+                    let LastCompiledPages = [];
+                    let WorkspaceFiles = ${JSON.stringify(Options.WorkspaceFiles || [])};
+                    function ConvertSvgToDarkMode(Svg) { return Svg; }
+                `;
+                const Postamble = `
+                    function __SetWorkspaceFiles(Files) { WorkspaceFiles = Files; }
+                `;
+
+                const Combined = [
+                    Preamble,
+                    AppSource.slice(PathStart, PathEnd),
+                    AppSource.slice(EscapeStart, EscapeEnd),
+                    AppSource.slice(CacheStart, CacheEnd),
+                    Postamble
+                ].join("\n\n");
+
+                VM.createContext(Sandbox);
+                VM.runInContext(Combined, Sandbox);
+                return { Sandbox, StorageMap, ElementsById };
+            }
+
+            // 1. Version must be v3 and PurgeLegacyPreviewCache must wipe v2/v1 keys while keeping v3/other keys
+            const SamplePath = "E:\\Docs\\Report.typ";
+            const KeyHarness = RunCacheHarness();
+            Assert.equal(KeyHarness.Sandbox.PREVIEW_CACHE_VERSION, "v3");
+            Assert.equal(KeyHarness.Sandbox.PREVIEW_CACHE_PREFIX, "typst_preview_cache_v3_");
+
+            const NormKey = KeyHarness.Sandbox.CanonicalizeDocKey(SamplePath);
+            const EncodedKey = KeyHarness.Sandbox.EncodeCacheKey(NormKey);
+            const V2Key = `typst_preview_cache_v2_${EncodedKey}`;
+            const V3Key = `typst_preview_cache_v3_${EncodedKey}`;
+
+            const PurgeHarness = RunCacheHarness
+            ({
+                InitialStorage:
+                {
+                    [V2Key]: "<svg><text>Stale V2</text></svg>",
+                    "typst_preview_cache_v1_old": "<svg><text>Stale V1</text></svg>",
+                    [V3Key]: JSON.stringify({ Svg: "<svg><text>Fresh V3</text></svg>", Modified: "1000" }),
+                    "TypstStudio_Theme": "dark"
+                }
+            });
+            PurgeHarness.Sandbox.PurgeLegacyPreviewCache();
+            Assert.equal(PurgeHarness.StorageMap.has(V2Key), false, "PurgeLegacyPreviewCache must delete v2 cache entries");
+            Assert.equal(PurgeHarness.StorageMap.has("typst_preview_cache_v1_old"), false, "PurgeLegacyPreviewCache must delete v1 cache entries");
+            Assert.equal(PurgeHarness.StorageMap.has(V3Key), true, "PurgeLegacyPreviewCache must retain v3 cache entries");
+            Assert.equal(PurgeHarness.StorageMap.has("TypstStudio_Theme"), true, "PurgeLegacyPreviewCache must leave non-preview keys untouched");
+
+            // 2. Matching Modified hits cache; changed Modified invalidates & evicts stale preview immediately
+            let CompileState = { ShouldSucceed: true, Svg: "<svg><text>Version 1</text></svg>" };
+            const CacheHarness = RunCacheHarness
+            ({
+                ElementIds: ["Card_1"],
+                InvokeImpl: async (Cmd) =>
+                {
+                    if (Cmd === "ReadWorkspaceFile")
+                    {
+                        return "= Report\nBody";
+                    }
+                    if (Cmd === "GenerateThumbnailSvg")
+                    {
+                        if (!CompileState.ShouldSucceed)
+                        {
+                            return { Success: false, Pages: [], Error: "compile error" };
+                        }
+                        return { Success: true, Pages: [CompileState.Svg] };
+                    }
+                    return null;
+                }
+            });
+
+            await CacheHarness.Sandbox.QueueDocumentSvgPreview(SamplePath, "Card_1", 1000, "Report");
+            Assert.ok(CacheHarness.StorageMap.has(V3Key), "Compiled SVG must be stored under v3 key");
+            Assert.ok(CacheHarness.ElementsById.get("Card_1").innerHTML.includes("Version 1"));
+            Assert.ok(CacheHarness.Sandbox.GetCachedPreviewOrMockup(SamplePath, "Report", 1000).includes("Version 1"));
+
+            const StaleCheckHtml = CacheHarness.Sandbox.GetCachedPreviewOrMockup(SamplePath, "Report", 2000);
+            Assert.ok(StaleCheckHtml.includes("PaperMockup"), "Changed Modified must fall back to clean mockup");
+            Assert.ok(!StaleCheckHtml.includes("Version 1"), "Changed Modified must never return stale SVG");
+            Assert.equal(CacheHarness.StorageMap.has(V3Key), false, "Changed Modified must evict stale localStorage entry");
+            Assert.equal(CacheHarness.Sandbox.window.DocPreviewSvgCache[NormKey], undefined, "Changed Modified must evict stale memory entry");
+
+            // Re-cache via WorkspaceFiles metadata and verify WorkspaceFiles mtime mismatch also evicts
+            CompileState = { ShouldSucceed: true, Svg: "<svg><text>Version 2</text></svg>" };
+            await CacheHarness.Sandbox.QueueDocumentSvgPreview(SamplePath, "Card_1", 2000, "Report");
+            Assert.ok(CacheHarness.Sandbox.GetCachedPreviewOrMockup(SamplePath, "Report", 2000).includes("Version 2"));
+            CacheHarness.Sandbox.__SetWorkspaceFiles([{ Path: SamplePath, Modified: 3000 }]);
+            const WsStaleHtml = CacheHarness.Sandbox.GetCachedPreviewOrMockup(SamplePath, "Report");
+            Assert.ok(WsStaleHtml.includes("PaperMockup"), "WorkspaceFiles mtime bump must invalidate cached thumbnail");
+            Assert.equal(CacheHarness.StorageMap.has(V3Key), false, "WorkspaceFiles mtime mismatch must evict localStorage entry");
+
+            // 3. Compile failure during QueueDocumentSvgPreview must evict stale entries and render clean mockup card
+            CompileState = { ShouldSucceed: true, Svg: "<svg><text>Stale Preview</text></svg>" };
+            await CacheHarness.Sandbox.QueueDocumentSvgPreview(SamplePath, "Card_1", 3000, "Report");
+            Assert.ok(CacheHarness.StorageMap.has(V3Key));
+
+            CompileState = { ShouldSucceed: false, Svg: "" };
+            CacheHarness.Sandbox.__SetWorkspaceFiles([{ Path: SamplePath, Modified: 4000 }]);
+            await CacheHarness.Sandbox.QueueDocumentSvgPreview(SamplePath, "Card_1", 4000, "Report");
+            Assert.equal(CacheHarness.StorageMap.has(V3Key), false, "Compile failure must evict stale localStorage entry");
+            Assert.equal(CacheHarness.Sandbox.window.DocPreviewSvgCache[NormKey], undefined, "Compile failure must evict stale memory entry");
+            const CardHtml = CacheHarness.ElementsById.get("Card_1").innerHTML;
+            Assert.ok(CardHtml.includes("PaperMockup"), "Compile failure must render clean mockup card");
+            Assert.ok(!CardHtml.includes("Stale Preview"), "Compile failure must not leave outdated SVG in gallery DOM");
+
+            // 4. Browser HTTP mode compile failure must also evict stale v3 entry and render mockup
+            const HttpHarness = RunCacheHarness
+            ({
+                ElementIds: ["Card_Http"],
+                InitialStorage:
+                {
+                    [V3Key]: JSON.stringify({ Svg: "<svg><text>Stale Http</text></svg>", Modified: "100" })
+                },
+                FetchImpl: async (Url) =>
+                {
+                    if (String(Url).startsWith("/api/workspace/file"))
+                    {
+                        return { ok: true, json: async () => ({ Success: true, Content: "#broken(" }) };
+                    }
+                    return { ok: true, json: async () => ({ Success: false, Pages: [], Error: "unclosed paren" }) };
+                }
+            });
+            HttpHarness.ElementsById.get("Card_Http").innerHTML = "<svg><text>Stale Http</text></svg>";
+            await HttpHarness.Sandbox.QueueDocumentSvgPreview(SamplePath, "Card_Http", 200, "Report");
+            Assert.equal(HttpHarness.StorageMap.has(V3Key), false, "HTTP compile failure must evict stale v3 cache");
+            Assert.ok(HttpHarness.ElementsById.get("Card_Http").innerHTML.includes("PaperMockup"));
+        }
+    );
+
     console.log(`\nAll ${PassedCount} cross-platform portability tests passed!`);
 }
 
-Main();
+Main().catch
+(
+    (Err) =>
+    {
+        console.error(Err);
+        process.exit(1);
+    }
+);

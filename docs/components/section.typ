@@ -2,7 +2,7 @@
 #import "linking.typ": register-def
 #import "nav.typ": nav-breadcrumbs, nav-folding, nav-on-this-page, nav-prev-next
 #import "search.typ": register-index-item
-#import "styling.typ": prose-styling, styling
+#import "styling.typ": prose-styling, styling, with-standalone-ref
 
 // One section in the paged documentation.
 #let paged-section(title-fmt: none, title-content: none, def-title: none, introduction: none, def-target: none, body) =
@@ -181,26 +181,31 @@
     let def-title = if type(def-target) == label { title } else { auto }
     let title-content = short-or-long(title, title-fmt + subtitle)
 
-    context if target() == "paged"
-    { paged-section(title-fmt: title-fmt, title-content: title-content, def-title: def-title, introduction: introduction, def-target: def-target, body) }
-    else
+    context
     {
-        html-section
-        (
-            title: title,
-            title-content: title-content,
-            has-summary: has-summary,
-            def-title: def-title,
-            route: route,
-            def-target: def-target,
-            class: class,
-            nav-buttons: nav-buttons,
-            kind: kind,
-            path: path,
-            keywords: keywords,
-            description: description,
-            body,
-        )
+        show: with-standalone-ref
+
+        if target() == "paged"
+        { paged-section(title-fmt: title-fmt, title-content: title-content, def-title: def-title, introduction: introduction, def-target: def-target, body) }
+        else
+        {
+            html-section
+            (
+                title: title,
+                title-content: title-content,
+                has-summary: has-summary,
+                def-title: def-title,
+                route: route,
+                def-target: def-target,
+                class: class,
+                nav-buttons: nav-buttons,
+                kind: kind,
+                path: path,
+                keywords: keywords,
+                description: description,
+                body,
+            )
+        }
     }
 }
 

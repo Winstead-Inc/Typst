@@ -380,6 +380,7 @@ function FormatCodeBlockWithLAFS(Code, Language)
                         input: Code,
                         encoding: "utf-8",
                         timeout: 5000,
+                        maxBuffer: 16 * 1024 * 1024,
                         windowsHide: process.platform === "win32",
                         shell: false,
                         cwd: OS.tmpdir()
@@ -1358,6 +1359,7 @@ function TryFormatTypstNative(Source)
                 input: Source,
                 encoding: "utf-8",
                 timeout: 5000,
+                maxBuffer: 16 * 1024 * 1024,
                 windowsHide: process.platform === "win32",
                 shell: false,
                 cwd: OS.tmpdir()
@@ -1627,6 +1629,52 @@ async function ScanTypstFiles()
     return { Directories: Dirs, Files: UniqueFiles, Folders: UniqueFolders };
 }
 
+const DEFAULT_SPAWN_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
+
+function CreateCappedStreamCollector(Stream, MaxBytes)
+{
+    const Chunks = [];
+    let StoredBytes = 0;
+
+    if (Stream)
+    {
+        Stream.on
+        (
+            "data",
+            (Chunk) =>
+            {
+                const Buf = Buffer.isBuffer(Chunk) ? Chunk : Buffer.from(String(Chunk), "utf-8");
+                const Remaining = MaxBytes - StoredBytes;
+                if (Remaining > 0)
+                {
+                    if (Buf.length <= Remaining)
+                    {
+                        Chunks.push(Buf);
+                        StoredBytes += Buf.length;
+                    }
+                    else
+                    {
+                        Chunks.push(Buf.subarray(0, Remaining));
+                        StoredBytes += Remaining;
+                    }
+                }
+            }
+        );
+    }
+
+    return () => Buffer.concat(Chunks).toString("utf-8");
+}
+
+function AttachStdinPayload(Child, StdinData)
+{
+    if (StdinData !== null && StdinData !== undefined && Child.stdin)
+    {
+        Child.stdin.on("error", () => {});
+        Child.stdin.write(StdinData, "utf-8");
+        Child.stdin.end();
+    }
+}
+
 function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
 {
     const CommandBase = Path.basename(Command).toLowerCase();
@@ -1661,35 +1709,25 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
                 }
             );
 
-            let Stdout = "";
-            let Stderr = "";
+            const MaxBufferBytes = Options.maxBuffer || DEFAULT_SPAWN_MAX_BUFFER_BYTES;
+            const GetStdout = CreateCappedStreamCollector(Child.stdout, MaxBufferBytes);
+            const GetStderr = CreateCappedStreamCollector(Child.stderr, MaxBufferBytes);
+            let Settled = false;
 
-            if (Child.stdout)
-            {
-                Child.stdout.on("data", (Chunk) => { Stdout += Chunk; });
-            }
-
-            if (Child.stderr)
-            {
-                Child.stderr.on("data", (Chunk) => { Stderr += Chunk; });
-            }
-
-            if (StdinData !== null && Child.stdin)
-            {
-                Child.stdin.write(StdinData, "utf-8");
-                Child.stdin.end();
-            }
+            AttachStdinPayload(Child, StdinData);
 
             Child.on
             (
                 "error", (Error) =>
                 {
+                    if (Settled) { return ; }
+                    Settled = true;
                     Resolve
                     ({
                         Success: false,
                         Code: Error.code || - 1,
-                        Stdout: Stdout,
-                        Stderr: Error.message || Stderr
+                        Stdout: GetStdout(),
+                        Stderr: Error.message || GetStderr()
                     });
                 }
             );
@@ -1698,12 +1736,14 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
             (
                 "close", (Code) =>
                 {
+                    if (Settled) { return ; }
+                    Settled = true;
                     Resolve
                     ({
                         Success: Code === 0,
                         Code: Code,
-                        Stdout: Stdout,
-                        Stderr: Stderr
+                        Stdout: GetStdout(),
+                        Stderr: GetStderr()
                     });
                 }
             );
@@ -1743,24 +1783,12 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
                 }
             );
 
-            let Stdout = "";
-            let Stderr = "";
+            const MaxBufferBytes = Options.maxBuffer || DEFAULT_SPAWN_MAX_BUFFER_BYTES;
+            const GetStdout = CreateCappedStreamCollector(Child.stdout, MaxBufferBytes);
+            const GetStderr = CreateCappedStreamCollector(Child.stderr, MaxBufferBytes);
+            let Settled = false;
 
-            if (Child.stdout)
-            {
-                Child.stdout.on("data", (Chunk) => { Stdout += Chunk; });
-            }
-
-            if (Child.stderr)
-            {
-                Child.stderr.on("data", (Chunk) => { Stderr += Chunk; });
-            }
-
-            if (StdinData !== null && Child.stdin)
-            {
-                Child.stdin.write(StdinData, "utf-8");
-                Child.stdin.end();
-            }
+            AttachStdinPayload(Child, StdinData);
 
             Child.on
             (
@@ -1771,13 +1799,15 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
                         ActiveCompileProcesses.delete(Options.FileKey);
                     }
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
+                    if (Settled) { return ; }
+                    Settled = true;
                     Resolve
                     ({
                         Success: false,
                         Code: Error.code || - 1,
                         Killed: Child.killed,
-                        Stdout: Stdout,
-                        Stderr: Error.message || Stderr
+                        Stdout: GetStdout(),
+                        Stderr: Error.message || GetStderr()
                     });
                 }
             );
@@ -1791,13 +1821,15 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
                         ActiveCompileProcesses.delete(Options.FileKey);
                     }
                     if (ActiveCompileProcess === Child) { ActiveCompileProcess = null; }
+                    if (Settled) { return ; }
+                    Settled = true;
                     Resolve
                     ({
                         Success: Code === 0,
                         Code: Code,
                         Killed: Child.killed,
-                        Stdout: Stdout,
-                        Stderr: Stderr
+                        Stdout: GetStdout(),
+                        Stderr: GetStderr()
                     });
                 }
             );
@@ -4537,7 +4569,7 @@ async function ScanAllSystemFonts()
                     {
                         ChildProcess.execFile
                         (
-                            "reg",["query", RegPath], { windowsHide: true },
+                            "reg",["query", RegPath], { maxBuffer: 50 * 1024 * 1024, timeout: 15000, windowsHide: true },
                             (Err, Stdout) =>
                             {
                                 Resolve(Stdout || "");

@@ -44,9 +44,244 @@ pub struct Container_Action_Response
     pub cursor_col: usize,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Raw_Line_Context
+{
+    is_fence_line: bool,
+    in_non_typst_raw: bool,
+}
+
+#[derive(Debug, Clone)]
+struct Fence_Frame
+{
+    ticks: usize,
+    is_typst_raw: bool,
+}
+
+fn SplitDocHarnessPrefix(Line: &str) -> (&str, &str)
+{
+    let IndentLen = Line.bytes().take_while(|&B| B == b' ' || B == b'\t').count();
+    let AfterIndent = &Line[IndentLen..];
+    for Marker in [">>>", "<<<"]
+    {
+        if let Some(AfterMarker) = AfterIndent.strip_prefix(Marker)
+        {
+            let SameChar = Marker.as_bytes()[0];
+            if AfterMarker.as_bytes().first() == Some(&SameChar)
+            {
+                continue;
+            }
+            let SpaceLen = usize::from(AfterMarker.as_bytes().first() == Some(&b' '));
+            let PrefixLen = IndentLen + Marker.len() + SpaceLen;
+            return (&Line[..PrefixLen], &Line[PrefixLen..]);
+        }
+    }
+    ("", Line)
+}
+
+fn HasDocHarnessPrefix(Line: &str) -> bool
+{
+    !SplitDocHarnessPrefix(Line).0.is_empty()
+}
+
+fn ParseFenceStart(Line: &str) -> Option<(usize, String)>
+{
+    let IndentLen = Line.bytes().take_while(|&B| B == b' ' || B == b'\t').count();
+    let AfterIndent = &Line[IndentLen..];
+    let Ticks = AfterIndent.bytes().take_while(|&B| B == b'`').count();
+    if Ticks < 3
+    {
+        return None;
+    }
+    let Rest = &AfterIndent[Ticks..];
+    if Rest.contains('`')
+    {
+        return None;
+    }
+    let Info = Rest.trim();
+    if Info.is_empty()
+    {
+        return Some((Ticks, String::new()));
+    }
+    let ValidIdent = Info.chars().next().is_some_and(|C| C.is_ascii_alphabetic())
+        && Info.chars().all(|C| C.is_ascii_alphanumeric() || matches!(C, '_' | '-' | '+' | '.'));
+    if ValidIdent
+    {
+        Some((Ticks, Info.to_ascii_lowercase()))
+    }
+    else
+    {
+        None
+    }
+}
+
+fn IsFenceClose(Line: &str, MinTicks: usize) -> bool
+{
+    let IndentLen = Line.bytes().take_while(|&B| B == b' ' || B == b'\t').count();
+    let AfterIndent = &Line[IndentLen..];
+    let Ticks = AfterIndent.bytes().take_while(|&B| B == b'`').count();
+    if Ticks < MinTicks
+    {
+        return false;
+    }
+    let Rest = &AfterIndent[Ticks..];
+    if Rest.contains('`')
+    {
+        return false;
+    }
+    let Trimmed = Rest.trim();
+    Trimmed.is_empty()
+        || Trimmed.starts_with(',')
+        || Trimmed.starts_with(')')
+        || Trimmed.starts_with(']')
+        || Trimmed.starts_with('}')
+        || Trimmed.starts_with(';')
+        || Trimmed.starts_with("//")
+}
+
+fn IsPrecededByDocExampleCall(Lines: &[&str], FenceLineIdx: usize) -> bool
+{
+    let mut NonEmptyChecked = 0;
+    let mut Idx = FenceLineIdx;
+    while Idx > 0 && NonEmptyChecked < 8
+    {
+        Idx -= 1;
+        let Trimmed = Lines[Idx].trim();
+        if Trimmed.is_empty()
+        {
+            continue;
+        }
+        if Trimmed.starts_with("```")
+        {
+            break;
+        }
+        if Trimmed.contains("#example")
+            || Trimmed.contains("#source")
+            || Trimmed.contains("#preview")
+            || Trimmed.starts_with("example(")
+            || Trimmed.starts_with("source(")
+            || Trimmed.starts_with("preview(")
+        {
+            return true;
+        }
+        NonEmptyChecked += 1;
+    }
+    false
+}
+
+fn UntaggedFenceHasDocHarness(Lines: &[&str], OpenLineIdx: usize, Ticks: usize) -> bool
+{
+    for Line in Lines.iter().skip(OpenLineIdx + 1)
+    {
+        if IsFenceClose(Line, Ticks)
+        {
+            break;
+        }
+        if HasDocHarnessPrefix(Line)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+fn ClassifyFencedRawLines(Lines: &[&str]) -> Vec<Raw_Line_Context>
+{
+    let mut States = Vec::with_capacity(Lines.len());
+    let mut Stack: Vec<Fence_Frame> = Vec::new();
+
+    for (LineIdx, Line) in Lines.iter().enumerate()
+    {
+        if let Some(Top) = Stack.last()
+            && IsFenceClose(Line, Top.ticks)
+        {
+            States.push
+            (
+                Raw_Line_Context
+                {
+                    is_fence_line: true,
+                    in_non_typst_raw: !Top.is_typst_raw,
+                }
+            );
+            Stack.pop();
+            continue;
+        }
+
+        if let Some((Ticks, Lang)) = ParseFenceStart(Line)
+        {
+            if let Some(Outer) = Stack.last()
+            {
+                if !Outer.is_typst_raw
+                {
+                    States.push
+                    (
+                        Raw_Line_Context
+                        {
+                            is_fence_line: false,
+                            in_non_typst_raw: true,
+                        }
+                    );
+                    continue;
+                }
+                let IsSubTypstRaw = if !Lang.is_empty()
+                {
+                    matches!(Lang.as_str(), "typ" | "typst" | "example" | "typc" | "typm")
+                }
+                else
+                {
+                    UntaggedFenceHasDocHarness(Lines, LineIdx, Ticks)
+                };
+                States.push
+                (
+                    Raw_Line_Context
+                    {
+                        is_fence_line: true,
+                        in_non_typst_raw: !IsSubTypstRaw,
+                    }
+                );
+                Stack.push(Fence_Frame { ticks: Ticks, is_typst_raw: IsSubTypstRaw });
+                continue;
+            }
+
+            let IsTypstRaw = if !Lang.is_empty()
+            {
+                matches!(Lang.as_str(), "typ" | "typst" | "example" | "typc" | "typm")
+            }
+            else
+            {
+                UntaggedFenceHasDocHarness(Lines, LineIdx, Ticks)
+                    || IsPrecededByDocExampleCall(Lines, LineIdx)
+            };
+            States.push
+            (
+                Raw_Line_Context
+                {
+                    is_fence_line: true,
+                    in_non_typst_raw: !IsTypstRaw,
+                }
+            );
+            Stack.push(Fence_Frame { ticks: Ticks, is_typst_raw: IsTypstRaw });
+            continue;
+        }
+
+        let InNonTypstRaw = Stack.last().is_some_and(|Frame| !Frame.is_typst_raw);
+        States.push
+        (
+            Raw_Line_Context
+            {
+                is_fence_line: false,
+                in_non_typst_raw: InNonTypstRaw,
+            }
+        );
+    }
+
+    States
+}
+
 pub fn ScanLexicalParity(Text: &str) -> Vec<Container_Token>
 {
     let Lines: Vec<&str> = Text.lines().collect();
+    let RawStates = ClassifyFencedRawLines(&Lines);
     let mut MathCount = 0;
     let mut RawBlockCount = 0;
     let mut RawInlineCount = 0;
@@ -57,6 +292,10 @@ pub fn ScanLexicalParity(Text: &str) -> Vec<Container_Token>
 
     for (LineIdx, Line) in Lines.iter().enumerate()
     {
+        if RawStates[LineIdx].in_non_typst_raw && !RawStates[LineIdx].is_fence_line
+        {
+            continue;
+        }
         let Chars: Vec<char> = Line.chars().collect();
         let Len = Chars.len();
         let mut I = 0;
@@ -238,13 +477,26 @@ pub fn EvaluateRuleA(Text: &str, LineIdx: usize, ColIdx: usize) -> Option<Contai
     {
         return None;
     }
+    let RawStates = ClassifyFencedRawLines(&Lines);
+    if RawStates[LineIdx].is_fence_line || RawStates[LineIdx].in_non_typst_raw
+    {
+        return None;
+    }
+
     let Line = Lines[LineIdx];
     if ColIdx > Line.len()
     {
         return None;
     }
 
+    let (DocPrefix, CodePart) = SplitDocHarnessPrefix(Line);
+    if ColIdx < DocPrefix.len()
+    {
+        return None;
+    }
+
     let Pre = &Line[..ColIdx];
+    let CodePre = &Pre[DocPrefix.len()..];
     let Post = &Line[ColIdx..];
 
     let CompoundPairs =
@@ -266,35 +518,34 @@ pub fn EvaluateRuleA(Text: &str, LineIdx: usize, ColIdx: usize) -> Option<Contai
         ("|", "|"),
     ];
 
+    let CodeIndent: String = CodePart.chars().take_while(|C| C.is_whitespace()).collect();
+    let FullBaseIndent = format!("{}{}", DocPrefix, CodeIndent);
+    let FullInnerIndent = format!("{}    ", FullBaseIndent);
+
+    // Case 1: Empty innermost container: CodePre ends with Open, Post starts with Close
     for &(Open, Close) in &CompoundPairs
     {
-        // Case 1: Empty container: pre ends with Open, post starts with Close
-        if Pre.ends_with(Open) && Post.starts_with(Close)
+        if CodePre.ends_with(Open) && Post.starts_with(Close)
         {
-            let Head = &Pre[..Pre.len() - Open.len()];
+            let CodeHead = &CodePre[..CodePre.len() - Open.len()];
             let Tail = &Post[Close.len()..];
 
-            let BaseIndent: String = Line.chars().take_while(|C| C.is_whitespace()).collect();
-            let InnerIndent = format!("{}    ", BaseIndent);
-            let HeadTrimmed = Head.trim_end();
-
             let mut NewLines = Vec::new();
-            
-            let CursorCol = InnerIndent.len();
+            let CursorCol = FullInnerIndent.len();
 
-            let CursorLine = if !HeadTrimmed.is_empty()
+            let CursorLine = if !CodeHead.trim().is_empty()
             {
-                NewLines.push(HeadTrimmed.to_string());
-                NewLines.push(format!("{}{}", BaseIndent, Open));
-                NewLines.push(InnerIndent.clone());
-                NewLines.push(format!("{}{}{}", BaseIndent, Close, Tail.trim_start()));
+                NewLines.push(format!("{}{}", DocPrefix, CodeHead.trim_end()));
+                NewLines.push(format!("{}{}", FullBaseIndent, Open));
+                NewLines.push(FullInnerIndent.clone());
+                NewLines.push(format!("{}{}{}", FullBaseIndent, Close, Tail.trim_start()));
                 LineIdx + 2
             }
             else
             {
-                NewLines.push(format!("{}{}", BaseIndent, Open));
-                NewLines.push(InnerIndent.clone());
-                NewLines.push(format!("{}{}{}", BaseIndent, Close, Tail.trim_start()));
+                NewLines.push(format!("{}{}", FullBaseIndent, Open));
+                NewLines.push(FullInnerIndent.clone());
+                NewLines.push(format!("{}{}{}", FullBaseIndent, Close, Tail.trim_start()));
                 LineIdx + 1
             };
 
@@ -319,23 +570,23 @@ pub fn EvaluateRuleA(Text: &str, LineIdx: usize, ColIdx: usize) -> Option<Contai
                 }
             );
         }
+    }
 
-        // Case 2: Container with inner content after non-whitespace head
-        if let (Some(OpenIdx), Some(CloseIdx)) = (Pre.rfind(Open), Post.find(Close))
+    // Case 2: Container with inner content after non-whitespace head
+    for &(Open, Close) in &CompoundPairs
+    {
+        if let (Some(OpenIdx), Some(CloseIdx)) = (CodePre.rfind(Open), Post.find(Close))
         {
-            let Head = &Pre[..OpenIdx];
-            if !Head.trim().is_empty()
+            let CodeHead = &CodePre[..OpenIdx];
+            if !CodeHead.trim().is_empty()
             {
-                let InnerPre = &Pre[OpenIdx + Open.len()..];
+                let InnerPre = &CodePre[OpenIdx + Open.len()..];
                 let InnerPost = &Post[..CloseIdx];
                 let Tail = &Post[CloseIdx + Close.len()..];
 
-                let BaseIndent: String = Line.chars().take_while(|C| C.is_whitespace()).collect();
-                let InnerIndent = format!("{}    ", BaseIndent);
-
                 let mut NewLines = Vec::new();
-                NewLines.push(Head.trim_end().to_string());
-                NewLines.push(format!("{}{}", BaseIndent, Open));
+                NewLines.push(format!("{}{}", DocPrefix, CodeHead.trim_end()));
+                NewLines.push(format!("{}{}", FullBaseIndent, Open));
 
                 let TrimmedPre = InnerPre.trim();
                 let TrimmedPost = InnerPost.trim();
@@ -346,28 +597,28 @@ pub fn EvaluateRuleA(Text: &str, LineIdx: usize, ColIdx: usize) -> Option<Contai
                 if TrimmedPre.is_empty() && !TrimmedPost.is_empty()
                 {
                     // Cursor is before inner content, e.g. #text(|size: 8.5pt)
-                    NewLines.push(format!("{}{}", InnerIndent, InnerPost.trim_start()));
-                    NewLines.push(format!("{}{}{}", BaseIndent, Close, Tail.trim_start()));
+                    NewLines.push(format!("{}{}", FullInnerIndent, InnerPost.trim_start()));
+                    NewLines.push(format!("{}{}{}", FullBaseIndent, Close, Tail.trim_start()));
                     CursorLine = LineIdx + 2;
-                    CursorCol = InnerIndent.len();
+                    CursorCol = FullInnerIndent.len();
                 }
                 else if !TrimmedPre.is_empty() && TrimmedPost.is_empty()
                 {
                     // Cursor is after inner content, e.g. #text(size: 8.5pt|)
-                    NewLines.push(format!("{}{}", InnerIndent, InnerPre.trim_end()));
-                    NewLines.push(InnerIndent.clone());
-                    NewLines.push(format!("{}{}{}", BaseIndent, Close, Tail.trim_start()));
+                    NewLines.push(format!("{}{}", FullInnerIndent, InnerPre.trim_end()));
+                    NewLines.push(FullInnerIndent.clone());
+                    NewLines.push(format!("{}{}{}", FullBaseIndent, Close, Tail.trim_start()));
                     CursorLine = LineIdx + 3;
-                    CursorCol = InnerIndent.len();
+                    CursorCol = FullInnerIndent.len();
                 }
                 else
                 {
                     // Both have content or both empty
-                    NewLines.push(format!("{}{}", InnerIndent, InnerPre.trim_end()));
-                    NewLines.push(format!("{}{}", InnerIndent, InnerPost.trim_start()));
-                    NewLines.push(format!("{}{}{}", BaseIndent, Close, Tail.trim_start()));
+                    NewLines.push(format!("{}{}", FullInnerIndent, InnerPre.trim_end()));
+                    NewLines.push(format!("{}{}", FullInnerIndent, InnerPost.trim_start()));
+                    NewLines.push(format!("{}{}{}", FullBaseIndent, Close, Tail.trim_start()));
                     CursorLine = LineIdx + 3;
-                    CursorCol = InnerIndent.len();
+                    CursorCol = FullInnerIndent.len();
                 }
 
                 let mut ResultLines = Vec::new();
@@ -453,6 +704,20 @@ pub fn EvaluateRuleB(Text: &str, Key: &str, LineIdx: usize, ColIdx: usize, Canva
         }
     }
     else
+    {
+        return None;
+    }
+
+    let RawStates = ClassifyFencedRawLines(&Lines);
+    if RawStates[PrevLineIdx].is_fence_line
+        || RawStates[PrevLineIdx].in_non_typst_raw
+        || RawStates[TargetOpenLine].is_fence_line
+        || RawStates[TargetOpenLine].in_non_typst_raw
+    {
+        return None;
+    }
+
+    if HasDocHarnessPrefix(Lines[PrevLineIdx]) || HasDocHarnessPrefix(Lines[TargetOpenLine])
     {
         return None;
     }
@@ -661,7 +926,22 @@ pub fn EvaluateCrossLineSelection(Lines: &[&str], StartLine: usize, StartCol: us
         return None;
     }
 
+    let RawStates = ClassifyFencedRawLines(Lines);
+    if RawStates[StartLine - 1].is_fence_line
+        || RawStates[StartLine - 1].in_non_typst_raw
+        || RawStates[EndLine - 1].is_fence_line
+        || RawStates[EndLine - 1].in_non_typst_raw
+    {
+        return None;
+    }
+
     let LineL = Lines[EndLine - 1];
+    let LineA = Lines[StartLine - 1];
+    if HasDocHarnessPrefix(LineA) || HasDocHarnessPrefix(LineL)
+    {
+        return None;
+    }
+
     let TrimmedL = LineL.trim_start();
     let LeadingL = LineL.len() - TrimmedL.len();
 
@@ -674,7 +954,6 @@ pub fn EvaluateCrossLineSelection(Lines: &[&str], StartLine: usize, StartCol: us
         return None;
     }
 
-    let LineA = Lines[StartLine - 1];
     if StartCol > LineA.len() + 1
     {
         return None;
@@ -741,24 +1020,32 @@ pub fn EvaluateCrossLineSelection(Lines: &[&str], StartLine: usize, StartCol: us
 pub fn NormalizeKnRJunctions(Text: &str) -> (bool, String)
 {
     let Lines: Vec<&str> = Text.lines().collect();
+    let RawStates = ClassifyFencedRawLines(&Lines);
     let mut Changed = false;
     let mut NewLines = Vec::new();
 
     let OpenGlyphs = ["```", "\"\"\"", "$$", "[{(", "([", "[(", "`", "$", "|", "[", "{", "("];
 
-    for Line in Lines
+    for (LineIdx, Line) in Lines.iter().enumerate()
     {
-        let Trimmed = Line.trim();
-        if Trimmed.starts_with("//")
+        if RawStates[LineIdx].is_fence_line || RawStates[LineIdx].in_non_typst_raw
         {
-            NewLines.push(Line.to_string());
+            NewLines.push((*Line).to_string());
+            continue;
+        }
+
+        let (DocPrefix, CodePart) = SplitDocHarnessPrefix(Line);
+        let TrimmedCode = CodePart.trim();
+        if TrimmedCode.is_empty() || TrimmedCode.starts_with("//")
+        {
+            NewLines.push((*Line).to_string());
             continue;
         }
 
         let mut Matched = None;
         for &Og in &OpenGlyphs
         {
-            if let Some(Head) = Line.strip_suffix(Og).filter(|H| !H.trim().is_empty())
+            if let Some(Head) = CodePart.strip_suffix(Og).filter(|H| !H.trim().is_empty())
             {
                 Matched = Some((Og, Head));
                 break;
@@ -767,14 +1054,15 @@ pub fn NormalizeKnRJunctions(Text: &str) -> (bool, String)
 
         if let Some((Og, Head)) = Matched
         {
-            let BaseIndent: String = Line.chars().take_while(|C| C.is_whitespace()).collect();
-            NewLines.push(Head.trim_end().to_string());
-            NewLines.push(format!("{}{}", BaseIndent, Og));
+            let CodeIndent: String = CodePart.chars().take_while(|C| C.is_whitespace()).collect();
+            let FullIndent = format!("{}{}", DocPrefix, CodeIndent);
+            NewLines.push(format!("{}{}", DocPrefix, Head.trim_end()));
+            NewLines.push(format!("{}{}", FullIndent, Og));
             Changed = true;
         }
         else
         {
-            NewLines.push(Line.to_string());
+            NewLines.push((*Line).to_string());
         }
     }
 
@@ -929,5 +1217,103 @@ mod tests
         let (Changed, Normalized) = NormalizeKnRJunctions(KnRSample);
         assert!(Changed);
         assert_eq!(Normalized, "#table\n[\n    [Cell 1], [Cell 2]\n]");
+    }
+
+    #[test]
+    fn TestDocHarnessPrefixPreservedOnKnRNormalization()
+    {
+        // 1. Standalone doc-harness >>> line with inner indentation
+        let StandaloneLine = ">>>   place(top, float: true, scope: \"parent\", {";
+        let (Changed1, Norm1) = NormalizeKnRJunctions(StandaloneLine);
+        assert!(Changed1);
+        assert_eq!(
+            Norm1,
+            ">>>   place(top, float: true, scope: \"parent\",\n>>>   {"
+        );
+        assert!(!Norm1.lines().any(|L| L.trim() == "{"));
+
+        // 2. Full fenced #example block containing >>> and <<< prefixed lines
+        let ExampleBlock = concat!
+        (
+            "#example\n",
+            "(\n",
+            "    single: true,\n",
+            "    ```\n",
+            "  >>> #let conf(\n",
+            "  >>>   doc,\n",
+            "  >>> ) = {\n",
+            "  >>>   place(top, float: true, scope: \"parent\", {\n",
+            "  >>>     text[Hello]\n",
+            "  >>>   })\n",
+            "  >>> }\n",
+            "  <<< #let preview_only() = {\n",
+            "  <<< }\n",
+            "  ```,\n",
+            ")"
+        );
+        let (Changed2, Norm2) = NormalizeKnRJunctions(ExampleBlock);
+        assert!(Changed2);
+        assert!(Norm2.contains("  >>> ) =\n  >>> {"));
+        assert!(Norm2.contains("  >>>   place(top, float: true, scope: \"parent\",\n  >>>   {"));
+        assert!(Norm2.contains("  <<< #let preview_only() =\n  <<< {"));
+        assert!(!Norm2.lines().any(|L| L.trim() == "{"));
+    }
+
+    #[test]
+    fn TestDocHarnessPrefixPreservedOnEnterDetachment()
+    {
+        let DocWithHarness = concat!
+        (
+            "#example\n",
+            "(\n",
+            "    single: true,\n",
+            "    ```\n",
+            "  >>>   place(top, float: true, scope: \"parent\", {})\n",
+            "  ```,\n",
+            ")"
+        );
+        let TargetLine = 4;
+        let LineStr = DocWithHarness.lines().nth(TargetLine).expect("line exists");
+        let CursorCol = LineStr.find("{}").expect("brace pair exists") + 1;
+        let Resp = ProcessContainerAction
+        (
+            Container_Action_Request
+            {
+                text: DocWithHarness.to_string(),
+                key: "Enter".to_string(),
+                line: TargetLine,
+                col: CursorCol,
+                canvas_limit: 160,
+            }
+        );
+        assert!(Resp.handled);
+        assert_eq!(Resp.action, "DETACH_2D");
+        let ResultText = Resp.result_text.expect("result_text should exist");
+        assert!(ResultText.contains("  >>>   place(top, float: true, scope: \"parent\",\n  >>>   {\n  >>>       \n  >>>   })"));
+        assert!(!ResultText.lines().any(|L| L.trim() == "{"));
+    }
+
+    #[test]
+    fn TestNonTypstAndUntaggedRawBlocksSkipContainerPhysics()
+    {
+        // 1. Explicit non-Typst fenced raw block (Rust, LaTeX)
+        let RustBlock = "```rust\nfn main() {\n    let x = vec![1, 2];\n}\n```";
+        let (ChangedRust, NormRust) = NormalizeKnRJunctions(RustBlock);
+        assert!(!ChangedRust);
+        assert_eq!(NormRust, RustBlock);
+        assert!(EvaluateRuleA("```rust\nfn main() {}\n```", 1, 11).is_none());
+
+        // 2. Nested ```latex inside ````example
+        let NestedLatex = "````example\n```latex\n\\section{\n}\n```\n````";
+        let (ChangedLatex, NormLatex) = NormalizeKnRJunctions(NestedLatex);
+        assert!(!ChangedLatex);
+        assert_eq!(NormLatex, NestedLatex);
+
+        // 3. Plain untagged raw block without doc-harness markers or #example context
+        let PlainRaw = "```\nvoid helper() {\n}\n```";
+        let (ChangedPlain, NormPlain) = NormalizeKnRJunctions(PlainRaw);
+        assert!(!ChangedPlain);
+        assert_eq!(NormPlain, PlainRaw);
+        assert!(EvaluateRuleA("```\nvoid helper() {}\n```", 1, 15).is_none());
     }
 }

@@ -152,7 +152,7 @@ static EMPTY_ID: LazyLock < FileId > = LazyLock:: new ( || { FileId::unique(Root
 
 /// Provides project files from a configured directory and package files from
 /// standard locations.
-struct SystemFiles { main: FileId, project: FsRoot, packages: SystemPackages, }
+struct SystemFiles { main: FileId, project: FsRoot, repo: Option<FsRoot>, packages: SystemPackages, }
 
 impl SystemFiles
 {
@@ -208,14 +208,42 @@ impl SystemFiles
             * EMPTY_ID
         };
 
-        Ok(Self { main, project: FsRoot::new (root), packages: crate::packages::system( & world_args.package), })
+        let repo = find_typst_repo_root(&root).map(FsRoot::new);
+
+        Ok(Self { main, project: FsRoot::new (root), repo, packages: crate::packages::system( & world_args.package), })
     }
 
     /// Resolves the file system path for the given `id`.
     pub fn resolve( & self, id: FileId)->FileResult<PathBuf> { self.root(id)?.resolve(id.vpath()) }
 
     /// Resolves the root in which the given file ID resides.
-    fn root( & self, id: FileId)->FileResult<FsRoot> { Ok(match id.root() { VirtualRoot::Project => self.project.clone(), VirtualRoot::Package(spec) => self.packages.obtain(spec)?, }) }
+    fn root( & self, id: FileId)->FileResult<FsRoot>
+    {
+        Ok
+        (
+            match id.root()
+            {
+                VirtualRoot::Project => self.project.clone(),
+                VirtualRoot::Package(spec) =>
+                {
+                    if * spec == typst_docs::world::REPO_ROOT
+                    {
+                        if let Some(repo) = & self.repo { return Ok(repo.clone()); }
+                    }
+                    self.packages.obtain(spec)?
+                }
+            }
+        )
+    }
+}
+
+/// Resolves the Typst repository workspace root when `project_root` or its
+/// parent directory contains `crates/` and `Cargo.toml`.
+fn find_typst_repo_root(project_root: & Path)->Option<PathBuf>
+{
+    let is_repo_root = | dir: & Path | dir.join("crates").is_dir() && dir.join("Cargo.toml").is_file();
+    if is_repo_root(project_root) { return Some(project_root.to_path_buf()); }
+    project_root.parent().filter( | & parent | is_repo_root(parent)).map(Path::to_path_buf)
 }
 
 impl FileLoader for SystemFiles

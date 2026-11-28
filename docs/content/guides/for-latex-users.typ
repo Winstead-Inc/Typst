@@ -290,7 +290,7 @@ When using Typst, you style your documents with @function[functions]. Typically,
   >>>   abstract: [],
   >>>   doc,
   >>> ) =
-  {
+  >>> {
   >>>   set text(font: "Libertinus Serif", 11pt)
   >>>   set par(justify: true)
   >>>   set page(
@@ -327,8 +327,7 @@ When using Typst, you style your documents with @function[functions]. Typically,
   >>>   )
   >>>
   >>>   place(top, float: true, scope: "parent",
-  >>>
-  {
+  >>>   {
   >>>     set align(center)
   >>>     text(17pt, title)
   >>>

@@ -40,6 +40,10 @@
     text(fill: rgb("#7100FF"), label-content)
 }
 
+// Applies the standalone `show ref:` fallback within a `context` block when
+// full-site docs styling (`docs/lib.typ`) is not active.
+#let with-standalone-ref(body) = { if not docs-full-site-styling.get() { show ref: standalone-ref; body } else { body } }
+
 // The part of the global styling that applies to the paged version.
 #let paged-styling(body) =
 {
@@ -205,7 +209,7 @@
 
     context
     {
-        show: rest => if not docs-full-site-styling.get() { show ref: standalone-ref; rest } else { rest }
+        show: with-standalone-ref
 
         if target() == "paged" { paged-prose-styling(body) } else { html-prose-styling(body) }
     }

@@ -63,6 +63,7 @@ jobs:
       - name: Install Rust Toolchain
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Rust Cache
@@ -145,15 +146,15 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "artifacts" -Force
           Copy-Item "typst-cli-${{ matrix.platform_id }}.zip" -Destination "artifacts/"
-          
+
           # NSIS Installer
           $Nsis = Get-ChildItem "TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe" | Select-Object -First 1
           if ($Nsis) { Copy-Item $Nsis.FullName -Destination "artifacts/TypstStudio-Windows-x64-Setup.exe" }
-          
+
           # MSI Installer
           $Msi = Get-ChildItem "TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi" | Select-Object -First 1
           if ($Msi) { Copy-Item $Msi.FullName -Destination "artifacts/TypstStudio-Windows-x64.msi" }
-          
+
           # Standalone Binary
           $Exe = "TypstStudio/src-tauri/target/${{ matrix.target }}/release/typst-studio.exe"
           if (Test-Path $Exe) { Copy-Item $Exe -Destination "artifacts/TypstStudio-Windows-x64-Portable.exe" }
@@ -163,13 +164,13 @@ jobs:
         run: |
           mkdir -p artifacts
           cp typst-cli-${{ matrix.platform_id }}.tar.gz artifacts/
-          
+
           # DMG
           DMG=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/dmg -name "*.dmg" | head -n 1)
           if [ -n "$DMG" ]; then
             cp "$DMG" "artifacts/TypstStudio-${{ matrix.platform_id }}.dmg"
           fi
-          
+
           # App Tarball
           APP=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/macos -name "*.app" | head -n 1)
           if [ -n "$APP" ]; then
@@ -181,13 +182,13 @@ jobs:
         run: |
           mkdir -p artifacts
           cp typst-cli-${{ matrix.platform_id }}.tar.gz artifacts/
-          
+
           # DEB Package
           DEB=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/deb -name "*.deb" | head -n 1)
           if [ -n "$DEB" ]; then
             cp "$DEB" "artifacts/typst-studio-${{ matrix.platform_id }}.deb"
           fi
-          
+
           # AppImage
           APPIMAGE=$(find TypstStudio/src-tauri/target/${{ matrix.target }}/release/bundle/appimage -name "*.AppImage" | head -n 1)
           if [ -n "$APPIMAGE" ]; then

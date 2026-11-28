@@ -193,30 +193,166 @@ static LAST_ACTIVE_SYNC_MAP: std::sync::Mutex<Vec<serde_json::Value>> = std::syn
 static APP_START_TIME: std::sync::LazyLock<std::time::Instant> = std::sync::LazyLock:: new (std::time::Instant::now);
 static JOB_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
-fn InvertShapeColorHex(Hex: & str) -> String
+fn RgbToHsl(R: u8, G: u8, B: u8) -> (f64, f64, f64)
 {
-    let mut CleanHex = Hex.trim_start_matches('#').to_string();
+    let Rf = (R as f64) / 255.0;
+    let Gf = (G as f64) / 255.0;
+    let Bf = (B as f64) / 255.0;
+    let Max = Rf.max(Gf).max(Bf);
+    let Min = Rf.min(Gf).min(Bf);
+    let Light = (Max + Min) * 0.5;
+    let mut Hue = 0.0;
+    let mut Sat = 0.0;
+
+    if (Max - Min).abs() > 1e-9
+    {
+        let Delta = Max - Min;
+        Sat = if Light > 0.5 { Delta / (2.0 - Max - Min) } else { Delta / (Max + Min) };
+        if (Max - Rf).abs() <= 1e-9
+        {
+            Hue = ((Gf - Bf) / Delta) + (if Gf < Bf { 6.0 } else { 0.0 });
+        }
+        else if (Max - Gf).abs() <= 1e-9
+        {
+            Hue = ((Bf - Rf) / Delta) + 2.0;
+        }
+        else
+        {
+            Hue = ((Rf - Gf) / Delta) + 4.0;
+        }
+        Hue *= 60.0;
+    }
+
+    (Hue, Sat, Light)
+}
+
+fn HslToRgb(Hue: f64, Sat: f64, Light: f64) -> (u8, u8, u8)
+{
+    let HNorm = ((Hue % 360.0 + 360.0) % 360.0) / 360.0;
+    let SClamp = Sat.clamp(0.0, 1.0);
+    let LClamp = Light.clamp(0.0, 1.0);
+
+    if SClamp <= 1e-9
+    {
+        let Val = (LClamp * 255.0).round().clamp(0.0, 255.0) as u8;
+        return (Val, Val, Val);
+    }
+
+    let HueToChannel = | P: f64, Q: f64, T: f64 | -> f64
+    {
+        let mut TNorm = T;
+        if TNorm < 0.0 { TNorm += 1.0; }
+        if TNorm > 1.0 { TNorm -= 1.0; }
+        if TNorm < 1.0 / 6.0 { return P + (Q - P) * 6.0 * TNorm; }
+        if TNorm < 0.5 { return Q; }
+        if TNorm < 2.0 / 3.0 { return P + (Q - P) * (2.0 / 3.0 - TNorm) * 6.0; }
+        P
+    };
+
+    let Q = if LClamp < 0.5 { LClamp * (1.0 + SClamp) } else { LClamp + SClamp - LClamp * SClamp };
+    let P = 2.0 * LClamp - Q;
+
+    let R = (HueToChannel(P, Q, HNorm + 1.0 / 3.0) * 255.0).round().clamp(0.0, 255.0) as u8;
+    let G = (HueToChannel(P, Q, HNorm) * 255.0).round().clamp(0.0, 255.0) as u8;
+    let B = (HueToChannel(P, Q, HNorm - 1.0 / 3.0) * 255.0).round().clamp(0.0, 255.0) as u8;
+    (R, G, B)
+}
+
+fn RelativeLuminance(R: u8, G: u8, B: u8) -> f64
+{
+    let ToLinear = | Channel: u8 | -> f64
+    {
+        let C = (Channel as f64) / 255.0;
+        if C <= 0.03928 { C / 12.92 } else { ((C + 0.055) / 1.055).powf(2.4) }
+    };
+    0.2126 * ToLinear(R) + 0.7152 * ToLinear(G) + 0.0722 * ToLinear(B)
+}
+
+fn SanitizeDarkSurfaceHue(Hue: f64, Sat: f64, MaxSat: f64) -> (f64, f64)
+{
+    let mut SafeHue = (Hue % 360.0 + 360.0) % 360.0;
+    let mut SafeSat = Sat.clamp(0.0, MaxSat);
+
+    if (42.0..=76.0).contains(&SafeHue) && SafeSat > 0.05
+    {
+        SafeHue = 32.0;
+        SafeSat = SafeSat.min(0.34);
+    }
+    else if (178.0..=198.0).contains(&SafeHue) && SafeSat > 0.05
+    {
+        SafeHue = 206.0;
+    }
+
+    (SafeHue, SafeSat)
+}
+
+fn ParseHexColor(Hex: & str) -> Option<(u8, u8, u8, String)>
+{
+    let mut CleanHex = Hex.trim().trim_start_matches('#').to_string();
+    let mut Alpha = String::new();
+
     if CleanHex.len() == 3
     {
         let Chars: Vec<char> = CleanHex.chars().collect();
         CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
     }
-    if CleanHex.len() != 6
+    else if CleanHex.len() == 4
     {
-        return CleanHex.to_uppercase();
+        let Chars: Vec<char> = CleanHex.chars().collect();
+        CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
+        Alpha = format!("{}{}", Chars[3], Chars[3]).to_uppercase();
+    }
+    else if CleanHex.len() == 8
+    {
+        Alpha = CleanHex[6..8].to_uppercase();
+        CleanHex.truncate(6);
+    }
+    else if CleanHex.len() != 6
+    {
+        return None;
     }
 
-    let R = u8::from_str_radix( & CleanHex[0..2], 16).unwrap_or(0);
-    let G = u8::from_str_radix( & CleanHex[2..4], 16).unwrap_or(0);
-    let B = u8::from_str_radix( & CleanHex[4..6], 16).unwrap_or(0);
+    let R = u8::from_str_radix(&CleanHex[0..2], 16).ok()?;
+    let G = u8::from_str_radix(&CleanHex[2..4], 16).ok()?;
+    let B = u8::from_str_radix(&CleanHex[4..6], 16).ok()?;
+    Some((R, G, B, Alpha))
+}
+
+fn InvertShapeColorHexForMode(Hex: & str, Mode: & str) -> String
+{
+    let CleanRaw = Hex.trim().trim_start_matches('#').to_uppercase();
+    if Mode == "light"
+    {
+        return CleanRaw;
+    }
+
+    let (R, G, B, Alpha) = match ParseHexColor(Hex)
+    {
+        Some(Parsed) => Parsed,
+        None => return CleanRaw,
+    };
 
     let MaxDelta = (R as i16 - G as i16).abs()
-   .max((G as i16 - B as i16).abs())
-   .max((B as i16 - R as i16).abs());
+        .max((G as i16 - B as i16).abs())
+        .max((B as i16 - R as i16).abs());
 
     if MaxDelta > 22
     {
-        return CleanHex.to_uppercase();
+        let (H, S, L) = RgbToHsl(R, G, B);
+        let PercLum = (0.299 * (R as f64) + 0.587 * (G as f64) + 0.114 * (B as f64)) / 255.0;
+
+        if L > 0.72 || (PercLum > 0.76 && L > 0.58)
+        {
+            let Metric = L.max(PercLum);
+            let T = ((Metric - 0.72) / 0.28).clamp(0.0, 1.0);
+            let TargetL = if Mode == "optimized" { 0.18 - T * 0.05 } else { 0.12 - T * 0.04 };
+            let BaseSat = S.min(0.18).max(S * 0.42).min(0.42);
+            let (SafeH, SafeS) = SanitizeDarkSurfaceHue(H, BaseSat, 0.44);
+            let (OutR, OutG, OutB) = HslToRgb(SafeH, SafeS, TargetL);
+            return format!("{:02X}{:02X}{:02X}{}", OutR, OutG, OutB, Alpha);
+        }
+
+        return format!("{:02X}{:02X}{:02X}{}", R, G, B, Alpha);
     }
 
     let Avg = ((R as f64) + (G as f64) + (B as f64)) / 3.0;
@@ -229,8 +365,7 @@ fn InvertShapeColorHex(Hex: & str) -> String
         if D <= 32.0 { return (68.0 + (D - 18.0) * 1.2).round(); }
         if D <= 55.0 { return (86.0 + (D - 32.0) * 0.6).round(); }
         if L <= 30.0 { return 68.0; }
-        (255.0 - L)
-       .round()
+        (255.0 - L).round()
     };
 
     let BaseDark = MapComp(Avg);
@@ -238,43 +373,78 @@ fn InvertShapeColorHex(Hex: & str) -> String
     let OutG = ((BaseDark + (G as f64 - Avg)).round() as i32).clamp(0, 255) as u8;
     let OutB = ((BaseDark + (B as f64 - Avg)).round() as i32).clamp(0, 255) as u8;
 
-    format!("{:02X}{:02X}{:02X}", OutR, OutG, OutB)
+    format!("{:02X}{:02X}{:02X}{}", OutR, OutG, OutB, Alpha)
 }
 
-fn InvertGlyphColorHex(Hex: & str) -> String
+fn InvertShapeColorHex(Hex: & str) -> String
 {
-    let mut CleanHex = Hex.trim_start_matches('#').to_string();
-    if CleanHex.len() == 3
+    InvertShapeColorHexForMode(Hex, "pure_black")
+}
+
+fn InvertGlyphColorHexForMode(Hex: & str, Mode: & str) -> String
+{
+    let CleanRaw = Hex.trim().trim_start_matches('#').to_uppercase();
+    if Mode == "light"
     {
-        let Chars: Vec<char> = CleanHex.chars().collect();
-        CleanHex = format!("{}{}{}{}{}{}", Chars[0], Chars[0], Chars[1], Chars[1], Chars[2], Chars[2]);
-    }
-    if CleanHex.len() != 6
-    {
-        return CleanHex.to_uppercase();
+        return CleanRaw;
     }
 
-    let R = u8::from_str_radix( & CleanHex[0..2], 16).unwrap_or(0);
-    let G = u8::from_str_radix( & CleanHex[2..4], 16).unwrap_or(0);
-    let B = u8::from_str_radix( & CleanHex[4..6], 16).unwrap_or(0);
+    let (R, G, B, Alpha) = match ParseHexColor(Hex)
+    {
+        Some(Parsed) => Parsed,
+        None => return CleanRaw,
+    };
 
     let MaxDelta = (R as i16 - G as i16).abs()
-   .max((G as i16 - B as i16).abs())
-   .max((B as i16 - R as i16).abs());
+        .max((G as i16 - B as i16).abs())
+        .max((B as i16 - R as i16).abs());
 
     if MaxDelta > 22
     {
-        return CleanHex.to_uppercase();
+        let RelLum = RelativeLuminance(R, G, B);
+        if RelLum >= 0.25
+        {
+            return format!("{:02X}{:02X}{:02X}{}", R, G, B, Alpha);
+        }
+
+        let (H, S, L) = RgbToHsl(R, G, B);
+        let (SafeH, SafeS) = SanitizeDarkSurfaceHue(H, S.clamp(0.40, 0.85), 0.85);
+        let MinRelLum = if Mode == "optimized" { 0.36 } else { 0.38 };
+        let mut Low = L.max(0.50);
+        let mut High = 0.90;
+        for _ in 0..12
+        {
+            let Mid = (Low + High) * 0.5;
+            let (CandR, CandG, CandB) = HslToRgb(SafeH, SafeS, Mid);
+            if RelativeLuminance(CandR, CandG, CandB) >= MinRelLum
+            {
+                High = Mid;
+            }
+            else
+            {
+                Low = Mid;
+            }
+        }
+        let (OutR, OutG, OutB) = HslToRgb(SafeH, SafeS, High);
+        return format!("{:02X}{:02X}{:02X}{}", OutR, OutG, OutB, Alpha);
     }
 
+    let TargetLightText = if Mode == "optimized" { "D6D3CD" } else { "FFFFFF" };
     let Avg = ((R as f64) + (G as f64) + (B as f64)) / 3.0;
     if Avg >= 240.0 || Avg <= 50.0
     {
-        return "FFFFFF".to_string();
+        return format!("{}{}", TargetLightText, Alpha);
     }
 
-    let Inv = (255.0 - Avg).round().clamp(0.0, 255.0) as u8;
-    format!("{:02X}{:02X}{:02X}", Inv, Inv, Inv)
+    let Inv = if Mode == "optimized"
+    {
+        ((255.0 - Avg) * 0.88).round().clamp(145.0, 220.0) as u8
+    }
+    else
+    {
+        (255.0 - Avg).round().clamp(155.0, 255.0) as u8
+    };
+    format!("{:02X}{:02X}{:02X}{}", Inv, Inv, Inv, Alpha)
 }
 
 fn ConvertColorHex(Hex: & str) -> String
@@ -397,8 +567,13 @@ fn StripCanvasBackground(Svg: & str) -> String
     Output
 }
 
-fn ConvertSvgToDarkMode(Svg: & str) -> String
+fn ConvertSvgToDarkModeForMode(Svg: & str, Mode: & str) -> String
 {
+    if Mode == "light"
+    {
+        return Svg.to_string();
+    }
+
     let mut PreparedSvg = String::with_capacity(Svg.len() + 64);
     let mut TempRest = Svg;
     let mut CanvasFound = false;
@@ -468,6 +643,7 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
         }
     }
 
+    let CanvasHex = if Mode == "optimized" { "#0D0D0F" } else { "#000000" };
     let mut FinalSvg = String::with_capacity(PreparedSvg.len());
     let mut Rest = PreparedSvg.as_str();
 
@@ -482,16 +658,19 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
             let FullTag = &Rest[TagStart..TagStart + 1 + TagEnd + 1];
 
             let TagName = TagBody.split_whitespace().next().unwrap_or("").trim_start_matches('/');
+            let IsTypstTextGroup = TagName.eq_ignore_ascii_case("g") && TagBody.to_ascii_lowercase().contains("typst-text");
             let IsGlyph = TagName.eq_ignore_ascii_case("use")
                 || TagName.eq_ignore_ascii_case("text")
-                || TagName.eq_ignore_ascii_case("tspan");
+                || TagName.eq_ignore_ascii_case("tspan")
+                || IsTypstTextGroup;
             let IsShape = TagName.eq_ignore_ascii_case("path")
                 || TagName.eq_ignore_ascii_case("rect")
                 || TagName.eq_ignore_ascii_case("polygon")
+                || TagName.eq_ignore_ascii_case("polyline")
                 || TagName.eq_ignore_ascii_case("circle")
                 || TagName.eq_ignore_ascii_case("ellipse")
                 || TagName.eq_ignore_ascii_case("line")
-                || TagName.eq_ignore_ascii_case("g");
+                || (TagName.eq_ignore_ascii_case("g") && !IsTypstTextGroup);
 
             if IsGlyph || IsShape
             {
@@ -511,17 +690,17 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
                         let ColorVal = &SubRest[..QuoteEnd];
                         if ColorVal == "__CANVAS_BLACK_SENTINEL__"
                         {
-                            ProcessedTag.push_str(&format!("{}=\"#000000\"", AttrName));
+                            ProcessedTag.push_str(&format!("{}=\"{}\"", AttrName, CanvasHex));
                         }
                         else if ColorVal.starts_with('#')
                         {
-                            let Converted = if IsGlyph
+                            let Converted = if IsGlyph && IsFill
                             {
-                                InvertGlyphColorHex(ColorVal)
+                                InvertGlyphColorHexForMode(ColorVal, Mode)
                             }
                             else
                             {
-                                InvertShapeColorHex(ColorVal)
+                                InvertShapeColorHexForMode(ColorVal, Mode)
                             };
                             ProcessedTag.push_str(&format!("{}=\"#{}\"", AttrName, Converted));
                         }
@@ -554,6 +733,11 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
         }
     }
     FinalSvg
+}
+
+fn ConvertSvgToDarkMode(Svg: & str) -> String
+{
+    ConvertSvgToDarkModeForMode(Svg, "pure_black")
 }
 
 fn GetTargetTriple() -> Option<&'static str>
@@ -920,41 +1104,92 @@ fn PrepareCompilationInput(Source: &str, FilePath: Option<&str>, UniqueId: &str)
     ("-".to_string(), None)
 }
 
+const MAX_SUBPROCESS_PIPE_BYTES: usize = 16 * 1024 * 1024;
+
+fn ReadPipeCapped<R: std::io::Read>(mut Reader: R, MaxBytes: usize) -> Vec<u8>
+{
+    let mut Buffer = Vec::new();
+    let mut Chunk = [0u8; 8192];
+    loop
+    {
+        match std::io::Read::read(&mut Reader, &mut Chunk)
+        {
+            Ok(0) => break,
+            Ok(Count) =>
+            {
+                let Remaining = MaxBytes.saturating_sub(Buffer.len());
+                if Remaining > 0
+                {
+                    let TakeCount = Count.min(Remaining);
+                    Buffer.extend_from_slice(&Chunk[..TakeCount]);
+                }
+            }
+            Err(ErrVal) if ErrVal.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(_) => break,
+        }
+    }
+    Buffer
+}
+
 fn ExecuteCommandWithTimeout
 (
     mut Child: std::process::Child,
     TimeoutDuration: std::time::Duration,
 ) -> Result<std::process::Output, String>
 {
-    let PollInterval = std::time::Duration::from_millis(50);
+    let StdoutThread = Child.stdout.take().map
+    (
+        |Pipe| std::thread::spawn(move || ReadPipeCapped(Pipe, MAX_SUBPROCESS_PIPE_BYTES))
+    );
+    let StderrThread = Child.stderr.take().map
+    (
+        |Pipe| std::thread::spawn(move || ReadPipeCapped(Pipe, MAX_SUBPROCESS_PIPE_BYTES))
+    );
+
+    let PollInterval = std::time::Duration::from_millis(10);
     let Start = std::time::Instant::now();
 
-    loop
+    let ExitStatusResult = loop
     {
         match Child.try_wait()
         {
-            Ok(Some(_)) =>
-            {
-                return Child.wait_with_output()
-                    .map_err(|Error| format!("Execution failed: {}", Error));
-            }
+            Ok(Some(Status)) => break Ok(Status),
             Ok(None) =>
             {
                 if Start.elapsed() >= TimeoutDuration
                 {
                     let _ = Child.kill();
                     let _ = Child.wait();
-                    return Err(format!("Typst process timed out after {} seconds", TimeoutDuration.as_secs()));
+                    break Err(format!("Typst process timed out after {} seconds", TimeoutDuration.as_secs()));
                 }
                 std::thread::sleep(PollInterval);
             }
             Err(Error) =>
             {
                 let _ = Child.kill();
-                return Err(format!("Process polling failure: {}", Error));
+                let _ = Child.wait();
+                break Err(format!("Process polling failure: {}", Error));
             }
         }
-    }
+    };
+
+    let StdoutBytes = StdoutThread
+        .and_then(|Handle| Handle.join().ok())
+        .unwrap_or_default();
+    let StderrBytes = StderrThread
+        .and_then(|Handle| Handle.join().ok())
+        .unwrap_or_default();
+
+    let Status = ExitStatusResult?;
+    Ok
+    (
+        std::process::Output
+        {
+            status: Status,
+            stdout: StdoutBytes,
+            stderr: StderrBytes,
+        }
+    )
 }
 
 fn CompileTypstSync(Source: String, FilePath: Option<String>, IsBackground: Option<bool>) -> Result<Compile_Response, String>
@@ -1988,6 +2223,7 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
     };
 
     let mut Results = Vec::new();
+    let mut SeenPaths = std::collections::HashSet::new();
 
     if let Ok(Entries) = std::fs::read_dir(&TargetDir)
     {
@@ -2003,8 +2239,12 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
             let IsDir = Meta.as_ref().map(|M| M.is_dir()).unwrap_or(false);
             let Size = Meta.as_ref().map(|M| M.len()).unwrap_or(0);
             let Path = Entry.path().to_string_lossy().to_string();
+            let Key = PathKey(&Path);
 
-            Results.push(File_Entry { name: Name, path: Path, is_dir: IsDir, size: Size });
+            if SeenPaths.insert(Key)
+            {
+                Results.push(File_Entry { name: Name, path: Path, is_dir: IsDir, size: Size });
+            }
         }
     }
 
@@ -2239,7 +2479,17 @@ fn ScanDirectoryRecursive(BaseDir: & std::path::Path, CurrentDir: & std::path::P
 #[tauri::command]
 fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
 {
-    let Dirs = GetTrackedDirectories();
+    let RawDirs = GetTrackedDirectories();
+    let mut SeenDirs = std::collections::HashSet::new();
+    let mut Dirs = Vec::new();
+    for DirStr in RawDirs
+    {
+        if SeenDirs.insert(PathKey(&DirStr))
+        {
+            Dirs.push(DirStr);
+        }
+    }
+
     let mut AllFiles = Vec:: new ();
     let mut AllFolders = Vec:: new ();
 
@@ -3995,42 +4245,36 @@ fn FormatSnippetWithVerifiedLafs(Code: &str, Lang: &str) -> Option<String>
 
         if let Ok(mut Child) = Cmd.spawn()
         {
-            if let Some(mut Stdin) = Child.stdin.take()
+            let StdinThread = Child.stdin.take().map
+            (
+                |mut Stdin|
+                {
+                    let Payload = Code.as_bytes().to_vec();
+                    std::thread::spawn
+                    (
+                        move ||
+                        {
+                            let _ = Stdin.write_all(&Payload);
+                        }
+                    )
+                }
+            );
+
+            let ExecResult = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(5));
+            if let Some(Handle) = StdinThread
             {
-                use std::io::Write;
-                let _ = Stdin.write_all(Code.as_bytes());
+                let _ = Handle.join();
             }
 
-            let Timeout = std::time::Duration::from_secs(5);
-            let Start = std::time::Instant::now();
-            loop
+            if let Ok(Output) = ExecResult
             {
-                match Child.try_wait()
+                if Output.status.success()
                 {
-                    Ok(Some(Status)) =>
+                    let OutStr = String::from_utf8_lossy(&Output.stdout);
+                    if !OutStr.is_empty()
                     {
-                        if Status.success()
-                            && let Some(mut Stdout) = Child.stdout.take()
-                            {
-                                use std::io::Read;
-                                let mut OutStr = String::new();
-                                if Stdout.read_to_string(&mut OutStr).is_ok() && !OutStr.is_empty()
-                                {
-                                    return Some(OutStr.trim_end().to_string());
-                                }
-                            }
-                        break;
+                        return Some(OutStr.trim_end().to_string());
                     }
-                    Ok(None) =>
-                    {
-                        if Start.elapsed() > Timeout
-                        {
-                            let _ = Child.kill();
-                            break;
-                        }
-                        std::thread::sleep(std::time::Duration::from_millis(10));
-                    }
-                    Err(_) => break,
                 }
             }
         }
@@ -4349,9 +4593,9 @@ mod tests
         assert_eq!(InvertShapeColorHex("FFFFFF"), "181818");
         assert_eq!(InvertShapeColorHex("E4E9F0"), "42474E");
         assert_eq!(InvertShapeColorHex("F1F3F6"), "303235");
-        assert_eq!(InvertGlyphColorHex("000000"), "FFFFFF");
-        assert_eq!(InvertGlyphColorHex("FFFFFF"), "FFFFFF");
-        assert_eq!(InvertGlyphColorHex("16A34A"), "16A34A");
+        assert_eq!(InvertGlyphColorHexForMode("000000", "pure_black"), "FFFFFF");
+        assert_eq!(InvertGlyphColorHexForMode("FFFFFF", "pure_black"), "FFFFFF");
+        assert_eq!(InvertGlyphColorHexForMode("16A34A", "pure_black"), "16A34A");
     }
 
    #[test]
@@ -4866,6 +5110,12 @@ mod tests
         let AccessibilityPath = CanonDocs.join("content").join("guides").join("accessibility.typ");
         AssertStandaloneChapterCompilesCleanly(&AccessibilityPath, &CanonDocs, "docs/content/guides/accessibility.typ");
 
+        let LayoutPath = CanonDocs.join("content").join("reference").join("library").join("layout.typ");
+        AssertStandaloneChapterCompilesCleanly(&LayoutPath, &CanonDocs, "docs/content/reference/library/layout.typ");
+
+        let MathPath = CanonDocs.join("content").join("reference").join("library").join("math.typ");
+        AssertStandaloneChapterCompilesCleanly(&MathPath, &CanonDocs, "docs/content/reference/library/math.typ");
+
         // Verify a self-contained nested file inside docs/content/ importing ../components/base.typ
         // resolves DocRoot to docs/, compiles with 0 errors, and emits valid SVG pages.
         let NestedPath = CanonDocs.join("content").join("nested_self_contained_check.typ");
@@ -5288,5 +5538,170 @@ mod tests
         {
             *Guard = PrevSyncMap;
         }
+    }
+
+   #[test]
+    fn TestLightPastelAndInfoCalloutDarkMode()
+    {
+        let ContrastRatio = | HexA: &str, HexB: &str | -> f64
+        {
+            let (R1, G1, B1, _) = ParseHexColor(HexA).expect("valid hex A");
+            let (R2, G2, B2, _) = ParseHexColor(HexB).expect("valid hex B");
+            let L1 = RelativeLuminance(R1, G1, B1);
+            let L2 = RelativeLuminance(R2, G2, B2);
+            let Hi = L1.max(L2);
+            let Lo = L1.min(L2);
+            (Hi + 0.05) / (Lo + 0.05)
+        };
+
+        // Light mode must keep #info callout background, heading, and body text untouched
+        assert_eq!(InvertShapeColorHexForMode("E8F9FF", "light"), "E8F9FF");
+        assert_eq!(InvertGlyphColorHexForMode("001666", "light"), "001666");
+        assert_eq!(InvertGlyphColorHexForMode("000000", "light"), "000000");
+
+        // Optimized (Night) and Pure Black modes must darken #info pastel fill #E8F9FF
+        let OptInfoBg = InvertShapeColorHexForMode("E8F9FF", "optimized");
+        let BlackInfoBg = InvertShapeColorHexForMode("E8F9FF", "pure_black");
+        assert_ne!(OptInfoBg, "E8F9FF");
+        assert_ne!(BlackInfoBg, "E8F9FF");
+        assert_ne!(OptInfoBg, "00E5FF");
+        assert_ne!(BlackInfoBg, "00E5FF");
+
+        let (OR, OG, OB, _) = ParseHexColor(&OptInfoBg).unwrap();
+        let (OH, _, OL) = RgbToHsl(OR, OG, OB);
+        assert!(OL >= 0.12 && OL <= 0.18, "Optimized #info fill lightness must be in [0.12, 0.18], got {:.3} ({})", OL, OptInfoBg);
+        assert!(!(42.0..=76.0).contains(&OH), "Must never emit yellow hue, got {:.1}", OH);
+
+        let (BR, BG, BB, _) = ParseHexColor(&BlackInfoBg).unwrap();
+        let (BH, _, BL) = RgbToHsl(BR, BG, BB);
+        assert!(BL >= 0.07 && BL <= 0.12, "Pure Black #info fill lightness must be in [0.07, 0.12], got {:.3} ({})", BL, BlackInfoBg);
+        assert!(!(42.0..=76.0).contains(&BH), "Must never emit yellow hue, got {:.1}", BH);
+
+        // Check additional pastel fills (green, lavender, amber, rose, light blue)
+        for Pastel in ["D1FFE2", "F9DFFF", "FFEDC1", "FFCBC4", "A6EAFF", "A6EBE6"]
+        {
+            let OptSurf = InvertShapeColorHexForMode(Pastel, "optimized");
+            let BlackSurf = InvertShapeColorHexForMode(Pastel, "pure_black");
+            assert_ne!(OptSurf, "00E5FF");
+            assert_ne!(BlackSurf, "00E5FF");
+
+            let (SR, SG, SB, _) = ParseHexColor(&OptSurf).unwrap();
+            let (SH, SS, SL) = RgbToHsl(SR, SG, SB);
+            assert!(SL >= 0.12 && SL <= 0.18, "Optimized pastel {} lightness must be in [0.12, 0.18], got {:.3} ({})", Pastel, SL, OptSurf);
+            assert!(!(42.0..=76.0).contains(&SH) || SS <= 0.10, "Pastel {} produced yellow hue {:.1}", Pastel, SH);
+
+            let (PR, PG, PB, _) = ParseHexColor(&BlackSurf).unwrap();
+            let (PH, PS, PL) = RgbToHsl(PR, PG, PB);
+            assert!(PL >= 0.07 && PL <= 0.12, "Pure black pastel {} lightness must be in [0.07, 0.12], got {:.3} ({})", Pastel, PL, BlackSurf);
+            assert!(!(42.0..=76.0).contains(&PH) || PS <= 0.10, "Pastel {} produced yellow hue {:.1}", Pastel, PH);
+        }
+
+        // Heading badge (#001666) and body text (#000000) must achieve >= 4.5:1 WCAG-AA contrast on darkened #info box
+        let OptHeading = InvertGlyphColorHexForMode("001666", "optimized");
+        let OptBody = InvertGlyphColorHexForMode("000000", "optimized");
+        let BlackHeading = InvertGlyphColorHexForMode("001666", "pure_black");
+        let BlackBody = InvertGlyphColorHexForMode("000000", "pure_black");
+
+        assert!(ContrastRatio(&OptHeading, &OptInfoBg) >= 4.5, "Optimized INFO badge contrast must be >= 4.5:1");
+        assert!(ContrastRatio(&OptBody, &OptInfoBg) >= 4.5, "Optimized #info body contrast must be >= 4.5:1");
+        assert!(ContrastRatio(&BlackHeading, &BlackInfoBg) >= 4.5, "Pure black INFO badge contrast must be >= 4.5:1");
+        assert!(ContrastRatio(&BlackBody, &BlackInfoBg) >= 4.5, "Pure black #info body contrast must be >= 4.5:1");
+
+        // Full SVG conversion test on #info box SVG
+        let InfoSvg = "<svg viewBox=\"0 0 595 842\"><path fill=\"#ffffff\" d=\"M 0 0v842h595v-842Z\"/><path fill=\"#e8f9ff\" stroke=\"#007aff\" d=\"M 40 40h200v60h-200Z\"/><g class=\"typst-text\"><use xlink:href=\"#g_info\" fill=\"#001666\"/><use xlink:href=\"#g_body\" fill=\"#000000\"/></g></svg>";
+        let LightSvg = ConvertSvgToDarkModeForMode(InfoSvg, "light");
+        assert!(LightSvg.contains("fill=\"#e8f9ff\"") && LightSvg.contains("fill=\"#001666\"") && LightSvg.contains("fill=\"#000000\""));
+
+        let OptSvg = ConvertSvgToDarkModeForMode(InfoSvg, "optimized");
+        assert!(OptSvg.contains("fill=\"#0D0D0F\""));
+        assert!(OptSvg.contains(&format!("fill=\"#{}\"", OptInfoBg)));
+        assert!(OptSvg.contains(&format!("fill=\"#{}\"", OptHeading)));
+        assert!(OptSvg.contains("fill=\"#D6D3CD\""));
+
+        let BlackSvg = ConvertSvgToDarkModeForMode(InfoSvg, "pure_black");
+        assert!(BlackSvg.contains("fill=\"#000000\""));
+        assert!(BlackSvg.contains(&format!("fill=\"#{}\"", BlackInfoBg)));
+        assert!(BlackSvg.contains(&format!("fill=\"#{}\"", BlackHeading)));
+        assert!(BlackSvg.contains("fill=\"#FFFFFF\""));
+    }
+
+   #[test]
+    fn TestListWorkspaceFilesDeduplicatedAndSorted()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let OrigDirs = GetTrackedDirectories();
+        let TempDir = std::env::temp_dir().join(format!("test_list_ws_{}", std::process::id()));
+        let SubDir = TempDir.join("components");
+        let _ = std::fs::create_dir_all(&SubDir);
+        let _ = std::fs::write(TempDir.join("typst.toml"), "[package]\nname = \"docs\"\n");
+        let _ = std::fs::write(TempDir.join("alpha.typ"), "= Alpha\n");
+        let _ = std::fs::write(SubDir.join("base.typ"), "= Base\n");
+
+        let CanonTemp = CanonicalizeOrResolve(&TempDir).to_string_lossy().to_string();
+        let _ = AddWorkspaceDirectory(CanonTemp.clone());
+
+        let Entries = ListWorkspaceFiles(Some(CanonTemp.clone())).expect("ListWorkspaceFiles should succeed");
+        let mut SeenKeys = std::collections::HashSet::new();
+        for Entry in &Entries
+        {
+            assert!(SeenKeys.insert(PathKey(&Entry.path)), "Duplicate path returned: {}", Entry.path);
+        }
+        assert!(Entries.len() >= 3);
+        assert!(Entries[0].is_dir && Entries[0].name == "components", "Directories must sort before files");
+
+        let _ = SaveTrackedDirectories(&OrigDirs);
+        let _ = std::fs::remove_dir_all(&TempDir);
+    }
+
+   #[test]
+    fn TestReadPipeCappedTruncatesSafelyAndDrains()
+    {
+        let Input = vec![b'X'; 4096];
+        let mut Cursor = std::io::Cursor::new(&Input);
+        let Drained = ReadPipeCapped(&mut Cursor, 1024);
+        assert_eq!(Drained.len(), 1024);
+        assert!(Drained.iter().all(|&B| B == b'X'));
+        assert_eq!(Cursor.position(), 4096, "Reader must drain pipe to EOF even after hitting cap");
+    }
+
+   #[test]
+    fn TestExecuteCommandWithTimeoutDrainsLargePipes()
+    {
+        if std::env::var_os("TYPST_STUDIO_PIPE_HELPER").is_some()
+        {
+            let StdoutChunk = vec![b'~'; 32 * 1024];
+            let StderrChunk = vec![b'^'; 32 * 1024];
+            let mut Out = std::io::stdout().lock();
+            let mut Error = std::io::stderr().lock();
+            for _ in 0..10
+            {
+                let _ = Error.write_all(&StderrChunk);
+                let _ = Out.write_all(&StdoutChunk);
+            }
+            let _ = Out.flush();
+            let _ = Error.flush();
+            std::process::exit(0);
+        }
+
+        let ExePath = std::env::current_exe().expect("current_exe should resolve");
+        let mut Cmd = CreateCommand(&ExePath);
+        Cmd.args(["--exact", "tests::TestExecuteCommandWithTimeoutDrainsLargePipes", "--nocapture"]);
+        Cmd.env("TYPST_STUDIO_PIPE_HELPER", "1");
+        Cmd.stdin(std::process::Stdio::null());
+        Cmd.stdout(std::process::Stdio::piped());
+        Cmd.stderr(std::process::Stdio::piped());
+
+        let Start = std::time::Instant::now();
+        let Child = Cmd.spawn().expect("helper process should spawn");
+        let Output = ExecuteCommandWithTimeout(Child, std::time::Duration::from_secs(5))
+            .expect("ExecuteCommandWithTimeout must drain >256 KB pipes without deadlocking");
+        let Elapsed = Start.elapsed();
+
+        assert!(Output.status.success(), "Helper process exited unsuccessfully: {:?}", Output.status);
+        let OutCount = Output.stdout.iter().filter(|&&B| B == b'~').count();
+        let ErrCount = Output.stderr.iter().filter(|&&B| B == b'^').count();
+        assert_eq!(OutCount, 320 * 1024, "Expected full 320 KB stdout payload, got {}", OutCount);
+        assert_eq!(ErrCount, 320 * 1024, "Expected full 320 KB stderr payload, got {}", ErrCount);
+        assert!(Elapsed < std::time::Duration::from_secs(4), "Draining 640 KB across pipes took too long: {:?}", Elapsed);
     }
 }
