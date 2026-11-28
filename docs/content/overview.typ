@@ -46,4 +46,4 @@ To learn how to install the Typst compiler CLI, visit the#link("https://typst.ap
 
 Our#link("https://github.com/typst/typst")[GitHub repository] provides additional developer-facing documentation about how to contribute to Typst and how to integrate it into your applications.
 
-The documentation also contains a @ changelog[changelog], in which you can track the evolution of Typst and what changes to the markup language mean for your projects.This documentation applies to Typst #sys.version.
+The documentation also contains a @ changelog[changelog], in which you can track the evolution of Typst and what changes to the markup language mean for your projects.This documentation applies to Typst#sys.version.

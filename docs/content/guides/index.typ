@@ -8,7 +8,6 @@
 ]
 
 #show: paged-heading-offset.with(1)
-#include "typst-studio.typ"
 #include "for-latex-users.typ"
 #include "page-setup.typ"
 #include "tables.typ"
