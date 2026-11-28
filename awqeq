@@ -1,0 +1,17 @@
+ docs/components/base.typ     | 148 [32m+++[m[31m-------[m
+ docs/components/category.typ | 638 [32m+++++++++++++++++[m[31m--------------------------[m
+ docs/components/example.typ  |  90 [32m++[m[31m----[m
+ docs/components/figure.typ   |  23 [32m+[m[31m-[m
+ docs/components/footnote.typ |   8 [32m+[m[31m-[m
+ docs/components/linking.typ  |  14 [32m+[m[31m-[m
+ docs/components/live.typ     |  14 [32m+[m[31m-[m
+ docs/components/nav.typ      | 234 [32m++++++++[m[31m--------[m
+ docs/components/pill.typ     |  28 [32m+[m[31m-[m
+ docs/components/preface.typ  |  16 [32m+[m[31m-[m
+ docs/components/reflect.typ  |  59 [32m++[m[31m--[m
+ docs/components/search.typ   |   6 [32m+[m[31m-[m
+ docs/components/section.typ  | 105 [32m+++[m[31m----[m
+ docs/components/styling.typ  | 101 [32m+++[m[31m----[m
+ docs/components/system.typ   |  41 [32m+[m[31m--[m
+ docs/components/table.typ    |  34 [32m++[m[31m-[m
+ 16 files changed, 573 insertions(+), 986 deletions(-)

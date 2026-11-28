@@ -6278,11 +6278,11 @@ kbd
     justify-content: space-between;
     background-color: #0E0E12;
     border-bottom: 1px solid #1E1E24;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     flex-shrink: 0;
     -webkit-user-select: none;
     user-select: none;
+    position: relative;
 }
 
 .EditorTabsList
@@ -6292,17 +6292,38 @@ kbd
     height: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-    flex: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    scrollbar-width: thin;
+    scrollbar-color: #3F3F46 transparent;
+    -webkit-overflow-scrolling: touch;
+}
+
+.EditorTabsList.IsDragging
+{
+    cursor: grabbing !important;
+    user-select: none !important;
 }
 
 .EditorTabsList::-webkit-scrollbar
 {
-    height: 2px;
+    height: 3px;
+}
+
+.EditorTabsList::-webkit-scrollbar-track
+{
+    background: transparent;
 }
 
 .EditorTabsList::-webkit-scrollbar-thumb
 {
     background: #3F3F46;
+    border-radius: 2px;
+}
+
+.EditorTabsList::-webkit-scrollbar-thumb:hover
+{
+    background: #71717A;
 }
 
 .EditorTab
@@ -6319,9 +6340,10 @@ kbd
     cursor: pointer;
     transition: background-color 0.12s ease, color 0.12s ease, border-top-color 0.12s ease;
     max-width: 240px;
-    min-width: 90px;
+    min-width: 100px;
     white-space: nowrap;
     position: relative;
+    flex-shrink: 0;
 }
 
 .EditorTab:hover

@@ -28,7 +28,8 @@ tools/test-helper/dist
 package-lock.json
 
 # TypstStudio local caches and build binaries
-TypstStudio/bin/
+TypstStudio/bin/*
+!TypstStudio/bin/.gitkeep
 TypstStudio/.temp/
 TypstStudio/.workspace_config.json
 TypstStudio Backup/

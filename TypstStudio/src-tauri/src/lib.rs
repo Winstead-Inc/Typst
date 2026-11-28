@@ -556,33 +556,74 @@ fn ConvertSvgToDarkMode(Svg: & str) -> String
     FinalSvg
 }
 
+fn GetTargetTriple() -> Option<&'static str>
+{
+    option_env!("TYPST_STUDIO_TARGET").or_else(|| option_env!("TARGET"))
+}
+
+fn BinaryFileNames(BaseName: &str) -> Vec<String>
+{
+    let Ext = std::env::consts::EXE_SUFFIX;
+    let mut Names = Vec::new();
+    if let Some(Triple) = GetTargetTriple()
+    {
+        Names.push(format!("{}-{}{}", BaseName, Triple, Ext));
+    }
+    Names.push(format!("{}{}", BaseName, Ext));
+    Names
+}
+
+fn FindInSystemPath(FileNames: &[String]) -> Option<std::path::PathBuf>
+{
+    let PathEnv = std::env::var_os("PATH")?;
+    for Dir in std::env::split_paths(&PathEnv)
+    {
+        for Name in FileNames
+        {
+            let Candidate = Dir.join(Name);
+            if Candidate.exists() && Candidate.is_file()
+            {
+                return Some(CanonicalizeOrResolve(&Candidate));
+            }
+        }
+    }
+    None
+}
+
 fn FindTypstBinary() -> std::path::PathBuf
 {
-    let BinName = if cfg!(windows)
-    {
-        "typst.exe"
-    }
-    else
-    {
-        "typst"
-    };
+    let BinNames = BinaryFileNames("typst");
+    let PlainBinName = BinNames.last().cloned().unwrap_or_else(|| format!("typst{}", std::env::consts::EXE_SUFFIX));
 
-    let mut Candidates: Vec<std::path::PathBuf> = Vec::new();
+    let mut CandidateDirs: Vec<std::path::PathBuf> = Vec::new();
 
     if let Ok(ExePath) = std::env::current_exe()
         && let Some(ExeDir) = ExePath.parent()
     {
-        Candidates.push(ExeDir.join("bin").join(BinName));
-        Candidates.push(ExeDir.join("resources").join("bin").join(BinName));
-        Candidates.push(ExeDir.join("resources").join(BinName));
-        Candidates.push(ExeDir.join(BinName));
-        Candidates.push(ExeDir.join("../Resources/bin").join(BinName));
-        Candidates.push(ExeDir.join("../../../bin").join(BinName));
-        Candidates.push(ExeDir.join("../../../target/release").join(BinName));
-        Candidates.push(ExeDir.join("../../../target/debug").join(BinName));
+        CandidateDirs.push(ExeDir.join("bin"));
+        CandidateDirs.push(ExeDir.join("resources").join("bin"));
+        CandidateDirs.push(ExeDir.join("resources"));
+        CandidateDirs.push(ExeDir.to_path_buf());
+        CandidateDirs.push(ExeDir.join("../Resources/bin"));
+        CandidateDirs.push(ExeDir.join("../Resources"));
+        CandidateDirs.push(ExeDir.join("../lib/TypstStudio"));
+        CandidateDirs.push(ExeDir.join("../../../bin"));
+        CandidateDirs.push(ExeDir.join("../../../target/release"));
+        CandidateDirs.push(ExeDir.join("../../../target/debug"));
+        CandidateDirs.push(ExeDir.join("../../../../../target/release"));
+        CandidateDirs.push(ExeDir.join("../../../../../target/debug"));
     }
 
-    for Rel in &[
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
+    {
+        let ManifestPath = std::path::Path::new(ManifestDir);
+        CandidateDirs.push(ManifestPath.join("../bin"));
+        CandidateDirs.push(ManifestPath.join("../../target/release"));
+        CandidateDirs.push(ManifestPath.join("../../target/debug"));
+    }
+
+    for Rel in &
+    [
         "target/release",
         "target/debug",
         "../target/release",
@@ -594,21 +635,25 @@ fn FindTypstBinary() -> std::path::PathBuf
         "../bin",
     ]
     {
-        Candidates.push(std::path::PathBuf::from(Rel).join(BinName));
+        CandidateDirs.push(std::path::PathBuf::from(Rel));
     }
 
     let mut ExistingWithMtime: Vec<(std::time::SystemTime, std::path::PathBuf)> = Vec::new();
-    for Cand in Candidates
+    for Dir in CandidateDirs
     {
-        if Cand.exists() && Cand.is_file()
+        for Name in &BinNames
         {
-            let Resolved = CanonicalizeOrResolve(&Cand);
-            let Mtime = std::fs::metadata(&Resolved)
-                .and_then(|M| M.modified())
-                .unwrap_or(std::time::UNIX_EPOCH);
-            if !ExistingWithMtime.iter().any(|(_, P)| P == &Resolved)
+            let Cand = Dir.join(Name);
+            if Cand.exists() && Cand.is_file()
             {
-                ExistingWithMtime.push((Mtime, Resolved));
+                let Resolved = CanonicalizeOrResolve(&Cand);
+                let Mtime = std::fs::metadata(&Resolved)
+                    .and_then(|M| M.modified())
+                    .unwrap_or(std::time::UNIX_EPOCH);
+                if !ExistingWithMtime.iter().any(|(_, P)| PathsEqual(P, &Resolved))
+                {
+                    ExistingWithMtime.push((Mtime, Resolved));
+                }
             }
         }
     }
@@ -618,12 +663,54 @@ fn FindTypstBinary() -> std::path::PathBuf
         return Best;
     }
 
-    std::path::PathBuf::from(BinName)
+    if let Some(FromPath) = FindInSystemPath(&BinNames)
+    {
+        return FromPath;
+    }
+
+    std::path::PathBuf::from(PlainBinName)
 }
 
 fn GetFontDirectories() -> Vec<std::path::PathBuf>
 {
-    let mut Dirs = Vec::new();
+    let mut Dirs: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Ok(CurrentExe) = std::env::current_exe()
+        && let Some(ExeDir) = CurrentExe.parent()
+    {
+        for Rel in &
+        [
+            "resources/fonts",
+            "resources/public/fonts",
+            "public/fonts",
+            "fonts",
+            "../Resources/fonts",
+            "../Resources/public/fonts",
+            "../Resources/resources/fonts",
+            "../lib/TypstStudio/fonts",
+        ]
+        {
+            let P = ExeDir.join(Rel);
+            if P.exists() && P.is_dir() && !Dirs.iter().any(|Existing| PathsEqual(Existing, &P))
+            {
+                Dirs.push(CanonicalizeOrResolve(&P));
+            }
+        }
+    }
+
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
+    {
+        let ManifestPath = std::path::Path::new(ManifestDir);
+        for Rel in &["../public/fonts", "../../assets/fonts"]
+        {
+            let P = ManifestPath.join(Rel);
+            if P.exists() && P.is_dir() && !Dirs.iter().any(|Existing| PathsEqual(Existing, &P))
+            {
+                Dirs.push(CanonicalizeOrResolve(&P));
+            }
+        }
+    }
+
     let Candidates =
     [
         "TypstStudio/public/fonts",
@@ -633,31 +720,14 @@ fn GetFontDirectories() -> Vec<std::path::PathBuf>
         "../assets/fonts",
         "../../TypstStudio/public/fonts",
         "../../assets/fonts",
-        r"E:\Typst\TypstStudio\public\fonts",
-        r"E:\Typst\assets\fonts",
     ];
-
-    if let Ok(CurrentExe) = std::env::current_exe()
-        && let Some(ExeDir) = CurrentExe.parent()
-        {
-            let CandidateRes = ExeDir.join("resources").join("fonts");
-            if CandidateRes.exists() && CandidateRes.is_dir()
-            {
-                Dirs.push(CandidateRes);
-            }
-            let CandidatePub = ExeDir.join("public").join("fonts");
-            if CandidatePub.exists() && CandidatePub.is_dir()
-            {
-                Dirs.push(CandidatePub);
-            }
-        }
 
     for Cand in Candidates
     {
         let P = std::path::PathBuf::from(Cand);
-        if P.exists() && P.is_dir() && !Dirs.contains(&P)
+        if P.exists() && P.is_dir() && !Dirs.iter().any(|Existing| PathsEqual(Existing, &P))
         {
-            Dirs.push(P);
+            Dirs.push(CanonicalizeOrResolve(&P));
         }
     }
 
@@ -667,7 +737,7 @@ fn GetFontDirectories() -> Vec<std::path::PathBuf>
 fn CreateCommand<P: AsRef<std::ffi::OsStr>>(Program: P) -> std::process::Command
 {
     let mut Cmd = std::process::Command::new(Program);
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         Cmd.creation_flags(0x08000000);
@@ -679,7 +749,8 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
 {
     if let Some(Path) = FilePath
     {
-        let RawPath = std::path::Path::new(Path);
+        let NormalizedInput = NormalizeInputPathString(Path);
+        let RawPath = std::path::Path::new(&NormalizedInput);
         let CanonCandidate = CanonicalizeOrResolve(RawPath);
         let StartDir = if CanonCandidate.is_dir()
         {
@@ -690,12 +761,61 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
             CanonCandidate.parent().map(|P| P.to_path_buf()).unwrap_or_else(|| CanonCandidate.clone())
         };
 
-        // 1. Upward walk for explicit project markers: typst.toml, .typst-studio
+        // 1. Check if CanonCandidate is inside any tracked workspace directory:
+        // Choose the deepest containing tracked directory.
+        let TrackedDirs = GetTrackedDirectories();
+        let mut BestTracked: Option<std::path::PathBuf> = None;
+        for Dir in &TrackedDirs
+        {
+            let TrackedPath = std::path::Path::new(Dir);
+            if IsPathContainedIn(TrackedPath, &CanonCandidate)
+            {
+                let CanonTracked = CanonicalizeOrResolve(TrackedPath);
+                if BestTracked.as_ref().map_or(true, |B| CanonTracked.as_os_str().len() > B.as_os_str().len())
+                {
+                    BestTracked = Some(CanonTracked);
+                }
+            }
+        }
+
+        if let Some(TrackedRoot) = BestTracked
+        {
+            // Within the tracked workspace, check if an interior subproject manifest (typst.toml / typst.yaml)
+            // exists between StartDir and TrackedRoot (inclusive).
+            let mut Current = StartDir.clone();
+            loop
+            {
+                if Current.join("typst.toml").exists()
+                    || Current.join("typst.yaml").exists()
+                {
+                    return Current;
+                }
+                if PathsEqual(&Current, &TrackedRoot)
+                {
+                    break;
+                }
+                if let Some(Parent) = Current.parent()
+                {
+                    if Parent == Current
+                    {
+                        break;
+                    }
+                    Current = Parent.to_path_buf();
+                }
+                else
+                {
+                    break;
+                }
+            }
+            return TrackedRoot;
+        }
+
+        // 2. Untracked file: Upward walk for official Typst package manifest: typst.toml or typst.yaml
         let mut Current = StartDir.clone();
         loop
         {
             if Current.join("typst.toml").exists()
-                || Current.join(".typst-studio").exists()
+                || Current.join("typst.yaml").exists()
             {
                 return Current;
             }
@@ -713,32 +833,12 @@ fn ResolveDocRoot(FilePath: Option<&str>, JobDir: &std::path::Path) -> std::path
             }
         }
 
-        // 2. Match against tracked workspace directories: choose the deepest containing directory
-        // This ensures tracked sub-projects (e.g. docs/ or submodules) take precedence over parent repos
-        let TrackedDirs = GetTrackedDirectories();
-        let mut BestTracked: Option<std::path::PathBuf> = None;
-        for Dir in &TrackedDirs
-        {
-            let TrackedPath = std::path::Path::new(Dir);
-            if IsPathContainedIn(TrackedPath, &CanonCandidate)
-            {
-                if BestTracked.as_ref().map_or(true, |B| TrackedPath.as_os_str().len() > B.as_os_str().len())
-                {
-                    BestTracked = Some(TrackedPath.to_path_buf());
-                }
-            }
-        }
-
-        if let Some(ProjectRoot) = BestTracked
-        {
-            return ProjectRoot;
-        }
-
-        // 3. Upward walk for version control boundary: .git
+        // 3. Untracked file: Upward walk for studio project or version control boundary: .typst-studio or .git
         let mut Current = StartDir.clone();
         loop
         {
-            if Current.join(".git").exists()
+            if Current.join(".typst-studio").exists()
+                || Current.join(".git").exists()
             {
                 return Current;
             }
@@ -1421,18 +1521,188 @@ fn NormalizePath(Path: &std::path::Path) -> std::path::PathBuf
     Components.into_iter().collect()
 }
 
-fn StripVerbatimPrefix(Path: &std::path::Path) -> std::path::PathBuf
+fn StripWindowsVerbatimStr(PathStr: &str) -> String
 {
-    let PathStr = Path.to_string_lossy();
     if let Some(Stripped) = PathStr.strip_prefix(r"\\?\UNC\")
     {
-        std::path::PathBuf::from(format!(r"\\{}", Stripped))
+        format!(r"\\{}", Stripped)
     }
     else if let Some(Stripped) = PathStr.strip_prefix(r"\\?\")
     {
-        std::path::PathBuf::from(Stripped)
+        Stripped.to_string()
     }
     else
+    {
+        PathStr.to_string()
+    }
+}
+
+fn IsWindowsStylePathStr(PathStr: &str) -> bool
+{
+    let Cleaned = StripWindowsVerbatimStr(PathStr.trim());
+    let Bytes = Cleaned.as_bytes();
+    let HasDrive = Bytes.len() >= 3 && Bytes[0].is_ascii_alphabetic() && Bytes[1] == b':' && (Bytes[2] == b'\\' || Bytes[2] == b'/');
+    let HasUnc = Cleaned.starts_with(r"\\");
+    HasDrive || HasUnc
+}
+
+fn CanonicalizeDocKeyForPlatform(PathStr: &str, IsWindowsEnv: bool) -> String
+{
+    let Trimmed = PathStr.trim();
+    if Trimmed.is_empty()
+    {
+        return String::new();
+    }
+
+    let TreatAsWindows = IsWindowsEnv || IsWindowsStylePathStr(Trimmed) || Trimmed.starts_with(r"\\?\");
+    if TreatAsWindows
+    {
+        let NoVerbatim = StripWindowsVerbatimStr(Trimmed);
+        let Forward = NoVerbatim.replace('\\', "/");
+        let IsUnc = Forward.starts_with("//");
+        let mut Collapsed = String::with_capacity(Forward.len());
+        let mut PrevSlash = false;
+
+        for (Idx, Ch) in Forward.char_indices()
+        {
+            if Ch == '/'
+            {
+                if (IsUnc && Idx < 2) || !PrevSlash
+                {
+                    Collapsed.push(Ch);
+                }
+                PrevSlash = true;
+            }
+            else
+            {
+                Collapsed.push(Ch);
+                PrevSlash = false;
+            }
+        }
+
+        let Bytes = Collapsed.as_bytes();
+        let IsDriveRoot = Bytes.len() == 3 && Bytes[0].is_ascii_alphabetic() && Bytes[1] == b':' && Bytes[2] == b'/';
+        let Stripped = if IsDriveRoot
+        {
+            Collapsed
+        }
+        else
+        {
+            Collapsed.trim_end_matches('/').to_string()
+        };
+        Stripped.to_lowercase()
+    }
+    else
+    {
+        let mut Collapsed = String::with_capacity(Trimmed.len());
+        let mut PrevSlash = false;
+        for Ch in Trimmed.chars()
+        {
+            if Ch == '/'
+            {
+                if !PrevSlash
+                {
+                    Collapsed.push(Ch);
+                }
+                PrevSlash = true;
+            }
+            else
+            {
+                Collapsed.push(Ch);
+                PrevSlash = false;
+            }
+        }
+        if Collapsed.len() > 1
+        {
+            Collapsed.trim_end_matches('/').to_string()
+        }
+        else
+        {
+            Collapsed
+        }
+    }
+}
+
+fn PathKey(PathStr: &str) -> String
+{
+    CanonicalizeDocKeyForPlatform(PathStr, cfg!(target_os = "windows"))
+}
+
+fn PathsEqual(A: &std::path::Path, B: &std::path::Path) -> bool
+{
+    let CanonA = CanonicalizeOrResolve(A);
+    let CanonB = CanonicalizeOrResolve(B);
+    PathKey(&CanonA.to_string_lossy()) == PathKey(&CanonB.to_string_lossy())
+}
+
+fn NormalizeInputPathString(PathStr: &str) -> String
+{
+    #[cfg(target_os = "windows")]
+    {
+        PathStr.trim().replace('/', "\\")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        PathStr.trim().to_string()
+    }
+}
+
+fn HasTraversalSegment(PathStr: &str) -> bool
+{
+    if std::path::Path::new(PathStr).components().any(|C| matches!(C, std::path::Component::ParentDir))
+    {
+        return true;
+    }
+    PathStr.split(['/', '\\']).any(|Seg| Seg == "..")
+}
+
+fn CheckWorkspacePathSecurityForPlatform(CandidatePath: &str, IsWindows: bool) -> Result<(), String>
+{
+    let Trimmed = CandidatePath.trim();
+    if Trimmed.is_empty()
+    {
+        return Err("Path specification cannot be empty.".to_string());
+    }
+
+    if Trimmed.contains('\0')
+    {
+        return Err("Access denied: Path contains prohibited null byte.".to_string());
+    }
+
+    if HasTraversalSegment(Trimmed)
+    {
+        return Err("Access denied: Relative '..' traversal segments are prohibited.".to_string());
+    }
+
+    if IsWindows
+    {
+        let VerbatimStripped = StripWindowsVerbatimStr(Trimmed);
+        let Bytes = VerbatimStripped.as_bytes();
+        let AfterDrive = if Bytes.len() >= 2 && Bytes[0].is_ascii_alphabetic() && Bytes[1] == b':'
+        {
+            &VerbatimStripped[2..]
+        }
+        else
+        {
+            &VerbatimStripped
+        };
+        if AfterDrive.contains(':')
+        {
+            return Err("Access denied: Alternate Data Streams are strictly prohibited.".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+fn StripVerbatimPrefix(Path: &std::path::Path) -> std::path::PathBuf
+{
+    #[cfg(target_os = "windows")]
+    {
+        let PathStr = Path.to_string_lossy();
+        std::path::PathBuf::from(StripWindowsVerbatimStr(&PathStr))
+    }
+    #[cfg(not(target_os = "windows"))]
     {
         Path.to_path_buf()
     }
@@ -1473,7 +1743,7 @@ fn IsPathContainedIn(ParentDir: &std::path::Path, ChildPath: &std::path::Path) -
     let CanonParent = CanonicalizeOrResolve(ParentDir);
     let CanonChild = CanonicalizeOrResolve(ChildPath);
 
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     {
         let ParentComponents: Vec<_> = CanonParent.components()
             .map(|C| C.as_os_str().to_string_lossy().to_lowercase())
@@ -1489,7 +1759,7 @@ fn IsPathContainedIn(ParentDir: &std::path::Path, ChildPath: &std::path::Path) -
 
         ChildComponents[..ParentComponents.len()] == ParentComponents[..]
     }
-    #[cfg(not(windows))]
+    #[cfg(not(target_os = "windows"))]
     {
         CanonChild.strip_prefix(&CanonParent).is_ok()
     }
@@ -1497,33 +1767,9 @@ fn IsPathContainedIn(ParentDir: &std::path::Path, ChildPath: &std::path::Path) -
 
 fn ValidateWorkspacePath(CandidatePath: &str, MustExist: bool, CheckExtension: bool) -> Result<std::path::PathBuf, String>
 {
+    CheckWorkspacePathSecurityForPlatform(CandidatePath, cfg!(target_os = "windows"))?;
+
     let Trimmed = CandidatePath.trim();
-    if Trimmed.is_empty()
-    {
-        return Err("Path specification cannot be empty.".to_string());
-    }
-
-    if Trimmed.contains('\0')
-    {
-        return Err("Access denied: Path contains prohibited null byte.".to_string());
-    }
-
-    #[cfg(windows)]
-    {
-        let AfterDrive = if Trimmed.len() >= 2 && Trimmed.as_bytes()[1] == b':'
-        {
-            &Trimmed[2..]
-        }
-        else
-        {
-            Trimmed
-        };
-        if AfterDrive.contains(':')
-        {
-            return Err("Access denied: Alternate Data Streams are strictly prohibited.".to_string());
-        }
-    }
-
     let RawPath = std::path::Path::new(Trimmed);
     let CanonCandidate = CanonicalizeOrResolve(RawPath);
 
@@ -1632,13 +1878,18 @@ fn ValidateExternalUrl(Url: &str) -> Result<String, String>
 #[tauri::command]
 fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
 {
-    let CleanPath = PathStr.trim().replace('/', "\\");
+    let CleanPath = NormalizeInputPathString(&PathStr);
     let RawPath = std::path::Path::new(&CleanPath);
 
     if RawPath.is_absolute()
     {
         let Validated = ValidateWorkspacePath(&CleanPath, true, false)?;
         return std::fs::read_to_string(&Validated).map_err(|Error| format!("Failed to read file: {}", Error));
+    }
+
+    if HasTraversalSegment(&CleanPath)
+    {
+        return Err("Access denied: Relative '..' traversal segments are prohibited.".to_string());
     }
 
     for Dir in GetTrackedDirectories()
@@ -1672,7 +1923,12 @@ fn ReadWorkspaceFile(PathStr: String) -> Result<String, String>
 #[tauri::command]
 fn SaveWorkspaceFile(PathStr: String, Content: String) -> Result<(), String>
 {
-    let CleanPath = PathStr.trim().replace('/', "\\");
+    let CleanPath = NormalizeInputPathString(&PathStr);
+    if HasTraversalSegment(&CleanPath)
+    {
+        return Err("Access denied: Relative '..' traversal segments are prohibited.".to_string());
+    }
+
     let RawPath = std::path::Path::new(&CleanPath);
 
     let TargetPath = if RawPath.is_absolute()
@@ -1766,43 +2022,164 @@ fn ListWorkspaceFiles(DirPath: Option<String>) -> Result<Vec<File_Entry>, String
     Ok(Results)
 }
 
+fn GetUserConfigDir() -> Option<std::path::PathBuf>
+{
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(AppData) = std::env::var_os("APPDATA")
+        {
+            return Some(std::path::PathBuf::from(AppData).join("TypstStudio"));
+        }
+        if let Some(Profile) = std::env::var_os("USERPROFILE")
+        {
+            return Some(std::path::PathBuf::from(Profile).join(".typst-studio"));
+        }
+        None
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(Home) = std::env::var_os("HOME")
+        {
+            return Some(std::path::PathBuf::from(Home).join("Library").join("Application Support").join("TypstStudio"));
+        }
+        None
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Some(Xdg) = std::env::var_os("XDG_CONFIG_HOME")
+        {
+            return Some(std::path::PathBuf::from(Xdg).join("typst-studio"));
+        }
+        if let Some(Home) = std::env::var_os("HOME")
+        {
+            return Some(std::path::PathBuf::from(Home).join(".config").join("typst-studio"));
+        }
+        None
+    }
+}
+
 fn FindWorkspaceConfigFile() -> std::path::PathBuf
 {
     for Rel in &
-    [".workspace_config.json", "TypstStudio/.workspace_config.json", "../.workspace_config.json", "../../.workspace_config.json",]
+    [
+        "TypstStudio/.workspace_config.json",
+        ".workspace_config.json",
+        "../.workspace_config.json",
+        "../../.workspace_config.json",
+    ]
     {
         let P = std::path::PathBuf::from(Rel);
         if P.exists()
-        { return P; }
+        {
+            return P;
+        }
     }
 
     if let Ok(Exe) = std::env::current_exe()
         && let Some(Dir) = Exe.parent()
+    {
+        for Rel in &
+        [
+            ".workspace_config.json",
+            "../Resources/.workspace_config.json",
+            "../../../.workspace_config.json",
+        ]
         {
-            let Candidate = Dir.join(".workspace_config.json");
+            let Candidate = Dir.join(Rel);
             if Candidate.exists()
-            { return Candidate; }
-            let DevCandidate = Dir.join("../../../.workspace_config.json");
-            if DevCandidate.exists()
-            { return DevCandidate; }
+            {
+                return Candidate;
+            }
         }
+    }
 
-    std::path::PathBuf::from(r"E:\Typst\TypstStudio\.workspace_config.json")
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
+    {
+        let DevConfig = std::path::Path::new(ManifestDir).join("../.workspace_config.json");
+        if DevConfig.exists()
+        {
+            return DevConfig;
+        }
+    }
+
+    if let Some(CfgDir) = GetUserConfigDir()
+    {
+        let UserCfg = CfgDir.join(".workspace_config.json");
+        if UserCfg.exists()
+        {
+            return UserCfg;
+        }
+        let _ = std::fs::create_dir_all(&CfgDir);
+        return UserCfg;
+    }
+
+    std::env::temp_dir().join("typst_studio_workspace_config.json")
 }
 
 fn GetTrackedDirectories() -> Vec<String>
 {
     let ConfigPath = FindWorkspaceConfigFile();
     if ConfigPath.exists()
-        && let Ok(Content) = std::fs::read_to_string( & ConfigPath)
-            && let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>( & Content) && ! Data.Directories.is_empty() { return Data.Directories; }
+        && let Ok(Content) = std::fs::read_to_string(&ConfigPath)
+        && let Ok(Data) = serde_json::from_str::<Workspace_Config_Data>(&Content)
+        && !Data.Directories.is_empty()
+    {
+        return Data.Directories;
+    }
 
-    vec![r"e:\Typst\projects".to_string()]
+    let mut Defaults: Vec<String> = Vec::new();
+    let mut Candidates: Vec<std::path::PathBuf> = Vec::new();
+
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
+    {
+        let ManifestPath = std::path::Path::new(ManifestDir);
+        Candidates.push(ManifestPath.join("../../projects/GenesisOfTheVanguard"));
+        Candidates.push(ManifestPath.join("../../projects"));
+        Candidates.push(ManifestPath.join("../../docs"));
+    }
+
+    for Rel in &["projects/GenesisOfTheVanguard", "projects", "../projects", "../../projects", "../docs"]
+    {
+        Candidates.push(std::path::PathBuf::from(Rel));
+    }
+
+    if let Some(Home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))
+    {
+        let HomePath = std::path::PathBuf::from(Home);
+        Candidates.push(HomePath.join("TypstProjects"));
+        Candidates.push(HomePath.join("Documents").join("Typst"));
+    }
+
+    for Cand in Candidates
+    {
+        if Cand.exists() && Cand.is_dir()
+        {
+            let CanonStr = CanonicalizeOrResolve(&Cand).to_string_lossy().to_string();
+            let Key = PathKey(&CanonStr);
+            if !Defaults.iter().any(|D| PathKey(D) == Key)
+            {
+                Defaults.push(CanonStr);
+            }
+        }
+    }
+
+    if !Defaults.is_empty()
+    {
+        return Defaults;
+    }
+
+    let Fallback = std::env::temp_dir().join("typst-studio-workspace");
+    let _ = std::fs::create_dir_all(&Fallback);
+    vec![CanonicalizeOrResolve(&Fallback).to_string_lossy().to_string()]
 }
 
 fn SaveTrackedDirectories(Dirs: & [String]) -> Result < (), String >
 {
     let ConfigPath = FindWorkspaceConfigFile();
+    if let Some(Parent) = ConfigPath.parent()
+    {
+        let _ = std::fs::create_dir_all(Parent);
+    }
     let Data = Workspace_Config_Data
     { Directories: Dirs.to_vec(), };
     let Json = serde_json::to_string_pretty( & Data).map_err
@@ -1877,7 +2254,7 @@ fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
     let mut UniqueFiles = Vec:: new ();
     for File in AllFiles
     {
-        let Key = File.Path.to_lowercase();
+        let Key = PathKey(&File.Path);
         if ! SeenFiles.contains( & Key)
         { SeenFiles.insert(Key); UniqueFiles.push(File); }
     }
@@ -1886,15 +2263,14 @@ fn GetWorkspaceInfo() -> Result<Workspace_Info_Response, String>
     let mut UniqueFolders = Vec:: new ();
     for mut Folder in AllFolders
     {
-        let Key = Folder.Path.to_lowercase();
+        let Key = PathKey(&Folder.Path);
         if ! SeenFolders.contains( & Key)
         {
             SeenFolders.insert(Key.clone());
-            let FolderPrefix = format!("{}\\", Key);
-            let FolderPrefixAlt = format!("{}/", Key);
+            let FolderPath = std::path::Path::new(&Folder.Path);
             Folder.FileCount = UniqueFiles
            .iter()
-           .filter( | F | { let FDir = F.Directory.to_lowercase(); FDir == Key || FDir.starts_with( & FolderPrefix) || FDir.starts_with( & FolderPrefixAlt) })
+           .filter( | F | PathKey(&F.Directory) == Key || IsPathContainedIn(FolderPath, std::path::Path::new(&F.Directory)))
            .count();
             UniqueFolders.push(Folder);
         }
@@ -1964,7 +2340,7 @@ fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Opt
     (
         ||
         {
-            "#set page\n(\n    paper: \"a4\",\n    margin: 2.5cm\n)\n\n#set text\n(\n    font: \"Segoe UI\",\n    size: 11pt\n)\n\n= New Document\n\nStart writing your Typst document here.\n".to_string()
+            "#set page\n(\n    paper: \"a4\",\n    margin: 2.5cm\n)\n\n#set text\n(\n    font: (\"Inter\", \"Liberation Sans\", \"Segoe UI\"),\n    size: 11pt\n)\n\n= New Document\n\nStart writing your Typst document here.\n".to_string()
         }
     );
 
@@ -1975,7 +2351,12 @@ fn CreateWorkspaceFile(Directory: Option<String>, FileName: String, Content: Opt
 #[tauri::command]
 fn DeleteWorkspaceFile(PathStr: String) -> Result<(), String>
 {
-    let CleanPath = PathStr.trim().replace('/', "\\");
+    let CleanPath = NormalizeInputPathString(&PathStr);
+    if HasTraversalSegment(&CleanPath)
+    {
+        return Err("Access denied: Relative '..' traversal segments are prohibited.".to_string());
+    }
+
     let RawPath = std::path::Path::new(&CleanPath);
 
     let TargetPath = if RawPath.is_absolute()
@@ -2005,7 +2386,7 @@ fn DeleteWorkspaceFile(PathStr: String) -> Result<(), String>
 #[tauri::command]
 fn RenameWorkspaceFile(OldPathStr: String, NewNameStr: String) -> Result<String, String>
 {
-    let CleanOld = OldPathStr.trim().replace('/', "\\");
+    let CleanOld = NormalizeInputPathString(&OldPathStr);
     let ValidatedOld = ValidateWorkspacePath(&CleanOld, true, true)?;
     let Parent = ValidatedOld.parent().ok_or_else
     (
@@ -2029,7 +2410,7 @@ fn RenameWorkspaceFile(OldPathStr: String, NewNameStr: String) -> Result<String,
     let NewTarget = Parent.join(&FinalName);
     let ValidatedNew = ValidateWorkspacePath(&NewTarget.to_string_lossy(), false, true)?;
 
-    if ValidatedNew.exists() && ValidatedNew != ValidatedOld
+    if ValidatedNew.exists() && !PathsEqual(&ValidatedNew, &ValidatedOld)
     {
         return Err(format!("A document named '{}' already exists in this folder", FinalName));
     }
@@ -2039,6 +2420,65 @@ fn RenameWorkspaceFile(OldPathStr: String, NewNameStr: String) -> Result<String,
         |Error| format!("Failed to rename file: {}", Error)
     )?;
     Ok(ValidatedNew.to_string_lossy().to_string())
+}
+
+fn IsProhibitedWorkspaceDirectory(Canon: &std::path::Path) -> bool
+{
+    if Canon.parent().is_none() || Canon.file_name().is_none()
+    {
+        return true;
+    }
+
+    let RawStr = Canon.to_string_lossy().to_string();
+    let Key = PathKey(&RawStr);
+
+    #[cfg(target_os = "windows")]
+    {
+        let Norm = Key.replace('/', "\\");
+        if Norm.contains("\\windows") || Norm.contains("\\system32") || Norm.ends_with(":\\program files") || Norm.ends_with(":\\program files (x86)")
+        {
+            return true;
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        const UNIX_FORBIDDEN_EXACT: &[&str] = &
+        [
+            "/", "/bin", "/boot", "/dev", "/etc", "/lib", "/lib64", "/proc", "/root", "/run",
+            "/sbin", "/sys", "/usr", "/usr/bin", "/usr/sbin", "/var", "/System", "/Library",
+            "/private", "/private/etc", "/private/var", "/Applications",
+        ];
+        if UNIX_FORBIDDEN_EXACT.iter().any(|P| *P == Key)
+            || Key.starts_with("/System/")
+            || Key.starts_with("/etc/")
+            || Key.starts_with("/bin/")
+            || Key.starts_with("/sbin/")
+            || Key.starts_with("/proc/")
+            || Key.starts_with("/sys/")
+            || Key.starts_with("/dev/")
+        {
+            return true;
+        }
+    }
+
+    if let Some(Home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))
+    {
+        let HomePath = CanonicalizeOrResolve(std::path::Path::new(&Home));
+        if PathsEqual(Canon, &HomePath)
+        {
+            return true;
+        }
+        for Sensitive in &[".ssh", ".gnupg", ".aws", ".azure", ".kube"]
+        {
+            if IsPathContainedIn(&HomePath.join(Sensitive), Canon)
+            {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 #[tauri::command]
@@ -2053,20 +2493,22 @@ fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
     {
         return Err("Path contains prohibited null byte".to_string());
     }
+    if HasTraversalSegment(Trimmed)
+    {
+        return Err("Security Violation: Relative '..' traversal segments are prohibited.".to_string());
+    }
 
     let P = std::path::Path::new(Trimmed);
     let Canon = CanonicalizeOrResolve(P);
 
-    // Prevent adding bare drive roots (e.g. C:\ or /) or operating system directories
     if Canon.parent().is_none() || Canon.file_name().is_none()
     {
         return Err("Security Violation: Adding an entire drive or filesystem root to the workspace is strictly prohibited.".to_string());
     }
 
-    let LowerStr = Canon.to_string_lossy().to_lowercase();
-    if LowerStr.contains("\\windows") || LowerStr.contains("/windows") || LowerStr.contains("\\system32") || LowerStr.contains("/system32")
+    if IsProhibitedWorkspaceDirectory(&Canon)
     {
-        return Err("Security Violation: Operating system directories cannot be added as workspace roots.".to_string());
+        return Err("Security Violation: Operating system or sensitive directories cannot be added as workspace roots.".to_string());
     }
 
     if !P.exists()
@@ -2075,9 +2517,10 @@ fn AddWorkspaceDirectory(PathStr: String) -> Result<(), String>
     }
 
     let mut Dirs = GetTrackedDirectories();
-    let Canonical = Canon.to_string_lossy().to_string();
+    let Canonical = CanonicalizeOrResolve(P).to_string_lossy().to_string();
+    let CanonKey = PathKey(&Canonical);
 
-    if !Dirs.iter().any(|D| D.eq_ignore_ascii_case(&Canonical))
+    if !Dirs.iter().any(|D| PathKey(D) == CanonKey)
     {
         Dirs.push(Canonical);
         SaveTrackedDirectories(&Dirs)?;
@@ -2091,9 +2534,14 @@ fn RemoveWorkspaceDirectory(PathStr: String) -> Result<(), String>
     let Trimmed = PathStr.trim();
     let P = std::path::Path::new(Trimmed);
     let Canon = CanonicalizeOrResolve(P).to_string_lossy().to_string();
+    let TrimKey = PathKey(Trimmed);
+    let CanonKey = PathKey(&Canon);
 
     let mut Dirs = GetTrackedDirectories();
-    Dirs.retain(|D| !D.eq_ignore_ascii_case(Trimmed) && !D.eq_ignore_ascii_case(&Canon));
+    Dirs.retain(|D| {
+        let K = PathKey(D);
+        K != TrimKey && K != CanonKey
+    });
     SaveTrackedDirectories(&Dirs)?;
     Ok(())
 }
@@ -2493,8 +2941,7 @@ fn GetDocumentHistoryPath(DocPath: Option<&str>) -> std::path::PathBuf
 {
     let DocPathBuf = DocPath.filter(|P| !P.trim().is_empty()).map(std::path::PathBuf::from);
     let ProjectDir = DocPathBuf.as_ref()
-        .and_then(|P| if P.is_file() { P.parent() } else { Some(P.as_path()) })
-        .map(|P| P.to_path_buf())
+        .map(|P| ResolveDocRoot(Some(&P.to_string_lossy()), &std::path::PathBuf::from(".")))
         .or_else(|| GetTrackedDirectories().first().map(std::path::PathBuf::from))
         .unwrap_or_else(|| std::path::PathBuf::from("."));
 
@@ -2635,13 +3082,41 @@ fn GetTimelineSnapshotContent(DocPath: Option<String>, SnapshotId: String) -> Re
     Err(format!("Snapshot {} not found", SnapshotId))
 }
 
+fn SyncElementSpanLen(Elem: &serde_json::Value) -> usize
+{
+    if let (Some(Start), Some(End)) =
+        (
+            Elem. get("start").and_then( | Val | Val.as_u64()),
+            Elem. get("end").and_then( | Val | Val.as_u64()),
+        )
+        && End >= Start
+    {
+        return (End - Start) as usize;
+    }
+
+    let Line = Elem. get("line").and_then( | Val | Val.as_u64()).unwrap_or(0);
+    let EndLine = Elem. get("end_line").and_then( | Val | Val.as_u64()).unwrap_or(Line);
+    let Col = Elem. get("col").and_then( | Val | Val.as_u64()).unwrap_or(0);
+    let EndCol = Elem. get("end_col").and_then( | Val | Val.as_u64()).unwrap_or(Col);
+    let LineSpan = EndLine.saturating_sub(Line) as usize;
+    let ColSpan = if LineSpan == 0 { EndCol.saturating_sub(Col) as usize } else { EndCol as usize };
+    LineSpan.saturating_mul(100_000).saturating_add(ColSpan)
+}
+
+fn IsLargeSyncWrapper(ElemW: f64, ElemH: f64) -> bool
+{
+    let Area = ElemW.max(0.0) * ElemH.max(0.0);
+    (ElemW >= 460.0 && ElemH >= 240.0) || Area >= 150_000.0
+}
+
 #[tauri::command]
 fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 {
     let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
     let SyncMap = & * Guard;
 
-    let mut BestElem: Option< & serde_json::Value> = None;
+    let mut BestHit: Option<(&serde_json::Value, bool, f64, usize)> = None;
+    let mut NearestElem: Option<(&serde_json::Value, bool)> = None;
     let mut MinDist = f64::INFINITY;
 
     for Elem in SyncMap
@@ -2651,14 +3126,42 @@ fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
 
         let ElemX = Elem. get("x").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
         let ElemY = Elem. get("y").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
-        let ElemW = Elem. get("width").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
-        let ElemH = Elem. get("height").and_then( | Val | Val.as_f64()).unwrap_or(0.0);
+        let ElemW = Elem. get("width").and_then( | Val | Val.as_f64()).unwrap_or(0.0).max(0.0);
+        let ElemH = Elem. get("height").and_then( | Val | Val.as_f64()).unwrap_or(0.0).max(0.0);
+        let Area = ElemW * ElemH;
+        let IsWrapper = IsLargeSyncWrapper(ElemW, ElemH);
+        let SpanLen = SyncElementSpanLen(Elem);
 
         let InX = X >= ElemX && X <= (ElemX + ElemW);
         let InY = Y >= ElemY && Y <= (ElemY + ElemH);
 
         if InX && InY
-        { BestElem = Some(Elem); break ; }
+        {
+            let Replace = match BestHit
+            {
+                None => true,
+                Some((_, BestIsWrapper, BestArea, BestSpan)) =>
+                {
+                    if BestIsWrapper != IsWrapper
+                    {
+                        !IsWrapper
+                    }
+                    else if (Area - BestArea).abs() > 1e-6
+                    {
+                        Area < BestArea
+                    }
+                    else
+                    {
+                        SpanLen < BestSpan
+                    }
+                }
+            };
+            if Replace
+            {
+                BestHit = Some((Elem, IsWrapper, Area, SpanLen));
+            }
+            continue ;
+        }
 
         let CenterX = ElemX + (ElemW / 2.0);
         let CenterY = ElemY + (ElemH / 2.0);
@@ -2666,9 +3169,29 @@ fn SyncClick(Page: usize, X: f64, Y: f64) -> Result<Sync_Click_Response, String>
         let Dy = (Y - CenterY) * 3.0;
         let DistSq = (Dx * Dx) + (Dy * Dy);
 
-        if DistSq < MinDist
-        { MinDist = DistSq; BestElem = Some(Elem); }
+        let ReplaceNearest = match NearestElem
+        {
+            None => true,
+            Some((_, BestIsWrapper)) =>
+            {
+                if BestIsWrapper != IsWrapper
+                {
+                    !IsWrapper
+                }
+                else
+                {
+                    DistSq < MinDist
+                }
+            }
+        };
+        if ReplaceNearest
+        {
+            MinDist = DistSq;
+            NearestElem = Some((Elem, IsWrapper));
+        }
     }
+
+    let BestElem = BestHit.map(|(Elem, _, _, _)| Elem).or_else(|| NearestElem.map(|(Elem, _)| Elem));
 
     if let Some(Elem) = BestElem
     {
@@ -2716,8 +3239,8 @@ fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
     let Guard = LAST_ACTIVE_SYNC_MAP.lock().map_err( | Error | Error.to_string())?;
     let SyncMap = & * Guard;
 
-    let mut BestElem: Option< & serde_json::Value> = None;
-    let mut MinColDist = usize::MAX;
+    let mut BestElem: Option<(&serde_json::Value, bool, usize, usize, f64)> = None;
+    let mut BestFallback: Option<(&serde_json::Value, usize, bool, usize, f64)> = None;
 
     for Elem in SyncMap
     {
@@ -2725,30 +3248,82 @@ fn SyncCursor(Line: usize, Col: usize) -> Result<Sync_Cursor_Response, String>
         let ElemEndLine = Elem. get("end_line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(ElemLine);
         let ElemCol = Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
         let ElemEndCol = Elem. get("end_col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(ElemCol);
+        let ElemW = Elem. get("width").and_then( | Val | Val.as_f64()).unwrap_or(0.0).max(0.0);
+        let ElemH = Elem. get("height").and_then( | Val | Val.as_f64()).unwrap_or(0.0).max(0.0);
+        let Area = ElemW * ElemH;
+        let IsWrapper = IsLargeSyncWrapper(ElemW, ElemH);
+        let LineSpan = ElemEndLine.saturating_sub(ElemLine);
+        let SpanLen = SyncElementSpanLen(Elem);
 
         let StartsBefore = ElemLine < Line || (ElemLine == Line && ElemCol <= Col);
         let EndsAfter = ElemEndLine > Line || (ElemEndLine == Line && ElemEndCol >= Col);
 
         if StartsBefore && EndsAfter
-        { BestElem = Some(Elem); break ; }
-    }
-
-    if BestElem.is_none()
-    {
-        for Elem in SyncMap
         {
-            let ElemLine = Elem. get("line").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
-            if ElemLine == Line
+            let Replace = match BestElem
             {
-                let ElemCol = Elem. get("col").and_then( | Val | Val.as_u64()).map( | Val | Val as usize).unwrap_or(0);
-                let Dist = (ElemCol as isize - Col as isize).unsigned_abs();
-                if Dist < MinColDist
-                { MinColDist = Dist; BestElem = Some(Elem); }
+                None => true,
+                Some((_, BestIsWrapper, BestLineSpan, BestSpanLen, BestArea)) =>
+                {
+                    if BestIsWrapper != IsWrapper
+                    {
+                        !IsWrapper
+                    }
+                    else if LineSpan != BestLineSpan
+                    {
+                        LineSpan < BestLineSpan
+                    }
+                    else if SpanLen != BestSpanLen
+                    {
+                        SpanLen < BestSpanLen
+                    }
+                    else
+                    {
+                        Area + 1e-6 < BestArea
+                    }
+                }
+            };
+            if Replace
+            {
+                BestElem = Some((Elem, IsWrapper, LineSpan, SpanLen, Area));
+            }
+        }
+        else if ElemLine == Line
+        {
+            let Dist = (ElemCol as isize - Col as isize).unsigned_abs();
+            let Replace = match BestFallback
+            {
+                None => true,
+                Some((_, BestDist, BestIsWrapper, BestSpanLen, BestArea)) =>
+                {
+                    if Dist != BestDist
+                    {
+                        Dist < BestDist
+                    }
+                    else if BestIsWrapper != IsWrapper
+                    {
+                        !IsWrapper
+                    }
+                    else if SpanLen != BestSpanLen
+                    {
+                        SpanLen < BestSpanLen
+                    }
+                    else
+                    {
+                        Area + 1e-6 < BestArea
+                    }
+                }
+            };
+            if Replace
+            {
+                BestFallback = Some((Elem, Dist, IsWrapper, SpanLen, Area));
             }
         }
     }
 
-    if let Some(Elem) = BestElem
+    let FinalBest = BestElem.map(|(Elem, _, _, _, _)| Elem).or_else(|| BestFallback.map(|(Elem, _, _, _, _)| Elem));
+
+    if let Some(Elem) = FinalBest
     {
         Ok
         (
@@ -3212,13 +3787,60 @@ fn GetSystemStatus() -> Result<System_Status_Response, String>
     )
 }
 
-const PINNED_LAFS_HASHES: &[&str] =
+struct Lafs_Hash_Table_Entry
+{
+    Os: &'static str,
+    Arch: &'static str,
+    Hashes: &'static [&'static str],
+}
+
+const PINNED_LAFS_HASHES_BY_TARGET: &[Lafs_Hash_Table_Entry] =
 &[
-    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
-    "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
-    "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
-    "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec",
+    Lafs_Hash_Table_Entry
+    {
+        Os: "windows",
+        Arch: "x86_64",
+        Hashes: &
+        [
+            "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
+            "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
+            "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
+            "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec",
+            "6ff045a5714ca6b803c4e595af05501ce3d88448d754e52e599604d29d0a6109",
+            "0f5d206cc65d0130d96832e59f16e4e059e993cb51b16226d571dbc7045e00f3",
+            "a0773705f753be3b904f094794b52d3f6dab4409d0019f1fb57b261727a4c465",
+        ],
+    },
+    Lafs_Hash_Table_Entry { Os: "windows", Arch: "aarch64", Hashes: &[] },
+    Lafs_Hash_Table_Entry { Os: "macos", Arch: "aarch64", Hashes: &[] },
+    Lafs_Hash_Table_Entry { Os: "macos", Arch: "x86_64", Hashes: &[] },
+    Lafs_Hash_Table_Entry { Os: "linux", Arch: "x86_64", Hashes: &[] },
+    Lafs_Hash_Table_Entry { Os: "linux", Arch: "aarch64", Hashes: &[] },
 ];
+
+fn GetTrustedLafsDirectories() -> Vec<std::path::PathBuf>
+{
+    let mut Trusted = Vec::new();
+    if let Ok(CurrentExe) = std::env::current_exe()
+        && let Some(Parent) = CurrentExe.parent()
+    {
+        Trusted.push(CanonicalizeOrResolve(&Parent.join("bin")));
+        Trusted.push(CanonicalizeOrResolve(&Parent.join("resources").join("bin")));
+        Trusted.push(CanonicalizeOrResolve(&Parent.join("../Resources/bin")));
+        Trusted.push(CanonicalizeOrResolve(Parent));
+    }
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
+    {
+        let ManifestPath = std::path::Path::new(ManifestDir);
+        Trusted.push(CanonicalizeOrResolve(&ManifestPath.join("../bin")));
+        Trusted.push(CanonicalizeOrResolve(&ManifestPath.join("../../target/release")));
+    }
+    for Rel in &["TypstStudio/bin", "bin", "../bin", "target/release", "../target/release"]
+    {
+        Trusted.push(CanonicalizeOrResolve(std::path::Path::new(Rel)));
+    }
+    Trusted
+}
 
 fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
 {
@@ -3226,40 +3848,88 @@ fn VerifyLafsBinaryIntegrity(Path: &std::path::Path) -> bool
     {
         return false;
     }
-    if let Ok(Bytes) = std::fs::read(Path)
+
+    let CanonPath = CanonicalizeOrResolve(Path);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(Meta) = std::fs::metadata(&CanonPath)
+            && (Meta.permissions().mode() & 0o002) != 0
+        {
+            return false;
+        }
+    }
+
+    if let Ok(Bytes) = std::fs::read(&CanonPath)
     {
         use sha2::{Digest, Sha256};
         let mut Hasher = Sha256::new();
         Hasher.update(&Bytes);
         let Digest = format!("{:x}", Hasher.finalize());
-        return PINNED_LAFS_HASHES.iter().any(|H| Digest.eq_ignore_ascii_case(H));
+
+        if let Ok(EnvHash) = std::env::var("TYPST_STUDIO_LAFS_SHA256")
+        {
+            let Trimmed = EnvHash.trim();
+            if Trimmed.len() == 64 && Trimmed.chars().all(|C| C.is_ascii_hexdigit())
+            {
+                return Digest.eq_ignore_ascii_case(Trimmed);
+            }
+        }
+
+        let PlatformHashes = PINNED_LAFS_HASHES_BY_TARGET
+            .iter()
+            .find(|Entry| Entry.Os == std::env::consts::OS && Entry.Arch == std::env::consts::ARCH)
+            .map(|Entry| Entry.Hashes)
+            .unwrap_or(&[]);
+
+        if !PlatformHashes.is_empty()
+        {
+            return PlatformHashes.iter().any(|H| Digest.eq_ignore_ascii_case(H));
+        }
+
+        return GetTrustedLafsDirectories().iter().any(|Dir| IsPathContainedIn(Dir, &CanonPath));
     }
     false
 }
 
 fn ResolveLafsBinary() -> Option<std::path::PathBuf>
 {
-    let BinName = if cfg!(windows) { "lafs.exe" } else { "lafs" };
-    let mut Candidates = Vec::new();
+    let BinNames = BinaryFileNames("lafs");
+    let mut CandidateDirs = Vec::new();
     if let Ok(CurrentExe) = std::env::current_exe()
         && let Some(Parent) = CurrentExe.parent()
     {
-        Candidates.push(Parent.join("bin").join(BinName));
-        Candidates.push(Parent.join(BinName));
-        Candidates.push(Parent.join("../../../bin").join(BinName));
-        Candidates.push(Parent.join("../../../").join(BinName));
+        CandidateDirs.push(Parent.join("bin"));
+        CandidateDirs.push(Parent.join("resources").join("bin"));
+        CandidateDirs.push(Parent.join("../Resources/bin"));
+        CandidateDirs.push(Parent.to_path_buf());
+        CandidateDirs.push(Parent.join("../../../bin"));
+        CandidateDirs.push(Parent.join("../../../"));
     }
-    Candidates.push(std::path::PathBuf::from("TypstStudio/bin").join(BinName));
-    Candidates.push(std::path::PathBuf::from("bin").join(BinName));
-    Candidates.push(std::path::PathBuf::from("../bin").join(BinName));
-    Candidates.push(std::path::PathBuf::from(BinName));
-    Candidates.push(std::path::PathBuf::from("../").join(BinName));
-
-    for Cand in Candidates
+    if let Some(ManifestDir) = option_env!("CARGO_MANIFEST_DIR")
     {
-        if Cand.exists() && VerifyLafsBinaryIntegrity(&Cand)
+        let ManifestPath = std::path::Path::new(ManifestDir);
+        CandidateDirs.push(ManifestPath.join("../bin"));
+        CandidateDirs.push(ManifestPath.join("../../target/release"));
+    }
+    CandidateDirs.push(std::path::PathBuf::from("TypstStudio/bin"));
+    CandidateDirs.push(std::path::PathBuf::from("bin"));
+    CandidateDirs.push(std::path::PathBuf::from("../bin"));
+    CandidateDirs.push(std::path::PathBuf::from("target/release"));
+    CandidateDirs.push(std::path::PathBuf::from("../target/release"));
+    CandidateDirs.push(std::path::PathBuf::from("."));
+    CandidateDirs.push(std::path::PathBuf::from(".."));
+
+    for Dir in CandidateDirs
+    {
+        for BinName in &BinNames
         {
-            return Some(CanonicalizeOrResolve(&Cand));
+            let Cand = Dir.join(BinName);
+            if Cand.exists() && VerifyLafsBinaryIntegrity(&Cand)
+            {
+                return Some(CanonicalizeOrResolve(&Cand));
+            }
         }
     }
     None
@@ -3511,6 +4181,67 @@ fn OpenExternalUrl(App: tauri::AppHandle, Url: String) -> Result<(), String>
 }
 
 #[tauri::command]
+fn RevealInFolder(PathStr: String) -> Result<(), String>
+{
+    let CleanPath = NormalizeInputPathString(&PathStr);
+    let Validated = ValidateWorkspacePath(&CleanPath, true, false)?;
+
+    #[cfg(target_os = "windows")]
+    {
+        if Validated.is_dir()
+        {
+            CreateCommand("explorer.exe")
+                .arg(&Validated)
+                .spawn()
+                .map_err(|E| format!("Failed to open Explorer: {}", E))?;
+        }
+        else
+        {
+            CreateCommand("explorer.exe")
+                .arg(format!("/select,{}", Validated.to_string_lossy()))
+                .spawn()
+                .map_err(|E| format!("Failed to reveal file in Explorer: {}", E))?;
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        if Validated.is_dir()
+        {
+            CreateCommand("open")
+                .arg(&Validated)
+                .spawn()
+                .map_err(|E| format!("Failed to open Finder: {}", E))?;
+        }
+        else
+        {
+            CreateCommand("open")
+                .args(["-R", &Validated.to_string_lossy()])
+                .spawn()
+                .map_err(|E| format!("Failed to reveal file in Finder: {}", E))?;
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        let TargetDir = if Validated.is_dir()
+        {
+            Validated.as_path()
+        }
+        else
+        {
+            Validated.parent().unwrap_or(Validated.as_path())
+        };
+        CreateCommand("xdg-open")
+            .arg(TargetDir)
+            .spawn()
+            .map_err(|E| format!("Failed to open file manager: {}", E))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 fn EnforceContainerPhysics(Request: container_physics::Container_Action_Request) -> Result<container_physics::Container_Action_Response, String>
 {
     Ok(container_physics::ProcessContainerAction(Request))
@@ -3561,6 +4292,7 @@ pub fn run()
             SetFullscreen,
             ToggleDevTools,
             OpenExternalUrl,
+            RevealInFolder,
             PasteClipboardImage,
             SavePastedFileAsset,
             SaveTimelineSnapshot,
@@ -3633,25 +4365,51 @@ mod tests
    #[test]
     fn TestFormatTypst()
     {
-        let Formatted = FormatTypst("= Title\n".to_string()).expect("FormatTypst should succeed");
-        assert!(Formatted.Success);
+        let HasLafs = ResolveLafsBinary().is_some();
+        let Input = "= Title\n".to_string();
+        let Formatted = FormatTypst(Input.clone()).expect("FormatTypst should not error");
+        if HasLafs
+        {
+            assert!(Formatted.Success);
+        }
+        else
+        {
+            assert!(!Formatted.Success && Formatted.HasError);
+            assert_eq!(Formatted.Formatted, Input, "Must keep buffer untouched when LAFS binary is absent");
+        }
     }
 
    #[test]
     fn TestFormatTypstRawCodeBlock()
     {
+        let HasLafs = ResolveLafsBinary().is_some();
+
         // 1. Test Monolith collapsing for short block within complexity budget
         let ShortSource = "#rect[\n```rust\nfn test() {\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
-        let FormattedShort = FormatTypst(ShortSource).expect("FormatTypst should succeed");
-        assert!(FormattedShort.Success);
-        assert!(FormattedShort.Formatted.contains("fn test() { let x = 1; return x; }"));
+        let FormattedShort = FormatTypst(ShortSource.clone()).expect("FormatTypst call should succeed");
+        if HasLafs
+        {
+            assert!(FormattedShort.Success);
+            assert!(FormattedShort.Formatted.contains("fn test() { let x = 1; return x; }"));
+        }
+        else
+        {
+            assert_eq!(FormattedShort.Formatted, ShortSource);
+        }
 
         // 2. Test Expanded Symmetry when container contains a forced break
         let LongSource = "#rect[\n```rust\nfn test() {\n// forced break\nlet x = 1;\nreturn x;\n}\n```\n]".to_string();
-        let FormattedLong = FormatTypst(LongSource).expect("FormatTypst should succeed");
-        assert!(FormattedLong.Success);
-        assert!(!FormattedLong.Formatted.contains("fn test() {"));
-        assert!(FormattedLong.Formatted.contains("fn test()\n{"));
+        let FormattedLong = FormatTypst(LongSource.clone()).expect("FormatTypst call should succeed");
+        if HasLafs
+        {
+            assert!(FormattedLong.Success);
+            assert!(!FormattedLong.Formatted.contains("fn test() {"));
+            assert!(FormattedLong.Formatted.contains("fn test()\n{"));
+        }
+        else
+        {
+            assert_eq!(FormattedLong.Formatted, LongSource);
+        }
     }
 
    #[test]
@@ -3736,9 +4494,21 @@ mod tests
    #[test]
     fn TestResolveAssetsDirectory()
     {
-        let DocFile = "E:/Typst/Books/Novel.typ";
-        let Assets = ResolveAssetsDirectory(Some(DocFile));
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let OrigDirs = GetTrackedDirectories();
+        let TempDir = std::env::temp_dir().join(format!("test_assets_dir_{}", std::process::id()));
+        let BooksDir = TempDir.join("Books");
+        let _ = std::fs::create_dir_all(&BooksDir);
+        let DocPath = BooksDir.join("Novel.typ");
+        let _ = std::fs::write(&DocPath, "= Novel\n");
+        let _ = AddWorkspaceDirectory(CanonicalizeOrResolve(&TempDir).to_string_lossy().to_string());
+
+        let Assets = ResolveAssetsDirectory(Some(&DocPath.to_string_lossy()));
         assert!(Assets.ends_with("assets"));
+        assert!(IsPathContainedIn(&BooksDir, &Assets));
+
+        let _ = SaveTrackedDirectories(&OrigDirs);
+        let _ = std::fs::remove_dir_all(&TempDir);
     }
 
    #[test]
@@ -3816,34 +4586,49 @@ mod tests
     #[test]
     fn TestPathTraversalAndWorkspaceContainment()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let OrigDirs = GetTrackedDirectories();
+        let TempDir = std::env::temp_dir().join(format!("test_sec_ws_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&TempDir);
+        let CanonRoot = CanonicalizeOrResolve(&TempDir);
+        let _ = AddWorkspaceDirectory(CanonRoot.to_string_lossy().to_string());
+
         // 1. Attempting to access an arbitrary system path outside workspace must fail
         let OutsidePath = if cfg!(windows) { r"C:\Windows\System32\cmd.exe" } else { "/etc/passwd" };
         let Result = ValidateWorkspacePath(OutsidePath, false, false);
         assert!(Result.is_err(), "Outside system path must be rejected");
         assert!(Result.unwrap_err().contains("Access denied"));
 
-        // 2. Relative traversal attempting to escape workspace must fail
-        let TraversalPath = r"e:\Typst\projects\..\..\Windows\System32\cmd.exe";
-        let Result2 = ValidateWorkspacePath(TraversalPath, false, false);
+        // 2. Relative traversal attempting to escape workspace must fail on all OSes
+        let TraversalPath = format!("{}/../../etc/passwd", CanonRoot.to_string_lossy());
+        let Result2 = ValidateWorkspacePath(&TraversalPath, false, false);
         assert!(Result2.is_err(), "Relative traversal escaping workspace must be rejected");
+        assert!(Result2.as_ref().unwrap_err().contains("Access denied"));
 
-        // 3. Prohibited null bytes must fail
-        let NullByte = "e:\\Typst\\projects\\doc\0.typ";
-        let Result3 = ValidateWorkspacePath(NullByte, false, false);
+        // 3. Prohibited null bytes must fail on all OSes
+        let NullByte = format!("{}/doc\0.typ", CanonRoot.to_string_lossy());
+        let Result3 = ValidateWorkspacePath(&NullByte, false, false);
         assert!(Result3.is_err(), "Null byte path must be rejected");
+
+        let _ = SaveTrackedDirectories(&OrigDirs);
+        let _ = std::fs::remove_dir_all(&TempDir);
     }
 
     #[test]
     fn TestForbiddenExtensionsAndProtectedFiles()
     {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
         let Tracked = GetTrackedDirectories();
-        let Root = Tracked.first().cloned().unwrap_or_else(|| r"e:\Typst\projects".to_string());
+        let RootPath = Tracked
+            .first()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::env::temp_dir());
 
         // 1. Forbidden executable extensions (.bat, .exe, .ps1, .sh) must fail
         for Ext in &[".exe", ".bat", ".ps1", ".cmd", ".vbs", ".sh"]
         {
-            let Malicious = format!("{}\\{}exploit{}", Root, std::path::MAIN_SEPARATOR, Ext);
-            let Res = ValidateWorkspacePath(&Malicious, false, true);
+            let Malicious = RootPath.join(format!("exploit{}", Ext));
+            let Res = ValidateWorkspacePath(&Malicious.to_string_lossy(), false, true);
             assert!(Res.is_err(), "Executable extension {} must be rejected", Ext);
             assert!(Res.unwrap_err().contains("strictly forbidden"));
         }
@@ -3851,8 +4636,8 @@ mod tests
         // 2. Protected system configuration files must fail
         for Protected in &[".workspace_config.json", ".env", "server.js", "package.json"]
         {
-            let Target = format!("{}\\{}{}", Root, std::path::MAIN_SEPARATOR, Protected);
-            let Res = ValidateWorkspacePath(&Target, false, false);
+            let Target = RootPath.join(Protected);
+            let Res = ValidateWorkspacePath(&Target.to_string_lossy(), false, false);
             assert!(Res.is_err(), "Protected system file {} must be rejected", Protected);
             assert!(Res.unwrap_err().contains("protected system configuration file"));
         }
@@ -4007,7 +4792,104 @@ mod tests
         let ResolvedToml = ResolveDocRoot(Some(&TablesTyp.to_string_lossy()), &TempBase);
         assert_eq!(CanonicalizeOrResolve(&ResolvedToml), CanonDocsDir, "typst.toml must take highest precedence");
 
+        // 4. Even if a rogue .typst-studio folder exists in a nested content subfolder,
+        // it must NEVER clamp the project root away from the tracked workspace folder or typst.toml
+        let RogueStudio = NestedGuides.join(".typst-studio");
+        let _ = std::fs::create_dir_all(&RogueStudio);
+        let _ = SaveTrackedDirectories(&TempDirs);
+        let ResolvedWithRogue = ResolveDocRoot(Some(&TablesTyp.to_string_lossy()), &TempBase);
+        assert_eq!(CanonicalizeOrResolve(&ResolvedWithRogue), CanonDocsDir, "Interior .typst-studio must not clamp tracked workspace root");
+        let _ = SaveTrackedDirectories(&OrigDirs);
+
         let _ = std::fs::remove_dir_all(&TempBase);
+    }
+
+    #[test]
+    fn TestDocsContentRootResolutionAndCompilation()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+
+        let DocsPath = option_env!("CARGO_MANIFEST_DIR")
+            .map(|M| std::path::PathBuf::from(M).join("../../docs"))
+            .unwrap_or_else(|| std::path::PathBuf::from("docs"));
+        if !DocsPath.exists()
+        {
+            return;
+        }
+
+        let CanonDocs = CanonicalizeOrResolve(&DocsPath);
+
+        fn AssertStandaloneChapterCompilesCleanly(DocPath: &std::path::Path, CanonDocs: &std::path::Path, Label: &str)
+        {
+            assert!(DocPath.exists(), "{} must exist on disk for standalone compilation test", Label);
+            let Resolved = ResolveDocRoot(Some(&DocPath.to_string_lossy()), CanonDocs);
+            assert_eq!(CanonicalizeOrResolve(&Resolved), *CanonDocs, "{} must resolve root to docs directory", Label);
+
+            let Source = std::fs::read_to_string(DocPath).unwrap_or_else(|Error| panic!("Read {}: {}", Label, Error));
+            let Resp = CompileTypstSync(Source, Some(DocPath.to_string_lossy().to_string()), Some(false))
+                .unwrap_or_else(|Error| panic!("Compile {} succeeds: {}", Label, Error));
+
+            assert!
+            (
+                Resp.success,
+                "{} must compile standalone with 0 errors:\n{}",
+                Label,
+                Resp.error.as_deref().unwrap_or("")
+            );
+            assert!
+            (
+                Resp.error.is_none(),
+                "{} must report no compiler diagnostics:\n{}",
+                Label,
+                Resp.error.as_deref().unwrap_or("")
+            );
+            assert!(Resp.page_count > 0, "{} must generate at least 1 SVG page", Label);
+            assert_eq!(Resp.pages.len(), Resp.page_count, "{} rendered SVG page count must match pages.len()", Label);
+            assert!
+            (
+                Resp.pages.iter().all(|Svg| Svg.contains("<svg") && Svg.contains("</svg>")),
+                "All rendered pages for {} must contain valid SVG markup",
+                Label
+            );
+        }
+
+        // Verify standalone compilation of official docs/content chapters to >0 SVG pages with 0 errors
+        let OverviewPath = CanonDocs.join("content").join("overview.typ");
+        AssertStandaloneChapterCompilesCleanly(&OverviewPath, &CanonDocs, "docs/content/overview.typ");
+
+        let TablesPath = CanonDocs.join("content").join("guides").join("tables.typ");
+        AssertStandaloneChapterCompilesCleanly(&TablesPath, &CanonDocs, "docs/content/guides/tables.typ");
+
+        let ForLatexUsersPath = CanonDocs.join("content").join("guides").join("for-latex-users.typ");
+        AssertStandaloneChapterCompilesCleanly(&ForLatexUsersPath, &CanonDocs, "docs/content/guides/for-latex-users.typ");
+
+        let AccessibilityPath = CanonDocs.join("content").join("guides").join("accessibility.typ");
+        AssertStandaloneChapterCompilesCleanly(&AccessibilityPath, &CanonDocs, "docs/content/guides/accessibility.typ");
+
+        // Verify a self-contained nested file inside docs/content/ importing ../components/base.typ
+        // resolves DocRoot to docs/, compiles with 0 errors, and emits valid SVG pages.
+        let NestedPath = CanonDocs.join("content").join("nested_self_contained_check.typ");
+        let ResolvedNested = ResolveDocRoot(Some(&NestedPath.to_string_lossy()), &CanonDocs);
+        assert_eq!(CanonicalizeOrResolve(&ResolvedNested), CanonDocs, "Nested file in docs/content/ must resolve root to docs directory");
+
+        let SourceNested = concat!
+        (
+            "#import \"../components/base.typ\": info, kbd, small, title-case\n\n",
+            "= #title-case(\"nested compilation check\")\n\n",
+            "#info[Self-contained nested compilation importing `../components/base.typ` with #kbd(\"Ctrl+S\").]\n\n",
+            "#small[Verified DocRoot resolution and SVG page generation.]\n",
+        ).to_string();
+        let RespNested = CompileTypstSync(SourceNested, Some(NestedPath.to_string_lossy().to_string()), Some(false))
+            .expect("Compile nested self-contained file succeeds");
+        assert!(RespNested.success, "Self-contained nested file importing ../components/base.typ must compile with 0 errors: {:?}", RespNested.error);
+        assert!(RespNested.error.is_none(), "Self-contained nested file must report no compiler errors: {:?}", RespNested.error);
+        assert!(RespNested.page_count > 0, "Self-contained nested file must generate at least 1 SVG page");
+        assert_eq!(RespNested.pages.len(), RespNested.page_count, "Rendered SVG page count must match pages.len()");
+        assert!
+        (
+            RespNested.pages.iter().all(|Svg| Svg.contains("<svg") && Svg.contains("</svg>")),
+            "All rendered pages for nested self-contained file must contain valid SVG markup"
+        );
     }
 
    #[test]
@@ -4162,14 +5044,249 @@ mod tests
     #[test]
     fn TestFormatTypstNoDestructiveMutations()
     {
+        let HasLafs = ResolveLafsBinary().is_some();
         let Doc = "= My Heading\n\nSee example (\nhello\n) and also [\nworld\n].\n\n#while x < 10 {\n  x += 1\n}\n\n#if y > 0 {\n  [Positive]\n}\n".to_string();
         let Res = FormatTypst(Doc.clone()).expect("FormatTypst call succeeds");
-        assert!(Res.Success);
-        // Never turn while/if conditions into ' = {'
-        assert!(!Res.Formatted.contains(") ="), "Must never mutate conditions into ') ='");
-        assert!(!Res.Formatted.contains("10 ="), "Must never insert '=' after while condition");
-        assert!(!Res.Formatted.contains("0 ="), "Must never insert '=' after if condition");
-        // Headings must be intact
-        assert!(Res.Formatted.contains("= My Heading"));
+        if HasLafs
+        {
+            assert!(Res.Success);
+            // Never turn while/if conditions into ' = {'
+            assert!(!Res.Formatted.contains(") ="), "Must never mutate conditions into ') ='");
+            assert!(!Res.Formatted.contains("10 ="), "Must never insert '=' after while condition");
+            assert!(!Res.Formatted.contains("0 ="), "Must never insert '=' after if condition");
+            // Headings must be intact
+            assert!(Res.Formatted.contains("= My Heading"));
+        }
+        else
+        {
+            assert!(!Res.Success && Res.HasError);
+            assert_eq!(Res.Formatted, Doc, "Without LAFS binary, buffer must stay 100% untouched");
+        }
+    }
+
+    #[test]
+    fn TestCrossPlatformPathNormalizationAndSecurity()
+    {
+        // 1. EXE_SUFFIX binary candidate resolution naming check
+        let TypstNames = BinaryFileNames("typst");
+        if cfg!(target_os = "windows")
+        {
+            assert!(TypstNames.iter().any(|N| N == "typst.exe"));
+            assert!(TypstNames.iter().any(|N| N.starts_with("typst-") && N.ends_with(".exe")));
+        }
+        else
+        {
+            assert!(TypstNames.iter().any(|N| N == "typst"));
+            assert!(!TypstNames.iter().any(|N| N.ends_with(".exe")));
+        }
+
+        // 2. Canonical doc keys: Windows paths lowercase + slash-normalized + verbatim stripped
+        assert_eq!(
+            CanonicalizeDocKeyForPlatform(r"\\?\E:\Typst\My Docs\Main.typ", true),
+            "e:/typst/my docs/main.typ"
+        );
+        assert_eq!(
+            CanonicalizeDocKeyForPlatform(r"C:\Users\Alice\paper.typ", true),
+            "c:/users/alice/paper.typ"
+        );
+
+        // 3. Canonical doc keys: macOS and Linux paths MUST preserve leading '/' and exact case!
+        assert_eq!(
+            CanonicalizeDocKeyForPlatform("/Users/Alice/My Docs/Main.typ", false),
+            "/Users/Alice/My Docs/Main.typ"
+        );
+        assert_ne!(
+            CanonicalizeDocKeyForPlatform("/home/alice/Docs/Main.typ", false),
+            CanonicalizeDocKeyForPlatform("/home/alice/docs/main.typ", false)
+        );
+
+        // 4. Windows ADS colon blocking vs valid POSIX colons & universal null-byte / '..' rejection
+        assert!(CheckWorkspacePathSecurityForPlatform(r"E:\Typst\doc.typ", true).is_ok());
+        assert!(CheckWorkspacePathSecurityForPlatform(r"\\?\E:\Typst\doc.typ", true).is_ok());
+        assert!(CheckWorkspacePathSecurityForPlatform(r"E:\Typst\doc.typ:hidden", true).is_err());
+
+        // Valid POSIX colons must be allowed on Linux/macOS
+        assert!(CheckWorkspacePathSecurityForPlatform("/home/user/notes:v2/Main.typ", false).is_ok());
+        assert!(CheckWorkspacePathSecurityForPlatform("/Users/alice/Draft:1/file with spaces.typ", false).is_ok());
+
+        // Null bytes and '..' traversal must fail on ALL platforms
+        assert!(CheckWorkspacePathSecurityForPlatform("/home/user/doc\0.typ", false).is_err());
+        assert!(CheckWorkspacePathSecurityForPlatform("/home/user/../etc/passwd", false).is_err());
+        assert!(CheckWorkspacePathSecurityForPlatform(r"C:\ws\..\Windows\System32\cmd.exe", true).is_err());
+
+        // 5. Case-sensitive Linux sibling file containment & isolation on disk
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let OrigDirs = GetTrackedDirectories();
+        let TempBase = std::env::temp_dir().join(format!("test_xplat_case_{}", std::process::id()));
+        let UpperDir = TempBase.join("Docs");
+        let _ = std::fs::create_dir_all(&UpperDir);
+        let CanonUpper = CanonicalizeOrResolve(&UpperDir);
+        let UpperFile = CanonUpper.join("Main.typ");
+        let _ = std::fs::write(&UpperFile, "= Upper\n");
+        let _ = AddWorkspaceDirectory(CanonUpper.to_string_lossy().to_string());
+
+        assert!(IsPathContainedIn(&CanonUpper, &UpperFile));
+        assert!(ValidateWorkspacePath(&UpperFile.to_string_lossy(), true, true).is_ok());
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            let LowerSibling = TempBase.join("docs").join("Main.typ");
+            assert!(!IsPathContainedIn(&CanonUpper, &LowerSibling));
+            assert!(ValidateWorkspacePath(&LowerSibling.to_string_lossy(), false, true).is_err());
+        }
+
+        let _ = SaveTrackedDirectories(&OrigDirs);
+        let _ = std::fs::remove_dir_all(&TempBase);
+    }
+
+    #[test]
+    fn TestSyncClickAndCursorInnermostSpan()
+    {
+        let _Lock = WORKSPACE_TEST_MUTEX.lock().unwrap_or_else(|E| E.into_inner());
+        let MockSyncMap = vec!
+        [
+            // 1. Full-page wrapper placed first
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 0.0,
+                "y": 0.0,
+                "width": 595.0,
+                "height": 842.0,
+                "line": 1,
+                "col": 1,
+                "end_line": 40,
+                "end_col": 1,
+                "start": 0,
+                "end": 2000,
+                "span": "page_wrap"
+            }),
+            // 2. Full-table wrapper placed second
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 40.0,
+                "y": 100.0,
+                "width": 515.0,
+                "height": 300.0,
+                "line": 5,
+                "col": 1,
+                "end_line": 25,
+                "end_col": 2,
+                "start": 80,
+                "end": 900,
+                "span": "table_wrap"
+            }),
+            // 3. Outer row / paragraph wrapper placed third
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 50.0,
+                "y": 140.0,
+                "width": 220.0,
+                "height": 14.0,
+                "line": 12,
+                "col": 3,
+                "end_line": 12,
+                "end_col": 35,
+                "start": 300,
+                "end": 332,
+                "span": "row_wrap"
+            }),
+            // 4. Innermost leaf cell / word placed fourth
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 110.0,
+                "y": 140.0,
+                "width": 45.0,
+                "height": 14.0,
+                "line": 12,
+                "col": 14,
+                "end_line": 12,
+                "end_col": 22,
+                "start": 311,
+                "end": 319,
+                "span": "leaf_word"
+            }),
+            // 5. Equal-area tie-breaker pair (outer inline wrapper vs inner narrower span)
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 80.0,
+                "y": 220.0,
+                "width": 60.0,
+                "height": 12.0,
+                "line": 18,
+                "col": 1,
+                "end_line": 18,
+                "end_col": 21,
+                "start": 400,
+                "end": 420,
+                "span": "equal_area_outer"
+            }),
+            serde_json::json!
+            ({
+                "page": 1,
+                "x": 80.0,
+                "y": 220.0,
+                "width": 60.0,
+                "height": 12.0,
+                "line": 18,
+                "col": 6,
+                "end_line": 18,
+                "end_col": 13,
+                "start": 405,
+                "end": 412,
+                "span": "equal_area_inner"
+            }),
+        ];
+
+        let PrevSyncMap =
+        {
+            let mut Guard = LAST_ACTIVE_SYNC_MAP.lock().unwrap_or_else(|E| E.into_inner());
+            let Prev = Guard.clone();
+            *Guard = MockSyncMap;
+            Prev
+        };
+
+        // SyncClick inside leaf_word must pick leaf_word (not page_wrap, table_wrap, or row_wrap)
+        let ClickLeaf = SyncClick(1, 125.0, 147.0).expect("SyncClick leaf should succeed");
+        assert!(ClickLeaf.Success && ClickLeaf.Found);
+        assert_eq!(ClickLeaf.Line, Some(12));
+        assert_eq!(ClickLeaf.Column, Some(14));
+        assert_eq!(ClickLeaf.Span, Some(serde_json::json!("leaf_word")));
+
+        // SyncClick on equal-area boxes must break ties using narrowest source span (end - start)
+        let ClickEqual = SyncClick(1, 100.0, 225.0).expect("SyncClick equal-area should succeed");
+        assert!(ClickEqual.Success && ClickEqual.Found);
+        assert_eq!(ClickEqual.Span, Some(serde_json::json!("equal_area_inner")));
+        assert_eq!(ClickEqual.Column, Some(6));
+
+        // SyncCursor at leaf_word must pick leaf_word instead of enclosing page/table/row wrappers
+        let CursorLeaf = SyncCursor(12, 16).expect("SyncCursor leaf should succeed");
+        assert!(CursorLeaf.Success && CursorLeaf.Found);
+        assert_eq!(CursorLeaf.Line, Some(12));
+        assert_eq!(CursorLeaf.Column, Some(14));
+        assert_eq!(CursorLeaf.X, Some(110.0));
+        assert_eq!(CursorLeaf.Width, Some(45.0));
+
+        // SyncCursor inside row_wrap outside leaf_word must pick row_wrap (not page_wrap or table_wrap)
+        let CursorRow = SyncCursor(12, 5).expect("SyncCursor row should succeed");
+        assert!(CursorRow.Success && CursorRow.Found);
+        assert_eq!(CursorRow.Line, Some(12));
+        assert_eq!(CursorRow.Column, Some(3));
+        assert_eq!(CursorRow.X, Some(50.0));
+        assert_eq!(CursorRow.Width, Some(220.0));
+
+        // SyncCursor on equal-span/area wrapper pair must pick equal_area_inner
+        let CursorEqual = SyncCursor(18, 8).expect("SyncCursor equal-area should succeed");
+        assert!(CursorEqual.Success && CursorEqual.Found);
+        assert_eq!(CursorEqual.Column, Some(6));
+
+        if let Ok(mut Guard) = LAST_ACTIVE_SYNC_MAP.lock()
+        {
+            *Guard = PrevSyncMap;
+        }
     }
 }

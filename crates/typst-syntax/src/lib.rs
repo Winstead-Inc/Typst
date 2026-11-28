@@ -439,4 +439,113 @@ else
         assert!(errors15.is_empty(), "Parse errors in text15: {:#?}", errors15);
         assert!(has_kind(&node15, SyntaxKind::FuncCall), "RHS spanning newlines must parse as FuncCall");
     }
+
+    #[test]
+    fn test_control_flow_no_false_call_attachment()
+    {
+        fn has_kind(node: &SyntaxNode, kind: SyntaxKind) -> bool
+        {
+            node.kind() == kind || node.children().any(|c| has_kind(c, kind))
+        }
+
+        // Exact regression from docs/components/section.typ:37 (`if ... { ... }\n [ ]`)
+        let section_snippet = "{\n if cond {\n a\n }\n [ ]\n}";
+        let section_node = parse_code(section_snippet);
+        let (section_errors, _) = section_node.errors_and_warnings();
+        assert!(section_errors.is_empty(), "Unexpected parse errors: {:#?}", section_errors);
+        assert!(!has_kind(&section_node, SyntaxKind::FuncCall), "Detached [ ] after if-block must NOT parse as FuncCall");
+
+        let code_block = section_node
+            .children()
+            .find(|n| n.kind() == SyntaxKind::CodeBlock)
+            .expect("Expected outer CodeBlock");
+        let inner_code = code_block
+            .children()
+            .find(|n| n.kind() == SyntaxKind::Code)
+            .expect("Expected inner Code node");
+        let inner_stmts: Vec<_> = inner_code
+            .children()
+            .filter(|n| !n.kind().is_trivia())
+            .collect();
+        assert_eq!(inner_stmts.len(), 2, "Expected 2 sibling statements, got: {:#?}", inner_stmts);
+        assert_eq!(inner_stmts[0].kind(), SyntaxKind::Conditional);
+        assert_eq!(inner_stmts[1].kind(), SyntaxKind::ContentBlock);
+
+        // Control-flow and statement nodes must never attach detached newline `[` or `(` as FuncCall
+        let cases =
+        [
+            ("conditional + paren", "{\n if cond {\n a\n }\n (b)\n}", SyntaxKind::Conditional, SyntaxKind::Parenthesized),
+            ("conditional + array", "{\n if cond {\n a\n }\n (b, c)\n}", SyntaxKind::Conditional, SyntaxKind::Array),
+            ("while + content", "{\n while cond {\n a\n }\n [ ]\n}", SyntaxKind::WhileLoop, SyntaxKind::ContentBlock),
+            ("while + paren", "{\n while cond {\n a\n }\n (b)\n}", SyntaxKind::WhileLoop, SyntaxKind::Parenthesized),
+            ("for + content", "{\n for x in xs {\n a\n }\n [ ]\n}", SyntaxKind::ForLoop, SyntaxKind::ContentBlock),
+            ("for + paren", "{\n for x in xs {\n a\n }\n (b)\n}", SyntaxKind::ForLoop, SyntaxKind::Parenthesized),
+            ("let + content", "{\n let x = 1\n [ ]\n}", SyntaxKind::LetBinding, SyntaxKind::ContentBlock),
+            ("let + paren", "{\n let x = 1\n (b)\n}", SyntaxKind::LetBinding, SyntaxKind::Parenthesized),
+            ("set + content", "{\n set text(10pt)\n [ ]\n}", SyntaxKind::SetRule, SyntaxKind::ContentBlock),
+            ("set + paren", "{\n set text(10pt)\n (b)\n}", SyntaxKind::SetRule, SyntaxKind::Parenthesized),
+            ("show + content", "{\n show heading: it => it\n [ ]\n}", SyntaxKind::ShowRule, SyntaxKind::ContentBlock),
+            ("show + paren", "{\n show heading: it => it\n (b)\n}", SyntaxKind::ShowRule, SyntaxKind::Parenthesized),
+            ("code block + content", "{\n { a }\n [ ]\n}", SyntaxKind::CodeBlock, SyntaxKind::ContentBlock),
+            ("code block + paren", "{\n { a }\n (b)\n}", SyntaxKind::CodeBlock, SyntaxKind::Parenthesized),
+            ("content block + content", "{\n [a]\n [ ]\n}", SyntaxKind::ContentBlock, SyntaxKind::ContentBlock),
+            ("content block + paren", "{\n [a]\n (b)\n}", SyntaxKind::ContentBlock, SyntaxKind::Parenthesized),
+            ("return + content", "{\n return\n [ ]\n}", SyntaxKind::FuncReturn, SyntaxKind::ContentBlock),
+            ("return + paren", "{\n return\n (b)\n}", SyntaxKind::FuncReturn, SyntaxKind::Parenthesized),
+            ("break + content", "{\n break\n [ ]\n}", SyntaxKind::LoopBreak, SyntaxKind::ContentBlock),
+            ("break + paren", "{\n break\n (b)\n}", SyntaxKind::LoopBreak, SyntaxKind::Parenthesized),
+            ("continue + content", "{\n continue\n [ ]\n}", SyntaxKind::LoopContinue, SyntaxKind::ContentBlock),
+            ("continue + paren", "{\n continue\n (b)\n}", SyntaxKind::LoopContinue, SyntaxKind::Parenthesized),
+            ("context + content", "{\n context a\n [ ]\n}", SyntaxKind::Contextual, SyntaxKind::ContentBlock),
+        ];
+
+        for (label, src, expected_first, expected_second) in cases
+        {
+            let node = parse_code(src);
+            let (errors, _) = node.errors_and_warnings();
+            assert!(errors.is_empty(), "Case '{}' had parse errors: {:#?}", label, errors);
+            assert!(!has_kind(&node, SyntaxKind::FuncCall), "Case '{}' must NOT produce a FuncCall", label);
+
+            let block = node
+                .children()
+                .find(|n| n.kind() == SyntaxKind::CodeBlock)
+                .expect("Expected CodeBlock");
+            let code = block
+                .children()
+                .find(|n| n.kind() == SyntaxKind::Code)
+                .expect("Expected Code");
+            let stmts: Vec<_> = code.children().filter(|n| !n.kind().is_trivia()).collect();
+            assert_eq!(stmts.len(), 2, "Case '{}' expected 2 statements, got: {:#?}", label, stmts);
+            assert_eq!(stmts[0].kind(), expected_first, "Case '{}' first node mismatch", label);
+            assert_eq!(stmts[1].kind(), expected_second, "Case '{}' second node mismatch", label);
+        }
+
+        // Markup mode `#if cond { ... }\n[ ]` must keep Conditional separate and leave `[ ]` as literal Text
+        let markup_node = parse("#if cond {\n  a\n}\n[ ]");
+        let (markup_errors, _) = markup_node.errors_and_warnings();
+        assert!(markup_errors.is_empty(), "Markup parse errors: {:#?}", markup_errors);
+        assert!(!has_kind(&markup_node, SyntaxKind::FuncCall), "Markup #if must NOT attach detached [ ] as FuncCall");
+        assert!(!has_kind(&markup_node, SyntaxKind::ContentBlock), "Standalone [ ] in Markup must NOT be swallowed as ContentBlock");
+        let markup_kinds: Vec<_> = markup_node
+            .children()
+            .filter(|n| !n.kind().is_trivia())
+            .map(|n| n.kind())
+            .collect();
+        assert_eq!(markup_kinds, vec![SyntaxKind::Hash, SyntaxKind::Conditional, SyntaxKind::Text, SyntaxKind::Text]);
+        let markup_texts: Vec<_> = markup_node
+            .children()
+            .filter(|n| n.kind() == SyntaxKind::Text)
+            .map(|n| n.leaf_text().as_str())
+            .collect();
+        assert_eq!(markup_texts, vec!["[", "]"]);
+
+        // Same-line callable CodeBlock / Conditional must continue to parse as FuncCall
+        for same_line in ["{\n  { x => x }(1)\n}", "{\n  if true { x => x } else { x => x + 1 }(1)\n}"]
+        {
+            let node = parse_code(same_line);
+            let (errors, _) = node.errors_and_warnings();
+            assert!(errors.is_empty(), "Same-line parse errors: {:#?}", errors);
+            assert!(has_kind(&node, SyntaxKind::FuncCall), "Same-line expression '{}' should remain callable", same_line);
+        }
+    }
 }

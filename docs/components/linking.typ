@@ -59,8 +59,7 @@
 // - If the `def-target` is a value, attempts to locate its path in the standard
 //   library and returns the canonical label for it.
 // - If the `def-target` is already a label, returns it unchanged.
-#let def-label(def-target) =
-{ if type(def-target) == label { def-target } else { label(std-path-of(def-target)) } }
+#let def-label(def-target) = { if type(def-target) == label { def-target } else { label(std-path-of(def-target)) } }
 
 // Retrieves the metadata for a definition.
 //
@@ -68,12 +67,10 @@
 #let def-metadata(def-target) =
 {
     let def-label = def-label(def-target)
-    let targets = query(selector.and (metadata, def-label))
+    let targets = query(selector.and(metadata, def-label))
     let len = targets.len()
-    if len == 1
-    { targets.first().value }
-    else if len == 0
-    { panic("found no definition for: " + repr(def-label)) }
+    if len == 1 { targets.first().value }
+    else if len == 0 { panic("found no definition for: " + repr(def-label)) }
     else
     {
         panic
@@ -107,5 +104,4 @@
     // set to something else, like a heading's body (e.g.
     // `@introduction` => `[Introduction]`).
     title: auto,
-) =
-{ let def-label = def-label(def-target) if title == auto { title = raw(str(def-label)) } labelled(metadata((dest, title)), def-label) }
+) = { let def-label = def-label(def-target); if title == auto { title = raw(str(def-label)) }; labelled(metadata((dest, title)), def-label) }

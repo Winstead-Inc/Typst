@@ -1,13 +1,11 @@
 #context asset(stdx.config.asset-base + "docs.css", read("docs.css"))
 
-#context asset
-(stdx.config.asset-base + "base.css", read("base.css").replace("url(\"/assets/fonts", "url(\"" + stdx.config.asset-base + "fonts",))
+#context asset(stdx.config.asset-base + "base.css", read("base.css").replace("url(\"/assets/fonts", "url(\"" + stdx.config.asset-base + "fonts"))
 
 #context asset
 (
     stdx.config.asset-base + "docs.js",
-    read("docs.js").replace
-    ("const assetBase = \"/assets/\"", "const assetBase = \"" + stdx.config.asset-base + "\"",)
+    read("docs.js").replace("const assetBase = \"/assets/\"", "const assetBase = \"" + stdx.config.asset-base + "\""),
 )
 
 #let icons =
@@ -28,8 +26,7 @@
     "32-tutorial-c.svg",
 )
 
-#context for filename in icons
-{ asset(stdx.config.asset-base + "icons/" + filename, stdx.read-dev-asset(filename),) }
+#context for filename in icons { asset(stdx.config.asset-base + "icons/" + filename, stdx.read-dev-asset(filename)) }
 
 #let fonts =
 (
@@ -56,15 +53,12 @@
 )
 
 #context for filename in fonts
-{
-    let (name, ext) = filename.split(".")
-    let data = stdx.read-font(name)
-    asset(stdx.config.asset-base + "fonts/" + filename, data)
-}
+{ let (name, ext) = filename.split("."); let data = stdx.read-font(name); asset(stdx.config.asset-base + "fonts/" + filename, data) }
 
 // This metadata is emitted by images via a patched native show rule.
-#context
-{ let map = query(<metadata-asset>).map(meta => meta.value).to-dict() for (path, data) in map { asset(path, data) } }
+#context { let map = query(<metadata-asset>).map(meta => meta.value).to-dict(); for (path, data) in map { asset(path, data) } }
 
 #context
-[#metadata(stdx.config.asset-base + "search.json") <search-index-path>]
+[
+    #metadata(stdx.config.asset-base + "search.json") <search-index-path>
+]

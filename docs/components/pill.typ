@@ -6,15 +6,15 @@
 // The different pill fills for the type categories defined in `ty.typ`.
 #let pill-fill =
 (
-    con: colors.teal.at("shade-20"),
-    str: colors.green.at("shade-10"),
-    kw: colors.red.at("shade-10"),
-    num: colors.orange.at("shade-10"),
-    obj: colors.light-gray.at("shade-05"),
-    collect: colors.purple.at("shade-10"),
+    con: colors.teal.shade-20,
+    str: colors.green.shade-10,
+    kw: colors.red.shade-10,
+    num: colors.orange.shade-10,
+    obj: colors.light-gray.shade-05,
+    collect: colors.purple.shade-10,
     fn: rgb("d1d4fd"),
     meta: rgb("c6d6ec"),
-    layout: colors.blue.at("shade-10"),
+    layout: colors.blue.shade-10,
     date: gradient.linear
     (
         (rgb("ebf4f9"), 0%),
@@ -28,14 +28,11 @@
     (
         size: (10pt, 10pt),
         {
-            place
-            (rect(fill: rgb("#ffd2ec"), width: 10pt, height: 10pt,))
-            for x in range( - 1, 2)
-            { place(dx: x * 10pt, line(start: ( - 10pt, - 10pt), end: (20pt, 20pt), stroke: 4pt + rgb("c6feff"),)) }
-        }
+            place(rect(fill: rgb("#ffd2ec"), width: 10pt, height: 10pt))
+            for x in range(-1, 2) { place(dx: x * 10pt, line(start: (-10pt, -10pt), end: (20pt, 20pt), stroke: 4pt + rgb("c6feff"))) }
+        },
     ),
-    col: gradient.linear
-    ((rgb(124, 213, 255), 0%),(rgb(166, 251, 202), 33%),(rgb(255, 243, 124), 66%),(rgb(255, 164, 157), 100%), angle: - 7deg,),
+    col: gradient.linear((rgb(124, 213, 255), 0%), (rgb(166, 251, 202), 33%), (rgb(255, 243, 124), 66%), (rgb(255, 164, 157), 100%), angle: -7deg),
 )
 
 // Renders a "pill" (a small colorful box) for a type. This is used for
@@ -71,7 +68,6 @@
             set html.elem(attrs: (class: class))
             link(def-dest(ty), name)
         }
-        else
-        { html.span(class: class, name) }
+        else { html.span(class: class, name) }
     }
 }

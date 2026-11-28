@@ -1,17 +1,15 @@
-const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 
-// Monarch configuration to test
+const pageSetup = fs.readFileSync(path.join(__dirname, "../docs/content/guides/page-setup.typ"), "utf8");
+const allLines = pageSetup.split(/\r?\n/);
+
 const monarchDef = {
-    defaultToken: "",
-    tokenPostfix: ".typst",
-
     keywords: [
         "let", "set", "show", "context", "if", "else", "while",
         "for", "in", "return", "import", "include", "as", "break", "continue"
     ],
-    constants: [
-        "none", "auto", "true", "false"
-    ],
+    constants: ["none", "auto", "true", "false"],
     builtins: [
         "align", "text", "par", "page", "v", "h", "grid", "table",
         "image", "heading", "list", "enum", "rect", "circle",
@@ -41,14 +39,7 @@ const monarchDef = {
             [/^\s*\d+\.\s+/, "punctuation.list"],
             [/\[\s*[\(\)\{\}\[\]\.,:;\\` ]+\s*\]/, "markup.content.literal"],
             [/\$/, "string.math", "@mathmode"],
-            [/#([a-zA-Z_][a-zA-Z0-9_-]*)/, {
-                cases: {
-                    "@keywords": "keyword",
-                    "@constants": "constant.language",
-                    "@builtins": "type.identifier",
-                    "@default": "type.identifier"
-                }
-            }],
+            [/#([a-zA-Z_][a-zA-Z0-9_-]*)/, { cases: { "@keywords": "keyword", "@constants": "constant.language", "@builtins": "type.identifier", "@default": "type.identifier" } }],
             [/#/, "keyword", "@codemode"],
             [/"([^"\\]|\\.)*"/, "string"],
             [/[{}()\[\]]/, "@brackets"],
@@ -64,14 +55,7 @@ const monarchDef = {
             [/"([^"\\]|\\.)*"/, "string"],
             [/\d+(\.\d+)?(pt|in|cm|mm|em|fr|%|deg|rad)?/, "number"],
             [/([a-zA-Z_][a-zA-Z0-9_-]*)\s*(?=:)/, "variable.parameter"],
-            [/[a-zA-Z_][a-zA-Z0-9_-]*/, {
-                cases: {
-                    "@keywords": "keyword",
-                    "@constants": "constant.language",
-                    "@builtins": "type.identifier",
-                    "@default": "identifier"
-                }
-            }],
+            [/[a-zA-Z_][a-zA-Z0-9_-]*/, { cases: { "@keywords": "keyword", "@constants": "constant.language", "@builtins": "type.identifier", "@default": "identifier" } }],
             [/=>|==|!=|<=|>=|\.\.|\+=|-=|\*=|\/=|&&|\|\||[+\-*/=<>!&|~]/, "operator"],
             [/[()]/, "@brackets"],
             [/[,;:]/, "delimiter"],
@@ -111,24 +95,71 @@ const monarchDef = {
     }
 };
 
-// Validate that all regexes are valid RegExp instances
-for (const state in monarchDef.tokenizer) {
-    const rules = monarchDef.tokenizer[state];
-    for (const rule of rules) {
-        if (rule.include) continue;
-        assert(rule[0] instanceof RegExp, "Rule regex must be a valid RegExp");
+function tokenize(lines, startLineNum) {
+    let stateStack = ["root"];
+    const results = [];
+
+    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+        const line = lines[lineIndex];
+        let pos = 0;
+        const lineTokens = [];
+        
+        while (pos < line.length) {
+            const currentState = stateStack[stateStack.length - 1];
+            let rules = monarchDef.tokenizer[currentState];
+            if (currentState === "markupmode") {
+                rules = [
+                    [/\[/, "@brackets", "@push"],
+                    [/\]/, "@brackets", "@pop"],
+                    ...monarchDef.tokenizer.root
+                ];
+            }
+            
+            const slice = line.slice(pos);
+            let matched = false;
+
+            for (const rule of rules) {
+                if (rule.include) continue;
+                const regex = rule[0];
+                const action = rule[1];
+                const next = rule[2];
+
+                const m = slice.match(new RegExp(`^(?:${regex.source})`));
+                if (m) {
+                    matched = true;
+                    const matchedStr = m[0];
+                    lineTokens.push({
+                        str: matchedStr,
+                        token: typeof action === "string" ? action : JSON.stringify(action),
+                        state: currentState
+                    });
+                    pos += matchedStr.length;
+
+                    if (next) {
+                        if (next === "@pop") {
+                            stateStack.pop();
+                        } else if (next === "@push") {
+                            stateStack.push(currentState);
+                        } else if (next.startsWith("@")) {
+                            stateStack.push(next.slice(1));
+                        }
+                    }
+                    break;
+                }
+            }
+
+            if (!matched) {
+                lineTokens.push({ str: line[pos], token: "UNMATCHED", state: currentState });
+                pos++;
+            }
+        }
+        results.push({ lineIndex: lineIndex + startLineNum, line, tokens: lineTokens, stateAfter: stateStack[stateStack.length - 1], stack: [...stateStack] });
     }
+    return results;
 }
 
-// Test hyphenated identifier regex
-const idRegex = /[a-zA-Z_][a-zA-Z0-9_-]*/;
-assert.strictEqual("heading-offset".match(idRegex)[0], "heading-offset");
-assert.strictEqual("dev-version-warning".match(idRegex)[0], "dev-version-warning");
-assert.strictEqual("title-state".match(idRegex)[0], "title-state");
-
-// Test named parameter regex
-const paramRegex = /^([a-zA-Z_][a-zA-Z0-9_-]*)\s*(?=:)/;
-assert.strictEqual("heading-offset: 1".match(paramRegex)[1], "heading-offset");
-assert.strictEqual("dev-version-warning: false".match(paramRegex)[1], "dev-version-warning");
-
-console.log("PASS: Monarch tokenizer configuration validated successfully!");
+const res = tokenize(allLines.slice(0, 220), 1);
+for (let i = 162; i < 210; i++) {
+    const r = res[i];
+    console.log(`L${r.lineIndex} [${r.stateAfter}, stack=${r.stack.join(",")}] ${r.line}`);
+}

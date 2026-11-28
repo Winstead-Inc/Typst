@@ -59,6 +59,10 @@ const ALLOWED_SPAWN_BINARIES = new Set
     "pwsh.exe",
     "powershell",
     "powershell.exe",
+    "explorer",
+    "explorer.exe",
+    "open",
+    "xdg-open",
     "osascript",
     "zenity",
     "kdialog",
@@ -70,14 +74,149 @@ const ALLOWED_SPAWN_BINARIES = new Set
     "lafs.exe"
 ]);
 
-// Compile-time pinned cryptographic digests of immutable official LAFS releases
-const PINNED_LAFS_HASHES = new Set
-([
-    "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
-    "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
-    "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
-    "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec"
-]);
+function GetRustTargetTriple(TargetPlatform = process.platform, TargetArch = process.arch)
+{
+    if (TargetPlatform === "win32")
+    {
+        return TargetArch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc";
+    }
+    if (TargetPlatform === "darwin")
+    {
+        return TargetArch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin";
+    }
+    if (TargetPlatform === "linux")
+    {
+        return TargetArch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu";
+    }
+    return null;
+}
+
+function GetExecutableSuffix(TargetPlatform = process.platform)
+{
+    return TargetPlatform === "win32" ? ".exe" : "";
+}
+
+function GetBinaryCandidateNames(BaseName, TargetPlatform = process.platform, TargetArch = process.arch)
+{
+    const Ext = GetExecutableSuffix(TargetPlatform);
+    const Triple = GetRustTargetTriple(TargetPlatform, TargetArch);
+    const Names = [];
+    if (Triple)
+    {
+        Names.push(`${BaseName}-${Triple}${Ext}`);
+    }
+    Names.push(`${BaseName}${Ext}`);
+    return Names;
+}
+
+function StripVerbatimPrefix(PathStr, TargetPlatform = process.platform)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    if (TargetPlatform !== "win32")
+    {
+        return PathStr;
+    }
+    if (PathStr.startsWith("\\\\?\\UNC\\"))
+    {
+        return "\\\\" + PathStr.slice(8);
+    }
+    if (PathStr.startsWith("\\\\?\\"))
+    {
+        return PathStr.slice(4);
+    }
+    return PathStr;
+}
+
+function IsWindowsPathStyle(PathStr)
+{
+    const Stripped = StripVerbatimPrefix((PathStr || "").trim(), "win32");
+    return /^[A-Za-z]:[\\/]/.test(Stripped) || /^\\\\/.test(Stripped);
+}
+
+function ResolvePathSafely(TargetPath, TargetPlatform = process.platform)
+{
+    const Stripped = StripVerbatimPrefix((TargetPath || "").trim(), TargetPlatform);
+    if (!Stripped)
+    {
+        return "";
+    }
+
+    if (TargetPlatform === process.platform)
+    {
+        try
+        {
+            const Resolved = Path.resolve(Stripped);
+            if (FS.existsSync(Resolved))
+            {
+                return StripVerbatimPrefix(FS.realpathSync.native(Resolved), TargetPlatform);
+            }
+            const Parent = Path.dirname(Resolved);
+            if (Parent && Parent !== Resolved && FS.existsSync(Parent))
+            {
+                return StripVerbatimPrefix(Path.join(FS.realpathSync.native(Parent), Path.basename(Resolved)), TargetPlatform);
+            }
+            return StripVerbatimPrefix(Resolved, TargetPlatform);
+        }
+        catch (Ignored)
+        {
+            return StripVerbatimPrefix(Path.resolve(Stripped), TargetPlatform);
+        }
+    }
+
+    if (TargetPlatform === "win32")
+    {
+        return Path.win32.normalize(Stripped);
+    }
+    return Path.posix.normalize(Stripped);
+}
+
+function CanonicalizePathKey(PathStr, TargetPlatform = process.platform)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    const TreatAsWindows = TargetPlatform === "win32" || IsWindowsPathStyle(PathStr);
+    const EffectivePlatform = TreatAsWindows ? "win32" : "posix";
+    let Resolved = ResolvePathSafely(PathStr, EffectivePlatform);
+    if (TreatAsWindows)
+    {
+        Resolved = Resolved.replace(/[\\/]+$/, "");
+        if (/^[A-Za-z]:$/.test(Resolved))
+        {
+            Resolved += "\\";
+        }
+        return Resolved.toLowerCase();
+    }
+    if (Resolved.length > 1)
+    {
+        Resolved = Resolved.replace(/\/+$/, "");
+    }
+    return Resolved;
+}
+
+// Compile-time pinned cryptographic digests of immutable official LAFS releases per OS/arch
+const PINNED_LAFS_HASHES_BY_PLATFORM =
+{
+    "win32-x64": new Set
+    ([
+        "91faa0ece4e1278ebf2cc58a776de0290e10d31f0d59456410862b52c86067fc",
+        "45a755ee1d42e04d42362b9aa312c301068f438739732c9a395017cbf5d44d02",
+        "aa8243a43abe3b5fe0b9143aa9be8e2a9ede1329b42689e8e2ade4096154001c",
+        "36d0a66a6af9a0a24b905f405ef5dc36a0f607004bd7a6ae57082dd49e1d80ec",
+        "6ff045a5714ca6b803c4e595af05501ce3d88448d754e52e599604d29d0a6109",
+        "0f5d206cc65d0130d96832e59f16e4e059e993cb51b16226d571dbc7045e00f3",
+        "a0773705f753be3b904f094794b52d3f6dab4409d0019f1fb57b261727a4c465",
+    ]),
+    "win32-arm64": new Set(),
+    "darwin-arm64": new Set(),
+    "darwin-x64": new Set(),
+    "linux-x64": new Set(),
+    "linux-arm64": new Set()
+};
 
 function VerifyLafsBinaryIntegrity(BinaryPath)
 {
@@ -87,27 +226,69 @@ function VerifyLafsBinaryIntegrity(BinaryPath)
     }
     try
     {
-        const Resolved = Path.resolve(BinaryPath);
+        const Resolved = ResolvePathSafely(BinaryPath);
+        const Stat = FS.statSync(Resolved);
+        if (!Stat.isFile())
+        {
+            return { Valid: false, Reason: "Target path is not a regular file" };
+        }
+        if (process.platform !== "win32" && (Stat.mode & 0o002) !== 0)
+        {
+            return { Valid: false, Reason: "Binary permissions are world-writable" };
+        }
+
         const AllowedDirs =
         [
             Path.resolve(__dirname, "bin"),
             Path.resolve(__dirname),
-            Path.resolve(__dirname, "..")
+            Path.resolve(__dirname, "..", "target", "release"),
+            Path.resolve(__dirname, "..", "target", "debug")
         ];
-        const IsInAllowedDir = AllowedDirs.some(Dir => Resolved.toLowerCase().startsWith(Dir.toLowerCase()));
+        const IsInAllowedDir = AllowedDirs.some((Dir) => IsPathContainedIn(Dir, Resolved));
         if (!IsInAllowedDir)
         {
             return { Valid: false, Reason: "Path traversal / foreign path rejected: binary outside trusted application tree" };
         }
+
         const FileBuffer = FS.readFileSync(Resolved);
         const HashSum = Crypto.createHash("sha256");
         HashSum.update(FileBuffer);
         const Digest = HashSum.digest("hex").toLowerCase();
-        if (!PINNED_LAFS_HASHES.has(Digest))
+
+        const PlatformKey = `${process.platform}-${process.arch}`;
+        const PinnedSet = PINNED_LAFS_HASHES_BY_PLATFORM[PlatformKey] || new Set();
+        const EnvPinned = (process.env.TYPST_STUDIO_LAFS_SHA256 || "").trim().toLowerCase();
+        if (EnvPinned && /^[a-f0-9]{64}$/.test(EnvPinned))
         {
-            return { Valid: false, Reason: `Cryptographic digest mismatch: '${Digest}' is not an authorized pinned release` };
+            if (Digest !== EnvPinned)
+            {
+                return { Valid: false, Reason: `Cryptographic digest mismatch against TYPST_STUDIO_LAFS_SHA256: '${Digest}'` };
+            }
+            return { Valid: true, Digest: Digest };
         }
-        return { Valid: true, Digest: Digest };
+
+        if (PinnedSet.size > 0)
+        {
+            if (!PinnedSet.has(Digest))
+            {
+                return { Valid: false, Reason: `Cryptographic digest mismatch for ${PlatformKey}: '${Digest}' is not an authorized pinned release` };
+            }
+            return { Valid: true, Digest: Digest };
+        }
+
+        // On platforms where upstream binary hashes are not pre-pinned (e.g. macOS/Linux local or CI builds),
+        // permit verified bundled sidecars or local release binaries inside the trusted app tree.
+        const TrustedLocalDirs =
+        [
+            Path.resolve(__dirname, "bin"),
+            Path.resolve(__dirname, "..", "target", "release")
+        ];
+        if (TrustedLocalDirs.some((Dir) => IsPathContainedIn(Dir, Resolved)))
+        {
+            return { Valid: true, Digest: Digest };
+        }
+
+        return { Valid: false, Reason: `Unpinned LAFS binary location for ${PlatformKey}` };
     }
     catch (Err)
     {
@@ -117,22 +298,27 @@ function VerifyLafsBinaryIntegrity(BinaryPath)
 
 function ResolveLafsBinary()
 {
-    const BinaryName = process.platform === "win32" ? "lafs.exe": "lafs";
-    const SearchLocations =
+    const CandidateNames = GetBinaryCandidateNames("lafs");
+    const SearchDirs =
     [
-        Path.join(__dirname, "bin", BinaryName),
-        Path.join(__dirname, BinaryName),
-        Path.resolve(__dirname, "..", BinaryName)
+        Path.join(__dirname, "bin"),
+        __dirname,
+        Path.resolve(__dirname, "..", "target", "release"),
+        Path.resolve(__dirname, "..")
     ];
 
-    for (const Candidate of SearchLocations)
+    for (const Dir of SearchDirs)
     {
-        if (Candidate && FS.existsSync(Candidate))
+        for (const Name of CandidateNames)
         {
-            const Integrity = VerifyLafsBinaryIntegrity(Candidate);
-            if (Integrity.Valid)
+            const Candidate = Path.join(Dir, Name);
+            if (Candidate && FS.existsSync(Candidate))
             {
-                return Candidate;
+                const Integrity = VerifyLafsBinaryIntegrity(Candidate);
+                if (Integrity.Valid)
+                {
+                    return ResolvePathSafely(Candidate);
+                }
             }
         }
     }
@@ -194,9 +380,9 @@ function FormatCodeBlockWithLAFS(Code, Language)
                         input: Code,
                         encoding: "utf-8",
                         timeout: 5000,
-                        windowsHide: true,
+                        windowsHide: process.platform === "win32",
                         shell: false,
-                        cwd: TEMP_DIR
+                        cwd: OS.tmpdir()
                     }
                 );
                 if (Proc.status === 0 && Proc.stdout)
@@ -220,16 +406,31 @@ function FormatCodeBlockWithLAFS(Code, Language)
 
 function ResolveTypstBinary()
 {
-    const BinaryName = process.platform === "win32" ? "typst.exe": "typst";
-    const SearchLocations =
+    const CandidateNames = GetBinaryCandidateNames("typst");
+    const PlainBinaryName = CandidateNames[CandidateNames.length - 1];
+    const SearchLocations = [];
+
+    if (process.env.TYPST_BINARY)
+    {
+        SearchLocations.push(process.env.TYPST_BINARY);
+    }
+
+    const SearchDirs =
     [
-        process.env.TYPST_BINARY,
-        Path.resolve(__dirname, "..", "target", "release", BinaryName),
-        Path.resolve(__dirname, "..", "target", "debug", BinaryName),
-        Path.join(__dirname, "bin", BinaryName),
-        Path.join(__dirname, BinaryName),
-        Path.resolve(__dirname, "..", BinaryName)
+        Path.resolve(__dirname, "..", "target", "release"),
+        Path.resolve(__dirname, "..", "target", "debug"),
+        Path.join(__dirname, "bin"),
+        __dirname,
+        Path.resolve(__dirname, "..")
     ];
+
+    for (const Dir of SearchDirs)
+    {
+        for (const Name of CandidateNames)
+        {
+            SearchLocations.push(Path.join(Dir, Name));
+        }
+    }
 
     let BestCandidate = null;
     let BestMtime = -1;
@@ -244,7 +445,7 @@ function ResolveTypstBinary()
                 if (Stat.isFile() && Stat.mtimeMs > BestMtime)
                 {
                     BestMtime = Stat.mtimeMs;
-                    BestCandidate = Candidate;
+                    BestCandidate = ResolvePathSafely(Candidate);
                 }
             }
             catch (Ignored)
@@ -262,7 +463,25 @@ function ResolveTypstBinary()
         return BestCandidate;
     }
 
-    return Path.resolve(__dirname, "..", "target", "release", BinaryName);
+    const EnvPath = process.env.PATH || "";
+    for (const Entry of EnvPath.split(Path.delimiter))
+    {
+        if (!Entry) { continue; }
+        for (const Name of CandidateNames)
+        {
+            const Cand = Path.join(Entry, Name);
+            try
+            {
+                if (FS.existsSync(Cand) && FS.statSync(Cand).isFile())
+                {
+                    return ResolvePathSafely(Cand);
+                }
+            }
+            catch (Ignored) {}
+        }
+    }
+
+    return Path.resolve(__dirname, "..", "target", "release", PlainBinaryName);
 }
 
 const TYPST_BINARY = ResolveTypstBinary();
@@ -279,24 +498,32 @@ let LastActiveSpanMap = {};
 let LastActiveSyncMap = [];
 let JobCounter = 1;
 
-function IsPathContainedIn(ParentDir, ChildPath)
+function IsPathContainedIn(ParentDir, ChildPath, TargetPlatform = process.platform)
 {
-    let CanonParent = Path.resolve(ParentDir);
-    let CanonChild = Path.resolve(ChildPath);
-    if (process.platform === "win32")
+    if (!ParentDir || !ChildPath)
+    {
+        return false;
+    }
+    const TreatAsWindows = TargetPlatform === "win32" || IsWindowsPathStyle(ParentDir) || IsWindowsPathStyle(ChildPath);
+    const EffectivePlatform = TreatAsWindows ? "win32" : "posix";
+    const PathMod = TreatAsWindows ? Path.win32 : Path.posix;
+
+    let CanonParent = ResolvePathSafely(ParentDir, EffectivePlatform);
+    let CanonChild = ResolvePathSafely(ChildPath, EffectivePlatform);
+    if (TreatAsWindows)
     {
         CanonParent = CanonParent.toLowerCase();
         CanonChild = CanonChild.toLowerCase();
     }
-    const Rel = Path.relative(CanonParent, CanonChild);
-    return !Rel.startsWith("..") && !Path.isAbsolute(Rel);
+    const Rel = PathMod.relative(CanonParent, CanonChild);
+    return Rel === "" || (Rel !== ".." && !Rel.startsWith(".." + PathMod.sep) && !PathMod.isAbsolute(Rel));
 }
 
 function ResolveDocRoot(FilePath, JobDir)
 {
     if (FilePath)
     {
-        let StartDir = Path.resolve(FilePath);
+        let StartDir = ResolvePathSafely(FilePath);
         try
         {
             if (FS.existsSync(StartDir))
@@ -316,11 +543,49 @@ function ResolveDocRoot(FilePath, JobDir)
             StartDir = Path.dirname(StartDir);
         }
 
-        // 1. Upward walk for official Typst package manifest: typst.toml
+        // 1. Match against tracked workspace directories: choose deepest containing match
+        // Tracked workspace folders (e.g. docs/) take precedence over parent repos and local subfolders
+        const TrackedDirs = GetTrackedDirectories();
+        let BestTracked = null;
+        for (const Dir of TrackedDirs)
+        {
+            if (IsPathContainedIn(Dir, StartDir))
+            {
+                const CanonDir = ResolvePathSafely(Dir);
+                if (!BestTracked || CanonDir.length > BestTracked.length)
+                {
+                    BestTracked = CanonDir;
+                }
+            }
+        }
+        if (BestTracked)
+        {
+            let Current = StartDir;
+            while (Current)
+            {
+                if (FS.existsSync(Path.join(Current, "typst.toml")) || FS.existsSync(Path.join(Current, "typst.yaml")))
+                {
+                    return Current;
+                }
+                if (CanonicalizePathKey(Current) === CanonicalizePathKey(BestTracked))
+                {
+                    break;
+                }
+                const Parent = Path.dirname(Current);
+                if (!Parent || Parent === Current)
+                {
+                    break;
+                }
+                Current = Parent;
+            }
+            return BestTracked;
+        }
+
+        // 2. Untracked file: Upward walk for official Typst package manifest: typst.toml or typst.yaml
         let Current = StartDir;
         while (Current)
         {
-            if (FS.existsSync(Path.join(Current, "typst.toml")))
+            if (FS.existsSync(Path.join(Current, "typst.toml")) || FS.existsSync(Path.join(Current, "typst.yaml")))
             {
                 return Current;
             }
@@ -332,26 +597,7 @@ function ResolveDocRoot(FilePath, JobDir)
             Current = Parent;
         }
 
-        // 2. Match against tracked workspace directories: choose deepest containing match
-        // Tracked workspace folders (e.g. docs/) take precedence over parent repos and local subfolders
-        const TrackedDirs = GetTrackedDirectories();
-        let BestTracked = null;
-        for (const Dir of TrackedDirs)
-        {
-            if (IsPathContainedIn(Dir, StartDir))
-            {
-                if (!BestTracked || Dir.length > BestTracked.length)
-                {
-                    BestTracked = Path.resolve(Dir);
-                }
-            }
-        }
-        if (BestTracked)
-        {
-            return BestTracked;
-        }
-
-        // 3. Upward walk for version control or studio boundary: .git or .typst-studio
+        // 3. Untracked file: Upward walk for version control or studio boundary: .git or .typst-studio
         Current = StartDir;
         while (Current)
         {
@@ -457,38 +703,56 @@ function ApplySecurityHeaders(Response)
     );
 }
 
-function ValidateWorkspacePath(CandidatePath, MustExist = false, CheckExtension = false)
+function CheckWorkspacePathSecurityForPlatform(CandidatePath, TargetPlatform = process.platform)
 {
     if (!CandidatePath || typeof CandidatePath !== "string")
     {
         return { Valid: false, Error: "Invalid path specification." };
     }
 
-    if (CandidatePath.includes("\0"))
+    const Trimmed = CandidatePath.trim();
+    if (!Trimmed)
+    {
+        return { Valid: false, Error: "Invalid path specification." };
+    }
+
+    if (Trimmed.includes("\0"))
     {
         return { Valid: false, Error: "Access denied: Path contains prohibited null byte." };
     }
-    // Windows Alternate Data Streams (ADS) protection: Colon is only allowed as drive letter (e.g. C:)
-    const AfterDrive = process.platform === "win32" && /^[a-zA-Z]:/.test(CandidatePath)
-    ? CandidatePath.slice(2)
-    : CandidatePath;
 
-    if (AfterDrive.includes(":"))
+    if (/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(Trimmed))
     {
-        return { Valid: false, Error: "Access denied: Alternate Data Streams are strictly prohibited." };
+        return { Valid: false, Error: "Access denied: Relative '..' traversal segments are prohibited." };
     }
 
-    const Resolved = Path.resolve(CandidatePath);
-    const AllowedRoots = GetTrackedDirectories().map( (D) => Path.resolve(D));
-
-    const IsContained = AllowedRoots.some
-    (
-        (Root) =>
+    // Windows Alternate Data Streams (ADS) protection: guarded strictly to Windows!
+    // Valid POSIX paths on macOS/Linux may legitimately contain colons.
+    if (TargetPlatform === "win32")
+    {
+        const VerbatimStripped = StripVerbatimPrefix(Trimmed, "win32");
+        const AfterDrive = /^[a-zA-Z]:/.test(VerbatimStripped) ? VerbatimStripped.slice(2) : VerbatimStripped;
+        if (AfterDrive.includes(":"))
         {
-            const Relative = Path.relative(Root, Resolved);
-            return ! Relative.startsWith("..") && ! Path.isAbsolute(Relative);
+            return { Valid: false, Error: "Access denied: Alternate Data Streams are strictly prohibited." };
         }
-    );
+    }
+
+    return { Valid: true };
+}
+
+function ValidateWorkspacePath(CandidatePath, MustExist = false, CheckExtension = false)
+{
+    const SecurityCheck = CheckWorkspacePathSecurityForPlatform(CandidatePath, process.platform);
+    if (!SecurityCheck.Valid)
+    {
+        return SecurityCheck;
+    }
+
+    const Resolved = ResolvePathSafely(CandidatePath);
+    const AllowedRoots = GetTrackedDirectories();
+
+    const IsContained = AllowedRoots.some((Root) => IsPathContainedIn(Root, Resolved));
 
     if (!IsContained)
     {
@@ -1094,9 +1358,9 @@ function TryFormatTypstNative(Source)
                 input: Source,
                 encoding: "utf-8",
                 timeout: 5000,
-                windowsHide: true,
+                windowsHide: process.platform === "win32",
                 shell: false,
-                cwd: TEMP_DIR
+                cwd: OS.tmpdir()
             }
         );
         if (Proc.status === 0 && Proc.stdout)
@@ -1175,13 +1439,32 @@ function GetTrackedDirectories()
     [
         Path.resolve(__dirname, "..", "projects", "GenesisOfTheVanguard"),
         Path.resolve(__dirname, "..", "projects"),
+        Path.resolve(__dirname, "..", "docs"),
         Path.join(__dirname, "projects"),
         Path.join(UserHome, "TypstProjects"),
         Path.join(UserHome, "Documents", "Typst")
     ];
 
     const ExistingDefaults = PotentialDefaults.filter( (Dir) => FS.existsSync(Dir));
-    const DefaultDirs = ExistingDefaults.length > 0 ? ExistingDefaults:[Path.join(UserHome, "Documents")];
+    let DefaultDirs = ExistingDefaults;
+    if (DefaultDirs.length === 0)
+    {
+        const DocsDir = Path.join(UserHome, "Documents");
+        if (FS.existsSync(DocsDir))
+        {
+            DefaultDirs = [DocsDir];
+        }
+        else
+        {
+            const FallbackWs = Path.join(OS.tmpdir(), "typst-studio-workspace");
+            try
+            {
+                FS.mkdirSync(FallbackWs, { recursive: true });
+            }
+            catch (Ignored) {}
+            DefaultDirs = [FallbackWs];
+        }
+    }
 
     if (!FS.existsSync(WORKSPACE_CONFIG_FILE))
     {
@@ -1202,7 +1485,7 @@ function GetTrackedDirectories()
     {
         const Raw = FS.readFileSync(WORKSPACE_CONFIG_FILE, "utf-8");
         const Parsed = JSON.parse(Raw);
-        return Array.isArray(Parsed.Directories) ? Parsed.Directories: DefaultDirs;
+        return (Array.isArray(Parsed.Directories) && Parsed.Directories.length > 0) ? Parsed.Directories : DefaultDirs;
     }
     catch (E)
     {
@@ -1311,7 +1594,7 @@ async function ScanTypstFiles()
     const UniqueFiles = [];
     for (const File of AllFiles)
     {
-        const Normalized = Path.resolve(File.Path).toLowerCase();
+        const Normalized = CanonicalizePathKey(File.Path);
         if (!SeenFiles.has(Normalized))
         {
             SeenFiles.add(Normalized);
@@ -1323,7 +1606,7 @@ async function ScanTypstFiles()
     const UniqueFolders = [];
     for (const Folder of AllFolders)
     {
-        const Normalized = Path.resolve(Folder.Path).toLowerCase();
+        const Normalized = CanonicalizePathKey(Folder.Path);
         if (!SeenFolders.has(Normalized))
         {
             SeenFolders.add(Normalized);
@@ -1333,15 +1616,10 @@ async function ScanTypstFiles()
 
     for (const Folder of UniqueFolders)
     {
-        const FolderNorm = Path.resolve(Folder.Path).toLowerCase();
-        const FolderPrefix = FolderNorm + Path.sep.toLowerCase();
+        const FolderKey = CanonicalizePathKey(Folder.Path);
         Folder.FileCount = UniqueFiles.filter
         (
-            (F) =>
-            {
-                const FileDirNorm = Path.resolve(F.Directory).toLowerCase();
-                return FileDirNorm === FolderNorm || FileDirNorm.startsWith(FolderPrefix);
-            }
+            (F) => CanonicalizePathKey(F.Directory) === FolderKey || IsPathContainedIn(Folder.Path, F.Directory)
         )
         .length;
     }
@@ -1352,9 +1630,9 @@ async function ScanTypstFiles()
 function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
 {
     const CommandBase = Path.basename(Command).toLowerCase();
-    const CommandResolved = Path.resolve(Command).toLowerCase();
-    const TypstResolved = Path.resolve(TYPST_BINARY).toLowerCase();
-    const IsAllowed = ALLOWED_SPAWN_BINARIES.has(CommandBase) || CommandResolved === TypstResolved;
+    const CommandKey = CanonicalizePathKey(Command);
+    const TypstKey = CanonicalizePathKey(TYPST_BINARY);
+    const IsAllowed = ALLOWED_SPAWN_BINARIES.has(CommandBase) || CommandKey === TypstKey;
 
     if (!IsAllowed)
     {
@@ -1378,7 +1656,7 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
                 {
                     cwd: Options.cwd,
                     timeout: Options.timeout || 30000,
-                    windowsHide: Options.windowsHide !== undefined ? Options.windowsHide: true,
+                    windowsHide: Options.windowsHide !== undefined ? Options.windowsHide : (process.platform === "win32"),
                     shell: false
                 }
             );
@@ -1435,10 +1713,10 @@ function ExecuteCommand(Command, Arguments, Options = {}, StdinData = null)
 
 function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
 {
-    const CommandResolved = Path.resolve(Command).toLowerCase();
-    const TypstResolved = Path.resolve(TYPST_BINARY).toLowerCase();
+    const CommandKey = CanonicalizePathKey(Command);
+    const TypstKey = CanonicalizePathKey(TYPST_BINARY);
 
-    if (CommandResolved !== TypstResolved)
+    if (CommandKey !== TypstKey)
     {
         return Promise.resolve
         ({
@@ -1460,7 +1738,7 @@ function ExecuteCompile(Command, Arguments, Options = {}, StdinData = null)
                 {
                     cwd: Options.cwd,
                     timeout: Options.timeout || 20000,
-                    windowsHide: true,
+                    windowsHide: process.platform === "win32",
                     shell: false
                 }
             );
@@ -1601,6 +1879,49 @@ function GetMathIntervals(Source)
     return Intervals;
 }
 
+function ComputeLineOffsets(Source)
+{
+    const Text = Source || "";
+    const LineRecords = [];
+    let LineStart = 0;
+
+    for (let I = 0; I < Text.length; I ++)
+    {
+        if (Text[I] === "\n")
+        {
+            const ContentEnd = (I > LineStart && Text[I - 1] === "\r") ? (I - 1) : I;
+            LineRecords.push
+            ({
+                Text: Text.slice(LineStart, ContentEnd),
+                StartOffset: LineStart,
+                NextStartOffset: I + 1
+            });
+            LineStart = I + 1;
+        }
+    }
+
+    LineRecords.push
+    ({
+        Text: Text.slice(LineStart),
+        StartOffset: LineStart,
+        NextStartOffset: Text.length + 1
+    });
+
+    return LineRecords;
+}
+
+function FindLineInfoForOffset(LineRecords, CharOffset)
+{
+    for (let I = 0; I < LineRecords.length; I ++)
+    {
+        if (CharOffset < LineRecords[I].NextStartOffset || I === LineRecords.length - 1)
+        {
+            return { LineNum: I + 1, StartOffset: LineRecords[I].StartOffset };
+        }
+    }
+    return { LineNum: 1, StartOffset: 0 };
+}
+
 function EnrichMathSyncMap(SyncMap, Source, SvgPages)
 {
     if (!SyncMap || !Source)
@@ -1609,9 +1930,8 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = Source.split(/\r?\n/);
+    const LineRecords = ComputeLineOffsets(Source);
     const MathIntervals = GetMathIntervals(Source);
-    let ByteOffset = 0;
     const ClaimedGroups = new Map();
 
     const LineMap = new Map();
@@ -1624,9 +1944,10 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
         LineMap.get(E.line).push(E);
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    for (let LineIdx = 0; LineIdx < LineRecords.length; LineIdx ++)
     {
-        const LineText = Lines[LineIdx];
+        const LineText = LineRecords[LineIdx].Text;
+        let ByteOffset = LineRecords[LineIdx].StartOffset;
         const LineNum = LineIdx + 1;
 
         const Regex = /\b([a-zA-Z_]+)\b/g;
@@ -1802,7 +2123,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = SourceCode.split(/\r?\n/);
+    const LineRecords = ComputeLineOffsets(SourceCode);
 
     const DefRegex = /#let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*=/g;
     let DefMatch;
@@ -1816,18 +2137,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
         const FuncName = DefMatch[1];
         const Params = DefMatch[2].split(",").map( (P) => P.trim());
         const DefOffset = DefMatch.index;
-
-        let DefLine = 1;
-        let CurrOff = 0;
-        for (let I = 0; I < Lines.length; I ++)
-        {
-            if (CurrOff + Lines[I].length + 1 > DefOffset)
-            {
-                DefLine = I + 1;
-                break;
-            }
-            CurrOff += Lines[I].length + 1;
-        }
+        const DefLine = FindLineInfoForOffset(LineRecords, DefOffset).LineNum;
 
         let OpenChar = "";
         let CloseChar = "";
@@ -1870,17 +2180,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
             continue;
         }
 
-        let EndLine = 1;
-        CurrOff = 0;
-        for (let I = 0; I < Lines.length; I ++)
-        {
-            if (CurrOff + Lines[I].length + 1 > BodyEnd)
-            {
-                EndLine = I + 1;
-                break;
-            }
-            CurrOff += Lines[I].length + 1;
-        }
+        const EndLine = FindLineInfoForOffset(LineRecords, BodyEnd).LineNum;
 
         Definitions.push
         ({
@@ -1934,18 +2234,9 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
             const CallEnd = CallStart + CallMatch[0].length;
             const ArgsText = CallMatch[1];
 
-            let CallLine = 1;
-            let LineStartOff = 0;
-            for (let I = 0; I < Lines.length; I ++)
-            {
-                if (LineStartOff + Lines[I].length + 1 > CallStart)
-                {
-                    CallLine = I + 1;
-                    break;
-                }
-                LineStartOff += Lines[I].length + 1;
-            }
-            const CallCol = CallStart - LineStartOff + 1;
+            const CallLoc = FindLineInfoForOffset(LineRecords, CallStart);
+            const CallLine = CallLoc.LineNum;
+            const CallCol = CallStart - CallLoc.StartOffset + 1;
             const CallEndCol = CallCol + CallMatch[0].length;
 
             if (InstanceIndex < UniqueRects.length)
@@ -2075,8 +2366,7 @@ function EnrichReferences(SyncMap, SourceCode)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = SourceCode.split(/\r?\n/);
-    let ByteOffset = 0;
+    const LineRecords = ComputeLineOffsets(SourceCode);
 
     const LineMap = new Map();
     for (const E of Enriched)
@@ -2088,9 +2378,10 @@ function EnrichReferences(SyncMap, SourceCode)
         LineMap.get(E.line).push(E);
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    for (let LineIdx = 0; LineIdx < LineRecords.length; LineIdx ++)
     {
-        const LineText = Lines[LineIdx];
+        const LineText = LineRecords[LineIdx].Text;
+        const ByteOffset = LineRecords[LineIdx].StartOffset;
         const LineNum = LineIdx + 1;
         const RefRegex = /@([a-zA-Z0-9_\-:]+)/g;
         let Match;
@@ -2149,8 +2440,6 @@ function EnrichReferences(SyncMap, SourceCode)
                 });
             }
         }
-
-        ByteOffset += LineText.length + 1;
     }
 
     return Enriched;
@@ -2166,7 +2455,7 @@ async function HandleCompile(Request, Response)
         const Payload = JSON.parse(RawBody);
         const Source = Payload.Source || "";
         const ActiveFileName = Payload.FilePath ? Path.basename(Payload.FilePath): (Payload.FileName || "main.typ");
-        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : "__default__";
+        const FileKey = Payload.FilePath ? CanonicalizePathKey(Payload.FilePath) : "__default__";
         const IsBackground = Boolean(Payload.IsBackground || Payload.IsThumbnail);
 
         if (!IsBackground && ActiveCompileProcesses.has(FileKey))
@@ -2358,7 +2647,7 @@ async function HandleResolveClick(Request, Response)
         const Page = parseInt(Payload.Page, 10) || 1;
         const X = parseFloat(Payload.X);
         const Y = parseFloat(Payload.Y);
-        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const FileKey = Payload.FilePath ? CanonicalizePathKey(Payload.FilePath) : null;
         const SyncMap = (FileKey && ActiveSyncMapsByFile.get(FileKey)) || LastActiveSyncMap;
 
         if (isNaN(X) || isNaN(Y))
@@ -2448,7 +2737,7 @@ async function HandleResolveCursor(Request, Response)
         const Payload = JSON.parse(RawBody);
         const Line = parseInt(Payload.Line, 10);
         const Col = parseInt(Payload.Column || Payload.Col, 10);
-        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const FileKey = Payload.FilePath ? CanonicalizePathKey(Payload.FilePath) : null;
         const SyncMap = (FileKey && ActiveSyncMapsByFile.get(FileKey)) || LastActiveSyncMap;
 
         if (!Line || !Col)
@@ -2541,7 +2830,7 @@ async function HandleResolveSpan(Request, Response)
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
         const Span = Payload.Span;
-        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const FileKey = Payload.FilePath ? CanonicalizePathKey(Payload.FilePath) : null;
         const SpanMap = (FileKey && ActiveSpanMapsByFile.get(FileKey)) || LastActiveSpanMap;
 
         if (!Span || !SpanMap[Span])
@@ -2589,7 +2878,7 @@ async function HandleCursorSpan(Request, Response)
         const Payload = JSON.parse(RawBody);
         const Line = parseInt(Payload.Line, 10);
         const Col = parseInt(Payload.Column || Payload.Col, 10);
-        const FileKey = Payload.FilePath ? Path.resolve(Payload.FilePath).toLowerCase() : null;
+        const FileKey = Payload.FilePath ? CanonicalizePathKey(Payload.FilePath) : null;
         const SpanMap = (FileKey && ActiveSpanMapsByFile.get(FileKey)) || LastActiveSpanMap;
 
         if (!Line || !Col)
@@ -2834,7 +3123,9 @@ async function HandleExportPdf(Request, Response)
 
         const CompileResult = await ExecuteCommand
         (
-            TYPST_BINARY,["compile", "--root", DocRoot, "--format", "pdf", ...GetLocalFontArgs(), "-", OutputPath], { cwd: JobDir, timeout: 30000 },
+            TYPST_BINARY,
+            ["compile", "--features", "html", "--root", DocRoot, "--format", "pdf", ...GetLocalFontArgs(), "-", OutputPath],
+            { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
 
@@ -2925,7 +3216,7 @@ async function HandleExportPng(Request, Response)
         const CompileResult = await ExecuteCommand
         (
             TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "png", "--ppi", "300", ...GetLocalFontArgs(), "-", OutputPattern],
+            ["compile", "--features", "html", "--root", DocRoot, "--format", "png", "--ppi", "300", ...GetLocalFontArgs(), "-", OutputPattern],
             { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
@@ -3050,7 +3341,7 @@ async function HandleExportSvg(Request, Response)
         const CompileResult = await ExecuteCommand
         (
             TYPST_BINARY,
-            ["compile", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern],
+            ["compile", "--features", "html", "--root", DocRoot, "--format", "svg", ...GetLocalFontArgs(), "-", OutputPattern],
             { cwd: JobDir, timeout: 30000 },
             SourceToCompile
         );
@@ -3218,7 +3509,7 @@ async function HandleAddDirectory(Request, Response)
         }
 
         const RootParsed = Path.parse(TargetPath);
-        if (TargetPath.toLowerCase() === RootParsed.root.toLowerCase())
+        if (CanonicalizePathKey(TargetPath) === CanonicalizePathKey(RootParsed.root))
         {
             Response.writeHead(400, { "Content-Type": "application/json" });
             Response.end
@@ -3228,10 +3519,11 @@ async function HandleAddDirectory(Request, Response)
             return ;
         }
 
-        const LowerTarget = TargetPath.toLowerCase();
-        const UserHome = Path.resolve(OS.homedir()).toLowerCase();
+        const TargetKey = CanonicalizePathKey(TargetPath);
+        const UserHome = OS.homedir();
+        const HomeKey = CanonicalizePathKey(UserHome);
         // 1. Block user home directory itself
-        if (LowerTarget === UserHome)
+        if (TargetKey === HomeKey)
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
             Response.end
@@ -3243,18 +3535,23 @@ async function HandleAddDirectory(Request, Response)
         // 2. Block sensitive user profile folders & autostart directories
         const ProhibitedUserFolders =
         [
-            Path.join(UserHome, ".ssh").toLowerCase(),
-            Path.join(UserHome, ".gnupg").toLowerCase(),
-            Path.join(UserHome, ".aws").toLowerCase(),
-            Path.join(UserHome, ".azure").toLowerCase(),
-            Path.join(UserHome, ".kube").toLowerCase(),
-            Path.join(UserHome, "appdata", "roaming", "microsoft", "windows", "start menu", "programs", "startup").toLowerCase(),
-            "c:\\programdata\\microsoft\\windows\\start menu\\programs\\startup"
+            Path.join(UserHome, ".ssh"),
+            Path.join(UserHome, ".gnupg"),
+            Path.join(UserHome, ".aws"),
+            Path.join(UserHome, ".azure"),
+            Path.join(UserHome, ".kube")
         ];
+        if (process.platform === "win32")
+        {
+            ProhibitedUserFolders.push(
+                Path.join(UserHome, "AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup"),
+                "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+            );
+        }
 
         const MatchesProhibitedUserFolder = ProhibitedUserFolders.some
         (
-            (Blocked) => LowerTarget === Blocked || LowerTarget.startsWith(Blocked + Path.sep)
+            (Blocked) => IsPathContainedIn(Blocked, TargetPath)
         );
 
         if (MatchesProhibitedUserFolder)
@@ -3267,7 +3564,7 @@ async function HandleAddDirectory(Request, Response)
             return ;
         }
         // 3. Block sensitive subfolder names (.ssh, .gnupg) anywhere in path
-        const TargetSegments = TargetPath.split(Path.sep).map( (S) => S.toLowerCase());
+        const TargetSegments = TargetPath.split(/[\\/]/).filter(Boolean).map( (S) => S.toLowerCase());
         if (TargetSegments.includes(".ssh") || TargetSegments.includes(".gnupg"))
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
@@ -3280,31 +3577,36 @@ async function HandleAddDirectory(Request, Response)
             );
             return ;
         }
-        // 4. Block system directories
-        const ForbiddenSystemDirs =
-        [
-            "c:\\windows",
-            "c:\\program files",
-            "c:\\program files (x86)",
-            "c:\\programdata",
-            "c:\\$recycle.bin",
-            "c:\\recovery",
-            "/etc",
-            "/bin",
-            "/sbin",
-            "/usr",
-            "/var",
-            "/sys",
-            "/proc",
-            "/dev",
-            "/root",
-            "/boot",
-            "/opt"
-        ];
+        // 4. Block OS system directories
+        const ForbiddenSystemDirs = (process.platform === "win32")
+            ? [
+                "C:\\Windows",
+                "C:\\Program Files",
+                "C:\\Program Files (x86)",
+                "C:\\ProgramData",
+                "C:\\$Recycle.Bin",
+                "C:\\Recovery"
+            ]
+            : [
+                "/etc",
+                "/bin",
+                "/sbin",
+                "/usr",
+                "/var",
+                "/sys",
+                "/proc",
+                "/dev",
+                "/root",
+                "/boot",
+                "/System",
+                "/Library",
+                "/private",
+                "/Applications"
+            ];
 
         if
         (
-            ForbiddenSystemDirs.some( (Sys) => LowerTarget === Sys || LowerTarget.startsWith(Sys + Path.sep))
+            ForbiddenSystemDirs.some( (Sys) => IsPathContainedIn(Sys, TargetPath))
         )
         {
             Response.writeHead(403, { "Content-Type": "application/json" });
@@ -3316,7 +3618,7 @@ async function HandleAddDirectory(Request, Response)
         }
 
         const Dirs = GetTrackedDirectories();
-        if (!Dirs.includes(TargetPath))
+        if (!Dirs.some( (D) => CanonicalizePathKey(D) === TargetKey))
         {
             Dirs.push(TargetPath);
             SaveTrackedDirectories(Dirs);
@@ -3345,10 +3647,13 @@ async function HandleRemoveDirectory(Request, Response)
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
-        const TargetPath = Payload.Path ? Path.resolve(Payload.Path): null;
+        const TargetKey = Payload.Path ? CanonicalizePathKey(Payload.Path) : null;
 
         let Dirs = GetTrackedDirectories();
-        Dirs = Dirs.filter( (D) => D !== TargetPath);
+        if (TargetKey)
+        {
+            Dirs = Dirs.filter( (D) => CanonicalizePathKey(D) !== TargetKey);
+        }
         SaveTrackedDirectories(Dirs);
 
         const Info = await ScanTypstFiles();
@@ -3516,7 +3821,7 @@ async function HandleCreateFile(Request, Response)
     {
         const RawBody = await ReadRequestBody(Request);
         const Payload = JSON.parse(RawBody);
-        let TargetDir = Payload.Directory ? Path.resolve(Payload.Directory): GetTrackedDirectories()[0];
+        let TargetDir = Payload.Directory ? ResolvePathSafely(Payload.Directory) : GetTrackedDirectories()[0];
         const RawFileName = (Payload.FileName || "Untitled.typ").trim();
         let FileName = Path.basename(RawFileName);
         if (!FileName.endsWith(".typ")) { FileName += ".typ"; }
@@ -3550,7 +3855,7 @@ async function HandleCreateFile(Request, Response)
 
 #set text
 (
-    font: "Segoe UI",
+    font: ("Inter", "Liberation Sans", "Segoe UI"),
     size: 11pt
 )
 
@@ -3764,7 +4069,7 @@ async function HandleRenameFile(Request, Response)
             return ;
         }
 
-        if (FS.existsSync(NewValidation.Path) && NewValidation.Path.toLowerCase() !== OldValidation.Path.toLowerCase())
+        if (FS.existsSync(NewValidation.Path) && CanonicalizePathKey(NewValidation.Path) !== CanonicalizePathKey(OldValidation.Path))
         {
             Response.writeHead(409, { "Content-Type": "application/json" });
             Response.end(JSON.stringify({ Success: false, Message: `A file named '${FinalName}' already exists` }));
@@ -4385,7 +4690,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
         return ;
     }
 
-    const Resolved = Path.resolve(TargetPath);
+    const Resolved = ResolvePathSafely(TargetPath);
     const Ext = Path.extname(Resolved).toLowerCase();
     const AllowedFontExts = new Set([".ttf", ".otf", ".ttc", ".woff", ".woff2"]);
 
@@ -4397,14 +4702,7 @@ function HandleServeFontFile(Request, Response, TargetPath)
     }
 
     const AllowedRoots = GetAllowedFontRoots();
-    const IsContained = AllowedRoots.some
-    (
-        (Root) =>
-        {
-            const Rel = Path.relative(Root, Resolved);
-            return ! Rel.startsWith("..") && ! Path.isAbsolute(Rel);
-        }
-    );
+    const IsContained = AllowedRoots.some( (Root) => IsPathContainedIn(Root, Resolved));
 
     if (!IsContained)
     {
@@ -4660,9 +4958,55 @@ const Server = HTTP.createServer
                     Status: "Online",
                     TypstBinary: TYPST_BINARY,
                     BinaryExists: FS.existsSync(TYPST_BINARY),
-                    Version: "0.15.1-lafs"
+                    Version: "0.15.1-lafs",
+                    Platform: process.platform,
+                    Arch: process.arch
                 })
             );
+            return ;
+        }
+
+        if (Request.method === "POST" && Pathname === "/api/system/reveal")
+        {
+            try
+            {
+                const RawBody = await ReadRequestBody(Request);
+                const Payload = JSON.parse(RawBody || "{}");
+                const TargetPath = Payload.Path || Payload.path;
+                const Validation = ValidateWorkspacePath(TargetPath, true, false);
+                if (!Validation.Valid)
+                {
+                    Response.writeHead(403, { "Content-Type": "application/json" });
+                    Response.end(JSON.stringify({ Success: false, Error: Validation.Error }));
+                    return ;
+                }
+
+                const Resolved = Validation.Path;
+                const IsDir = FS.statSync(Resolved).isDirectory();
+                if (process.platform === "win32")
+                {
+                    const Args = IsDir ? [Resolved] : ["/select," + Resolved];
+                    await ExecuteCommand("explorer.exe", Args, { timeout: 5000, windowsHide: true });
+                }
+                else if (process.platform === "darwin")
+                {
+                    const Args = IsDir ? [Resolved] : ["-R", Resolved];
+                    await ExecuteCommand("open", Args, { timeout: 5000, windowsHide: false });
+                }
+                else
+                {
+                    const DirToOpen = IsDir ? Resolved : Path.dirname(Resolved);
+                    await ExecuteCommand("xdg-open", [DirToOpen], { timeout: 5000, windowsHide: false });
+                }
+
+                Response.writeHead(200, { "Content-Type": "application/json" });
+                Response.end(JSON.stringify({ Success: true }));
+            }
+            catch (Err)
+            {
+                Response.writeHead(500, { "Content-Type": "application/json" });
+                Response.end(JSON.stringify({ Success: false, Error: Err.message }));
+            }
             return ;
         }
 
@@ -4676,12 +5020,41 @@ const Server = HTTP.createServer
     }
 );
 
-Server.listen
-(
-    PORT,
-    HOST, () =>
-    {
-        console.log(`Typst Studio Web Server active at http://${HOST}:${PORT}`);
-        console.log(`Using LAFS-enabled Typst Engine: ${TYPST_BINARY}`);
-    }
-);
+if (require.main === module)
+{
+    Server.listen
+    (
+        PORT,
+        HOST, () =>
+        {
+            console.log(`Typst Studio Web Server active at http://${HOST}:${PORT}`);
+            console.log(`Using LAFS-enabled Typst Engine: ${TYPST_BINARY}`);
+        }
+    );
+}
+
+module.exports =
+{
+    Server,
+    GetRustTargetTriple,
+    GetExecutableSuffix,
+    GetBinaryCandidateNames,
+    StripVerbatimPrefix,
+    IsWindowsPathStyle,
+    ResolvePathSafely,
+    CanonicalizePathKey,
+    IsPathContainedIn,
+    CheckWorkspacePathSecurityForPlatform,
+    ValidateWorkspacePath,
+    ResolveDocRoot,
+    GetTrackedDirectories,
+    ResolveTypstBinary,
+    ResolveLafsBinary,
+    VerifyLafsBinaryIntegrity,
+    PINNED_LAFS_HASHES_BY_PLATFORM,
+    ComputeLineOffsets,
+    FindLineInfoForOffset,
+    EnrichMathSyncMap,
+    EnrichFunctionCalls,
+    EnrichReferences
+};

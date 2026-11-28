@@ -583,11 +583,37 @@ let IsCompiling = false;
 let HasPendingCompile = false;
 let CompileGeneration = 0;
 let ActiveCompileGeneration = 0;
+let ForegroundCompileSeq = 0;
+let ActiveCompileRequestDocKey = "";
+let OpenFileRequestSeq = 0;
 let ActiveDocumentCanonicalPath = "";
 let CurrentPageCount = 1;
 let CurrentActivePage = 1;
 let LastCompiledPages = [];
 let LastCompiledDocumentPath = "";
+
+function StripWindowsVerbatimStrFrontend(PathStr)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    if (PathStr.startsWith("\\\\?\\UNC\\"))
+    {
+        return "\\\\" + PathStr.slice(8);
+    }
+    if (PathStr.startsWith("\\\\?\\"))
+    {
+        return PathStr.slice(4);
+    }
+    return PathStr;
+}
+
+function IsWindowsPathStyleFrontend(PathStr)
+{
+    const Stripped = StripWindowsVerbatimStrFrontend((PathStr || "").trim());
+    return /^[A-Za-z]:[\\/]/.test(Stripped) || /^\\\\[^\\]/.test(Stripped) || /^\/\/[^/]/.test(Stripped);
+}
 
 function CanonicalizeDocKey(PathStr)
 {
@@ -595,7 +621,323 @@ function CanonicalizeDocKey(PathStr)
     {
         return "";
     }
-    return PathStr.trim().replace(/\\/g, "/").toLowerCase();
+    const Trimmed = PathStr.trim();
+    if (!Trimmed)
+    {
+        return "";
+    }
+
+    const IsWin = IsWindowsPathStyleFrontend(Trimmed) || Trimmed.startsWith("\\\\?\\");
+    if (IsWin)
+    {
+        let Forward = StripWindowsVerbatimStrFrontend(Trimmed).replace(/\\/g, "/");
+        if (Forward.startsWith("//"))
+        {
+            Forward = "//" + Forward.slice(2).replace(/\/{2,}/g, "/");
+        }
+        else
+        {
+            Forward = Forward.replace(/\/{2,}/g, "/");
+        }
+        if (Forward.length > 3 || !/^[A-Za-z]:\/$/.test(Forward))
+        {
+            Forward = Forward.replace(/\/+$/, "");
+        }
+        return Forward.toLowerCase();
+    }
+
+    let PosixNorm = Trimmed.replace(/\/{2,}/g, "/");
+    if (PosixNorm.length > 1)
+    {
+        PosixNorm = PosixNorm.replace(/\/+$/, "");
+    }
+    return PosixNorm;
+}
+
+function NormalizeComparablePath(PathStr)
+{
+    return CanonicalizeDocKey(PathStr);
+}
+
+function PathsEqualFrontend(PathA, PathB)
+{
+    if (!PathA || !PathB)
+    {
+        return false;
+    }
+    return CanonicalizeDocKey(PathA) === CanonicalizeDocKey(PathB);
+}
+
+function GetActiveForegroundDocKey()
+{
+    return CanonicalizeDocKey(ActiveDocumentCanonicalPath || CurrentFilePath || ActiveTabPath || "");
+}
+
+function IsForegroundCompileCurrent(RequestSeq, TargetDocKey)
+{
+    if (RequestSeq !== ForegroundCompileSeq)
+    {
+        return false;
+    }
+    return CanonicalizeDocKey(TargetDocKey) === GetActiveForegroundDocKey();
+}
+
+function InvalidatePendingForegroundCompiles()
+{
+    if (CompileTimeoutID)
+    {
+        clearTimeout(CompileTimeoutID);
+        CompileTimeoutID = null;
+    }
+    ForegroundCompileSeq ++;
+    CompileGeneration = ForegroundCompileSeq;
+    ActiveCompileGeneration = ForegroundCompileSeq;
+    HasPendingCompile = false;
+    IsCompiling = false;
+    ActiveCompileRequestDocKey = "";
+    if (ActiveAbortController)
+    {
+        ActiveAbortController.abort();
+        ActiveAbortController = null;
+    }
+}
+
+function ResolveDiagnosticPathFrontend(DiagFile, ActiveRaw)
+{
+    const Trimmed = StripWindowsVerbatimStrFrontend((DiagFile || "").trim());
+    if (!Trimmed)
+    {
+        return "";
+    }
+    const IsAbsolute = IsWindowsPathStyleFrontend(Trimmed) || Trimmed.startsWith("/");
+    if (IsAbsolute || (!/[\\/]/.test(Trimmed)) || !ActiveRaw)
+    {
+        return Trimmed;
+    }
+    const BaseDir = PathDirNameFrontend(ActiveRaw);
+    if (!BaseDir)
+    {
+        return Trimmed;
+    }
+    const Parts = PathJoinFrontend(BaseDir, Trimmed).replace(/\\/g, "/").split("/");
+    const Stack = [];
+    const IsUnc = Parts[0] === "" && Parts[1] === "";
+    const IsPosixRoot = Parts[0] === "" && !IsUnc;
+    for (let I = 0; I < Parts.length; I ++)
+    {
+        const Seg = Parts[I];
+        if (!Seg || Seg === ".") { continue; }
+        if (Seg === "..")
+        {
+            if (Stack.length > 0 && !/^[A-Za-z]:$/.test(Stack[Stack.length - 1]))
+            {
+                Stack.pop();
+            }
+        }
+        else
+        {
+            Stack.push(Seg);
+        }
+    }
+    const Sep = IsWindowsPathStyleFrontend(BaseDir) ? "\\" : "/";
+    return IsPosixRoot ? ("/" + Stack.join("/")) : Stack.join(Sep);
+}
+
+function IsDiagnosticFileActiveDoc(RawDiagFile, ActiveRaw)
+{
+    const CleanDiag = StripWindowsVerbatimStrFrontend((RawDiagFile || "").trim());
+    if (!CleanDiag)
+    {
+        return false;
+    }
+    if (!ActiveRaw)
+    {
+        return true;
+    }
+    if (CleanDiag.replace(/\\/g, "/") === "document.typ")
+    {
+        return true;
+    }
+    const HasDirSeparator = /[\\/]/.test(CleanDiag);
+    if (!HasDirSeparator)
+    {
+        const ActiveBase = PathBaseNameFrontend(ActiveRaw);
+        const IsWin = IsWindowsPathStyleFrontend(ActiveRaw);
+        return IsWin ? (CleanDiag.toLowerCase() === ActiveBase.toLowerCase()) : (CleanDiag === ActiveBase);
+    }
+    const ResolvedDiag = ResolveDiagnosticPathFrontend(CleanDiag, ActiveRaw);
+    return CanonicalizeDocKey(ResolvedDiag) === CanonicalizeDocKey(ActiveRaw);
+}
+
+function PathBaseNameFrontend(PathStr)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    const Parts = PathStr.trim().split(/[\\/]/).filter(Boolean);
+    return Parts.length > 0 ? Parts[Parts.length - 1] : "";
+}
+
+function PathDirNameFrontend(PathStr)
+{
+    if (!PathStr || typeof PathStr !== "string")
+    {
+        return "";
+    }
+    const Trimmed = PathStr.trim().replace(/[\\/]+$/, "");
+    const LastSep = Math.max(Trimmed.lastIndexOf("/"), Trimmed.lastIndexOf("\\"));
+    if (LastSep === -1)
+    {
+        return "";
+    }
+    if (LastSep === 0)
+    {
+        return "/";
+    }
+    if (LastSep === 2 && /^[A-Za-z]:/.test(Trimmed))
+    {
+        return Trimmed.slice(0, 3);
+    }
+    return Trimmed.slice(0, LastSep);
+}
+
+function PathJoinFrontend(BaseDir, ...Parts)
+{
+    if (!BaseDir)
+    {
+        return Parts.filter(Boolean).join("/");
+    }
+    const Sep = IsWindowsPathStyleFrontend(BaseDir) ? "\\" : "/";
+    let Acc = BaseDir.replace(/[\\/]+$/, "");
+    if (!Acc && BaseDir.startsWith("/"))
+    {
+        Acc = "/";
+    }
+    for (const Part of Parts)
+    {
+        if (!Part) { continue; }
+        const Clean = String(Part).replace(/^[\\/]+|[\\/]+$/g, "").replace(/[\\/]+/g, Sep);
+        if (!Clean) { continue; }
+        Acc = Acc === "/" ? `/${Clean}` : `${Acc}${Sep}${Clean}`;
+    }
+    return Acc;
+}
+
+function StartsWithPathPrefixFrontend(ChildPath, ParentDir)
+{
+    const NormParent = CanonicalizeDocKey(ParentDir);
+    const NormChild = CanonicalizeDocKey(ChildPath);
+    if (!NormParent || !NormChild)
+    {
+        return false;
+    }
+    if (NormChild === NormParent)
+    {
+        return true;
+    }
+    const Prefix = NormParent.endsWith("/") ? NormParent : `${NormParent}/`;
+    return NormChild.startsWith(Prefix);
+}
+
+function IsMacPlatform()
+{
+    if (typeof navigator === "undefined")
+    {
+        return false;
+    }
+    if (navigator.userAgentData && navigator.userAgentData.platform)
+    {
+        return navigator.userAgentData.platform === "macOS";
+    }
+    return /Mac|iPod|iPhone|iPad/i.test(navigator.platform || navigator.userAgent || "");
+}
+
+function EncodeCacheKey(NormKey)
+{
+    const Str = String(NormKey || "");
+    try
+    {
+        const Bytes = new TextEncoder().encode(Str);
+        let Binary = "";
+        for (let I = 0; I < Bytes.length; I ++)
+        {
+            Binary += String.fromCharCode(Bytes[I]);
+        }
+        return btoa(Binary);
+    }
+    catch (Ignored)
+    {
+        let Hex = "";
+        for (let I = 0; I < Str.length; I ++)
+        {
+            Hex += Str.charCodeAt(I).toString(16).padStart(4, "0");
+        }
+        return Hex;
+    }
+}
+
+function ComputeLineOffsetsFrontend(Source)
+{
+    const Text = Source || "";
+    const Records = [];
+    let LineStart = 0;
+    for (let I = 0; I < Text.length; I ++)
+    {
+        if (Text[I] === "\n")
+        {
+            const ContentEnd = (I > LineStart && Text[I - 1] === "\r") ? (I - 1) : I;
+            Records.push({ Text: Text.slice(LineStart, ContentEnd), StartOffset: LineStart, NextStartOffset: I + 1 });
+            LineStart = I + 1;
+        }
+    }
+    Records.push({ Text: Text.slice(LineStart), StartOffset: LineStart, NextStartOffset: Text.length + 1 });
+    return Records;
+}
+
+function FindLineInfoFrontend(LineRecords, CharOffset)
+{
+    for (let I = 0; I < LineRecords.length; I ++)
+    {
+        if (CharOffset < LineRecords[I].NextStartOffset || I === LineRecords.length - 1)
+        {
+            return { LineNum: I + 1, StartOffset: LineRecords[I].StartOffset };
+        }
+    }
+    return { LineNum: 1, StartOffset: 0 };
+}
+
+const TYPST_DIAGNOSTIC_LOC_GLOBAL_REGEX = /(^|[\s(\['"]|┌─\s*|-->\s*)((?:\\\\\?\\(?:UNC\\)?[a-zA-Z]:[\\/][^:\r\n]+\.typ|\\\\\?\\[a-zA-Z]:[\\/][^:\r\n]+\.typ|[a-zA-Z]:[\\/][^:\r\n]+\.typ|\/(?:[^:\r\n]+\/)*[^:\r\n]+\.typ|\.{1,2}[\\/][^:\r\n]+\.typ|[^\s:\r\n()\[\]'"]+(?:[\\/][^:\r\n()\[\]'"]+)+\.typ|[^\s:\r\n()\[\]'"]+\.typ)):(\d+):(\d+)/gi;
+
+function ParseDiagnosticLocationLine(LineText)
+{
+    if (!LineText)
+    {
+        return null;
+    }
+    // Check explicit diagnostic pointer lines first (supports relative paths with spaces like "┌─ sub dir/file.typ:10:5")
+    const ArrowMatch = LineText.match(/^\s*(┌─\s*|-->\s*)([^:\r\n]+\.typ):(\d+):(\d+)/i);
+    if (ArrowMatch)
+    {
+        return {
+            Prefix: ArrowMatch[1] || "",
+            File: ArrowMatch[2].trim(),
+            Line: parseInt(ArrowMatch[3], 10),
+            Col: parseInt(ArrowMatch[4], 10)
+        };
+    }
+    const Regex = new RegExp(TYPST_DIAGNOSTIC_LOC_GLOBAL_REGEX.source, "i");
+    const Match = Regex.exec(LineText);
+    if (!Match)
+    {
+        return null;
+    }
+    return {
+        Prefix: Match[1] || "",
+        File: Match[2].trim(),
+        Line: parseInt(Match[3], 10),
+        Col: parseInt(Match[4], 10)
+    };
 }
 let CurrentPaperColorMode = ( () =>
 {
@@ -921,9 +1263,8 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = Source.split(/\r?\n/);
+    const LineRecords = ComputeLineOffsetsFrontend(Source);
     const MathIntervals = GetMathIntervals(Source);
-    let ByteOffset = 0;
     const ClaimedGroups = new Map();
 
     const LineMap = new Map();
@@ -936,9 +1277,10 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
         LineMap.get(E.line).push(E);
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    for (let LineIdx = 0; LineIdx < LineRecords.length; LineIdx ++)
     {
-        const LineText = Lines[LineIdx];
+        const LineText = LineRecords[LineIdx].Text;
+        const ByteOffset = LineRecords[LineIdx].StartOffset;
         const LineNum = LineIdx + 1;
 
         const Regex = /\b([a-zA-Z_]+)\b/g;
@@ -1099,8 +1441,6 @@ function EnrichMathSyncMap(SyncMap, Source, SvgPages)
                 });
             }
         }
-
-        ByteOffset += LineText.length + 1;
     }
 
     return Enriched;
@@ -1114,7 +1454,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = SourceCode.split(/\r?\n/);
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
 
     const DefRegex = /#let\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\(([^)]*)\)\s*=/g;
     let DefMatch;
@@ -1128,18 +1468,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
         const FuncName = DefMatch[1];
         const Params = DefMatch[2].split(",").map((P) => P.trim());
         const DefOffset = DefMatch.index;
-
-        let DefLine = 1;
-        let CurrOff = 0;
-        for (let I = 0; I < Lines.length; I ++)
-        {
-            if (CurrOff + Lines[I].length + 1 > DefOffset)
-            {
-                DefLine = I + 1;
-                break;
-            }
-            CurrOff += Lines[I].length + 1;
-        }
+        const DefLine = FindLineInfoFrontend(LineRecords, DefOffset).LineNum;
 
         let OpenChar = "";
         let CloseChar = "";
@@ -1182,17 +1511,7 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
             continue;
         }
 
-        let EndLine = 1;
-        CurrOff = 0;
-        for (let I = 0; I < Lines.length; I ++)
-        {
-            if (CurrOff + Lines[I].length + 1 > BodyEnd)
-            {
-                EndLine = I + 1;
-                break;
-            }
-            CurrOff += Lines[I].length + 1;
-        }
+        const EndLine = FindLineInfoFrontend(LineRecords, BodyEnd).LineNum;
 
         Definitions.push
         ({
@@ -1246,18 +1565,9 @@ function EnrichFunctionCalls(SyncMap, SourceCode)
             const CallEnd = CallStart + CallMatch[0].length;
             const ArgsText = CallMatch[1];
 
-            let CallLine = 1;
-            let LineStartOff = 0;
-            for (let I = 0; I < Lines.length; I ++)
-            {
-                if (LineStartOff + Lines[I].length + 1 > CallStart)
-                {
-                    CallLine = I + 1;
-                    break;
-                }
-                LineStartOff += Lines[I].length + 1;
-            }
-            const CallCol = CallStart - LineStartOff + 1;
+            const CallLoc = FindLineInfoFrontend(LineRecords, CallStart);
+            const CallLine = CallLoc.LineNum;
+            const CallCol = CallStart - CallLoc.StartOffset + 1;
             const CallEndCol = CallCol + CallMatch[0].length;
 
             if (InstanceIndex < UniqueRects.length)
@@ -1375,8 +1685,7 @@ function EnrichReferences(SyncMap, SourceCode)
     }
 
     const Enriched = [...SyncMap];
-    const Lines = SourceCode.split(/\r?\n/);
-    let ByteOffset = 0;
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
 
     const LineMap = new Map();
     for (const E of Enriched)
@@ -1388,9 +1697,10 @@ function EnrichReferences(SyncMap, SourceCode)
         LineMap.get(E.line).push(E);
     }
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    for (let LineIdx = 0; LineIdx < LineRecords.length; LineIdx ++)
     {
-        const LineText = Lines[LineIdx];
+        const LineText = LineRecords[LineIdx].Text;
+        const ByteOffset = LineRecords[LineIdx].StartOffset;
         const LineNum = LineIdx + 1;
         const RefRegex = /@([a-zA-Z0-9_\-:]+)/g;
         let Match;
@@ -1449,8 +1759,6 @@ function EnrichReferences(SyncMap, SourceCode)
                 });
             }
         }
-
-        ByteOffset += LineText.length + 1;
     }
 
     return Enriched;
@@ -1743,13 +2051,58 @@ async function JumpToEditorLocation(Line, Col, TargetFile)
 {
     if (TargetFile)
     {
-        const CleanTarget = TargetFile.replace(/\\/g, "/");
-        const CurrentClean = (ActiveDocumentCanonicalPath || CurrentFilePath || "").replace(/\\/g, "/");
-        if (CurrentClean && !CurrentClean.toLowerCase().endsWith(CleanTarget.toLowerCase()) && !CleanTarget.toLowerCase().endsWith(CurrentClean.toLowerCase()))
+        let ResolvedTarget = TargetFile.trim();
+        const ActiveRaw = ActiveDocumentCanonicalPath || CurrentFilePath || "";
+        // Resolve relative error path (e.g. "../components/base.typ") against active document folder / project root
+        const IsAbsoluteTarget = IsWindowsPathStyleFrontend(ResolvedTarget) || ResolvedTarget.startsWith("/") || ResolvedTarget.startsWith("\\\\?\\");
+        if (!IsAbsoluteTarget && (ActiveRaw || ExplorerCurrentRoot))
+        {
+            const BaseDir = ActiveRaw ? PathDirNameFrontend(ActiveRaw) : ExplorerCurrentRoot;
+            if (BaseDir)
+            {
+                const Parts = PathJoinFrontend(BaseDir, ResolvedTarget).replace(/\\/g, "/").split("/");
+                const Stack = [];
+                const IsUnc = Parts[0] === "" && Parts[1] === "";
+                const IsPosixRoot = Parts[0] === "" && !IsUnc;
+                for (let I = 0; I < Parts.length; I ++)
+                {
+                    const Seg = Parts[I];
+                    if (!Seg || Seg === ".") { continue; }
+                    if (Seg === "..")
+                    {
+                        if (Stack.length > 0 && !/^[A-Za-z]:$/.test(Stack[Stack.length - 1]))
+                        {
+                            Stack.pop();
+                        }
+                    }
+                    else
+                    {
+                        Stack.push(Seg);
+                    }
+                }
+                const Sep = IsWindowsPathStyleFrontend(BaseDir) ? "\\" : "/";
+                ResolvedTarget = IsPosixRoot ? ("/" + Stack.join("/")) : Stack.join(Sep);
+            }
+        }
+
+        const NormResolved = CanonicalizeDocKey(ResolvedTarget);
+        const NormCurrent = CanonicalizeDocKey(ActiveRaw);
+        const TargetBase = PathBaseNameFrontend(ResolvedTarget);
+        const CurrentBase = PathBaseNameFrontend(ActiveRaw);
+        const IsWinJump = IsWindowsPathStyleFrontend(ResolvedTarget) || IsWindowsPathStyleFrontend(ActiveRaw);
+        const CompTargetBase = IsWinJump ? TargetBase.toLowerCase() : TargetBase;
+        const CompCurrentBase = IsWinJump ? CurrentBase.toLowerCase() : CurrentBase;
+        const SameBase = CompTargetBase === CompCurrentBase;
+        const IsAlreadyOpen = NormCurrent && (
+            NormCurrent === NormResolved ||
+            (SameBase && (NormCurrent.endsWith("/" + NormResolved) || NormResolved.endsWith("/" + NormCurrent) || NormCurrent.endsWith("/" + CompTargetBase) || NormResolved.endsWith("/" + CompCurrentBase)))
+        );
+
+        if (NormCurrent && !IsAlreadyOpen)
         {
             if (typeof OpenFileFromWorkspace === "function")
             {
-                await OpenFileFromWorkspace(TargetFile);
+                await OpenFileFromWorkspace(ResolvedTarget);
             }
         }
     }
@@ -3443,7 +3796,7 @@ function InitializeMonaco()
                         [
                             [/\/\/.*$/, "comment"],
                             [/\/\*/, "comment", "@comment"],
-                            [/```/, "markup.raw.block", "@rawblock"],
+                            [/`{3,}[a-zA-Z0-9_\-+]*\s*/, "markup.raw.block", "@rawblock"],
                             [/`[^`\n]*`/, "markup.raw.inline"],
                             [/^(\s*=+)(.*)$/, ["keyword.heading", "markup.heading.text"]],
                             [/<[a-zA-Z0-9_\-:]+>/, "entity.name.label"],
@@ -3476,6 +3829,8 @@ function InitializeMonaco()
                         [
                             [/\/\/.*$/, "comment"],
                             [/\/\*/, "comment", "@comment"],
+                            [/`{3,}[a-zA-Z0-9_\-+]*\s*/, "markup.raw.block", "@rawblock"],
+                            [/`[^`\n]*`/, "markup.raw.inline"],
                             [/\{/, "@brackets", "@push"],
                             [/\}/, "@brackets", "@pop"],
                             [/\[/, "@brackets", "@markupmode"],
@@ -3528,8 +3883,8 @@ function InitializeMonaco()
                         ],
                         rawblock:
                         [
+                            [/`{3,}/, "markup.raw.block", "@pop"],
                             [/[^`]+/, "markup.raw.block"],
-                            [/```/, "markup.raw.block", "@pop"],
                             [/`/, "markup.raw.block"]
                         ]
                     }
@@ -4697,15 +5052,30 @@ function ScheduleCompile(DelayMs)
 async function TriggerCompileNow()
 {
     if (!MonacoInstance) { return; }
+
+    if (CompileTimeoutID)
+    {
+        clearTimeout(CompileTimeoutID);
+        CompileTimeoutID = null;
+    }
+
+    const RawDocPath = ActiveDocumentCanonicalPath || CurrentFilePath || ActiveTabPath || "";
+    const RequestDocKey = CanonicalizeDocKey(RawDocPath);
+
     if (IsCompiling)
     {
-        HasPendingCompile = true;
-        return ;
+        if (ActiveCompileRequestDocKey === RequestDocKey)
+        {
+            HasPendingCompile = true;
+            return ;
+        }
     }
+
     IsCompiling = true;
-    const ThisCompileGen = ++ CompileGeneration;
-    ActiveCompileGeneration = ThisCompileGen;
-    const RequestDocPath = ActiveDocumentCanonicalPath || CurrentFilePath || "";
+    const ThisCompileSeq = ++ ForegroundCompileSeq;
+    CompileGeneration = ThisCompileSeq;
+    ActiveCompileGeneration = ThisCompileSeq;
+    ActiveCompileRequestDocKey = RequestDocKey;
 
     // Cancel any in-flight compilation request to avoid network and backend queue collisions
     if (ActiveAbortController)
@@ -4721,13 +5091,12 @@ async function TriggerCompileNow()
     const StatusDot = document.getElementById("StatusDot");
     const StatusText = document.getElementById("StatusText");
     const DurationText = document.getElementById("DurationText");
-    const ErrorDrawer = document.getElementById("ErrorDrawer");
 
     // Run LAFS validation so errors are shown as Monaco markers without blocking the render
     ValidateEditorLAFS();
 
-    StatusDot.className = "StatusDot Compiling";
-    StatusText.textContent = "Compiling...";
+    if (StatusDot) { StatusDot.className = "StatusDot Compiling"; }
+    if (StatusText) { StatusText.textContent = "Compiling..."; }
     SetStatusPill("Compiling", "Compiling...", undefined);
 
     try
@@ -4741,12 +5110,18 @@ async function TriggerCompileNow()
                 {
                     source: Source,
                     Source: Source,
-                    filePath: CurrentFilePath || null,
-                    FilePath: CurrentFilePath || null
+                    filePath: RawDocPath || null,
+                    FilePath: RawDocPath || null
                 }
             );
 
-            if (ThisCompileGen !== CompileGeneration || RequestDocPath !== (ActiveDocumentCanonicalPath || CurrentFilePath || ""))
+            if (!IsForegroundCompileCurrent(ThisCompileSeq, RequestDocKey))
+            {
+                return ;
+            }
+
+            const RespDocPath = RustResp.file_path || RustResp.FilePath;
+            if (RespDocPath && CanonicalizeDocKey(RespDocPath) !== RequestDocKey)
             {
                 return ;
             }
@@ -4784,8 +5159,8 @@ async function TriggerCompileNow()
                     ({
                         Source: Source,
                         source: Source,
-                        FilePath: CurrentFilePath || null,
-                        filePath: CurrentFilePath || null,
+                        FilePath: RawDocPath || null,
+                        filePath: RawDocPath || null,
                         IsBackground: false
                     }),
                     signal: Controller.signal
@@ -4794,7 +5169,13 @@ async function TriggerCompileNow()
 
             Result = await Response.json();
 
-            if (ThisCompileGen !== CompileGeneration || RequestDocPath !== (ActiveDocumentCanonicalPath || CurrentFilePath || ""))
+            if (!IsForegroundCompileCurrent(ThisCompileSeq, RequestDocKey))
+            {
+                return ;
+            }
+
+            const RespDocPath = Result && (Result.FilePath || Result.file_path);
+            if (RespDocPath && CanonicalizeDocKey(RespDocPath) !== RequestDocKey)
             {
                 return ;
             }
@@ -4827,30 +5208,20 @@ async function TriggerCompileNow()
                 SetStatusPill("", "Ready", Result.DurationMs);
                 CurrentPageCount = Result.PageCount || (Result.Pages ? Result.Pages.length : 0);
             }
-            ErrorDrawer.classList.remove("Visible");
-            const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
-            if (ErrorIndicator) { ErrorIndicator.style.display = "none"; }
 
-            if (MonacoInstance && window.monaco && window.monaco.editor)
-            {
-                const Model = MonacoInstance.getModel();
-                if (Model)
-                {
-                    window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
-                }
-            }
+            ClearCompilationError();
 
             LastCompiledPages = Result.Pages || [];
-            LastCompiledDocumentPath = CanonicalizeDocKey(RequestDocPath);
+            LastCompiledDocumentPath = RequestDocKey;
 
-            if (!IsModuleFile && Result.Pages && Result.Pages[0] && CurrentFilePath)
+            if (!IsModuleFile && Result.Pages && Result.Pages[0] && RequestDocKey)
             {
-                const NormKey = CanonicalizeDocKey(CurrentFilePath);
+                const NormKey = RequestDocKey;
                 if (!window.DocPreviewSvgCache) { window.DocPreviewSvgCache = {}; }
                 window.DocPreviewSvgCache[NormKey] = Result.Pages[0];
                 try
                 {
-                    localStorage.setItem(PREVIEW_CACHE_PREFIX + btoa(NormKey), Result.Pages[0]);
+                    localStorage.setItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey), Result.Pages[0]);
                 }
                 catch (Ignored) {}
             }
@@ -4871,6 +5242,10 @@ async function TriggerCompileNow()
                 (
                     () =>
                     {
+                        if (!IsForegroundCompileCurrent(ThisCompileSeq, RequestDocKey))
+                        {
+                            return ;
+                        }
                         HighlightSvgRects(ActiveHighlightBoxes, false);
                     },
                     50
@@ -4885,9 +5260,9 @@ async function TriggerCompileNow()
                 Splash.remove();
             }
 
-            StatusDot.className = "StatusDot Error";
-            StatusText.textContent = "Error";
-            DurationText.textContent = `${Result.DurationMs}ms`;
+            if (StatusDot) { StatusDot.className = "StatusDot Error"; }
+            if (StatusText) { StatusText.textContent = "Error"; }
+            if (DurationText) { DurationText.textContent = `${Result.DurationMs}ms`; }
             SetStatusPill("Error", "Error", Result.DurationMs);
 
             const PagesContainer = document.getElementById("PagesContainer");
@@ -4901,7 +5276,15 @@ async function TriggerCompileNow()
             CurrentPageCount = 0;
             UpdatePagination();
 
-            ShowCompilationError(Result.Error);
+            ShowCompilationError
+            (
+                Result.Error,
+                {
+                    RequestSeq: ThisCompileSeq,
+                    TargetDocKey: RequestDocKey,
+                    IsBackground: false
+                }
+            );
         }
     }
     catch (Exception)
@@ -4911,11 +5294,23 @@ async function TriggerCompileNow()
             // Fetch aborted cleanly by a newer compile trigger
             return ;
         }
-        StatusDot.className = "StatusDot Error";
-        StatusText.textContent = "Offline";
+        if (!IsForegroundCompileCurrent(ThisCompileSeq, RequestDocKey))
+        {
+            return ;
+        }
+        if (StatusDot) { StatusDot.className = "StatusDot Error"; }
+        if (StatusText) { StatusText.textContent = "Offline"; }
         SetStatusPill("Error", "Offline", 0);
         const ErrMsg = (Exception && Exception.message) ? Exception.message : String(Exception || "Compilation failed.");
-        ShowCompilationError(ErrMsg);
+        ShowCompilationError
+        (
+            ErrMsg,
+            {
+                RequestSeq: ThisCompileSeq,
+                TargetDocKey: RequestDocKey,
+                IsBackground: false
+            }
+        );
         const Splash = document.getElementById("LoadingSplash");
         if (Splash)
         {
@@ -4924,19 +5319,27 @@ async function TriggerCompileNow()
     }
     finally
     {
-        IsCompiling = false;
-        if (ActiveAbortController === Controller)
+        if (ThisCompileSeq === ForegroundCompileSeq)
+        {
+            IsCompiling = false;
+            ActiveCompileRequestDocKey = "";
+            if (ActiveAbortController === Controller)
+            {
+                ActiveAbortController = null;
+            }
+            if (HasPendingCompile)
+            {
+                HasPendingCompile = false;
+                setTimeout
+                (
+                    () => { TriggerCompileNow(); },
+                    60
+                );
+            }
+        }
+        else if (ActiveAbortController === Controller)
         {
             ActiveAbortController = null;
-        }
-        if (HasPendingCompile)
-        {
-            HasPendingCompile = false;
-            setTimeout
-            (
-                () => { TriggerCompileNow(); },
-                60
-            );
         }
     }
 }
@@ -5258,6 +5661,112 @@ function ConvertSvgToTransparent(Svg)
     return Result;
 }
 
+function FindExcludedSvgContainerRanges(Svg)
+{
+    const Ranges = [];
+    const TagRegex = /<(\/?)(defs|clipPath|mask|pattern)\b([^>]*)>/gi;
+    const Stack = [];
+    let Match = null;
+
+    while ((Match = TagRegex.exec(Svg)) !== null)
+    {
+        const IsClose = Match[1] === "/";
+        const TagName = Match[2].toLowerCase();
+        const Attrs = Match[3] || "";
+        const IsSelfClosing = !IsClose && Attrs.trim().endsWith("/");
+
+        if (IsSelfClosing)
+        {
+            continue;
+        }
+
+        if (!IsClose)
+        {
+            Stack.push({ Tag: TagName, Start: Match.index });
+        }
+        else
+        {
+            for (let I = Stack.length - 1; I >= 0; I --)
+            {
+                if (Stack[I].Tag === TagName)
+                {
+                    const Entry = Stack.splice(I, 1)[0];
+                    if (Stack.length === 0)
+                    {
+                        Ranges.push([Entry.Start, Match.index + Match[0].length]);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    return Ranges;
+}
+
+function IsOffsetInSvgRanges(Offset, Ranges)
+{
+    for (let I = 0; I < Ranges.length; I ++)
+    {
+        if (Offset >= Ranges[I][0] && Offset < Ranges[I][1])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+function TryMarkElementCanvasSentinel(TagMatch)
+{
+    const FillAttrMatch = TagMatch.match(/\bfill\s*=\s*(["'])([^"']*)\1/i);
+    if (FillAttrMatch)
+    {
+        const Val = FillAttrMatch[2].trim().toLowerCase();
+        if (!Val || Val === "none" || Val === "transparent" || Val.startsWith("url("))
+        {
+            return null;
+        }
+        return TagMatch.replace(/\bfill\s*=\s*(["'])[^"']*\1/i, 'fill="__CANVAS_BLACK_SENTINEL__"');
+    }
+
+    const StyleAttrMatch = TagMatch.match(/\bstyle\s*=\s*(["'])([^"']*)\1/i);
+    if (StyleAttrMatch)
+    {
+        const StyleVal = StyleAttrMatch[2];
+        const StyleFillMatch = StyleVal.match(/(^|;|\s)fill\s*:\s*([^;]+)/i);
+        if (StyleFillMatch)
+        {
+            const Val = StyleFillMatch[2].trim().toLowerCase();
+            if (!Val || Val === "none" || Val === "transparent" || Val.startsWith("url("))
+            {
+                return null;
+            }
+            return TagMatch.replace
+            (
+                /\bstyle\s*=\s*(["'])([^"']*)\1/i,
+                (Full, Quote, Content) =>
+                {
+                    const Updated = Content.replace(/(^|;|\s)fill\s*:\s*([^;]+)/i, "$1fill: __CANVAS_BLACK_SENTINEL__");
+                    return `style=${Quote}${Updated}${Quote}`;
+                }
+            );
+        }
+    }
+
+    return null;
+}
+
+function IsZeroSvgCoord(ValueStr)
+{
+    if (ValueStr === undefined || ValueStr === null)
+    {
+        return false;
+    }
+    const Cleaned = String(ValueStr).trim().replace(/(?:px|pt|em|rem|%)$/i, "");
+    const Num = parseFloat(Cleaned);
+    return Number.isFinite(Num) && Math.abs(Num) <= 0.01;
+}
+
 function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColorMode)
 {
     if (!Svg)
@@ -5274,16 +5783,29 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
     }
 
     let Result = Svg;
+    const ExcludedRanges = FindExcludedSvgContainerRanges(Result);
+    const VbMatch = Result.match(/viewBox\s*=\s*["']\s*([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s+([0-9.-]+)\s*["']/i);
+    const VbWidth = VbMatch ? parseFloat(VbMatch[3]) : NaN;
+    const VbHeight = VbMatch ? parseFloat(VbMatch[4]) : NaN;
 
-    // 1. Mark canvas background with sentinel
+    // 1. Mark canvas background with sentinel (skipping <defs>/<clipPath>/<mask>/<pattern> and unfilled shapes)
     let CanvasFound = false;
     Result = Result.replace
     (
-        /<path\b([^>]*\bd=["']\s*M\s*0\s*0[vhVH\s][^"']*(?:Z|z)?\s*["'][^>]*)>/i,
-        (Match) =>
+        /<path\b([^>]*\bd\s*=\s*(?:"\s*M\s*0[\s,]+0(?:\s*[vhVHlL]|[\s,])[^"]*"|'\s*M\s*0[\s,]+0(?:\s*[vhVHlL]|[\s,])[^']*')[^>]*)>/gi,
+        (Match, _Attrs, Offset) =>
         {
-            CanvasFound = true;
-            return Match.replace(/\bfill=["'][^"']*["']/i, 'fill="__CANVAS_BLACK_SENTINEL__"');
+            if (CanvasFound || IsOffsetInSvgRanges(Offset, ExcludedRanges))
+            {
+                return Match;
+            }
+            const Marked = TryMarkElementCanvasSentinel(Match);
+            if (Marked)
+            {
+                CanvasFound = true;
+                return Marked;
+            }
+            return Match;
         }
     );
 
@@ -5291,11 +5813,44 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
     {
         Result = Result.replace
         (
-            /<rect\b([^>]*\b(?:x=["']0["']\s+y=["']0["']|y=["']0["']\s+x=["']0["']|width=["']100%["'])[^>]*)>/i,
-            (Match) =>
+            /<rect\b([^>]*)>/gi,
+            (Match, Attrs, Offset) =>
             {
-                CanvasFound = true;
-                return Match.replace(/\bfill=["'][^"']*["']/i, 'fill="__CANVAS_BLACK_SENTINEL__"');
+                if (CanvasFound || IsOffsetInSvgRanges(Offset, ExcludedRanges))
+                {
+                    return Match;
+                }
+                const WidthMatch = Attrs.match(/\bwidth\s*=\s*(["'])([^"']+)\1/i);
+                const HeightMatch = Attrs.match(/\bheight\s*=\s*(["'])([^"']+)\1/i);
+                const XMatch = Attrs.match(/\bx\s*=\s*(["'])([^"']+)\1/i);
+                const YMatch = Attrs.match(/\by\s*=\s*(["'])([^"']+)\1/i);
+
+                const IsPercentFull = Boolean(WidthMatch && WidthMatch[2].trim() === "100%");
+                const HasZeroOrigin = Boolean(XMatch && YMatch && IsZeroSvgCoord(XMatch[2]) && IsZeroSvgCoord(YMatch[2]));
+                const CoversViewBox = Boolean
+                (
+                    (!XMatch || IsZeroSvgCoord(XMatch[2])) &&
+                    (!YMatch || IsZeroSvgCoord(YMatch[2])) &&
+                    WidthMatch &&
+                    HeightMatch &&
+                    Number.isFinite(VbWidth) &&
+                    Number.isFinite(VbHeight) &&
+                    Math.abs(parseFloat(WidthMatch[2]) - VbWidth) <= 1.0 &&
+                    Math.abs(parseFloat(HeightMatch[2]) - VbHeight) <= 1.0
+                );
+
+                if (!IsPercentFull && !HasZeroOrigin && !CoversViewBox)
+                {
+                    return Match;
+                }
+
+                const Marked = TryMarkElementCanvasSentinel(Match);
+                if (Marked)
+                {
+                    CanvasFound = true;
+                    return Marked;
+                }
+                return Match;
             }
         );
     }
@@ -5306,10 +5861,10 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         Result = Result.replace('fill="#FFFFFF" fill-rule="nonzero" d="M 0 0v', 'fill="__CANVAS_BLACK_SENTINEL__" fill-rule="nonzero" d="M 0 0v');
     }
 
-    // 2. Invert <use> text glyph fills
+    // 2. Invert <use>/<text>/<tspan> text glyph fills
     Result = Result.replace
     (
-        /<use\b([^>]*)>/gi, (Match, Attrs) =>
+        /<(use|text|tspan)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
         {
             const UpdatedAttrs = Attrs.replace
             (
@@ -5319,14 +5874,14 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
                     return `fill=${Quote}${Inverted}${Quote}`;
                 }
             );
-            return `<use${UpdatedAttrs}>`;
+            return `<${Tag}${UpdatedAttrs}>`;
         }
     );
 
-    // 3. Invert shapes (<path>, <rect>, <polygon>, <circle>, <ellipse>, <line>) fills and strokes
+    // 3. Invert shapes (<path>, <rect>, <polygon>, <polyline>, <circle>, <ellipse>, <line>) fills and strokes
     Result = Result.replace
     (
-        /<(path|rect|polygon|circle|ellipse|line)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
+        /<(path|rect|polygon|polyline|circle|ellipse|line)\b([^>]*)>/gi, (Match, Tag, Attrs) =>
         {
             let Updated = Attrs.replace
             (
@@ -5352,12 +5907,7 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
         }
     );
 
-    // 4. Resolve the canvas sentinel to pure black #000000 or optimized #0D0D0F or none
-    const CanvasColor = (Mode === "pure_black") ? "#000000": "#0D0D0F";
-    const CanvasFill = Transparent ? 'fill="none"': `fill="${CanvasColor}"`;
-    Result = Result.replaceAll('fill="__CANVAS_BLACK_SENTINEL__"', CanvasFill);
-
-    // 5. Handle custom inline styles
+    // 4. Handle custom inline styles before resolving canvas sentinel
     if (Result.includes('style="') || Result.includes("style='"))
     {
         Result = Result.replace
@@ -5369,10 +5919,15 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
                 const StyleContent = QuotedVal.slice(1, - 1);
                 const Transformed = StyleContent.replace
                 (
-                    /\b(fill|stroke|color)\s*:\s*([^;"]+)/gi,
+                    /\b(fill|stroke|color)\s*:\s*([^;'"]+)/gi,
                     (PropMatch, Prop, Color) =>
                     {
-                        const Inverted = InvertShapeColor(Color.trim(), Mode);
+                        const Trimmed = Color.trim();
+                        if (Trimmed === "__CANVAS_BLACK_SENTINEL__")
+                        {
+                            return PropMatch;
+                        }
+                        const Inverted = InvertShapeColor(Trimmed, Mode);
                         return `${Prop}: ${Inverted}`;
                     }
                 );
@@ -5380,6 +5935,14 @@ function ConvertSvgToDarkMode(Svg, Transparent = false, Mode = CurrentPaperColor
             }
         );
     }
+
+    // 5. Resolve the canvas sentinel to pure black #000000 or optimized #0D0D0F or none
+    const CanvasColor = (Mode === "pure_black") ? "#000000": "#0D0D0F";
+    const CanvasFillAttr = Transparent ? 'fill="none"': `fill="${CanvasColor}"`;
+    const CanvasFillStyleVal = Transparent ? "none": CanvasColor;
+    Result = Result.replaceAll('fill="__CANVAS_BLACK_SENTINEL__"', CanvasFillAttr);
+    Result = Result.replaceAll("fill='__CANVAS_BLACK_SENTINEL__'", CanvasFillAttr);
+    Result = Result.replaceAll("__CANVAS_BLACK_SENTINEL__", CanvasFillStyleVal);
 
     if (SvgDarkModeCache.size > 300)
     {
@@ -5407,6 +5970,136 @@ function IsSvgPageBlank(SvgStr)
         return false;
     }
     return true;
+}
+
+function ScopeSvgUrlFragments(Value, ScopePrefix)
+{
+    if (!Value || !ScopePrefix)
+    {
+        return Value;
+    }
+
+    const TrimmedVal = Value.trim();
+    if (/^(?:https?:|data:|blob:|javascript:)/i.test(TrimmedVal))
+    {
+        return Value;
+    }
+
+    return Value.replace
+    (
+        /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s'"]+))\s*\)/gi,
+        (Match, DoubleVal, SingleVal, UnquotedVal) =>
+        {
+            const Quote = (DoubleVal !== undefined) ? '"': ((SingleVal !== undefined) ? "'": "");
+            const RawTarget = DoubleVal ?? SingleVal ?? UnquotedVal ?? "";
+            const TrimmedTarget = RawTarget.trim();
+            if (!TrimmedTarget.startsWith("#") || TrimmedTarget.length <= 1)
+            {
+                return Match;
+            }
+            const FragmentId = TrimmedTarget.slice(1);
+            const ScopedId = FragmentId.startsWith(ScopePrefix) ? FragmentId : `${ScopePrefix}${FragmentId}`;
+            return `url(${Quote}#${ScopedId}${Quote})`;
+        }
+    );
+}
+
+function NormalizeSvg(RawSvg, PageScope = "")
+{
+    if (!RawSvg || typeof RawSvg !== "string")
+    {
+        return "";
+    }
+
+    // 1. Strip script tags
+    let Sanitized = RawSvg
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+        .replace(/<script\b[^>]*\/>/gi, "");
+
+    // 2. Strip foreignObject tags
+    Sanitized = Sanitized
+        .replace(/<foreignObject\b[^<]*(?:(?!<\/foreignObject>)<[^<]*)*<\/foreignObject>/gi, "")
+        .replace(/<foreignObject\b[^>]*\/>/gi, "");
+
+    // 3. Strip inline event handlers (onload, onerror, onclick, etc.)
+    Sanitized = Sanitized.replace(/\s+on[a-z]+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "");
+
+    // 4. Strip javascript: and data: URIs in href and xlink:href
+    Sanitized = Sanitized.replace(/\s+(?:xlink:)?href\s*=\s*['"]\s*(?:javascript:|data:text\/html)[\s\S]*?['"]/gi, "");
+
+    // 5. Namespace local fragment IDs per page so multi-page inline SVGs do not cross-resolve
+    const ScopePrefix = (typeof PageScope === "string" && PageScope.length > 0) ? PageScope : "";
+    if (ScopePrefix)
+    {
+        const ScopeId = (Id) => (Id && !Id.startsWith(ScopePrefix)) ? `${ScopePrefix}${Id}` : Id;
+
+        Sanitized = Sanitized.replace
+        (
+            /<([A-Za-z][A-Za-z0-9:._-]*)((?:\s+(?:"[^"]*"|'[^']*'|[^>"'])*)?)>/g,
+            (TagMatch, TagName, Attrs) =>
+            {
+                if (!Attrs)
+                {
+                    return TagMatch;
+                }
+
+                const ScopedAttrs = Attrs.replace
+                (
+                    /(\s+[A-Za-z_:][A-Za-z0-9_.:-]*)(\s*=\s*)("([^"]*)"|'([^']*)')/g,
+                    (AttrMatch, NamePart, EqPart, _Quoted, DoubleVal, SingleVal) =>
+                    {
+                        const Quote = (DoubleVal !== undefined) ? '"': "'";
+                        const RawVal = (DoubleVal !== undefined) ? DoubleVal : (SingleVal ?? "");
+                        const AttrName = NamePart.trim().toLowerCase();
+
+                        if (AttrName === "id")
+                        {
+                            const TrimmedId = RawVal.trim();
+                            if (!TrimmedId)
+                            {
+                                return AttrMatch;
+                            }
+                            return `${NamePart}${EqPart}${Quote}${ScopeId(TrimmedId)}${Quote}`;
+                        }
+
+                        if (AttrName === "href" || AttrName === "xlink:href")
+                        {
+                            const LocalFragMatch = RawVal.match(/^\s*#([^\s]+)\s*$/);
+                            if (!LocalFragMatch)
+                            {
+                                return AttrMatch;
+                            }
+                            return `${NamePart}${EqPart}${Quote}#${ScopeId(LocalFragMatch[1])}${Quote}`;
+                        }
+
+                        const UpdatedVal = ScopeSvgUrlFragments(RawVal, ScopePrefix);
+                        return `${NamePart}${EqPart}${Quote}${UpdatedVal}${Quote}`;
+                    }
+                );
+
+                return `<${TagName}${ScopedAttrs}>`;
+            }
+        );
+
+        Sanitized = Sanitized.replace
+        (
+            /(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi,
+            (StyleMatch, OpenTag, CssBody, CloseTag) => `${OpenTag}${ScopeSvgUrlFragments(CssBody, ScopePrefix)}${CloseTag}`
+        );
+    }
+
+    // 6. Adjust width & height for container rendering
+    return Sanitized.replace
+    (
+        /<svg\b([^>]*)>/i,
+        (Match, Attrs) =>
+        {
+            const CleanedAttrs = Attrs
+                .replace(/\bwidth="[^"]*"/gi, "")
+                .replace(/\bheight="[^"]*"/gi, "");
+            return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
+        }
+    );
 }
 
 function RenderPages(Pages)
@@ -5442,43 +6135,6 @@ function RenderPages(Pages)
 
     const CurrentToken = ++ RenderToken;
 
-    function NormalizeSvg(RawSvg)
-    {
-        if (!RawSvg || typeof RawSvg !== "string")
-        {
-            return "";
-        }
-
-        // 1. Strip script tags
-        let Sanitized = RawSvg
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
-            .replace(/<script\b[^>]*\/>/gi, "");
-
-        // 2. Strip foreignObject tags
-        Sanitized = Sanitized
-            .replace(/<foreignObject\b[^<]*(?:(?!<\/foreignObject>)<[^<]*)*<\/foreignObject>/gi, "")
-            .replace(/<foreignObject\b[^>]*\/>/gi, "");
-
-        // 3. Strip inline event handlers (onload, onerror, onclick, etc.)
-        Sanitized = Sanitized.replace(/\s+on[a-z]+\s*=\s*(?:'[^']*'|"[^"]*"|[^\s>]+)/gi, "");
-
-        // 4. Strip javascript: and data: URIs in href and xlink:href
-        Sanitized = Sanitized.replace(/\s+(?:xlink:)?href\s*=\s*['"]\s*(?:javascript:|data:text\/html)[\s\S]*?['"]/gi, "");
-
-        // 5. Adjust width & height for container rendering
-        return Sanitized.replace
-        (
-            /<svg\b([^>]*)>/i,
-            (Match, Attrs) =>
-            {
-                const CleanedAttrs = Attrs
-                    .replace(/\bwidth="[^"]*"/gi, "")
-                    .replace(/\bheight="[^"]*"/gi, "");
-                return `<svg ${CleanedAttrs} width="100%" height="100%" style="display: block; width: 100%; height: 100%;">`;
-            }
-        );
-    }
-
     function UpdateOrCreatePageElement(SvgContent, Index)
     {
         const PageId = `PageSheet_${Index + 1}`;
@@ -5487,10 +6143,14 @@ function RenderPages(Pages)
         const ModeKey = CurrentPaperColorMode;
         const CurrentDocKey = ActiveDocumentCanonicalPath || CurrentFilePath || "";
         const CurrentGenKey = String(ActiveCompileGeneration || CompileGeneration);
+        const ExpectedLayerClass = (ModeKey !== "light") ? "DarkSvgLayer": "LightSvgLayer";
 
         if (PageDiv)
         {
+            const ActiveLayerEl = PageDiv.querySelector(`.${ExpectedLayerClass} svg`);
             if (
+                PageDiv.children.length === 1 &&
+                ActiveLayerEl &&
                 PageDiv.dataset.docPath === CurrentDocKey &&
                 PageDiv.dataset.svgHash === ContentHash &&
                 PageDiv.dataset.svgMode === ModeKey
@@ -5537,8 +6197,8 @@ function RenderPages(Pages)
 
         const SvgToRender = (CurrentPaperColorMode !== "light") ? ConvertSvgToDarkMode(SvgContent, false, CurrentPaperColorMode): SvgContent;
         const ActiveLayer = document.createElement("div");
-        ActiveLayer.className = (CurrentPaperColorMode !== "light") ? "SvgLayer DarkSvgLayer": "SvgLayer LightSvgLayer";
-        ActiveLayer.innerHTML = NormalizeSvg(SvgToRender);
+        ActiveLayer.className = `SvgLayer ${ExpectedLayerClass}`;
+        ActiveLayer.innerHTML = NormalizeSvg(SvgToRender, `p${Index + 1}_`);
         PageDiv.appendChild(ActiveLayer);
 
         return PageDiv;
@@ -5622,9 +6282,15 @@ function RenderPages(Pages)
         {
             const PageDiv = document.getElementById(`PageSheet_${NextStreamIndex + 1}`);
             const CurrentDocKey = ActiveDocumentCanonicalPath || CurrentFilePath || "";
+            const ExpectedHash = FastHash(Pages[NextStreamIndex]);
+            const ExpectedLayerClass = (CurrentPaperColorMode !== "light") ? "DarkSvgLayer": "LightSvgLayer";
+            const HasExpectedLayer = Boolean(PageDiv && PageDiv.children.length === 1 && PageDiv.querySelector(`.${ExpectedLayerClass} svg`));
             const NeedsRender = !PageDiv ||
                 PageDiv.children.length === 0 ||
-                PageDiv.dataset.docPath !== CurrentDocKey;
+                !HasExpectedLayer ||
+                PageDiv.dataset.docPath !== CurrentDocKey ||
+                PageDiv.dataset.svgHash !== ExpectedHash ||
+                PageDiv.dataset.svgMode !== CurrentPaperColorMode;
 
             if (NeedsRender)
             {
@@ -5649,7 +6315,7 @@ function RenderPages(Pages)
     RebuildMonotonicSyncAnchors();
 }
 
-function ParseCompilerDiagnostics(RawErrorText)
+function ParseCompilerDiagnostics(RawErrorText, ExpectedDocPath = "")
 {
     if (!RawErrorText)
     {
@@ -5665,6 +6331,8 @@ function ParseCompilerDiagnostics(RawErrorText)
     {
         CurrentSeverity = window.monaco.MarkerSeverity.Error;
     }
+
+    const ActiveRaw = ExpectedDocPath || ActiveDocumentCanonicalPath || CurrentFilePath || ActiveTabPath || "";
 
     for (let I = 0; I < Lines.length; I ++)
     {
@@ -5683,37 +6351,29 @@ function ParseCompilerDiagnostics(RawErrorText)
             }
         }
 
-        const LocMatch = Line.match(/(?:┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/i);
-        if (LocMatch)
+        const ParsedLoc = ParseDiagnosticLocationLine(Line);
+        if (ParsedLoc && ParsedLoc.Line > 0)
         {
-            const File = LocMatch[1].replace(/\\/g, "/");
-            const LineNum = parseInt(LocMatch[2], 10);
-            const ColNum = parseInt(LocMatch[3], 10);
+            const IsCurrentDoc = IsDiagnosticFileActiveDoc(ParsedLoc.File, ActiveRaw);
 
-            const ActivePath = (ActiveDocumentCanonicalPath || CurrentFilePath || "").replace(/\\/g, "/");
-            const IsCurrentDoc = !ActivePath ||
-                File.toLowerCase() === ActivePath.toLowerCase() ||
-                File.toLowerCase().endsWith("/" + ActivePath.split("/").pop().toLowerCase()) ||
-                ActivePath.toLowerCase().endsWith("/" + File.split("/").pop().toLowerCase());
-
-            if (IsCurrentDoc && LineNum > 0)
+            if (IsCurrentDoc)
             {
-                let EndCol = ColNum + 1;
+                let EndCol = ParsedLoc.Col + 1;
                 if (MonacoInstance)
                 {
                     const Model = MonacoInstance.getModel();
-                    if (Model && LineNum <= Model.getLineCount())
+                    if (Model && ParsedLoc.Line <= Model.getLineCount())
                     {
-                        EndCol = Math.max(EndCol, Model.getLineMaxColumn(LineNum));
+                        EndCol = Math.max(EndCol, Model.getLineMaxColumn(ParsedLoc.Line));
                     }
                 }
                 Markers.push
                 ({
                     severity: CurrentSeverity,
                     message: CurrentMsg,
-                    startLineNumber: LineNum,
-                    startColumn: ColNum,
-                    endLineNumber: LineNum,
+                    startLineNumber: ParsedLoc.Line,
+                    startColumn: ParsedLoc.Col,
+                    endLineNumber: ParsedLoc.Line,
                     endColumn: EndCol,
                     source: "typst-compiler"
                 });
@@ -5724,8 +6384,71 @@ function ParseCompilerDiagnostics(RawErrorText)
     return Markers;
 }
 
-function ShowCompilationError(ErrorMessage)
+function ClearCompilationError()
 {
+    const ErrorDrawer = document.getElementById("ErrorDrawer");
+    if (ErrorDrawer)
+    {
+        ErrorDrawer.classList.remove("Visible");
+    }
+
+    const ErrorContent = document.getElementById("ErrorContent");
+    if (ErrorContent)
+    {
+        ErrorContent.innerHTML = "";
+    }
+
+    const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
+    if (ErrorIndicator)
+    {
+        ErrorIndicator.style.display = "none";
+    }
+
+    const ErrorCountText = document.getElementById("ErrorCountText");
+    if (ErrorCountText)
+    {
+        ErrorCountText.textContent = "0 Errors";
+    }
+
+    PrimaryErrorLocation = null;
+    const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
+    if (JumpBtn)
+    {
+        JumpBtn.style.display = "none";
+        JumpBtn.textContent = "Jump to Error";
+    }
+
+    if (MonacoInstance && window.monaco && window.monaco.editor)
+    {
+        const Model = MonacoInstance.getModel();
+        if (Model)
+        {
+            window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
+        }
+    }
+}
+
+function ShowCompilationError(ErrorMessage, CompileContext = null)
+{
+    if (CompileContext && CompileContext.IsBackground === true)
+    {
+        return ;
+    }
+    if (CompileContext)
+    {
+        if (typeof CompileContext.RequestSeq === "number" && CompileContext.RequestSeq !== ForegroundCompileSeq)
+        {
+            return ;
+        }
+        if (typeof CompileContext.TargetDocKey === "string")
+        {
+            if (CanonicalizeDocKey(CompileContext.TargetDocKey) !== GetActiveForegroundDocKey())
+            {
+                return ;
+            }
+        }
+    }
+
     const ErrorDrawer = document.getElementById("ErrorDrawer");
     const ErrorContent = document.getElementById("ErrorContent");
     const Cleaned = ErrorErrorMessageClean(ErrorMessage);
@@ -5735,33 +6458,60 @@ function ShowCompilationError(ErrorMessage)
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
+    const ExpectedDocPath = (CompileContext && CompileContext.TargetDocKey)
+        ? CompileContext.TargetDocKey
+        : (ActiveDocumentCanonicalPath || CurrentFilePath || ActiveTabPath || "");
+    const Markers = ParseCompilerDiagnostics(Cleaned, ExpectedDocPath);
+
     // Populate Monaco editor markers with structured compiler diagnostics
     if (MonacoInstance && window.monaco && window.monaco.editor)
     {
         const Model = MonacoInstance.getModel();
         if (Model)
         {
-            const Markers = ParseCompilerDiagnostics(Cleaned);
             window.monaco.editor.setModelMarkers(Model, "typst-compiler", Markers);
         }
     }
 
+    const ErrorLineMatches = Cleaned.match(/^(?:error):/gim);
+    const ErrorCount = (ErrorLineMatches && ErrorLineMatches.length > 0)
+        ? ErrorLineMatches.length
+        : (Markers.length > 0 ? Markers.length : 1);
+    const ErrorIndicator = document.getElementById("CompilationErrorIndicator");
+    const ErrorCountText = document.getElementById("ErrorCountText");
+    if (ErrorCountText)
+    {
+        ErrorCountText.textContent = ErrorCount === 1 ? "1 Error" : `${ErrorCount} Errors`;
+    }
+    if (ErrorIndicator)
+    {
+        ErrorIndicator.style.display = "inline-flex";
+    }
+
     // Detect primary error line and column for direct jump
     PrimaryErrorLocation = null;
-    const LocMatch = Cleaned.match(/(?:┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/i);
+    let PrimaryLoc = null;
+    for (const RawLine of Cleaned.split(/\r?\n/))
+    {
+        PrimaryLoc = ParseDiagnosticLocationLine(RawLine);
+        if (PrimaryLoc)
+        {
+            break;
+        }
+    }
     const JumpBtn = document.getElementById("JumpToPrimaryErrorBtn");
-    if (LocMatch)
+    if (PrimaryLoc)
     {
         PrimaryErrorLocation =
         {
-            File: LocMatch[1].replace(/\\/g, "/"),
-            Line: parseInt(LocMatch[2], 10),
-            Col: parseInt(LocMatch[3], 10)
+            File: CanonicalizeDocKey(PrimaryLoc.File) || PrimaryLoc.File,
+            Line: PrimaryLoc.Line,
+            Col: PrimaryLoc.Col
         };
         if (JumpBtn)
         {
             JumpBtn.style.display = "inline-flex";
-            JumpBtn.textContent = `Jump to L${LocMatch[2]}:${LocMatch[3]}`;
+            JumpBtn.textContent = `Jump to L${PrimaryLoc.Line}:${PrimaryLoc.Col}`;
         }
     }
     else if (JumpBtn)
@@ -5773,20 +6523,28 @@ function ShowCompilationError(ErrorMessage)
     (
         /\b(error|Error|ERROR|Severe Critical Fatal Error)\b/g, (Token) => `<span class = "ErrorKeywordHighlight">${Token}</span>`
     );
-    // Convert file location references into clickable links
+    // Convert file location references (Windows, macOS, Linux, relative, with spaces) into clickable links
     Highlighted = Highlighted.replace
     (
-        /(┌─\s*|-->\s*|\b)((?:[a-zA-Z]:[\\/][^:\r\n]+|[\w.\-/\\]+\.typ)):(\d+):(\d+)/gi,
+        TYPST_DIAGNOSTIC_LOC_GLOBAL_REGEX,
         (Full, Prefix, File, Line, Col) =>
         {
-            const CleanFile = File.replace(/\\/g, "/");
-            const ShortName = CleanFile.split("/").pop();
-            return `${Prefix}<span Class = "ErrorLocationLink" Data-File = "${CleanFile}" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to ${CleanFile}:${Line}:${Col}">${ShortName}:${Line}:${Col} ↗</span>`;
+            const CleanFile = StripWindowsVerbatimStrFrontend(File).replace(/\\/g, "/");
+            const ShortName = PathBaseNameFrontend(File) || CleanFile;
+            const EscapedFile = EscapeHtml(File.trim());
+            const EscapedTitle = EscapeHtml(`${CleanFile}:${Line}:${Col}`);
+            return `${Prefix || ""}<span Class = "ErrorLocationLink" Data-File = "${EscapedFile}" Data-Line = "${Line}" Data-Col = "${Col}" Title = "Click to jump to ${EscapedTitle}">${EscapeHtml(ShortName)}:${Line}:${Col} ↗</span>`;
         }
     );
 
-    ErrorContent.innerHTML = Highlighted;
-    ErrorDrawer.classList.add("Visible");
+    if (ErrorContent)
+    {
+        ErrorContent.innerHTML = Highlighted;
+    }
+    if (ErrorDrawer)
+    {
+        ErrorDrawer.classList.add("Visible");
+    }
 }
 
 function ErrorErrorMessageClean(RawMessage)
@@ -5795,7 +6553,10 @@ function ErrorErrorMessageClean(RawMessage)
     {
         return "Unknown error occurred during compilation.";
     }
-    return RawMessage.replace(/\\\\\?\\/g, "").replace(/.*[/\\]document\.typ/g, "document.typ");
+    return RawMessage
+        .replace(/\\\\\?\\UNC\\/g, "\\\\")
+        .replace(/\\\\\?\\/g, "")
+        .replace(/.*[/\\]document\.typ/g, "document.typ");
 }
 
 function UpdatePagination()
@@ -6447,18 +7208,57 @@ function CloseSettingsModal()
     }
 }
 
+function InvokeTauriCommand(CommandName, Args)
+{
+    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
+    {
+        return window.__TAURI__.core.invoke(CommandName, Args);
+    }
+    if (window.__TAURI_INTERNALS__ && typeof window.__TAURI_INTERNALS__.invoke === "function")
+    {
+        return window.__TAURI_INTERNALS__.invoke(CommandName, Args);
+    }
+    return null;
+}
+
 function OpenExternalURL(TargetURL)
 {
-    if (IsTauriDesktop && window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke)
+    if (!TargetURL)
+    {
+        return ;
+    }
+    if (IsTauriDesktop)
     {
         try
         {
-            window.__TAURI_INTERNALS__.invoke("OpenExternalUrl", { Url: TargetURL });
-            return ;
+            const PendingInvoke = InvokeTauriCommand("OpenExternalUrl", { url: TargetURL, Url: TargetURL });
+            if (PendingInvoke)
+            {
+                Promise.resolve(PendingInvoke).catch((Err) => { console.warn("OpenExternalUrl failed:", Err); });
+                return ;
+            }
         }
         catch (Ignored) {}
     }
-    window.open(TargetURL, "_blank");
+    window.open(TargetURL, "_blank", "noopener,noreferrer");
+}
+
+async function RevealInOSFileManager(TargetPath)
+{
+    if (!TargetPath)
+    {
+        return ;
+    }
+    if (IsTauriDesktop)
+    {
+        const PendingInvoke = InvokeTauriCommand("RevealInFolder", { path: TargetPath, Path: TargetPath });
+        if (PendingInvoke)
+        {
+            await PendingInvoke;
+            return ;
+        }
+    }
+    await FetchAPI("/api/system/reveal", "POST", { Path: TargetPath });
 }
 
 function SwitchSettingsTab(TabKey)
@@ -7088,7 +7888,7 @@ function RunPalladinoDiagnostics()
     }
 
     const FullText = Model.getValue();
-    const Lines = FullText.split("\n");
+    const Lines = FullText.split(/\r?\n/);
 
     const ProseLengths = [];
     const Issues = [];
@@ -7355,7 +8155,7 @@ function FixLeadingApostrophes()
     }
 
     const FullText = Model.getValue();
-    const Lines = FullText.split("\n");
+    const Lines = FullText.split(/\r?\n/);
     let InCodeBlock = false;
     let ReplacedCount = 0;
 
@@ -7391,7 +8191,8 @@ function FixLeadingApostrophes()
 
     if (ReplacedCount > 0)
     {
-        const NewFullText = Lines.join("\n");
+        const LineEnding = typeof Model.getEOL === "function" ? Model.getEOL() : "\n";
+        const NewFullText = Lines.join(LineEnding);
         MonacoInstance.executeEdits
         (
             "palladino-fix-apostrophes",
@@ -7426,7 +8227,7 @@ function FixTypewriterDashes()
     }
 
     const FullText = Model.getValue();
-    const Lines = FullText.split("\n");
+    const Lines = FullText.split(/\r?\n/);
     let InCodeBlock = false;
     let InMathBlock = false;
     let ReplacedCount = 0;
@@ -7492,7 +8293,8 @@ function FixTypewriterDashes()
 
     if (ReplacedCount > 0)
     {
-        const NewFullText = Lines.join("\n");
+        const LineEnding = typeof Model.getEOL === "function" ? Model.getEOL() : "\n";
+        const NewFullText = Lines.join(LineEnding);
         MonacoInstance.executeEdits
         (
             "palladino-fix-dashes",
@@ -7527,7 +8329,7 @@ function NormalizeSentenceSpaces()
     }
 
     const FullText = Model.getValue();
-    const Lines = FullText.split("\n");
+    const Lines = FullText.split(/\r?\n/);
     let InCodeBlock = false;
     let ReplacedCount = 0;
 
@@ -7563,7 +8365,8 @@ function NormalizeSentenceSpaces()
 
     if (ReplacedCount > 0)
     {
-        const NewFullText = Lines.join("\n");
+        const LineEnding = typeof Model.getEOL === "function" ? Model.getEOL() : "\n";
+        const NewFullText = Lines.join(LineEnding);
         MonacoInstance.executeEdits
         (
             "palladino-fix-spaces",
@@ -7635,7 +8438,7 @@ function PolishTypographyInDocument()
     const TargetRange = HasSelection ? Selection: Model.getFullModelRange();
     const RawText = Model.getValueInRange(TargetRange);
 
-    const Lines = RawText.split("\n");
+    const Lines = RawText.split(/\r?\n/);
     let InCodeBlock = false;
 
     for (let I = 0; I < Lines.length; I ++)
@@ -8316,8 +9119,8 @@ function SetupZeroDialogClipboardPasting()
 
 function ComputeSimpleDiff(OldText, NewText)
 {
-    const OldLines = OldText ? OldText.split("\n"): [];
-    const NewLines = NewText ? NewText.split("\n"): [];
+    const OldLines = OldText ? OldText.split(/\r?\n/): [];
+    const NewLines = NewText ? NewText.split(/\r?\n/): [];
     const DiffResult = [];
 
     let OldIdx = 0;
@@ -8802,7 +9605,7 @@ function ExtractPresenterNotes(Source, SlideIndex)
     const TargetChunk = SlideChunks[SlideIndex] || "";
 
     const NoteMatches = [];
-    const Lines = TargetChunk.split("\n");
+    const Lines = TargetChunk.split(/\r?\n/);
     for (const Line of Lines)
     {
         const NoteMatch = Line.match(/\/\/\s*(?:NOTE|SPEAKER|PRESENTER):\s*(.*)/i);
@@ -9007,7 +9810,7 @@ async function EnterKeynoteStageMode(StartingPageIndex)
     {
         try
         {
-            await window.__TAURI__.core.invoke("SetFullscreen", { Fullscreen: true });
+            await window.__TAURI__.core.invoke("SetFullscreen", { fullscreen: true, Fullscreen: true });
         }
         catch (Err)
         {
@@ -9083,7 +9886,7 @@ async function ExitKeynoteStageMode()
     {
         try
         {
-            await window.__TAURI__.core.invoke("SetFullscreen", { Fullscreen: false });
+            await window.__TAURI__.core.invoke("SetFullscreen", { fullscreen: false, Fullscreen: false });
         }
         catch (Err)
         {
@@ -9797,9 +10600,9 @@ async function ExportPdf()
     }
     catch (Err)
     {
-        StatusDot.className = "StatusDot Error";
-        StatusText.textContent = "Export Failed";
-        ShowCompilationError(Err.message);
+        if (StatusDot) { StatusDot.className = "StatusDot Error"; }
+        if (StatusText) { StatusText.textContent = "Export Failed"; }
+        ShowCompilationError(Err.message, { TargetDocKey: GetActiveForegroundDocKey(), IsBackground: false });
     }
 }
 
@@ -10801,8 +11604,22 @@ function FormatKeyComboHtml(Combo)
     {
         return `<span Class = "KeybindingUnset">Unassigned</span>`;
     }
-    const Tokens = Combo.split("+");
-    return Tokens.map( (T) => `<kbd>${T}</kbd>`).join(" + ");
+    const Tokens = Combo.split("+").map
+    (
+        (T) =>
+        {
+            const Clean = T.trim();
+            if (IsMacPlatform)
+            {
+                const Lower = Clean.toLowerCase();
+                if (Lower === "ctrl" || Lower === "cmd" || Lower === "meta") { return "⌘"; }
+                if (Lower === "alt" || Lower === "option") { return "⌥"; }
+                if (Lower === "shift") { return "⇧"; }
+            }
+            return Clean;
+        }
+    );
+    return Tokens.map( (T) => `<kbd>${EscapeHtml(T)}</kbd>`).join(" + ");
 }
 
 function GetAllManageableCommands()
@@ -12225,15 +13042,7 @@ function SetupEventListeners()
                 if (LinkCard && LinkCard.dataset.link)
                 {
                     Event.preventDefault();
-                    const TargetUrl = LinkCard.dataset.link;
-                    if (window.__TAURI__ && window.__TAURI__.core && typeof window.__TAURI__.core.invoke === "function")
-                    {
-                        window.__TAURI__.core.invoke("OpenExternalUrl", { url: TargetUrl, Url: TargetUrl }).catch((Err) => { console.warn("Open external URL:", Err); });
-                    }
-                    else
-                    {
-                        window.open(TargetUrl, "_blank");
-                    }
+                    OpenExternalURL(LinkCard.dataset.link);
                 }
             }
         );
@@ -12535,10 +13344,66 @@ function SetupEventListeners()
     const EditorTabsList = document.getElementById("EditorTabsList");
     if (EditorTabsList)
     {
+        let IsDraggingTabs = false;
+        let TabDragStartX = 0;
+        let TabDragScrollLeft = 0;
+        let HasDraggedTabsDistance = false;
+
+        EditorTabsList.addEventListener
+        (
+            "mousedown", (Event) =>
+            {
+                if (Event.button !== 0)
+                {
+                    return ;
+                }
+                IsDraggingTabs = true;
+                TabDragStartX = Event.clientX;
+                TabDragScrollLeft = EditorTabsList.scrollLeft;
+                HasDraggedTabsDistance = false;
+            }
+        );
+
+        window.addEventListener
+        (
+            "mousemove", (Event) =>
+            {
+                if (!IsDraggingTabs)
+                {
+                    return ;
+                }
+                const Walk = Event.clientX - TabDragStartX;
+                if (Math.abs(Walk) > 5)
+                {
+                    HasDraggedTabsDistance = true;
+                    EditorTabsList.classList.add("IsDragging");
+                    EditorTabsList.scrollLeft = TabDragScrollLeft - Walk;
+                }
+            }
+        );
+
+        window.addEventListener
+        (
+            "mouseup", () =>
+            {
+                if (IsDraggingTabs)
+                {
+                    IsDraggingTabs = false;
+                    EditorTabsList.classList.remove("IsDragging");
+                }
+            }
+        );
+
         EditorTabsList.addEventListener
         (
             "click", (Event) =>
             {
+                if (HasDraggedTabsDistance)
+                {
+                    HasDraggedTabsDistance = false;
+                    return ;
+                }
+
                 const CloseBtn = Event.target.closest("[data-action='close-tab']");
                 if (CloseBtn && CloseBtn.dataset.tabPath)
                 {
@@ -12554,6 +13419,41 @@ function SetupEventListeners()
                     return ;
                 }
             }
+        );
+
+        EditorTabsList.addEventListener
+        (
+            "auxclick", (Event) =>
+            {
+                if (Event.button === 1)
+                {
+                    const TabItem = Event.target.closest("[data-action='switch-tab']");
+                    if (TabItem && TabItem.dataset.tabPath)
+                    {
+                        Event.preventDefault();
+                        Event.stopPropagation();
+                        CloseTab(TabItem.dataset.tabPath);
+                    }
+                }
+            }
+        );
+
+        EditorTabsList.addEventListener
+        (
+            "wheel", (Event) =>
+            {
+                if (Event.deltaX !== 0)
+                {
+                    EditorTabsList.scrollLeft += Event.deltaX;
+                    Event.preventDefault();
+                }
+                else if (Event.deltaY !== 0)
+                {
+                    EditorTabsList.scrollLeft += Event.deltaY;
+                    Event.preventDefault();
+                }
+            },
+            { passive: false }
         );
     }
 
@@ -13038,7 +13938,7 @@ function RenderDocDropdownList(FilterQuery = "")
     let Html = "";
     for (const File of FilteredFiles)
     {
-        const IsActive = CurrentFilePath && (File.Path.toLowerCase() === CurrentFilePath.toLowerCase());
+        const IsActive = CurrentFilePath && PathsEqualFrontend(File.Path, CurrentFilePath);
         const ActiveClass = IsActive ? "Active": "";
         const SafeParam = encodeURIComponent(File.Path);
 
@@ -13068,6 +13968,16 @@ async function OpenFileFromWorkspace(FilePath)
         return ;
     }
 
+    const ThisOpenSeq = ++ OpenFileRequestSeq;
+    const PreviousRawPath = ActiveDocumentCanonicalPath || CurrentFilePath || ActiveTabPath || "";
+    const IsSwitchingFile = !PreviousRawPath || !PathsEqualFrontend(PreviousRawPath, FilePath);
+
+    if (IsSwitchingFile)
+    {
+        InvalidatePendingForegroundCompiles();
+        ClearCompilationError();
+    }
+
     try
     {
         let Content;
@@ -13083,6 +13993,11 @@ async function OpenFileFromWorkspace(FilePath)
             {
                 ErrorMessage = String(TauriErr);
             }
+        }
+
+        if (ThisOpenSeq !== OpenFileRequestSeq)
+        {
+            return ;
         }
 
         if (Content === undefined)
@@ -13109,10 +14024,17 @@ async function OpenFileFromWorkspace(FilePath)
             }
         }
 
+        if (ThisOpenSeq !== OpenFileRequestSeq)
+        {
+            return ;
+        }
+
         if (Content !== undefined)
         {
+            InvalidatePendingForegroundCompiles();
             CurrentFilePath = FilePath;
             ActiveDocumentCanonicalPath = FilePath;
+            ClearCompilationError();
             LastCompiledPages = [];
             LastCompiledDocumentPath = "";
             const PagesContainer = document.getElementById("PagesContainer");
@@ -13121,15 +14043,7 @@ async function OpenFileFromWorkspace(FilePath)
                 PagesContainer.innerHTML = "";
             }
             ClearSyncHighlights();
-            if (MonacoInstance && window.monaco && window.monaco.editor)
-            {
-                const Model = MonacoInstance.getModel();
-                if (Model)
-                {
-                    window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
-                }
-            }
-            const FileName = FilePath.split(/[\\/]/).pop();
+            const FileName = PathBaseNameFrontend(FilePath) || FilePath;
             const TitleInput = document.getElementById("DocumentTitleInput");
             if (TitleInput)
             {
@@ -13145,6 +14059,11 @@ async function OpenFileFromWorkspace(FilePath)
             {
                 MonacoInstance.setValue(Content);
                 MarkDocumentClean(Content);
+                if (CompileTimeoutID)
+                {
+                    clearTimeout(CompileTimeoutID);
+                    CompileTimeoutID = null;
+                }
             }
             else
             {
@@ -13161,7 +14080,7 @@ async function OpenFileFromWorkspace(FilePath)
 
             if (typeof OpenDocumentInTab === "function")
             {
-                const ExistingTab = OpenTabs.find( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+                const ExistingTab = OpenTabs.find( (T) => PathsEqualFrontend(T.Path, FilePath));
                 if (!ExistingTab)
                 {
                     OpenTabs.push
@@ -13220,7 +14139,7 @@ async function SaveCurrentFile()
     }
 
     // Silently run the formatter when K&R slop is detected on Ctrl+S / Save
-    const ActiveFileName = CurrentFilePath ? CurrentFilePath.split(/[\/\\]/).pop(): "main.typ";
+    const ActiveFileName = CurrentFilePath ? PathBaseNameFrontend(CurrentFilePath) : "main.typ";
     const KnrCheck = DetectKnrSlop(MonacoInstance.getValue(), ActiveFileName);
     if (KnrCheck.HasError)
     {
@@ -13234,11 +14153,10 @@ async function SaveCurrentFile()
     {
         const DocName = GetCurrentDocumentTitle();
         const CleanDocName = DocName.endsWith(".typ") ? DocName: `${DocName}.typ`;
-        const DefaultDir = WorkspaceDirectories[0] || "";
+        const DefaultDir = (WorkspaceDirectories && WorkspaceDirectories[0]) || "";
         if (DefaultDir)
         {
-            const Separator = DefaultDir.includes("/") ? "/": "\\";
-            TargetPath = `${DefaultDir}${Separator}${CleanDocName}`;
+            TargetPath = PathJoinFrontend(DefaultDir, CleanDocName);
         }
         else
         {
@@ -13430,8 +14348,7 @@ function RemoveRecentDocument(FilePath)
     try
     {
         let Recent = JSON.parse(localStorage.getItem("TypstStudio_RecentDocuments") || "[]");
-        const Norm = FilePath.toLowerCase();
-        Recent = Recent.filter((R) => R && R.Path && R.Path.toLowerCase() !== Norm);
+        Recent = Recent.filter((R) => R && R.Path && !PathsEqualFrontend(R.Path, FilePath));
         localStorage.setItem("TypstStudio_RecentDocuments", JSON.stringify(Recent));
     }
     catch (Ignored) {}
@@ -13439,7 +14356,7 @@ function RemoveRecentDocument(FilePath)
 
 async function DeleteWorkspaceFile(FilePath, FileName)
 {
-    const CleanName = FileName || (FilePath ? FilePath.split(/[\\/]/).pop() : "document");
+    const CleanName = FileName || PathBaseNameFrontend(FilePath) || "document";
     if (!confirm(`Are you sure you want to permanently delete:\n\n${CleanName}\n(${FilePath})`))
     {
         return ;
@@ -13473,10 +14390,10 @@ async function DeleteWorkspaceFile(FilePath, FileName)
         // Close tab if open
         if (Array.isArray(OpenTabs))
         {
-            const TabIdx = OpenTabs.findIndex((T) => T && T.Path && T.Path.toLowerCase() === FilePath.toLowerCase());
-            if (TabIdx !== -1)
+            const TabObj = OpenTabs.find((T) => T && T.Path && PathsEqualFrontend(T.Path, FilePath));
+            if (TabObj)
             {
-                CloseTab(TabIdx);
+                CloseTab(TabObj.Path);
             }
         }
 
@@ -13486,7 +14403,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
             RenderHomepage();
         }
 
-        if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
+        if (CurrentFilePath && PathsEqualFrontend(CurrentFilePath, FilePath))
         {
             if (WorkspaceFiles.length > 0)
             {
@@ -13505,7 +14422,7 @@ async function DeleteWorkspaceFile(FilePath, FileName)
 
 async function RenameWorkspaceDocument(FilePath, CurrentName)
 {
-    const CleanName = (CurrentName || FilePath.split(/[\\/]/).pop()).replace(/\.typ$/i, "");
+    const CleanName = (CurrentName || PathBaseNameFrontend(FilePath)).replace(/\.typ$/i, "");
     const NewBase = prompt("Enter new document name:", CleanName);
     if (!NewBase || !NewBase.trim() || NewBase.trim() === CleanName)
     {
@@ -13548,7 +14465,7 @@ async function RenameWorkspaceDocument(FilePath, CurrentName)
             // Update open tabs if this file is open
             if (Array.isArray(OpenTabs))
             {
-                const Tab = OpenTabs.find((T) => T && T.Path && T.Path.toLowerCase() === FilePath.toLowerCase());
+                const Tab = OpenTabs.find((T) => T && T.Path && PathsEqualFrontend(T.Path, FilePath));
                 if (Tab)
                 {
                     Tab.Path = NewPath;
@@ -13557,7 +14474,7 @@ async function RenameWorkspaceDocument(FilePath, CurrentName)
                 }
             }
 
-            if (CurrentFilePath && CurrentFilePath.toLowerCase() === FilePath.toLowerCase())
+            if (CurrentFilePath && PathsEqualFrontend(CurrentFilePath, FilePath))
             {
                 CurrentFilePath = NewPath;
                 ActiveDocumentCanonicalPath = NewPath;
@@ -13722,7 +14639,7 @@ async function InitEditorTabs()
 
     const SavedActive = localStorage.getItem("TypstStudio_ActiveTab");
     let TargetPath = null;
-    if (SavedActive && OpenTabs.some( (T) => T.Path.toLowerCase() === SavedActive.toLowerCase()))
+    if (SavedActive && OpenTabs.some( (T) => PathsEqualFrontend(T.Path, SavedActive)))
     {
         TargetPath = SavedActive;
     }
@@ -13742,12 +14659,12 @@ async function InitEditorTabs()
     if (TargetPath)
     {
         ActiveTabPath = TargetPath;
-        if (!OpenTabs.some( (T) => T.Path.toLowerCase() === TargetPath.toLowerCase()))
+        if (!OpenTabs.some( (T) => PathsEqualFrontend(T.Path, TargetPath)))
         {
             OpenTabs.push
             ({
                 Path: TargetPath,
-                Name: TargetPath.split(/[\\/]/).pop(),
+                Name: PathBaseNameFrontend(TargetPath) || TargetPath,
                 Dirty: false
             });
         }
@@ -13760,6 +14677,32 @@ async function InitEditorTabs()
         TriggerCompileNow();
     }
 
+    const ScrollLeftBtn = document.getElementById("TabsScrollLeftBtn");
+    if (ScrollLeftBtn)
+    {
+        ScrollLeftBtn.onclick = () =>
+        {
+            const ListEl = document.getElementById("EditorTabsList");
+            if (ListEl)
+            {
+                ListEl.scrollBy({ left: -220, behavior: "smooth" });
+            }
+        };
+    }
+
+    const ScrollRightBtn = document.getElementById("TabsScrollRightBtn");
+    if (ScrollRightBtn)
+    {
+        ScrollRightBtn.onclick = () =>
+        {
+            const ListEl = document.getElementById("EditorTabsList");
+            if (ListEl)
+            {
+                ListEl.scrollBy({ left: 220, behavior: "smooth" });
+            }
+        };
+    }
+
     const NewBtn = document.getElementById("TabsNewFileBtn");
     if (NewBtn)
     {
@@ -13769,6 +14712,25 @@ async function InitEditorTabs()
     if (CloseAllBtn)
     {
         CloseAllBtn.onclick = () => { CloseAllTabs(); };
+    }
+}
+
+function ScrollActiveTabIntoView()
+{
+    const ListEl = document.getElementById("EditorTabsList");
+    if (!ListEl)
+    {
+        return ;
+    }
+    const ActiveTabEl = ListEl.querySelector(".EditorTab.Active");
+    if (ActiveTabEl)
+    {
+        ActiveTabEl.scrollIntoView
+        ({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "nearest"
+        });
     }
 }
 
@@ -13786,24 +14748,31 @@ function RenderEditorTabs()
         return ;
     }
 
+    const CloseShortcutHint = IsMacPlatform() ? "⌘W" : "Ctrl+W";
     let Html = "";
     for (const Tab of OpenTabs)
     {
-        const IsActive = Tab.Path && (Tab.Path.toLowerCase() === (ActiveTabPath || "").toLowerCase());
+        const IsActive = Tab.Path && ActiveTabPath && PathsEqualFrontend(Tab.Path, ActiveTabPath);
         const ActiveClass = IsActive ? "Active": "";
-        const SafeTabPathParam = encodeURIComponent(Tab.Path);
 
         Html += `
             <div Class = "EditorTab ${ActiveClass}" data-action = "switch-tab" data-tab-path = "${EscapeHtml(Tab.Path)}" Title = "${EscapeHtml(Tab.Path)}">
                 <span Class = "TabIcon">${GetFileIconSvg(Tab.Name)}</span>
                 <span Class = "TabTitle">${EscapeHtml(Tab.Name)}</span>
                 <span Class = "TabDirtyDot ${Tab.Dirty ? "Visible" : ""}" Title = "Unsaved changes"></span>
-                <button Type = "button" Class = "TabCloseBtn" Title = "Close (Ctrl+W)" data-action = "close-tab" data-tab-path = "${EscapeHtml(Tab.Path)}">×</button>
+                <button Type = "button" Class = "TabCloseBtn" Title = "Close (${CloseShortcutHint})" data-action = "close-tab" data-tab-path = "${EscapeHtml(Tab.Path)}">×</button>
             </div>
         `;
     }
 
     ListEl.innerHTML = Html;
+    requestAnimationFrame
+    (
+        () =>
+        {
+            ScrollActiveTabIntoView();
+        }
+    );
 }
 
 function OpenDocumentInTab(FilePath, FileName = null)
@@ -13814,18 +14783,23 @@ function OpenDocumentInTab(FilePath, FileName = null)
     }
 
     const Normalized = FilePath.trim();
-    const Name = FileName || Normalized.split(/[\\/]/).pop();
-    const CleanPath = Normalized.replace(/\\/g, "/");
-    const BaseFileName = CleanPath.split("/").pop().toLowerCase();
+    const Name = FileName || PathBaseNameFrontend(Normalized);
+    const NormKey = CanonicalizeDocKey(Normalized);
+    const BaseFileName = PathBaseNameFrontend(Normalized);
+    const CaseInsensitiveBase = IsWindowsPathStyleFrontend(Normalized);
 
     const Existing = OpenTabs.find
     (
         (T) =>
         {
-            const TClean = (T.Path || "").trim().replace(/\\/g, "/");
-            return TClean.toLowerCase() === CleanPath.toLowerCase() ||
-                   (TClean.split("/").pop().toLowerCase() === BaseFileName &&
-                    (TClean.endsWith("/" + CleanPath) || CleanPath.endsWith("/" + TClean)));
+            if (!T || !T.Path) { return false; }
+            const TNorm = CanonicalizeDocKey(T.Path);
+            if (TNorm === NormKey) { return true; }
+            const TBase = PathBaseNameFrontend(T.Path);
+            const BasesEqual = CaseInsensitiveBase
+                ? (TBase.toLowerCase() === BaseFileName.toLowerCase())
+                : (TBase === BaseFileName);
+            return BasesEqual && (TNorm.endsWith("/" + NormKey) || NormKey.endsWith("/" + TNorm));
         }
     );
 
@@ -13859,25 +14833,32 @@ function SwitchToTab(FilePath)
         return ;
     }
 
-    const PreviousPath = CurrentFilePath;
+    const PreviousPath = ActiveDocumentCanonicalPath || CurrentFilePath || "";
     const Normalized = FilePath.trim();
+    const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
+    if (PreviousPath && PathsEqualFrontend(PreviousPath, Normalized) && CurrentContent.length > 0)
+    {
+        ActiveTabPath = Normalized;
+        ActiveDocumentCanonicalPath = Normalized;
+        CurrentFilePath = Normalized;
+        localStorage.setItem("TypstStudio_ActiveTab", Normalized);
+        RenderEditorTabs();
+        HighlightActiveTreeFile(Normalized);
+        SwitchView("editor");
+        return ;
+    }
+
+    InvalidatePendingForegroundCompiles();
+    ClearCompilationError();
+
     ActiveTabPath = Normalized;
     ActiveDocumentCanonicalPath = Normalized;
     CurrentFilePath = Normalized;
-    ActiveCompileGeneration ++;
-    CompileGeneration ++;
     RenderToken ++;
 
     localStorage.setItem("TypstStudio_ActiveTab", Normalized);
     RenderEditorTabs();
     HighlightActiveTreeFile(Normalized);
-
-    const CurrentContent = MonacoInstance ? MonacoInstance.getValue(): "";
-    if (PreviousPath && PreviousPath.toLowerCase() === Normalized.toLowerCase() && CurrentContent.length > 0)
-    {
-        SwitchView("editor");
-        return ;
-    }
 
     // Teardown stale document preview state to prevent cross-document contamination
     const PagesContainer = document.getElementById("PagesContainer");
@@ -13887,19 +14868,14 @@ function SwitchToTab(FilePath)
     }
     LastCompiledPages = [];
     LastCompiledDocumentPath = "";
+    CurrentPageCount = 0;
+    CurrentActivePage = 1;
+    UpdatePagination();
     ActiveSyncMap = [];
     ActiveSpanMap = {};
     ActiveSyncMapByLine = new Map();
     MonotonicSyncAnchors = [];
     ClearSyncHighlights();
-    if (MonacoInstance && window.monaco && window.monaco.editor)
-    {
-        const Model = MonacoInstance.getModel();
-        if (Model)
-        {
-            window.monaco.editor.setModelMarkers(Model, "typst-compiler", []);
-        }
-    }
 
     SwitchView("editor");
     OpenFileFromWorkspace(Normalized);
@@ -13907,13 +14883,13 @@ function SwitchToTab(FilePath)
 
 function CloseTab(FilePath)
 {
-    const Index = OpenTabs.findIndex( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+    const Index = OpenTabs.findIndex( (T) => T && T.Path && PathsEqualFrontend(T.Path, FilePath));
     if (Index === - 1)
     {
         return ;
     }
 
-    const WasActive = ActiveTabPath && (ActiveTabPath.toLowerCase() === FilePath.toLowerCase());
+    const WasActive = ActiveTabPath && PathsEqualFrontend(ActiveTabPath, FilePath);
     OpenTabs.splice(Index, 1);
     try
     {
@@ -13925,13 +14901,16 @@ function CloseTab(FilePath)
 
     if (OpenTabs.length === 0)
     {
+        InvalidatePendingForegroundCompiles();
         ActiveTabPath = "";
         CurrentFilePath = "";
+        ActiveDocumentCanonicalPath = "";
+        ClearCompilationError();
         RenderEditorTabs();
         HighlightActiveTreeFile("");
         if (MonacoInstance)
         {
-            MonacoInstance.setValue("// Start a new Typst document\n#set page(paper: \"a4\")\n#set text(font: (\"Times New Roman\", \"XITS Math\"), size: 11pt)\n\n= Welcome to Typst Studio\n");
+            MonacoInstance.setValue("// Start a new Typst document\n#set page(paper: \"a4\")\n#set text(font: (\"Liberation Serif\", \"Times New Roman\", \"XITS Math\"), size: 11pt)\n\n= Welcome to Typst Studio\n");
             TriggerCompileNow();
         }
         return ;
@@ -13950,9 +14929,12 @@ function CloseTab(FilePath)
 
 function CloseAllTabs()
 {
+    InvalidatePendingForegroundCompiles();
     OpenTabs = [];
     ActiveTabPath = "";
     CurrentFilePath = "";
+    ActiveDocumentCanonicalPath = "";
+    ClearCompilationError();
     try
     {
         localStorage.removeItem("TypstStudio_OpenTabs");
@@ -13971,7 +14953,7 @@ function SetTabDirty(FilePath, IsDirty)
     {
         return ;
     }
-    const Tab = OpenTabs.find( (T) => T.Path.toLowerCase() === FilePath.toLowerCase());
+    const Tab = OpenTabs.find( (T) => T && T.Path && PathsEqualFrontend(T.Path, FilePath));
     if (Tab && Tab.Dirty !== IsDirty)
     {
         Tab.Dirty = IsDirty;
@@ -14203,21 +15185,16 @@ async function InitExplorer()
 function SwitchExplorerRootPrompt()
 {
     const Projects = GroupWorkspaceIntoProjects();
-    if (Projects.length <= 1 && ! WorkspaceDirectories.includes("e:\\Typst"))
+    if (Projects.length <= 1)
     {
         ExplorerTreeCache.clear();
         RenderExplorerTree();
         return ;
     }
 
-    if (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().includes("projects") && WorkspaceDirectories.length > 0)
-    {
-        ExplorerCurrentRoot = "e:\\Typst";
-    }
-    else if (Projects.length > 0)
-    {
-        ExplorerCurrentRoot = Projects[0].Path;
-    }
+    const CurrentIdx = Projects.findIndex((P) => PathsEqualFrontend(P.Path, ExplorerCurrentRoot || ""));
+    const NextIdx = (CurrentIdx >= 0) ? ((CurrentIdx + 1) % Projects.length) : 0;
+    ExplorerCurrentRoot = Projects[NextIdx].Path;
     ExplorerTreeCache.clear();
     RenderExplorerTree();
 }
@@ -14233,7 +15210,7 @@ async function RenderExplorerTree()
 
     if (ExplorerIsStandalone || (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase().endsWith(".typ")))
     {
-        const FileName = ExplorerCurrentRoot.split(/[\\/]/).filter(Boolean).pop() || ExplorerCurrentRoot;
+        const FileName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
         if (NameEl)
         {
             NameEl.textContent = `[Standalone] ${FileName}`;
@@ -14255,10 +15232,23 @@ async function RenderExplorerTree()
 
     if (!ExplorerCurrentRoot)
     {
-        ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0]) ? WorkspaceDirectories[0]: "e:\\Typst";
+        ExplorerCurrentRoot = (WorkspaceDirectories && WorkspaceDirectories[0])
+            ? WorkspaceDirectories[0]
+            : ((WorkspaceFiles && WorkspaceFiles[0] && WorkspaceFiles[0].Path) ? PathDirNameFrontend(WorkspaceFiles[0].Path) : "");
     }
 
-    const RootName = ExplorerCurrentRoot.split(/[\\/]/).filter(Boolean).pop() || ExplorerCurrentRoot;
+    if (!ExplorerCurrentRoot)
+    {
+        if (NameEl)
+        {
+            NameEl.textContent = "Workspace";
+            NameEl.title = "";
+        }
+        RootEl.innerHTML = `<div style = "padding: 8px 12px; color: #71717A; font-size: 11.5px;">No workspace folder opened.</div>`;
+        return ;
+    }
+
+    const RootName = PathBaseNameFrontend(ExplorerCurrentRoot) || ExplorerCurrentRoot;
     if (NameEl)
     {
         NameEl.textContent = RootName;
@@ -14404,14 +15394,14 @@ function HighlightActiveTreeFile(FilePath)
 {
     if (!FilePath)
     {
+        document.querySelectorAll(".TreeNodeRow.Active").forEach((Row) => Row.classList.remove("Active"));
         return ;
     }
-    const Norm = FilePath.toLowerCase();
     document.querySelectorAll(".TreeNodeRow").forEach
     (
         (Row) =>
         {
-            if (Row.dataset.path && Row.dataset.path.toLowerCase() === Norm)
+            if (Row.dataset.path && PathsEqualFrontend(Row.dataset.path, FilePath))
             {
                 Row.classList.add("Active");
             }
@@ -14430,10 +15420,11 @@ function GroupWorkspaceIntoProjects()
     for (const Dir of (WorkspaceDirectories || []))
     {
         const CleanDir = Dir.replace(/[\\/]+$/, "");
-        const DirName = CleanDir.split(/[\\/]/).filter(Boolean).pop() || CleanDir;
+        const MapKey = CanonicalizeDocKey(Dir);
+        const DirName = PathBaseNameFrontend(CleanDir) || CleanDir;
         ProjectMap.set
         (
-            CleanDir,
+            MapKey,
             {
                 Name: DirName,
                 Path: Dir,
@@ -14446,20 +15437,17 @@ function GroupWorkspaceIntoProjects()
 
     for (const File of WorkspaceFiles)
     {
-        const FilePath = (File.Path || "").replace(/\\/g, "/");
-        const FilePathLower = FilePath.toLowerCase();
-
         let BestMatchKey = null;
         let BestMatchLen = -1;
 
         for (const [Key, Proj] of ProjectMap.entries())
         {
-            const NormProjPath = (Proj.Path || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-            if (FilePathLower.startsWith(NormProjPath + "/"))
+            if (StartsWithPathPrefixFrontend(File.Path, Proj.Path))
             {
-                if (NormProjPath.length > BestMatchLen)
+                const NormProjLen = CanonicalizeDocKey(Proj.Path).length;
+                if (NormProjLen > BestMatchLen)
                 {
-                    BestMatchLen = NormProjPath.length;
+                    BestMatchLen = NormProjLen;
                     BestMatchKey = Key;
                 }
             }
@@ -14472,23 +15460,24 @@ function GroupWorkspaceIntoProjects()
         }
         else
         {
-            const FallbackDir = (File.Directory || "Workspace").replace(/[\\/]+$/, "");
-            if (!ProjectMap.has(FallbackDir))
+            const FallbackRaw = (File.Directory || "Workspace").replace(/[\\/]+$/, "");
+            const FallbackKey = CanonicalizeDocKey(FallbackRaw) || FallbackRaw;
+            if (!ProjectMap.has(FallbackKey))
             {
-                const DirName = FallbackDir.split(/[\\/]/).filter(Boolean).pop() || FallbackDir;
+                const DirName = PathBaseNameFrontend(FallbackRaw) || FallbackRaw;
                 ProjectMap.set
                 (
-                    FallbackDir,
+                    FallbackKey,
                     {
                         Name: DirName,
-                        Path: File.Directory || FallbackDir,
+                        Path: File.Directory || FallbackRaw,
                         Files: [],
                         TotalSize: 0,
                         LatestModified: 0
                     }
                 );
             }
-            TargetProj = ProjectMap.get(FallbackDir);
+            TargetProj = ProjectMap.get(FallbackKey);
         }
 
         if (TargetProj)
@@ -14512,9 +15501,7 @@ function GroupWorkspaceIntoProjects()
 
 function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
 {
-    const NormalizedNew = (ProjectPath || "").replace(/\\/g, "/").toLowerCase();
-    const NormalizedCur = (ExplorerCurrentRoot || "").replace(/\\/g, "/").toLowerCase();
-    const NeedsRootSwitch = ExplorerIsStandalone || (NormalizedNew !== NormalizedCur);
+    const NeedsRootSwitch = ExplorerIsStandalone || !PathsEqualFrontend(ProjectPath, ExplorerCurrentRoot);
 
     ExplorerIsStandalone = false;
     ExplorerCurrentRoot = ProjectPath;
@@ -14528,27 +15515,26 @@ function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
 
     if (FileToOpen)
     {
-        const NormProj = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-        const NormFile = (FileToOpen || "").replace(/\\/g, "/");
-        if (NormFile.toLowerCase().startsWith(NormProj.toLowerCase() + "/"))
+        if (StartsWithPathPrefixFrontend(FileToOpen, ProjectPath))
         {
-            const Rel = NormFile.substring(NormProj.length + 1);
-            const Parts = Rel.split("/").filter(Boolean);
-            let Acc = NormProj;
+            const NormProjLen = CanonicalizeDocKey(ProjectPath).length;
+            const NormFileStr = StripWindowsVerbatimStrFrontend(FileToOpen.trim()).replace(/\\/g, "/");
+            const Rel = NormFileStr.slice(NormProjLen).replace(/^[\\/]+/, "");
+            const Parts = Rel.split(/[\\/]/).filter(Boolean);
+            let Acc = ProjectPath.replace(/[\\/]+$/, "");
             for (let i = 0; i < Parts.length - 1; i++)
             {
-                Acc += "/" + Parts[i];
+                Acc = PathJoinFrontend(Acc, Parts[i]);
                 ExplorerExpandedFolders.add(Acc);
             }
         }
-        const FileName = FileToOpen.split(/[\\/]/).filter(Boolean).pop() || FileToOpen;
+        const FileName = PathBaseNameFrontend(FileToOpen) || FileToOpen;
         OpenDocumentInTab(FileToOpen, FileName);
     }
     else
     {
         const Projects = GroupWorkspaceIntoProjects();
-        const NormTarget = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-        const TargetProj = Projects.find((P) => (P.Path || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase() === NormTarget);
+        const TargetProj = Projects.find((P) => PathsEqualFrontend(P.Path, ProjectPath));
         if (TargetProj && TargetProj.Files.length > 0)
         {
             OpenDocumentInTab(TargetProj.Files[0].Path, TargetProj.Files[0].Name);
@@ -14569,9 +15555,7 @@ function OpenProjectInExplorer(ProjectPath, FileToOpen = null)
 
 function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
 {
-    const NormalizedNew = (ProjectPath || "").replace(/\\/g, "/").toLowerCase();
-    const NormalizedCur = (ExplorerCurrentRoot || "").replace(/\\/g, "/").toLowerCase();
-    const NeedsRootSwitch = ExplorerIsStandalone || (NormalizedNew !== NormalizedCur);
+    const NeedsRootSwitch = ExplorerIsStandalone || !PathsEqualFrontend(ProjectPath, ExplorerCurrentRoot);
 
     ExplorerIsStandalone = false;
     ExplorerCurrentRoot = ProjectPath;
@@ -14585,16 +15569,16 @@ function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
 
     if (FolderPath)
     {
-        const NormProj = (ProjectPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-        const NormFolder = (FolderPath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-        if (NormFolder.toLowerCase().startsWith(NormProj.toLowerCase() + "/"))
+        if (StartsWithPathPrefixFrontend(FolderPath, ProjectPath))
         {
-            const Rel = NormFolder.substring(NormProj.length + 1);
-            const Parts = Rel.split("/").filter(Boolean);
-            let Acc = NormProj;
+            const NormProjLen = CanonicalizeDocKey(ProjectPath).length;
+            const NormFolderStr = StripWindowsVerbatimStrFrontend(FolderPath.trim()).replace(/\\/g, "/").replace(/\/+$/, "");
+            const Rel = NormFolderStr.slice(NormProjLen).replace(/^[\\/]+/, "");
+            const Parts = Rel.split(/[\\/]/).filter(Boolean);
+            let Acc = ProjectPath.replace(/[\\/]+$/, "");
             for (const Part of Parts)
             {
-                Acc += "/" + Part;
+                Acc = PathJoinFrontend(Acc, Part);
                 ExplorerExpandedFolders.add(Acc);
             }
         }
@@ -14603,14 +15587,9 @@ function OpenProjectFolderInExplorer(ProjectPath, FolderPath)
             ExplorerExpandedFolders.add(FolderPath);
         }
 
-        const NormalizedTarget = FolderPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
         const MatchingDoc = WorkspaceFiles.find
         (
-            (F) =>
-            {
-                const FDir = (F.Directory || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-                return FDir === NormalizedTarget;
-            }
+            (F) => PathsEqualFrontend(F.Directory, FolderPath)
         );
         if (MatchingDoc)
         {
@@ -14641,7 +15620,7 @@ function OpenStandaloneDocument(FilePath, FileName = null)
     ExplorerExpandedFolders.clear();
     ExplorerTreeCache.clear();
 
-    const Name = FileName || FilePath.split(/[\\/]/).filter(Boolean).pop() || FilePath;
+    const Name = FileName || PathBaseNameFrontend(FilePath) || FilePath;
     TrackStandaloneDocument(FilePath);
     OpenDocumentInTab(FilePath, Name);
 
@@ -14660,13 +15639,12 @@ function TrackStandaloneDocument(FilePath)
         {
             List = [];
         }
-        const Norm = FilePath.replace(/\\/g, "/").toLowerCase();
-        List = List.filter((Item) => (typeof Item === "string" ? Item : Item.Path).replace(/\\/g, "/").toLowerCase() !== Norm);
+        List = List.filter((Item) => !PathsEqualFrontend(typeof Item === "string" ? Item : Item.Path, FilePath));
         List.unshift
         (
             {
                 Path: FilePath,
-                Name: FilePath.split(/[\\/]/).filter(Boolean).pop() || FilePath,
+                Name: PathBaseNameFrontend(FilePath) || FilePath,
                 LastOpened: Date.now()
             }
         );
@@ -14703,7 +15681,10 @@ async function PickStandaloneFileFromDisk()
         }
         else
         {
-            const Prompted = prompt("Enter full path to standalone .typ file:", "E:\\Typst\\document.typ");
+            const DefaultPromptPath = (WorkspaceDirectories && WorkspaceDirectories[0])
+                ? PathJoinFrontend(WorkspaceDirectories[0], "document.typ")
+                : "document.typ";
+            const Prompted = prompt("Enter full path to standalone .typ file:", DefaultPromptPath);
             if (Prompted && Prompted.trim())
             {
                 OpenStandaloneDocument(Prompted.trim());
@@ -14721,7 +15702,7 @@ let TargetNewDocProjectPath = null;
 
 function ShowNewDocumentModal(ProjectPath = null)
 {
-    TargetNewDocProjectPath = ProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
+    TargetNewDocProjectPath = ProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "";
     const Modal = document.getElementById("NewDocumentModal");
     const Input = document.getElementById("NewDocModalInput");
     const SubfolderInput = document.getElementById("NewDocModalSubfolderInput");
@@ -14819,14 +15800,14 @@ function ConfirmCreateNewDocument()
         return ;
     }
     const CleanName = RawName.endsWith(".typ") ? RawName : `${RawName}.typ`;
-    const BaseDir = (DirSelect && DirSelect.value) ? DirSelect.value : (TargetNewDocProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst");
+    const BaseDir = (DirSelect && DirSelect.value) ? DirSelect.value : (TargetNewDocProjectPath || (WorkspaceDirectories && WorkspaceDirectories[0]) || "");
     const Subfolder = (SubfolderInput && SubfolderInput.value.trim()) ? SubfolderInput.value.trim() : "";
     let TargetDir = BaseDir;
     if (Subfolder)
     {
-        TargetDir = `${BaseDir}\\${Subfolder}`;
+        TargetDir = BaseDir ? PathJoinFrontend(BaseDir, Subfolder) : Subfolder;
     }
-    const FullPath = `${TargetDir}\\${CleanName}`;
+    const FullPath = TargetDir ? PathJoinFrontend(TargetDir, CleanName) : CleanName;
 
     CloseNewDocumentModal();
 
@@ -14838,7 +15819,7 @@ function ConfirmCreateNewDocument()
             (
                 () =>
                 {
-                    OpenProjectInExplorer(TargetDir, FullPath);
+                    OpenProjectInExplorer(TargetDir || FullPath, FullPath);
                     ShowToast(`Created ${CleanName}`, "success");
                 }
             );
@@ -14907,10 +15888,10 @@ function PurgeLegacyPreviewCache()
     {
         if (typeof localStorage === "undefined")
         {
-            return;
+            return ;
         }
         const KeysToRemove = [];
-        for (let I = 0; I < localStorage.length; I++)
+        for (let I = 0; I < localStorage.length; I ++)
         {
             const Key = localStorage.key(I);
             if (Key && Key.startsWith("typst_preview_cache_") && !Key.startsWith(PREVIEW_CACHE_PREFIX))
@@ -14934,7 +15915,7 @@ function HashCode(Str)
 {
     let Hash = 0;
     if (!Str || Str.length === 0) { return Hash; }
-    for (let I = 0; I < Str.length; I++)
+    for (let I = 0; I < Str.length; I ++)
     {
         const Char = Str.charCodeAt(I);
         Hash = ((Hash << 5) - Hash) + Char;
@@ -14983,7 +15964,7 @@ function GetCachedPreviewOrMockup(FilePath, DisplayTitle)
     {
         try
         {
-            const Saved = localStorage.getItem(PREVIEW_CACHE_PREFIX + btoa(NormKey));
+            const Saved = localStorage.getItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey));
             if (Saved && Saved.includes("<svg"))
             {
                 window.DocPreviewSvgCache[NormKey] = Saved;
@@ -15120,7 +16101,7 @@ async function QueueDocumentSvgPreview(FilePath, ElementId)
             window.DocPreviewSvgCache[NormKey] = RawSvg;
             try
             {
-                localStorage.setItem(PREVIEW_CACHE_PREFIX + btoa(NormKey), RawSvg);
+                localStorage.setItem(PREVIEW_CACHE_PREFIX + EncodeCacheKey(NormKey), RawSvg);
             }
             catch (Ignored) {}
 
@@ -15147,7 +16128,7 @@ function TrackRecentDocument(FilePath, Name)
     if (!FilePath) { return ; }
     try
     {
-        const CleanName = Name || FilePath.split(/[\/\\]/).pop();
+        const CleanName = Name || PathBaseNameFrontend(FilePath);
         let Recent = [];
         try
         {
@@ -15157,9 +16138,8 @@ function TrackRecentDocument(FilePath, Name)
         {
             Recent = [];
         }
-        const Norm = FilePath.toLowerCase();
-        const Existing = Recent.find((R) => R && R.Path && R.Path.toLowerCase() === Norm);
-        Recent = Recent.filter((R) => R && R.Path && R.Path.toLowerCase() !== Norm);
+        const Existing = Recent.find((R) => R && R.Path && PathsEqualFrontend(R.Path, FilePath));
+        Recent = Recent.filter((R) => R && R.Path && !PathsEqualFrontend(R.Path, FilePath));
         Recent.unshift
         ({
             Path: FilePath,
@@ -15214,20 +16194,15 @@ function RenderHomepage(FilterQuery = "")
             {
                 if (R && R.Path && R.Path.toLowerCase().endsWith(".typ"))
                 {
-                    const NormR = R.Path.replace(/\\/g, "/").toLowerCase();
                     const InProject = (WorkspaceDirectories || []).some
                     (
-                        (Dir) =>
-                        {
-                            const NormDir = Dir.replace(/\\/g, "/").toLowerCase();
-                            return NormR.startsWith(NormDir.endsWith("/") ? NormDir : NormDir + "/");
-                        }
+                        (Dir) => StartsWithPathPrefixFrontend(R.Path, Dir)
                     );
                     if (!InProject)
                     {
                         const Exists = StandaloneList.some
                         (
-                            (S) => (typeof S === "string" ? S : S.Path).replace(/\\/g, "/").toLowerCase() === NormR
+                            (S) => PathsEqualFrontend(typeof S === "string" ? S : S.Path, R.Path)
                         );
                         if (!Exists)
                         {
@@ -15235,7 +16210,7 @@ function RenderHomepage(FilterQuery = "")
                             (
                                 {
                                     Path: R.Path,
-                                    Name: R.Name || R.Path.split(/[\\/]/).pop(),
+                                    Name: R.Name || PathBaseNameFrontend(R.Path),
                                     Modified: R.Modified || Date.now()
                                 }
                             );
@@ -15423,7 +16398,7 @@ function RenderHomepage(FilterQuery = "")
         const DisplayTitle = (SName || "Untitled").replace(/\.typ$/i, "");
         const TimeAgo = FormatDocTimeAgo(SModified);
         const InnerHtml = GetCachedPreviewOrMockup(SPath, DisplayTitle);
-        const IsActiveStandalone = ExplorerIsStandalone && (ExplorerCurrentRoot && ExplorerCurrentRoot.toLowerCase() === SPath.toLowerCase());
+        const IsActiveStandalone = ExplorerIsStandalone && Boolean(ExplorerCurrentRoot && PathsEqualFrontend(ExplorerCurrentRoot, SPath));
 
         StandaloneCardsHtml += `
             <div Class = "HomepagePaperCard ${IsActiveStandalone ? "ActiveProject" : ""}" data-action = "open-standalone-doc" data-file-path = "${EscapeHtml(SPath)}" data-file-name = "${EscapeHtml(SName)}" Title = "Open standalone file: ${EscapeHtml(SPath)}">
@@ -15439,7 +16414,7 @@ function RenderHomepage(FilterQuery = "")
             </div>
         `;
 
-        const NormKey = (SPath || "").toLowerCase();
+        const NormKey = CanonicalizeDocKey(SPath);
         if (!window.DocPreviewSvgCache[NormKey])
         {
             FetchQueue.push({ Path: SPath, ElementId: SafeId });
@@ -15492,31 +16467,31 @@ function RenderHomepage(FilterQuery = "")
         const ProjFiles = Proj.Files || [];
         TotalProjectFiles += ProjFiles.length;
         const IsCollapsed = CollapsedProjectBoxes.has(ProjPath);
-        const NormalizedProj = ProjPath.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-        const NormalizedActive = (ExplorerCurrentRoot || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
-        const IsActiveProject = !ExplorerIsStandalone && (NormalizedProj === NormalizedActive);
+        const ProjSlash = StripWindowsVerbatimStrFrontend(ProjPath).replace(/\\/g, "/").replace(/\/+$/, "") || (ProjPath.startsWith("/") ? "/" : "");
+        const SliceOffset = (ProjSlash === "/" || ProjSlash.endsWith("/")) ? ProjSlash.length : (ProjSlash.length + 1);
+        const IsActiveProject = !ExplorerIsStandalone && PathsEqualFrontend(ProjPath, ExplorerCurrentRoot || "");
 
         // Group files by relative subdirectory
         const DirGroupsMap = new Map();
         for (let FIdx = 0; FIdx < ProjFiles.length; FIdx++)
         {
             const Doc = ProjFiles[FIdx];
-            const DocDirNorm = (Doc.Directory || "").replace(/\\/g, "/").replace(/\/+$/, "");
+            const DocDirSlash = StripWindowsVerbatimStrFrontend(Doc.Directory || "").replace(/\\/g, "/").replace(/\/+$/, "");
             let RelDir = "";
-            if (DocDirNorm.toLowerCase().startsWith(NormalizedProj + "/"))
-            {
-                RelDir = DocDirNorm.substring(NormalizedProj.length + 1);
-            }
-            else if (DocDirNorm.toLowerCase() === NormalizedProj)
+            if (PathsEqualFrontend(Doc.Directory || "", ProjPath))
             {
                 RelDir = "";
             }
+            else if (StartsWithPathPrefixFrontend(Doc.Directory || "", ProjPath))
+            {
+                RelDir = DocDirSlash.substring(SliceOffset);
+            }
             else
             {
-                const DocPathNorm = (Doc.Path || "").replace(/\\/g, "/");
-                if (DocPathNorm.toLowerCase().startsWith(NormalizedProj + "/"))
+                const DocPathSlash = StripWindowsVerbatimStrFrontend(Doc.Path || "").replace(/\\/g, "/");
+                if (StartsWithPathPrefixFrontend(Doc.Path || "", ProjPath) && !PathsEqualFrontend(Doc.Path || "", ProjPath))
                 {
-                    const DocRel = DocPathNorm.substring(NormalizedProj.length + 1);
+                    const DocRel = DocPathSlash.substring(SliceOffset);
                     const LastSlash = DocRel.lastIndexOf("/");
                     RelDir = LastSlash > 0 ? DocRel.substring(0, LastSlash) : "";
                 }
@@ -15524,7 +16499,7 @@ function RenderHomepage(FilterQuery = "")
 
             if (!DirGroupsMap.has(RelDir))
             {
-                const FullFolder = RelDir ? `${ProjPath.replace(/[\\/]+$/, "")}/${RelDir}` : ProjPath;
+                const FullFolder = RelDir ? PathJoinFrontend(ProjPath, RelDir) : ProjPath;
                 DirGroupsMap.set
                 (
                     RelDir,
@@ -15582,7 +16557,7 @@ function RenderHomepage(FilterQuery = "")
                     </div>
                 `;
 
-                const NormKey = (Doc.Path || "").toLowerCase();
+                const NormKey = CanonicalizeDocKey(Doc.Path);
                 if (!window.DocPreviewSvgCache[NormKey])
                 {
                     FetchQueue.push({ Path: Doc.Path, ElementId: SafeId });
@@ -15847,8 +16822,8 @@ async function ApplyDocumentTemplate(TemplateKey)
     const Source = TypstTemplates[TemplateKey] || TypstTemplates.blank;
     const BaseName = TemplateKey.charAt(0).toUpperCase() + TemplateKey.slice(1);
     const FileName = `${BaseName}Document.typ`;
-    const TargetDir = (WorkspaceDirectories && WorkspaceDirectories[0]) || "e:\\Typst";
-    const FullPath = `${TargetDir}\\${FileName}`;
+    const TargetDir = (WorkspaceDirectories && WorkspaceDirectories[0]) || (!ExplorerIsStandalone && ExplorerCurrentRoot ? ExplorerCurrentRoot : "");
+    const FullPath = TargetDir ? PathJoinFrontend(TargetDir, FileName) : FileName;
 
     await SaveWorkspaceFile(FullPath, Source);
     await LoadWorkspaceInfo();
@@ -16036,8 +17011,16 @@ function HandlePreviewClick(Event)
         return ;
     }
 
-    let BestElem = null;
+    let BestHit = null;
+    let BestHitArea = Infinity;
+    let BestHitSpan = Infinity;
+    let BestHitIsWrapper = true;
+
+    let NearestElem = null;
     let MinDist = Infinity;
+    let NearestIsWrapper = true;
+
+    const PageArea = Math.max(1, Vb.width * Vb.height);
 
     for (const Elem of ActiveSyncMap)
     {
@@ -16046,27 +17029,59 @@ function HandlePreviewClick(Event)
             continue;
         }
 
-        const InX = ClickPtX >= Elem.x && ClickPtX <= (Elem.x + Elem.width);
-        const InY = ClickPtY >= (Elem.y - 3.0) && ClickPtY <= (Elem.y + Elem.height + (Elem.height * 0.35) + 3.0);
+        const ElemW = Math.max(0, Number(Elem.width) || 0);
+        const ElemH = Math.max(0, Number(Elem.height) || 0);
+        const ElemArea = ElemW * ElemH;
+        const IsFullWrapper = (ElemW >= Vb.width * 0.85 && ElemH >= Vb.height * 0.85) || (ElemArea >= PageArea * 0.72);
+        const SpanLen = (typeof Elem.start === "number" && typeof Elem.end === "number" && Elem.end >= Elem.start)
+            ? (Elem.end - Elem.start)
+            : (
+                Math.max(0, (Elem.end_line || Elem.line || 0) - (Elem.line || 0)) * 100000 +
+                Math.max(0, (Elem.end_col || Elem.col || 0) - (Elem.col || 0))
+            );
+
+        const InX = ClickPtX >= Elem.x && ClickPtX <= (Elem.x + ElemW);
+        const InY = ClickPtY >= (Elem.y - 3.0) && ClickPtY <= (Elem.y + ElemH + (ElemH * 0.35) + 3.0);
 
         if (InX && InY)
         {
-            BestElem = Elem;
-            MinDist = 0;
-            break;
+            const BeatsWrapper = BestHitIsWrapper && !IsFullWrapper;
+            const SameWrapperTier = BestHitIsWrapper === IsFullWrapper;
+            const SmallerArea = SameWrapperTier && (ElemArea + 0.5 < BestHitArea);
+            const NarrowerTie = SameWrapperTier && (Math.abs(ElemArea - BestHitArea) <= 0.5) && (SpanLen < BestHitSpan);
+
+            if (!BestHit || BeatsWrapper || SmallerArea || NarrowerTie)
+            {
+                BestHit = Elem;
+                BestHitArea = ElemArea;
+                BestHitSpan = SpanLen;
+                BestHitIsWrapper = IsFullWrapper;
+            }
+            continue;
         }
 
-        const CenterX = Elem.x + (Elem.width / 2);
-        const CenterY = Elem.y + (Elem.height / 2);
+        const CenterX = Elem.x + (ElemW / 2);
+        const CenterY = Elem.y + (ElemH / 2);
         const Dx = ClickPtX - CenterX;
         const Dy = (ClickPtY - CenterY) * 2.5;
         const DistSq = (Dx * Dx) + (Dy * Dy);
 
-        if (DistSq < MinDist)
+        if (
+            !NearestElem ||
+            (NearestIsWrapper && !IsFullWrapper) ||
+            (NearestIsWrapper === IsFullWrapper && DistSq < MinDist)
+        )
         {
             MinDist = DistSq;
-            BestElem = Elem;
+            NearestElem = Elem;
+            NearestIsWrapper = IsFullWrapper;
         }
+    }
+
+    const BestElem = BestHit || NearestElem;
+    if (BestHit)
+    {
+        MinDist = 0;
     }
 
     // If not holding Ctrl/Cmd, only trigger if user clicked directly on or very near a rendered element
@@ -16929,13 +17944,9 @@ function FindEnclosingMathDefinitionBlock(SourceCode, CursorLine, CursorCol)
         return null;
     }
 
-    const Lines = SourceCode.split(/\r?\n/);
-    let CursorOffset = 0;
-    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
-    {
-        CursorOffset += Lines[I].length + 1;
-    }
-    CursorOffset += Math.max(0, CursorCol - 1);
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
+    const SafeLineIdx = Math.max(0, Math.min(CursorLine - 1, LineRecords.length - 1));
+    const CursorOffset = LineRecords[SafeLineIdx].StartOffset + Math.max(0, CursorCol - 1);
 
     const DefRegex = /\b([a-zA-Z_][a-zA-Z0-9_.]*)\s*\(/g;
     let Match;
@@ -17022,13 +18033,9 @@ function FindTableCellBlock(SourceCode, CursorLine, CursorCol)
         return null;
     }
 
-    const Lines = SourceCode.split(/\r?\n/);
-    let CursorOffset = 0;
-    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
-    {
-        CursorOffset += Lines[I].length + 1;
-    }
-    CursorOffset += Math.max(0, CursorCol - 1);
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
+    const SafeLineIdx = Math.max(0, Math.min(CursorLine - 1, LineRecords.length - 1));
+    const CursorOffset = LineRecords[SafeLineIdx].StartOffset + Math.max(0, CursorCol - 1);
 
     const CellRegex = /\btable\.cell(?:\s*\([^)]*\))?\s*\[/g;
     let Match;
@@ -17098,19 +18105,19 @@ function FindAllMathEquationBlocks(SourceCode)
         return [];
     }
 
-    const Lines = SourceCode.split(/\r?\n/);
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
     let InBlockComment = false;
     let InRaw = false;
     let InMath = false;
     let MathStart = - 1;
     let MathStartLine = 1;
     let MathStartCol = 1;
-    let ByteOffset = 0;
     const Equations = [];
 
-    for (let LineIdx = 0; LineIdx < Lines.length; LineIdx ++)
+    for (let LineIdx = 0; LineIdx < LineRecords.length; LineIdx ++)
     {
-        const LineText = Lines[LineIdx];
+        const LineText = LineRecords[LineIdx].Text;
+        const ByteOffset = LineRecords[LineIdx].StartOffset;
         const LineNum = LineIdx + 1;
 
         for (let ColIdx = 0; ColIdx < LineText.length; ColIdx ++)
@@ -17180,8 +18187,6 @@ function FindAllMathEquationBlocks(SourceCode)
                 }
             }
         }
-
-        ByteOffset += LineText.length + 1;
     }
 
     return Equations;
@@ -17194,13 +18199,9 @@ function FindEnclosingMathEquation(SourceCode, CursorLine, CursorCol)
         return null;
     }
 
-    const Lines = SourceCode.split(/\r?\n/);
-    let CursorOffset = 0;
-    for (let I = 0; I < CursorLine - 1 && I < Lines.length; I ++)
-    {
-        CursorOffset += Lines[I].length + 1;
-    }
-    CursorOffset += Math.max(0, CursorCol - 1);
+    const LineRecords = ComputeLineOffsetsFrontend(SourceCode);
+    const SafeLineIdx = Math.max(0, Math.min(CursorLine - 1, LineRecords.length - 1));
+    const CursorOffset = LineRecords[SafeLineIdx].StartOffset + Math.max(0, CursorCol - 1);
 
     const Equations = FindAllMathEquationBlocks(SourceCode);
     const Matches = Equations.filter( (Eq) => CursorOffset >= Eq.StartOffset && CursorOffset <= Eq.EndOffset);

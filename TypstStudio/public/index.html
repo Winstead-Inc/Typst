@@ -382,6 +382,16 @@
                     <!-- Open file tabs dynamically rendered here -->
                 </div>
                 <div Class = "EditorTabsActions">
+                    <button Type = "button" Id = "TabsScrollLeftBtn" Class = "TabActionBtn" Title = "Scroll Tabs Left">
+                        <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2.5" Stroke-Linecap = "round" Stroke-Linejoin = "round">
+                            <polyline Points = "15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                    <button Type = "button" Id = "TabsScrollRightBtn" Class = "TabActionBtn" Title = "Scroll Tabs Right">
+                        <svg Width = "12" Height = "12" ViewBox = "0 0 24 24" Fill = "none" Stroke = "currentColor" Stroke-Width = "2.5" Stroke-Linecap = "round" Stroke-Linejoin = "round">
+                            <polyline Points = "9 18 15 12 9 6"></polyline>
+                        </svg>
+                    </button>
                     <button Type = "button" Id = "TabsNewFileBtn" Class = "TabActionBtn" Title = "New Typst File">+</button>
                     <button Type = "button" Id = "TabsCloseAllBtn" Class = "TabActionBtn" Title = "Close All Tabs">×</button>
                 </div>
@@ -1070,7 +1080,7 @@
                                Class       = "DashboardTextInput"
                                Title       = "New Project Directory Path"
                                Aria-Label  = "New Project Directory Path"
-                               Placeholder = "e.g. e:\Typst\projects or C:\Users\..." />
+                               Placeholder = "e.g. /Users/name/TypstProjects or C:\Users\name\Documents\Typst" />
                         <div Class = "AddDirectoryButtonsRow">
                             <button Type  = "button"
                                     Id    = "PickFolderBtn"

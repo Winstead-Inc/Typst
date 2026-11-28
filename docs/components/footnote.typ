@@ -11,15 +11,15 @@
     if notes.len() == 0 { return }
     html.elem
     (
-        "section", attrs: (role: "doc-endnotes"),
+        "section",
+        attrs: (role: "doc-endnotes"),
         {
             for note in notes
             {
                 let num = counter(footnote).display(note.numbering, at: note.location())
-                enum.item
-                ({ html.elem("sup", attrs: (role: "doc-backlink"), link(note.location())[#num]) note.body })
+                enum.item({ html.elem("sup", attrs: (role: "doc-backlink"), link(note.location())[#num]); note.body })
             }
-        }
+        },
     )
 }
 

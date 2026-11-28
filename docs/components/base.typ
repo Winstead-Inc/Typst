@@ -13,13 +13,7 @@
 
 // Converts a string to title case (fairly naively).
 #let title-case(string) =
-{
-    string
-        .split(regex("[\\s-]"))
-        .map
-        (word => { let first = word.first(); upper(first) + lower(word.slice(first.len())) })
-        .join(" ", default: "")
-}
+{ string.split(regex("[\\s-]")).map(word => { let first = word.first(); upper(first) + lower(word.slice(first.len())) }).join(" ", default: "") }
 
 // Extracts the first paragraph of a body string or content, naively.
 //
@@ -27,12 +21,8 @@
 // way to do this.
 #let oneliner(body) =
 {
-    if type(body) == str
-    { body.split("\n\n").first().replace("\n", " ") }
-    else if body.has("children")
-    { body.children.split(parbreak()).first().join() }
-    else
-    { body }
+    if type(body) == str { body.split("\n\n").first().replace("\n", " ") }
+    else if body.has("children") { body.children.split(parbreak()).first().join() } else { body }
 }
 
 // Casts a function-like value to a function (e.g. a callable symbol).
@@ -48,29 +38,22 @@
 // The result is joined with a space. This works just like the typical
 // `classnames` utility in JS.
 #let classnames(..args) =
-{ args.pos().filter(v => v != none) args.named().pairs().filter(((k, v)) => v).map(((k, _)) => k) }
-    .join(" ")
+    { args.pos().filter(v => v != none); args.named().pairs().filter(((k, v)) => v).map(((k, _)) => k) }.join(" ")
 
 // Builds a CSS inline style string from named arguments with string values.
 #let inline-style(..args) =
-{
-    assert.eq(args.pos().len(), 0, message: "style properties must be named")
-    args.named().pairs().map(((k, v)) => k + ": " + v).join("; ")
-}
+{ assert.eq(args.pos().len(), 0, message: "style properties must be named"); args.named().pairs().map(((k, v)) => k + ": " + v).join("; ") }
 
 // Adds extra heading nesting depth.
-#let heading-offset(offset, body) = context
-{ set heading(offset: heading.offset + offset) body }
+#let heading-offset(offset, body) = context { set heading(offset: heading.offset + offset); body }
 
 // Adds extra heading nesting depth in paged export.
-#let paged-heading-offset(offset, body) = context
-{ set heading(offset: heading.offset + offset) if target() == "paged" { body } }
+#let paged-heading-offset(offset, body) = context { set heading(offset: heading.offset + offset) if target() == "paged"; body }
 
 #let is-short-state = state("is-short", false)
 
 #let html-headings = (html.h1, html.h2, html.h3, html.h4, html.h5, html.h6)
-#let html-heading-n(n,..args) =
-{ assert(n > 0) let fn = html-headings.at(n - 1, default: html.h6) fn(..args) }
+#let html-heading-n(n, ..args) = { assert(n > 0); let fn = html-headings.at(n - 1, default: html.h6); fn(..args) }
 
 // Takes two versions: A long one and a short one.
 //
@@ -90,23 +73,14 @@
 }
 
 // For all `short-or-long` content in `body`, prefers the short version.
-#let with-short-versions(body) =
-{ is-short-state.update(true) body is-short-state.update(false) }
+#let with-short-versions(body) = { is-short-state.update(true); body; is-short-state.update(false) }
 
 // Constrains content to a maximum width and/or height.
-#let constrain(width: none , height: none , body) = layout
-(
-    size => block
-    (..if width != none { (width: calc.min(size.width, width)) },..if height != none { (height: calc.min(size.height, height)) }, body,)
-)
+#let constrain(width: none, height: none, body) =
+    layout(size => block(..if width != none { (width: calc.min(size.width, width)) }, ..if height != none { (height: calc.min(size.height, height)) }, body))
 
 // Displays text a bit smaller and in gray.
-#let small(body) = context if target() == "paged"
-{ text(size: sizes.small, fill: colors.dark-gray.at("shade-05"), body) }
-else
-{
-html.small(body)
-}
+#let small(body) = context if target() == "paged" { text(size: sizes.small, fill: colors.dark-gray.shade-05, body) } else { html.small(body) }
 
 // Displays a small icon with a size class, name, and alt text.
 //
@@ -119,30 +93,21 @@ html.small(body)
     {
         // Scale roughly with size class, with 16 = 1em.
         let height = 1em * size / 16
-        box
-        (height: 0.5 * height, move(dy: - 0.3 * height, image(stdx.read-dev-asset(filename), height: height),))
+        box(height: 0.5 * height, move(dy: -0.3 * height, image(stdx.read-dev-asset(filename), height: height)))
     }
-    else
-    { html.img(src: stdx.config.asset-base + "icons/" + filename, width: size, height: size, alt: alt,) }
+    else { html.img(src: stdx.config.asset-base + "icons/" + filename, width: size, height: size, alt: alt) }
 }
 
 // Similar to `icon` but ensures that the SVG will respect the current
 // foreground `color` by emitting an inline `<svg>` with a `<use>` element.
 // NOTE: The icon needs to be added `docs/assets/index.typ`.
-#let use-icon(size, name, alt) = html.elem
-(
-    "svg",
-    attrs:
-    {
-        let s = str(size);
-        (width: s, height: s, viewBox: "0 0 " + s + " " + s, preserveAspectRatio: "xMidYMid meet", role: "img",)
-    },
-    {
-        html.elem("title", alt)
-        html.elem
-        ("use", attrs: ("href": (stdx.config.asset-base + "icons/" + str(size) + "-" + name + ".svg" + "#icon"),))
-    },
-)
+#let use-icon(size, name, alt) =
+    html.elem
+    (
+        "svg",
+        attrs: { let s = str(size); (width: s, height: s, viewBox: "0 0 " + s + " " + s, preserveAspectRatio: "xMidYMid meet", role: "img") },
+        { html.elem("title", alt); html.elem("use", attrs: ("href": (stdx.config.asset-base + "icons/" + str(size) + "-" + name + ".svg" + "#icon"))) },
+    )
 
 // Applies a tooltip to some content in HTML export. No-op in paged export.
 #let with-tooltip(body, description) = context
@@ -156,25 +121,19 @@ html.small(body)
     html.div
     (
         class: "tooltip-context",
-        {
-            use-icon(12, "tooltip", "Question mark")
-            html.div
-            (id: id, role: "tooltip", tabindex: - 1, aria-hidden: true , description,)
-        }
+        { use-icon(12, "tooltip", "Question mark"); html.div(id: id, role: "tooltip", tabindex: -1, aria-hidden: true, description) },
     )
     tooltip-counter.step()
 }
 
 // Displays a foldable details block or just the content in paged export.
-#let folding-details(title: none , open: false , body) = context
+#let folding-details(title: none, open: false, body) = context
 {
     assert.ne(title, none)
-    if target() == "paged"
-    { emph(underline(title)) parbreak() body }
+    if target() == "paged" { emph(underline(title)); parbreak(); body }
     else
     {
-        html.details
-        (class: "folding-details", open: open, { html.summary({ icon(16, "chevron-right", "Expand"); title }) body },)
+        html.details(class: "folding-details", open: open, { html.summary({ icon(16, "chevron-right", "Expand"); title }); body })
     }
 }
 
@@ -190,11 +149,8 @@ html.small(body)
             ((i, s)) =>
             {
                 let even = calc.even(i)
-                if target() == "paged"
-                { if even { s } else { raw(s) } }
-                else
-                { if even { html.span(s) } else { html.code(s) } }
-            }
+                if target() == "paged" { if even { s } else { raw(s) } } else { if even { html.span(s) } else { html.code(s) } }
+            },
         )
         .join()
 }
@@ -202,8 +158,7 @@ html.small(body)
 // Displays a search box.
 //
 // Only support in the web output.
-#let search-box(..props) = html.div
-(class: "search", { icon(16, "search-gray", "Search") html.input(type: "search",..props) },)
+#let search-box(..props) = html.div(class: "search", { icon(16, "search-gray", "Search"); html.input(type: "search", ..props) })
 
 // Displays an informational callout.
 #let info(body) = context
@@ -212,19 +167,14 @@ html.small(body)
     {
         block
         (
-            stroke: colors.blue.at("shade-50") + 0.5pt,
-            fill: colors.blue.at("shade-05"),
+            stroke: colors.blue.shade-50 + 0.5pt,
+            fill: colors.blue.shade-05,
             radius: 0.5em,
             inset: 1em,
-            {
-                block
-                (sticky: true , strong(delta: 0, text(fill: colors.blue.at("shade-80"), size: sizes.small,)[INFO]),)
-                body
-            },
+            { block(sticky: true, strong(delta: 0, text(fill: colors.blue.shade-80, size: sizes.small)[INFO])); body },
         )
     }
-    else
-    { html.div(class: "info-box", body) }
+    else { html.div(class: "info-box", body) }
 }
 
 // Displays a keyboard shortcut. Takes a string rather than content.
@@ -232,20 +182,11 @@ html.small(body)
 {
     if target() == "paged"
     {
-        set text(fill: colors.light-gray.at("shade-70"))
+        set text(fill: colors.light-gray.shade-70)
         let r = 3pt
-        box
-        (
-            fill: colors.light-gray.at("shade-05"),
-            stroke: colors.light-gray.at("shade-30") + 0.75pt,
-            outset: (y: r),
-            inset: (x: r),
-            radius: r,
-            raw(shortcut),
-        )
+        box(fill: colors.light-gray.shade-05, stroke: colors.light-gray.shade-30 + 0.75pt, outset: (y: r), inset: (x: r), radius: r, raw(shortcut))
     }
-    else
-    { html.kbd(shortcut) }
+    else { html.kbd(shortcut) }
 }
 
 // Renders a list with checkmarks as markers.
@@ -263,30 +204,19 @@ html.small(body)
     {
         // Adding a class to a Typst-generated element will become cleaner in the
         // future.
-        show html.elem.where(tag: "ul"): it =>
-        {
-            if "class" in it.attrs { return it }
-            html.elem("ul", attrs: (..it.attrs, class: "checked"), it.body)
-        }
+        show html.elem.where(tag: "ul"): it => { if "class" in it.attrs { return it }; html.elem("ul", attrs: (..it.attrs, class: "checked"), it.body) }
         body
     }
 }
 
 // Use an insertion from the insertions parameter of the docs function, with a
 // possible fallback.
-#let insertion(name, fallback: none) = context
-{ stdx.config.insertions.at(name, default: fallback) }
+#let insertion(name, fallback: none) = context { stdx.config.insertions.at(name, default: fallback) }
 
 // Displays an indicator for a development build.
 #let dev-version-warning() =
-{
-    let body = [Development build#stdx.commit]
-    context if target() == "html"
-    { html.div(class: "dev-version-warning", body) }
-    else
-    { small(body) }
-}
+{ let body = [Development build #stdx.commit]; context if target() == "html" { html.div(class: "dev-version-warning", body) } else { small(body) } }
 
 // Emits category settings as labelled metadata to be picked up and used when
 // generating a sub-category definitions section.
-#let category-settings(..args) = [#metadata(args.named()) <category-settings>]
+#let category-settings(..args) = [#metadata(args.named())<category-settings>]

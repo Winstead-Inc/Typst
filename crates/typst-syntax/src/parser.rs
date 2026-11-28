@@ -644,23 +644,49 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
     {
         if m.0 < p.nodes.len() && p[m].kind().is_stmt() { break; }
 
-        let is_non_callable = m.0 < p.nodes.len() && matches!(
-            p[m].kind(),
-            SyntaxKind::Int
-                | SyntaxKind::Float
-                | SyntaxKind::Bool
-                | SyntaxKind::Str
-                | SyntaxKind::None
-                | SyntaxKind::Auto
-                | SyntaxKind::Array
-                | SyntaxKind::Dict
-                | SyntaxKind::Binary
-                | SyntaxKind::Unary
-                | SyntaxKind::ContentBlock
-        );
-
         let is_detached = p.token.newline.is_some();
         let is_interior_expr = m.0 > p.stmt_node_start && p.nl_mode != AtNewline::Continue;
+
+        let is_non_callable = m.0 < p.nodes.len()
+            &&
+            (
+                matches!
+                (
+                    p[m].kind(),
+                    SyntaxKind::Int
+                        | SyntaxKind::Float
+                        | SyntaxKind::Bool
+                        | SyntaxKind::Str
+                        | SyntaxKind::None
+                        | SyntaxKind::Auto
+                        | SyntaxKind::Array
+                        | SyntaxKind::Dict
+                        | SyntaxKind::Binary
+                        | SyntaxKind::Unary
+                        | SyntaxKind::ContentBlock
+                        | SyntaxKind::LetBinding
+                        | SyntaxKind::SetRule
+                        | SyntaxKind::ShowRule
+                        | SyntaxKind::WhileLoop
+                        | SyntaxKind::ForLoop
+                        | SyntaxKind::FuncReturn
+                        | SyntaxKind::LoopBreak
+                        | SyntaxKind::LoopContinue
+                        | SyntaxKind::DestructAssignment
+                )
+                ||
+                (
+                    is_detached
+                    && matches!
+                    (
+                        p[m].kind(),
+                        SyntaxKind::Conditional
+                            | SyntaxKind::CodeBlock
+                            | SyntaxKind::Contextual
+                            | SyntaxKind::Closure
+                    )
+                )
+            );
 
         let at_args = ! is_non_callable && p.with_nl_mode
         (
@@ -686,8 +712,9 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
             let is_detached_paren = p.token.newline.is_some() && p.token.node.kind() == SyntaxKind::LeftParen;
             let is_interior_detached_paren = is_detached_paren && is_interior_expr;
             let checkpoint = if is_detached_paren { Some(p.checkpoint()) } else { None };
+            let allow_newline_bracket = !is_interior_expr && (!atomic || p.hash_at_line_start);
 
-            let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, allow_bracket) });
+            let had_bracket = p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, allow_bracket, allow_newline_bracket) });
 
             if let Some(cp) = checkpoint
             {
@@ -695,7 +722,11 @@ fn code_expr_prec(p: & mut Parser, atomic: bool , min_prec: u8, allow_bracket: b
                 let mut is_valid_lafs_call = !has_errors;
                 if is_valid_lafs_call && is_interior_detached_paren
                 {
-                    is_valid_lafs_call = p.nodes.last().is_some_and(|args_node|
+                    is_valid_lafs_call = p.nodes[cp.node_len..]
+                        .iter()
+                        .rev()
+                        .find(|node| node.kind() == SyntaxKind::Args)
+                        .is_some_and(|args_node|
                     {
                         let mut non_delim_count = 0usize;
                         let mut has_call_signal = false;
@@ -950,7 +981,7 @@ fn set_rule(p: & mut Parser)
     p.expect(SyntaxKind::Ident);
     while p.eat_if(SyntaxKind::Dot) { p.expect(SyntaxKind::Ident); p.wrap(m2, SyntaxKind::FieldAccess); }
 
-    p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, true); });
+    p.with_nl_mode(AtNewline::StopParBreak, | p | { args(p, true, false); });
     if p.eat_if(SyntaxKind::If) { code_expr_no_bracket(p); }
     p.wrap(m, SyntaxKind::SetRule);
 }
@@ -1284,9 +1315,15 @@ fn array_or_dict_item(p: & mut Parser, state: & mut GroupState)
 }
 
 /// Parses a function call's argument list: `(12pt, y)`.
-fn args(p: & mut Parser, allow_bracket: bool) -> bool
+fn args(p: & mut Parser, allow_bracket: bool, allow_newline_bracket: bool) -> bool
 {
-    if ! p.at(SyntaxKind::LeftParen) && ! p.at(SyntaxKind::LeftBracket) { p.expected("argument list"); }
+    let can_take_bracket = |p: &Parser|
+    {
+        allow_bracket
+            && p.at(SyntaxKind::LeftBracket)
+            && (allow_newline_bracket || p.token.newline.is_none())
+    };
+    if ! p.at(SyntaxKind::LeftParen) && ! can_take_bracket(p) { p.expected("argument list"); }
 
     let m = p.marker();
     let had_paren = p.at(SyntaxKind::LeftParen);
@@ -1319,8 +1356,7 @@ fn args(p: & mut Parser, allow_bracket: bool) -> bool
     (
         AtNewline::StopParBreak, | p |
         {
-            while allow_bracket
-                && p.at(SyntaxKind::LeftBracket)
+            while can_take_bracket(p)
             {
                 had_bracket = true;
                 content_block(p);

@@ -2,7 +2,7 @@
 //
 // Cooperates with `docs/src/live.rs`.
 
-#import "base.typ": (category-settings, folding-details, info, insertion, short-or-long,)
+#import "base.typ": (category-settings, folding-details, info, insertion, short-or-long)
 #import "example.typ": example
 #import "figure.typ": docs-figure
 #import "table.typ": docs-table
@@ -43,16 +43,13 @@
     def-site,
 ) =
 {
-    if def-site == none
-    { return eval(markup, scope: scope, mode: "markup") }
+    if def-site == none { return eval(markup, scope: scope, mode: "markup") }
 
     let live = live-item-data-at-path(def-site.path)
-    if def-site.key not in live
-    { panic("def site was not found:", def-site) }
+    if def-site.key not in live { panic("def site was not found:", def-site) }
 
     let (_, markup, ranges) = live.at(def-site.key)
-    stdx.eval-mapped
-    (markup, def-site.path, ranges, mode: "markup", scope: scope,)
+    stdx.eval-mapped(markup, def-site.path, ranges, mode: "markup", scope: scope)
 }
 
 // Returns a GitHub permalink to the source of an item, including the commit and
@@ -60,8 +57,7 @@
 #let item-source-link(def-site) =
 {
     let live = live-item-data-at-path(def-site.path)
-    if def-site.key not in live
-    { panic("def site was not found:", def-site) }
+    if def-site.key not in live { panic("def site was not found:", def-site) }
 
     let (line, _, _) = live.at(def-site.key)
     let file = stdx.str-from-path(def-site.path)

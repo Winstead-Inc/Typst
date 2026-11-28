@@ -28,7 +28,7 @@
     (
         ("", dictionary(std)),
         // Special values that have documentation, but no definition in std.
-        ("", ("auto": type(auto), "none": type(none),)),
+        ("", ("auto": type(auto), "none": type(none))),
     )
     while work.len() > 0
     {
@@ -36,32 +36,25 @@
         for (name, value) in mod
         {
             let path = if base != "" { base + "." } + name
-            if path in excluded
-            { continue }
+            if path in excluded { continue }
 
             let t = type(value)
-            if t == module
-            { work.push((path, dictionary(value))) }
+            if t == module { work.push((path, dictionary(value))) }
             else if t == type or t == function
             {
                 let info = stdx.describe(value)
                 let scope = info.scope
-                if scope != none
-                { work.push((path, dictionary(scope))) }
-                if t == type and info.constructor != none
-                { work.push((path, (constructor: info.constructor))) }
+                if scope != none { work.push((path, dictionary(scope))) }
+                if t == type and info.constructor != none { work.push((path, (constructor: info.constructor))) }
             }
 
             let entry = (path, value)
             let r = repr(value)
-            if r in result
-            { result.at(r).push(entry) }
-            else
-            { result.insert(r, (entry,)) }
+            if r in result { result.at(r).push(entry) } else { result.insert(r, (entry,)) }
         }
     }
     // Make std itself discoverable.
-    result.insert(repr(std),(("std", std),))
+    result.insert(repr(std), (("std", std),))
     result
 }
 
@@ -75,8 +68,7 @@
 // - `{ let o = outline; std-path-of(o.entry) } == "outline.entry"`
 #let std-path-of(value) =
 {
-    for (path, option) in std-map.at(repr(value), default: ())
-    { if value == option { return path } }
+    for (path, option) in std-map.at(repr(value), default: ()) { if value == option { return path } }
     panic("failed to determine path to: " + repr(value))
 }
 
@@ -104,51 +96,32 @@
 // sort type pills in the docs.)
 #let ty-index-map =
 {
-    let map = ty-categories
+    ty-categories
         .values()
         .flatten()
         .map(repr)
         .enumerate()
         .map(((k, v)) => (v, k))
         .to-dict()
-    map.insert(repr("any"), 10000)
-    map
+    ((repr("any")): 10000)
 }
 
 // Maps from a special type's repr to how it should be displayed. Other types
 // use normal `repr`.
-#let ty-name-map = ("\"any\"": "any", repr(type(auto)): "auto", repr(type(none)): "none",)
+#let ty-name-map = ("\"any\"": "any", repr(type(auto)): "auto", repr(type(none)): "none")
 
 // Turns a cast info into a flat array containing types and/or the string
 // `"any"`.
 #let flat-types(info) =
 {
-    if info.kind == "union"
-    {
-        info
-            .infos
-            .map(flat-types)
-            .flatten()
-            .sorted(key: k => ty-index-map.at(repr(k)))
-            .dedup()
-    }
-    else if info.kind == "type"
-    { (info.ty,) }
-    else if info.kind == "any"
-    { ("any",) }
-    else if info.kind == "value" and type(info.value) == str
-    { (str,) }
-    else
-    { () }
+    if info.kind == "union" { info.infos.map(flat-types).flatten().sorted(key: k => ty-index-map.at(repr(k))).dedup() }
+    else if info.kind == "type" { (info.ty,) }
+    else if info.kind == "any" { ("any",) } else if info.kind == "value" and type(info.value) == str { (str,) } else { () }
 }
 
 // Extracts all concrete strings and their details from a cast info.
 #let cast-strings(info) =
 {
-    if info.kind == "union"
-    { info.infos.map(cast-strings).join() }
-    else if info.kind == "value" and type(info.value) == str
-    { ((info.value, info.details),) }
-    else
-    { () }
+    if info.kind == "union" { info.infos.map(cast-strings).join() }
+    else if info.kind == "value" and type(info.value) == str { ((info.value, info.details),) } else { () }
 }

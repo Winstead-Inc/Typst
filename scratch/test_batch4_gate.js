@@ -123,7 +123,120 @@ assert(appJsCode.includes("[a-zA-Z_][a-zA-Z0-9_-]*"), "App.js Monarch must use h
 assert(appJsCode.includes("codemode:"), "App.js Monarch must separate codemode");
 assert(appJsCode.includes("mathmode:"), "App.js Monarch must separate mathmode");
 assert(appJsCode.includes("markupmode:"), "App.js Monarch must separate markupmode");
-console.log("  PASS: Monaco Monarch Tokenizer verified with hyphenated IDs and mode separation.");
+assert(appJsCode.includes("`{3,}[a-zA-Z0-9_\\-+]*\\s*"), "App.js Monarch must match triple-or-more backtick fences");
+
+// Ensure triple-or-more backtick fence rule appears BEFORE single backtick inline span in root and codemode
+const rootIdx = appJsCode.indexOf("root:");
+const fenceInRoot = appJsCode.indexOf("`{3,}[a-zA-Z0-9_\\-+]*\\s*", rootIdx);
+const inlineInRoot = appJsCode.indexOf("`[^`\\n]*`", rootIdx);
+assert(fenceInRoot !== -1 && inlineInRoot !== -1, "Must find fence and inline rules in root");
+assert(fenceInRoot < inlineInRoot, "Fenced raw block rule must precede inline raw span in root");
+
+// Test tokenization of triple-backtick fences with single backticks nearby
+const testSnippet = [
+    "Here is `initial inline raw` code.",
+    "```example",
+    ">>> #set page(numbering: \"1\")",
+    "This is inside a raw block with `some nested ticks`.",
+    "```",
+    "Prose text after fence should NOT be raw block! Here is `inline raw 2` in prose.",
+    "Another prose line: check `\"1\"` and `\"i\"` numerals.",
+    "````typst",
+    "fn test() { return `4-tick`; }",
+    "````",
+    "Final prose text with `inline`."
+];
+
+// Extract tokenizer object from App.js dynamically to execute live simulation
+const startMonarch = appJsCode.indexOf("monaco.languages.setMonarchTokensProvider");
+assert(startMonarch !== -1, "Must find setMonarchTokensProvider");
+const endMonarch = appJsCode.indexOf("monaco.editor.defineTheme", startMonarch);
+assert(endMonarch !== -1, "Must find defineTheme");
+const monarchCallCode = appJsCode.slice(startMonarch, endMonarch);
+
+let capturedMonarch = null;
+const mockMonaco = {
+    languages: {
+        setMonarchTokensProvider: (lang, def) => { capturedMonarch = def; }
+    }
+};
+vm.runInNewContext(monarchCallCode, { monaco: mockMonaco });
+assert(capturedMonarch && capturedMonarch.tokenizer, "Must extract Monarch definition");
+
+function simulateMonarch(lines) {
+    let stateStack = ["root"];
+    const results = [];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let pos = 0;
+        const tokens = [];
+        while (pos < line.length) {
+            const state = stateStack[stateStack.length - 1];
+            let rules = capturedMonarch.tokenizer[state];
+            if (state === "markupmode") {
+                rules = [
+                    [/\[/, "@brackets", "@push"],
+                    [/\]/, "@brackets", "@pop"],
+                    ...capturedMonarch.tokenizer.root
+                ];
+            }
+            const slice = line.slice(pos);
+            let matched = false;
+            for (const rule of rules) {
+                if (rule.include) continue;
+                const m = slice.match(new RegExp(`^(?:${rule[0].source})`));
+                if (m) {
+                    matched = true;
+                    const matchedStr = m[0];
+                    tokens.push({ str: matchedStr, token: rule[1], state });
+                    pos += matchedStr.length;
+                    const next = rule[2];
+                    if (next === "@pop") { stateStack.pop(); }
+                    else if (next === "@push") { stateStack.push(state); }
+                    else if (next && next.startsWith("@")) { stateStack.push(next.slice(1)); }
+                    break;
+                }
+            }
+            if (!matched) {
+                tokens.push({ str: line[pos], token: "", state });
+                pos++;
+            }
+        }
+        results.push({ lineIndex: i + 1, line, tokens, stateAfter: stateStack[stateStack.length - 1] });
+    }
+    return results;
+}
+
+const sim1 = simulateMonarch(testSnippet);
+assert.strictEqual(sim1[0].stateAfter, "root", "Line 1 must be root");
+assert.strictEqual(sim1[1].stateAfter, "rawblock", "Line 2 must enter rawblock on ```example");
+assert.strictEqual(sim1[3].stateAfter, "rawblock", "Line 4 with nested ticks must stay in rawblock");
+assert.strictEqual(sim1[4].stateAfter, "root", "Line 5 closing fence ``` must pop to root");
+assert.strictEqual(sim1[5].stateAfter, "root", "Line 6 prose after fence must be in root");
+assert.strictEqual(sim1[7].stateAfter, "rawblock", "Line 8 4-tick fence ```` must enter rawblock");
+assert.strictEqual(sim1[9].stateAfter, "root", "Line 10 4-tick closing fence ```` must pop to root");
+assert.strictEqual(sim1[10].stateAfter, "root", "Line 11 final prose must be in root");
+
+// Verify real file docs/content/guides/page-setup.typ lines 163-195
+const pageSetupFile = path.resolve(__dirname, "..", "docs", "content", "guides", "page-setup.typ");
+if (fs.existsSync(pageSetupFile)) {
+    const pageSetupContent = fs.readFileSync(pageSetupFile, "utf8");
+    const pageSetupLines = pageSetupContent.split(/\r?\n/);
+    const sim2 = simulateMonarch(pageSetupLines);
+    // Line 168 (index 167) is closing ```
+    assert.strictEqual(sim2[167].stateAfter, "root", "page-setup.typ line 168 must pop to root");
+    // Line 170 (index 169) is prose
+    assert.strictEqual(sim2[169].stateAfter, "root", "page-setup.typ line 170 prose must be in root");
+    // Line 177 (index 176) is closing ```
+    assert.strictEqual(sim2[176].stateAfter, "root", "page-setup.typ line 177 must pop to root");
+    // Line 186 (index 185) is closing ```
+    assert.strictEqual(sim2[185].stateAfter, "root", "page-setup.typ line 186 must pop to root");
+    // Line 188 (index 187) is prose
+    assert.strictEqual(sim2[187].stateAfter, "root", "page-setup.typ line 188 prose must be in root");
+    // Line 193 (index 192) is prose
+    assert.strictEqual(sim2[192].stateAfter, "root", "page-setup.typ line 193 prose must be in root");
+}
+console.log("  PASS: Monaco Monarch Tokenizer verified with triple-or-more backtick fences and nearby single backticks.");
 
 // ---------------------------------------------------------------------------
 // 4. Document Outline Extraction

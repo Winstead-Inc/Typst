@@ -21,31 +21,18 @@
     shadow: true,
 ) =
 {
-    assert.ne(alt, none , message: "alt text is required")
+    assert.ne(alt, none, message: "alt text is required")
     let img = image(stdx.read-dev-asset(filename))
     context if target() == "paged"
     {
         set align(center)
         let ratio = 0.75pt
-        show: rest => if width != none
-        { constrain(width: width * ratio, rest) }
-        else
-        { rest }
+        show: rest => if width != none { constrain(width: width * ratio, rest) } else { rest }
 
-        if shadow
-        { figure(boxy-block(img)) }
-        else
-        { figure(img) }
+        if shadow { figure(boxy-block(img)) } else { figure(img) }
     }
-    else
-    { html.figure(..if shadow { (class: "shadow") },..if width != none { (style: "width: " + str(width) + "px") }, img,) }
+    else { html.figure(..if shadow { (class: "shadow") }, ..if width != none { (style: "width: " + str(width) + "px") }, img) }
 }
 
 // Displays two figures side-by-side.
-#let side-by-side(l, r) = context
-{
-    if target() == "paged"
-    { grid(columns: (1fr, 1fr), gutter: 0.5em, l, r,) }
-    else
-    { html.div(class: "side-by-side", l + r) }
-}
+#let side-by-side(l, r) = context { if target() == "paged" { grid(columns: (1fr, 1fr), gutter: 0.5em, l, r) } else { html.div(class: "side-by-side", l + r) } }

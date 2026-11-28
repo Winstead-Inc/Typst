@@ -1,0 +1,82 @@
+name: Cross-Platform CI (Windows, macOS, Linux)
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cross-platform-build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Linux Tauri & WebKit dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libgtk-3-dev
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@f0deed1e0edfc6a9be95417288c0e1099b1eeec3 # v2.7.7
+        with:
+          workspaces: |
+            .
+            TypstStudio/src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Test typst-syntax crate
+        run: cargo test --locked -p typst-syntax
+
+      - name: Build typst-cli binary
+        run: cargo build --locked --release -p typst-cli
+
+      - name: Verify built typst binary
+        shell: bash
+        run: |
+          EXT=""
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            EXT=".exe"
+          fi
+          "./target/release/typst${EXT}" --version
+
+      - name: Run TypstStudio Rust backend tests (src-tauri)
+        run: cargo test --locked --manifest-path TypstStudio/src-tauri/Cargo.toml
+
+      - name: Syntax-check & test TypstStudio Node server and frontend
+        shell: bash
+        run: |
+          node --check TypstStudio/Server.js
+          node --check TypstStudio/public/App.js
+          node tests/test_cross_platform_studio.js

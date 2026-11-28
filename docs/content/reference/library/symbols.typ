@@ -1,4 +1,17 @@
-#import "../../../components/index.typ": (classnames, colors, docs-category, docs-section, fonts, icon, paged-heading-offset, prose-styling, search-box, ty-pill, use-icon,)
+#import "../../../components/index.typ":
+(
+    classnames,
+    colors,
+    docs-category,
+    docs-section,
+    fonts,
+    icon,
+    paged-heading-offset,
+    prose-styling,
+    search-box,
+    ty-pill,
+    use-icon,
+)
 
 // Symbols that are not rendered as themselves because they would be invisible.
 #let symbol-overrides =
@@ -26,17 +39,7 @@
 )
 
 // Additional keywords for some symbols. Used to improve symbol search.
-#let symbol-keywords =
-(
-    "ħ": ("hbar",),
-    "⇒": ("implies",),
-    "⟹": ("implies",),
-    "⇔": ("iff",),
-    "⅋": ("par",),
-    "א": ("alef",),
-    "ב": ("bet",),
-    "ד": ("dalet",),
-)
+#let symbol-keywords = ("ħ": ("hbar",), "⇒": ("implies",), "⟹": ("implies",), "⇔": ("iff",), "⅋": ("par",), "א": ("alef",), "ב": ("bet",), "ד": ("dalet",))
 
 // Human-facing names of the math classes.
 #let math-class-names =
@@ -68,14 +71,15 @@
     "Twitter Color Emoji",
 )
 
-#let copy-button() = html.button(class: "copy", icon(16, "copy", "Copy"),)
+#let copy-button() = html.button(class: "copy", icon(16, "copy", "Copy"))
 
 // The HTML template that is instantiated for the popup.
 #let flyout-template() =
 {
     html.template
     (
-        id: "flyout-template", html.div
+        id: "flyout-template",
+        html.div
         (
             class: "symbol-flyout",
             {
@@ -89,27 +93,27 @@
                             class: "props",
                             {
                                 html.h3(html.span(class: "unic-name"))
-                                html.p(class: "sym-deprecation", { use-icon(16, "warn", "Warning") html.span(class: "text")[This symbol is deprecated] })
-                                html.p(class: "sym-name", { [Name:] html.code() copy-button() })
-                                html.p(class: "shorthand", { [Shorthand:] html.code(class: "typ-escape") copy-button() html.span(class: "remark") })
-                                html.p(class: "escape", { [Escape:] html.code(class: "typ-escape", html.span(class: "value"),) copy-button() })
-                                html.p(class: "accent", { [Accent:] icon(16, "check", "Yes") })
-                                html.p(class: "math-class", { [Math Class:] html.span(class: "value") })
-                                html.p(class: "latex-name", { [LaTeX:] html.code() })
-                            }
+                                html.p(class: "sym-deprecation", { use-icon(16, "warn", "Warning"); html.span(class: "text")[This symbol is deprecated] })
+                                html.p(class: "sym-name", { [Name: ]; html.code(); copy-button() })
+                                html.p(class: "shorthand", { [Shorthand: ]; html.code(class: "typ-escape"); copy-button(); html.span(class: "remark") })
+                                html.p(class: "escape", { [Escape: ]; html.code(class: "typ-escape", html.span(class: "value")); copy-button() })
+                                html.p(class: "accent", { [Accent: ]; icon(16, "check", "Yes") })
+                                html.p(class: "math-class", { [Math Class: ]; html.span(class: "value") })
+                                html.p(class: "latex-name", { [LaTeX: ]; html.code() })
+                            },
                         )
-                    }
+                    },
                 )
-                html.div(class: "variants-box", { html.h4[Variants] html.ul(class: "symbol-grid") })
-            }
-        )
+                html.div(class: "variants-box", { html.h4[Variants]; html.ul(class: "symbol-grid") })
+            },
+        ),
     )
 
     html.template(id: "flyout-sym-row", { html.li(html.button(html.span(class: "sym"))) })
 }
 
 // One list entry in a symbol list or cell in a symbol grid.
-#let symbol-entry(name, value, deprecation, alternates, shorthand: false ,) =
+#let symbol-entry(name, value, deprecation, alternates, shorthand: false) =
 {
     let attrs =
     (
@@ -125,8 +129,7 @@
         data-alternates: alternates.join(" ", default: none),
         data-markup-shorthand: stdx.shorthands.markup.at(value, default: none),
         data-math-shorthand: stdx.shorthands.math.at(value, default: none),
-        data-math-class:
-        { let class = stdx.math-class(value) if class != none { math-class-names.at(class) } },
+        data-math-class: { let class = stdx.math-class(value); if class != none { math-class-names.at(class) } },
         data-override: symbol-overrides.at(value, default: none),
         data-deprecation: deprecation,
     )
@@ -135,8 +138,8 @@
 
     context if target() == "paged"
     {
-        let style = if value in symbol-overrides { (fill: colors.dark-gray.shade - 10, weight: 500, style: "italic") }
-        box(width: 5em, h(1fr) + text(font: symbol-fonts,..style, body) + h(1em))
+        let style = if value in symbol-overrides { (fill: colors.dark-gray.shade-10, weight: 500, style: "italic") }
+        box(width: 5em, h(1fr) + text(font: symbol-fonts, ..style, body) + h(1em))
         let wrapper = if deprecation != none { strike } else { it => it }
         if shorthand { text(fill: colors.text.syntax.teal, wrapper(raw(name))) } else { wrapper(raw(name)) }
     }
@@ -149,7 +152,7 @@
             html.button
             ({
                 html.span(class: "sym", body)
-                html.code(..if shorthand { (class: "typ-escape") }, if not shorthand { show ".": it => it + html.wbr() name } else { name },)
+                html.code(..if shorthand { (class: "typ-escape") }, if not shorthand { show ".": it => it + html.wbr(); name } else { name })
             }),
         )
     }
@@ -162,11 +165,7 @@
     for (name, s) in dictionary(mod)
     {
         if type(s) == module
-        {
-            let nested-prefix = if prefix == none { name } else { prefix + "." + name }
-            entries + = symbol-list-entries(s, nested-prefix)
-            continue
-        }
+        { let nested-prefix = if prefix == none { name } else { prefix + "." + name }; entries += symbol-list-entries(s, nested-prefix); continue }
 
         let info = stdx.describe(s)
         let binding = stdx.binding(mod, name)
@@ -175,16 +174,12 @@
         {
             if deprecation == none and binding.deprecation != none { deprecation = binding.deprecation.message }
 
-            let complete(v) =
-            { if prefix != none { prefix + "." } name if v != "" { "." + v } }
+            let complete(v) = { if prefix != none { prefix + "." }; name; if v != "" { "." + v } }
 
             let full-name = complete(variant)
-            let alternates = info
-                .variants
-                .map(((variant,..)) => complete(variant))
-                .filter(v => v != full-name)
+            let alternates = info.variants.map(((variant, ..)) => complete(variant)).filter(v => v != full-name)
 
-            entries.push((value, symbol-entry(full-name, value, deprecation, alternates,),))
+            entries.push((value, symbol-entry(full-name, value, deprecation, alternates)))
         }
     }
     entries
@@ -196,10 +191,8 @@
 // website export.
 #let symbol-list(entries, emoji: false) =
 {
-    context if target() == "paged" { columns(2, list(..entries, marker: none)) } else
-    {
-        html.ul(class: classnames("symbol-grid", emoji: emoji), entries.join(),)
-    }
+    context if target() == "paged" { columns(2, list(..entries, marker: none)) }
+    else { html.ul(class: classnames("symbol-grid", emoji: emoji), entries.join()) }
 }
 
 // A list / grid of symbols with their names.
@@ -209,28 +202,25 @@
     if emoji
     {
         // Order entries in CLDR order.
-        entries = entries.sorted(key: ((value, entry)) => value, by: stdx.emoji-ordering,)
+        entries = entries.sorted(key: ((value, entry)) => value, by: stdx.emoji-ordering)
     }
-    symbol-list(entries.map(((_, entry)) => entry), emoji: emoji,)
+    symbol-list(entries.map(((_, entry)) => entry), emoji: emoji)
 }
 
 // A list / grid of symbols with their shorthands.
 #let symbol-shorthand-list(shorthands) =
-{
-    let entries = shorthands.pairs().map(((value, shorthand)) => { symbol-entry(shorthand, value, none , (), shorthand: true ,) })
-    symbol-list(entries)
-}
+{ let entries = shorthands.pairs().map(((value, shorthand)) => { symbol-entry(shorthand, value, none, (), shorthand: true) }); symbol-list(entries) }
 
-#docs-category(title: "Symbols", description: "Predefined symbols in Typst.", category: "symbols",)
+#docs-category(title: "Symbols", description: "Predefined symbols in Typst.", category: "symbols")
 [
-    The @ sym and @ emoji modules give names to symbols and emoji to make them easy to insert with a normal keyboard.Alternatively, you can also always directly enter Unicode symbols into your text and formulas.In addition to the symbols listed below, math mode defines `dif` and `Dif`.These are not normal symbol values because they also affect spacing and font style.
+    The @sym and @emoji modules give names to symbols and emoji to make them easy to insert with a normal keyboard. Alternatively, you can also always directly enter Unicode symbols into your text and formulas. In addition to the symbols listed below, math mode defines `dif` and `Dif`. These are not normal symbol values because they also affect spacing and font style.
 
-    You can define custom symbols with the constructor function of the @ symbol type.
+    You can define custom symbols with the constructor function of the @symbol type.
 
     = Shorthands <shorthands>
-    Shorthands are concise sequences of characters that evoke specific glyphs.Shorthands and other ways to produce symbols can be used interchangeably.You can use different sets of shorthands in math and markup mode.Some shorthands, like `~` for a non-breaking space produce non-printing symbols, which are indicated with gray placeholder text.
+    Shorthands are concise sequences of characters that evoke specific glyphs. Shorthands and other ways to produce symbols can be used interchangeably. You can use different sets of shorthands in math and markup mode. Some shorthands, like `~` for a non-breaking space produce non-printing symbols, which are indicated with gray placeholder text.
 
-    You can deactivate a shorthand ' s interpretation by escaping any of its characters.If you escape a single character in a shorthand, the remaining unescaped characters may form a different shorthand.
+    You can deactivate a shorthand's interpretation by escaping any of its characters. If you escape a single character in a shorthand, the remaining unescaped characters may form a different shorthand.
 
     == Within Markup Mode <within-markup-mode>
     #symbol-shorthand-list(stdx.shorthands.markup)
@@ -241,27 +231,25 @@
     #context if target() == "html" { flyout-template() }
 ]
 
-#let symbols-section(..args, mod: none , emoji: false , body) = docs-section
-(
-    ..args,
-    kind: "Symbol list",
-    {
-        prose-styling(body)
-        context if target() == "html"
+#let symbols-section(..args, mod: none, emoji: false, body) =
+    docs-section
+    (
+        ..args,
+        kind: "Symbol list",
         {
-            html.div
-            (
-                class: "symbol-hint",
-                {
-                    par[Click on a#ty-pill(symbol) to copy it to the clipboard.]
-                    search-box(id: "symbol-search", placeholder: "Search in symbols")
-                }
-            )
-        }
-        symbol-name-list(mod, emoji: emoji)
-        context if target() == "html" { flyout-template() }
-    },
-)
+            prose-styling(body)
+            context if target() == "html"
+            {
+                html.div
+                (
+                    class: "symbol-hint",
+                    { par[Click on a #ty-pill(symbol) to copy it to the clipboard.]; search-box(id: "symbol-search", placeholder: "Search in symbols") },
+                )
+            }
+            symbol-name-list(mod, emoji: emoji)
+            context if target() == "html" { flyout-template() }
+        },
+    )
 
 #show: paged-heading-offset.with(1)
 
@@ -276,9 +264,9 @@
 [
     Named general symbols.
 
-    For example, `[#sym.arrow]` produces the → symbol.Within @ math[math], these symbols can be used without the `[#sym.]` prefix.
+    For example, `[#sym.arrow]` produces the → symbol. Within @math[math], these symbols can be used without the `[#sym.]` prefix.
 
-    The `d` in an integral ' s `dx` can be written as `[$dif x$]`.Outside math formulas, `dif` can be accessed as `math.dif`.
+    The `d` in an integral's `dx` can be written as `[$dif x$]`. Outside math formulas, `dif` can be accessed as `math.dif`.
 ]
 
 #symbols-section
@@ -293,5 +281,5 @@
 [
     Named emojis.
 
-    For example, `[#emoji.face]` produces the 😀 emoji.If you frequently use certain emojis, you can also import them from the `emoji` module(`[#import emoji: face]`) to use them without the `emoji.` prefix.
+    For example, `[#emoji.face]` produces the 😀 emoji. If you frequently use certain emojis, you can also import them from the `emoji` module (`[#import emoji: face]`) to use them without the `emoji.` prefix.
 ]

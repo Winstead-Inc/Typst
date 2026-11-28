@@ -29,13 +29,11 @@
 
     // The config element and the `docs` function can be merged once we have
     // custom types.
-    set stdx.config
-    (content-base: content-base, asset-base: asset-base, insertions: insertions,)
+    set stdx.config(content-base: content-base, asset-base: asset-base, insertions: insertions)
 
     show: components.styling
 
-    context if target() == "bundle"
-    { include "assets/index.typ" }
+    context if target() == "bundle" { include "assets/index.typ" }
 
     include "content/index.typ"
     extra-chapters
