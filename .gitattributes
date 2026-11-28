@@ -2,4 +2,3 @@
 tests/ref/** linguist-vendored
 NOTICE linguist-vendored
 TypstStudio/bin/*.exe filter=lfs diff=lfs merge=lfs -text
-docs/LAFS.exe filter=lfs diff=lfs merge=lfs -text

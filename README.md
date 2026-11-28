@@ -232,6 +232,20 @@ node tests/test_cross_platform_studio.js
 
 Then open your browser to `http://127.0.0.1:3000` to begin editing and previewing your documents.
 
+### Git LFS & Repository Binary Policy
+
+Prebuilt Windows binaries under `TypstStudio/bin/*.exe` (such as `TypstStudio/bin/typst.exe`) are stored in **Git LFS** (`.gitattributes` scopes LFS exclusively to `TypstStudio/bin/*.exe`, while `.gitignore` blocks scratch `.exe` files elsewhere in the tree). After cloning, initialize Git LFS and pull the Windows binary once if needed:
+
+```sh
+git lfs install
+git lfs pull
+```
+
+GitHub Actions workflows (`.github/workflows/cross-platform-ci.yml` and `.github/workflows/release.yml`) build `typst` and Typst Studio directly from source with `GIT_LFS_SKIP_SMUDGE=1` and `lfs: false` on every checkout step so CI runners never consume monthly Git LFS bandwidth quotas.
+
+> [!IMPORTANT]
+> **Contributor Notice (Quota Conservation):** Do not commit unnecessary recompiles of `TypstStudio/bin/typst.exe` alongside unrelated documentation, frontend, or backend edits. Each updated binary snapshot adds ~179 MB to Git LFS storage and download bandwidth quotas; only update `TypstStudio/bin/typst.exe` when shipping an intentional compiler/parser binary release.
+
 ## Community
 
 The main places where the community gathers are our [Forum][forum] and our [Discord server][discord]. The Forum is a great place to ask questions, help others, and share cool  things you created with Typst. The Discord server is more suitable for quicker questions, discussions about contributing, or just to chat. We'd be happy to see you there!

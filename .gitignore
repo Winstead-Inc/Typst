@@ -19,21 +19,27 @@ docs/dist
 
 # Rust
 /target
+target/
+TypstStudio/src-tauri/target/
 **/target_test
 **/*.rs.bk
+*.pdb
 
 # Node
 node_modules
 tools/test-helper/dist
 package-lock.json
 
-# TypstStudio local caches and build binaries
+# TypstStudio local caches, scratch files, and build binaries
+.preview_*.typ
 TypstStudio/bin/*
 !TypstStudio/bin/.gitkeep
 TypstStudio/.temp/
 TypstStudio/.workspace_config.json
 TypstStudio Backup/
+*.exe
 LAFS.exe
+docs/LAFS.exe
 
 # Nix
 /result
